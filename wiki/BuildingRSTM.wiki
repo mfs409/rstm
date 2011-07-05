@@ -7,3 +7,7 @@ This page is a stub.  It will eventually have instructions on how to configure a
   * Library API: This target is suitable for SPARC, and for x86 on platforms that do not have the Intel transactional C++ compiler
 
   * CXXTM API: This target is suitable for x86 platforms that have the Intel transactional C++ compiler
+
+== Stub Notes ==
+
+We should describe every build option, what it means, and how to use it.
