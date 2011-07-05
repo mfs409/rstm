@@ -57,7 +57,7 @@ RSTM options are defined in `<RSTM>/UserConfig.cmake`. These options control the
 
   * `rstm_enable_itm`: ON enables executable builds that link directly with Intel's built-in `libitm.a` library. This option is only available if cmake finds a C++ STM compatible compiler who's ID matches Intel.
 
-  * `rstm_enable_newbench`: ON enables the RSTM newbench set of microbenchmarks. The actual benchmarks that are buit depend on your selections for using 32 and/or 64 bits, as well as your selection for `rstm_enable_itm2stm` and `rstm_enable_itm` (in the case where Intel's C++ STM compiler was detected).
+  * `rstm_enable_newbench`: ON enables the RSTM newbench set of microbenchmarks. The actual benchmarks that are built depend on your selections for using 32 and/or 64 bits, as well as your selection for `rstm_enable_itm2stm` and `rstm_enable_itm` (in the case where Intel's C++ STM compiler was detected).
 
   * `rstm_enable_stamp`: ON builds the distributed stamp benchmarks. 32 and/or 64 bit versions will be built depending on your configuration.
 
