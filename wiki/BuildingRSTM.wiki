@@ -1,4 +1,5 @@
 #summary Description of how to build RSTM
+#labels Phase-Deploy
 
 = Introduction =
 
