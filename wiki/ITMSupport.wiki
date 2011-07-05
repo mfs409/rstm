@@ -1,0 +1,29 @@
+= ITM Support In RSTM =
+
+The 7th release of RSTM includes experimental support for [http://software.intel.com/en-us/articles/intel-c-stm-compiler-prototype-edition/#ABI Intel's TM ABI] which allows RSTM, when properly configured, to be linked into an application compiled using [http://software.intel.com/en-us/articles/intel-c-stm-compiler-prototype-edition/ Intel's prototype C++ STM Compiler].
+
+We use a _shim library_ approach to provide this support, based loosely on the description published in [http://www.cs.purdue.edu/transact11/web/papers/Kestor.pdf TRANSACT'11]. The shim library can be enabled with the cmake `rstm_enable_itm2stm` configuration option (see [BuildingRSTM] for more details on cmake configuration). This will force certain configuration parameters in the `libstm.a` build to be ITM compatible, including support for byte logging, _cancel-and-throw_, and stack protection. It will also enable the build of the shim library itself, `libitm2stm.a`.
+
+The build of `libitm2stm.a` is in no way dependent on the Intel compiler itself, it is simply a standard library built with your configured C++ compiler (likely `gcc`). Once you have built `libitm2stm.a` and `libstm.a` you can simply link `icc-tm` generated object files with your favorite compiler, passing the two RSTM libraries with -l (or using the full path to the `.a`s, sometimes a safer option).
+
+As an example, consider a simplified example for the commands we use to build the CounterBenchSHIM64 benchmark (SHIM indicates that this is using the shim library, as opposed to just `libstm.a` or Intel's `libitm.a`, and the 64 means that this is a 64-bit build).
+
+{{{
+g++ -DITM2STM -DSTM_API_CXXTM -Wall -msse2 -mfpmath=sse -march=core2 -mtune=core2 -include itm/itm.h  -O3 -g -I/u/luked/transact/adaptive -I/<RSTM>/include -I/<RSTM>/build/include -I/<RSTM>/newbench -m64 -o CMakeFiles/DListBenchSHIM64.dir/bmharness.cpp.o -c /<RSTM>/newbench/bmharness.cpp
+icpc -Qtm_enabled -DITM2STM -DSTM_API_CXXTM -Wall -wd981,1599 -vec_report0 -O3 -g -xSSE3 -I/<RSTM>/adaptive -I/<RSTM>/include -I/<RSTM>/build/include -I/<RSTM>/newbench -m64 -o CMakeFiles/DListBenchSHIM64.dir/DListBench.o -c -x c++ /<RSTM>/build/newbench/DListBench.cxxtm
+g++ -O3 -g -m64 -L/intel/Compiler/11.0/610/lib/intel64 -L/lib CMakeFiles/DListBenchSHIM64.dir/bmharness.cpp.o CMakeFiles/DListBenchSHIM64.dir/DListBench.o  -o DListBenchSHIM64 -rdynamic -lirc ../libitm2stm/libitm2stm64.a -lpthread ../libstm/libstm64.a -lrt -Wl,-rpath,/intel/Compiler/11.0/610/lib/intel64
+}}}
+
+There are a number of useful things to note here.
+
+  # We mix two compilers here, using g++ to compile non-C++ STM code and icc to compile the C++ STM code, and using g++ to link. There is no problem doing this, except that Intel's compiler will implicitly use symbols from their own `-lirc` library. Intel's `iccvars` script explicitly embeds either the 64-bit or32-bit paths to this library in your environment, however we want to be independent of this so that `-m32` and `-m64` always work. For this reason we are adding the correct path as a `-L` and `-Wl,-rpath` flag.
+  # On Linux `libstm.a` needs `-lrt`.
+  # The RSTM libraries have the "64" suffix because this is a 64-bit build.
+  # `libitm64.a` and `libitm2stm64.a` are fully specified. They could be `-l` instead, this is simply a cmake decision.
+  # *`libitm2stm.a` must appear before `libstm.a` on the link line.*
+
+== Implemented Features ==
+
+== Known Limitations ==
+
+= C++ TM Executables =
