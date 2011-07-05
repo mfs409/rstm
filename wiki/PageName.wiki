@@ -1,5 +1,0 @@
-#summary Instructions on how to build RSTM
-
-= Introduction =
-
-This page is a stub.  It will eventually have details on how to build RSTM for use as a library STM, as well as for use with the Intel Transactional C++ Compiler.
