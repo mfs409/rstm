@@ -57,7 +57,7 @@ RSTM options are defined in `<RSTM>/UserConfig.cmake`. These options control the
 
   * `rstm_enable_itm`: ON enables executable builds that link directly with Intel's built-in `libitm.a` library. This option is only available if cmake finds a C++ STM compatible compiler who's ID matches Intel.
 
-  * `rstm_enable_newbench`: ON enables the RSTM newbench set of microbenchmarks. The actual benchmarks that are built depend on your selections for using 32 and/or 64 bits, as well as your selection for `rstm_enable_itm2stm` and `rstm_enable_itm` (in the case where Intel's C++ STM compiler was detected).
+  * `rstm_enable_bench`: ON enables the RSTM bench set of microbenchmarks. The actual benchmarks that are built depend on your selections for using 32 and/or 64 bits, as well as your selection for `rstm_enable_itm2stm` and `rstm_enable_itm` (in the case where Intel's C++ STM compiler was detected).
 
   * `rstm_enable_stamp`: ON builds the distributed stamp benchmarks. 32 and/or 64 bit versions will be built depending on your configuration.
 
@@ -83,13 +83,13 @@ libstm options are defined in `<RSTM>/libstm/UserConfig.cmake`. These options co
 
   * `libstm_enable_cancel_and_throw`: The C++ STM Draft standard permits _cancel-and-throw_ semantics, where a user can throw an exception out of a transaction that also aborts the transaction. In such circumstances writes to the exception object itself must be visible externally, after the transaction aborts. This option enables the library infrastructure to support this behavior. *This option is required by libitm2stm and is thus forced ON if `rstm_enable_itm2stm` is enabled.*
 
-=== newbench Options ===
+=== bench Options ===
 
-Newbench options are defined in `<RSTM>/newbench/UserConfig.cmake` and control how the newbench build occurs.
+Bench options are defined in `<RSTM>/bench/UserConfig.cmake` and control how the bench build occurs.
 
-  * `newbench_enable_single_source`: Each benchmark can be built as a single source build, which provides the compiler the best opportunity to optimize the results. This can result in lower latency than multi-source execution. Single-source builds have SSB appended to their names.
+  * `bench_enable_single_source`: Each benchmark can be built as a single source build, which provides the compiler the best opportunity to optimize the results. This can result in lower latency than multi-source execution. Single-source builds have SSB appended to their names.
 
-  * `newbench_enable_multi_source`: libitm and libitm2stm builds of the newbench suite use multi-source builds. This option forces the libstm build to use this same strategy and is appropriate for comparisons with the C++ TM compiler builds. Multi-source executables have MSB appended to their names. The libitm and libitm2stm builds are always multi-source.
+  * `bench_enable_multi_source`: libitm and libitm2stm builds of the bench suite use multi-source builds. This option forces the libstm build to use this same strategy and is appropriate for comparisons with the C++ TM compiler builds. Multi-source executables have MSB appended to their names. The libitm and libitm2stm builds are always multi-source.
 
 === mesh Options ===
 
