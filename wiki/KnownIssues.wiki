@@ -24,14 +24,16 @@ Algorithms using ByteLocks do not support running with more than 56 threads.
 
 == Using the Intel compiler with redo-based STM ==
 
-This is surprisingly hard in the current version.  We are building a patch to resolve the problem.
-
-*More details needed*
+This is surprisingly hard in the current version.  We are building a patch to resolve the problem.  See the [ITMSupport ITMSupport] page for more information.
 
 == Irrevocability ==
 
-* Details needed about frequency of testing, and abort-and-restart-irrevocable *
+RSTM now allows for threads to become irrevocable via aborting and restarting.  Though this fact has never been published, it seems to be true that in any system that (a) provides ALA publication safety; and (b) relies on per-location metadata (orecs, signatures, etc), this is the *only* safe way to do irrevocability.
+
+Most support for switching to irrevocable mode in-flight has been removed, as it was out of date.  We left support in NOrec and OrecEager, just for demonstrative purposes.  More importantly, when in-flight switching fails in NOrec or OrecEager, the system reverts to abort-and-restart-irrevocably.  If you want to add support for in-flight irrevocability, please send a patch!
+
+Also, please note that we have not extensively tested support for irrevocability.  If you discover bugs, please be sure to let us know.
 
 == Self-Abort ==
 
-Self-abort support is in flux right now.  The draft C++ TM specification favors cancelling transactions to self-aborting them.  Our 'restart' support has not been tested in a while, and 'retry' is not in the current code either.
+Self-abort support is in flux right now.  The draft C++ TM specification favors cancelling transactions to self-aborting them.  Our 'restart' support has not been tested in a while, and 'retry' is not in the current code either.  We intend to fix these issues eventually, in order to improve standards compliance.  If you get to it first, please submit a patch.
