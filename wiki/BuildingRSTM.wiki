@@ -56,6 +56,22 @@ RSTM options are defined in `<RSTM>/UserConfig.cmake`. These options control the
 
 libstm options are defined in `<RSTM>/libstm/UserConfig.cmake`. These options control the libstm build and are embedded in the configured `include/stm/config.h` header so that libstm-dependent libraries and applications know how the library was configured.
 
+  * `libstm_use_pthread_tls`: ON uses `pthread_(get|set)_specific` to store thread local data in the library. OFF defers to your C++ compiler's built-in thread local storage implementation (`__thread` on gcc). Mac OS X only supports pthread local storage, so Mac OS X users won't see this option.
+
+  * `libstm_adaptation_points`: RSTM is now able to adapt between STM algorithms at runtime using the `stm::set_policy(STRING_NAME)` library call. The library is built with the ability to attempt to adapt automatically. This enumeration option tells the library when it should attempt to adapt. _none_ means never. _all_ means at transaction begin, commit, and abort barriers. _begin-abort_ does not attempt to adapt at commit barriers.
+
+  * `libstm_enable_abort_histogram`: When implementing a new algorithm or Contention Manager it can be useful to get a histogram that shows how many toxic transactions occur. ON enables this statistics collection and output.
+
+  * `libstm_use_sse`: On enables SSE instructions for Bloom Filter operations. This can increase the efficiency of the RingSW and RingALA implementations, but should not be used when the application itself is using SSE registers as we make no attempt to correctly checkpoint and restore the SSE subsystem.
+
+  * `libstm_enable_byte_logging`: libstm naturally logs data at aligned word granulaties. The C++ STM Draft Standard however says that bytes are the fundamental access granularity, which means that transactional and non-transactional accesses to adjacent bytes in a word are not considered data-races and should not produce results that violate sequential consistency. libstm's standard word logging does not correctly support such a setting, thus we have extended all of the supplied STM algorithms with byte-logging capabilities. This comes with non-negligible overheads so we provide this configuration option. *Byte logging is required to build libitm2stm so this option is forced on when `rstm_enable_itm2stm` is selected*.
+
+  * `libstm_enable_norec_false_conflicts`: One of NOrec's strong properties is its lack of false conflicts. When byte logging is enabled, we have the option to continue to provide this property by logging byte granularity accesses in the read log. This is expensive both in terms of read-log space and validation overhead, so we provide this option to allow you to allow false conflicts in NOrec in exchange for avoiding these overheads.
+
+  * `libstm_enable_stack_protection`: If an STM logs writes to stack locations while executing there is the potential that redo or undo operations could perform destructive stack writes resulting in undefined behavior including arbitrary code execution. Users of the library API may be able to avoid stack instrumentation thus this option is provided. *This option is required by libitm2stm and is thus forced ON if `rstm_enable_itm2stm` is selected.*
+
+  * `libstm_enable_cancel_and_throw`: The C++ STM Draft standard permits _cancel-and-throw_ semantics, where a user can throw an exception out of a transaction that also aborts the transaction. In such circumstances writes to the exception object itself must be visible externally, after the transaction aborts. This option enables the library infrastructure to support this behavior. *This option is required by libitm2stm and is thus forced ON if `rstm_enable_itm2stm` is enabled.*
+
 === *mesh* Options ===
 
 Mesh options are defined in `<RSTM>/mesh/UserConfig.cmake` and control which versions of the mesh application to build. Mesh currently only supports 32-bit execution, so this option is only available if you have selected `rstm_build_32-bit`. Mesh will always be built with an libitm and libitm2stm version depending on your selections for `rstm_enable_itm` and `rstm_enable_itm2stm`.
