@@ -1,7 +1,5 @@
 #summary A list of known issues with the current release.
 
-Note: This page is a stub, and will be updated before release.
-
 = Introduction =
 
 We are aware of a few places where the current RSTM code may act in surprising ways, or refuse to compile in surprising ways.  They are listed below.
