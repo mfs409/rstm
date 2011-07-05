@@ -84,7 +84,7 @@ These algorithms use bytelocks, as proposed in (Dice Transact 2009) and (Dice SP
 
   * ByEAR: Adds remote-abort support to ByteEagerRedo.
 
-  * ByteLazy: Like ByteEager, but with commit-time write locking and redo logs.  Note that read locks are still acquried eagerly.
+  * ByteLazy: Like ByteEager, but with commit-time write locking and redo logs.  Note that read locks are still acquired eagerly.
 
 == Bit Lock Algorithms ==
 
