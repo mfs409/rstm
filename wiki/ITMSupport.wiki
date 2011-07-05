@@ -58,7 +58,7 @@ extern "C" {
   
 == Missing Features ==
 
-  * _ITM_tryCommitTransaction and _ITM_commitTransactionToID
+  * `_`ITM`_`tryCommitTransaction and `_`ITM`_`commitTransactionToID
     * These appear to be used to implement certain types of exception handling.
   * SSE use
     * We log SSE data correctly, but we do not checkpoint or restore SSE registers necessary to correctly abort transactions. Any transaction that uses SSE should select one of the [Single Lock] algorithms that does not support `__cancel` before execution.
