@@ -71,7 +71,7 @@ These algorithms use signatures (single-hash-function Bloom Filters) for concurr
 
   * RingALA: Extends RingSW with an extra per-thread 'conflicts filter' to achieve ALA publication safety.
 
-== ByteLock Algorithms ==
+== Byte Lock Algorithms ==
 
 These algorithms use bytelocks, as proposed in (Dice Transact 2009) and (Dice SPAA 2010).  Readers are visible, which avoids the need for validation.
 
@@ -86,7 +86,7 @@ These algorithms use bytelocks, as proposed in (Dice Transact 2009) and (Dice SP
 
   * ByteLazy: Like ByteEager, but with commit-time write locking and redo logs.  Note that read locks are still acquried eagerly.
 
-== BitLock Algorithms ==
+== Bit Lock Algorithms ==
 
 Bitlocks, as proposed in (Marathe Transact 2006), provide an alternative to bytelocks for implementing visible reads.
 
