@@ -2,15 +2,19 @@
 
 = Introduction =
 
-This page is a stub.  It will eventually have instructions on how to configure and build RSTM.  There are two main targets:
+This page describes how to configure and build RSTM.  There are two main targets:
 
   * Library API: This target is suitable for SPARC, and for x86 platforms that use gcc as a compiler.
 
   * CXXTM API: This target is suitable for x86 platforms that have the Intel transactional C++ compiler and is in addition to the Library API on such platforms.
 
+If you are building to use the Library API, then you will need to build libstm.a.  If you are building to use the CXXTM API, then you will need to build both libstm.a and libitm2stm.a.  Cmake will help you do this easily.
+
+Note that libitm2stm requires certain settings for libstm, which can introduce overheads (byte-granularity support, cancel-and-throw, stack protection) that can be avoided with the Library API.  However, with the Library API, it is the programmer's responsibility to correctly annotate every shared memory access within each transaction (particularly in order to avoid the need for these features!).  In cmake, if you enable the option for building libitm2stm, support for these features will be turned on automatically.
+
 == CMake ==
 
-As of our upcoming 7th release RSTM has been upgraded to use the [http://www.cmake.org/ cmake configuration infrastructure] which is [http://www.cmake.org/http://www.cmake.org/cmake/resources/software.html available in binary form] for all of the platforms that we currently support. While we do not knowingly use cmake features that are unsupported in the 2.8.0 release, we recommend downloading the latest stable release (2.8.4 at the time of the 7th release) as we have not extensively tested configuration with other cmake verions.
+As of the 7th release, RSTM uses the [http://www.cmake.org/ cmake configuration infrastructure] which is [http://www.cmake.org/http://www.cmake.org/cmake/resources/software.html available in binary form] for all of the platforms that we currently support. While we do not knowingly use cmake features that are unsupported in the 2.8.0 release, we recommend downloading the latest stable release (2.8.4 at the time of the 7th release) as we have not extensively tested configuration with other cmake verions.
 
 As of the 7th release we have tested STM configurations on the following platforms.
 
@@ -76,7 +80,7 @@ libstm options are defined in `<RSTM>/libstm/UserConfig.cmake`. These options co
 
 Newbench options are defined in `<RSTM>/newbench/UserConfig.cmake` and control how the newbench build occurs.
 
-  * `newbench_enable_multi_source`: Each benchmark can be built as a single source build, which provides the compiler the best opportunity to optimize the results. This can result in better throughput than multi-source execution. Multi-source builds have MSB appended.
+  * `newbench_enable_multi_source`: Each benchmark can be built as a single source build, which provides the compiler the best opportunity to optimize the results. This can result in lower latency than multi-source execution. Multi-source builds have MSB appended.
 
   * `newbench_enable_single_source`: libitm and libitm2stm builds of the newbench suite use multi-source builds. This option forces the libstm build to use this same strategy and is appropriate for comparisons with the C++ TM compiler builds. Single-source builds have SSB appended.
 
@@ -89,5 +93,3 @@ Mesh options are defined in `<RSTM>/mesh/UserConfig.cmake` and control which ver
   * `mesh_enable_fgl`: This options enables a hard-coded _fined grain locking_ version of mesh. The code path is substantially different than the `cgl` or C++ STM version.
 
   * `mesh_libstdcxx-v3_include`: The gcc-4.4 and higher libstdc++ headers make extensive use of variadic templates, which are unsupported by Intel's current C++ STM compiler. In order to use C++ standard library types and routines gcc-4.3 headers should be available. If these are not in your default include path, then you should download the libstdc++ included in gcc-4.3 and set this string option to be the path to the include directory. 
-
-== Stub Notes ==
