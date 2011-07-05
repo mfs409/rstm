@@ -87,9 +87,9 @@ libstm options are defined in `<RSTM>/libstm/UserConfig.cmake`. These options co
 
 Newbench options are defined in `<RSTM>/newbench/UserConfig.cmake` and control how the newbench build occurs.
 
-  * `newbench_enable_multi_source`: Each benchmark can be built as a single source build, which provides the compiler the best opportunity to optimize the results. This can result in lower latency than multi-source execution. Multi-source builds have MSB appended.
+  * `newbench_enable_single_source`: Each benchmark can be built as a single source build, which provides the compiler the best opportunity to optimize the results. This can result in lower latency than multi-source execution. Single-source builds have SSB appended to their names.
 
-  * `newbench_enable_single_source`: libitm and libitm2stm builds of the newbench suite use multi-source builds. This option forces the libstm build to use this same strategy and is appropriate for comparisons with the C++ TM compiler builds. Single-source builds have SSB appended.
+  * `newbench_enable_multi_source`: libitm and libitm2stm builds of the newbench suite use multi-source builds. This option forces the libstm build to use this same strategy and is appropriate for comparisons with the C++ TM compiler builds. Multi-source executables have MSB appended to their names. The libitm and libitm2stm builds are always multi-source.
 
 === mesh Options ===
 
