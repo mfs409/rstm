@@ -38,6 +38,14 @@ This describes the cmake configuration options as of RSTM's 7th release. Note th
 
 RSTM options are defined in `<RSTM>/UserConfig.cmake`. These options control the RSTM configuration itself.
 
+*`rstm_build_32-bit`- RSTM has been designed to support simultaneous 32 and 64-bit builds on platforms where it is applicable. This option enables 32-bit libraries and applications. All 32-bit targets are appended with the string `32`. As an example, the 32-bit version of libstm is titled `libstm32.a`. The default architecture is determined by your C++ compiler's default `sizeof(void*)`.
+*`rstm_build_64-bit`- see `rstm_build_32-bit`
+*`rstm_enable_itm2stm`- ON enables the itm2stm shim library. This shim is built using the standard C++ compiler on your system, so this option is available even on platforms that have no official ITM ABI compatible compiler.
+*`rstm_enable_itm`- ON enables executable builds that link directly with Intel's built-in `libitm.a` library. This option is only available if cmake finds a C++ STM compatible compiler who's ID matches Intel.
+*`rstm_enable_newbench`- ON enables the RSTM newbench set of microbenchmarks. The actual benchmarks that are buit depend on your selections for using 32 and/or 64 bits, as well as your selection for `rstm_enable_itm2stm` and `rstm_enable_itm` (in the case where Intel's C++ STM compiler was detected).
+*`rstm_enable_stamp`- ON builds the distributed stamp benchmarks. 32 and/or 64 bit versions will be built depending on your configuration.
+*`rstm_enable_stamp`- ON builds the mesh benchmark. We currently only support 32 bit mesh builds. Executables will be generated based on your selection of `rstm_enable_itm` and `rstm_enable_itm2stm`.
+
 === *libstm* Options===
 
 libstm options are defined in `<RSTM>/libstm/UserConfig.cmake`. These options control the libstm build and are embedded in the configured `include/stm/config.h` header so that libstm-dependent libraries and applications know how the library was configured.
