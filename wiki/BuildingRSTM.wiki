@@ -24,8 +24,15 @@ As of the 7th release we have tested STM configurations on the following platfor
 
 We recommend out-of-source builds. As is standard you may create a directory and configure with the execution command `cmake <path-to-RSTM>`. This will configure RSTM with default parameters for your platform, using the Makefile generator. After configuration you can simply `make` and all of the default libraries and executables will be generated.
 
-You have three options for customizing your configuration.
+{{{
+  unpack rstm to /home/me/rstm_src
+  mkdir /home/me/rstm_build
+  cd /home/me/rstm_build
+  cmake ../rstm_src
+  make
+}}}
 
+You have three options for customizing your configuration:
   # You may do an _interactive configuration_ using cmake's `-i` flag. This will prompt you for answers to all of the possible configuration options. Be aware that some options are marked as _advanced_ and thus will only be visible if you say `yes` to cmake's interactive query to show advanced variables. We recommend against setting advanced configuration parameters interactively.
   # You may explicitly set options on the command line using cmake's `-D` command line functionality. See [http://www.cmake.org/ cmake's documentation for more details]. As an example, to build 32-bit libraries and executables on a platform where 64-bit is the default, you could directly set the `rstm_build_32-bit` option on the command line like `cmake <path-to-RSTM> -Drstm_build_32-bit:BOOL=YES`.
   # You may configure using a cmake gui, such as the `ccmake` ncurses gui included in the cmake distribution. We recommend this for browsing and setting advanced configuration parameters, which can be accessed by toggling the view to advanced.
