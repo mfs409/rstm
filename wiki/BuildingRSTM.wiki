@@ -4,10 +4,46 @@
 
 This page is a stub.  It will eventually have instructions on how to configure and build RSTM.  There are two main targets:
 
-  * Library API: This target is suitable for SPARC, and for x86 on platforms that do not have the Intel transactional C++ compiler
+  * Library API: This target is suitable for SPARC, and for x86 platforms that use gcc as a compiler.
 
-  * CXXTM API: This target is suitable for x86 platforms that have the Intel transactional C++ compiler
+  * CXXTM API: This target is suitable for x86 platforms that have the Intel transactional C++ compiler and is in addition to the Library API on such platforms.
+
+== CMake ==
+
+As of our upcoming 7th release RSTM has been upgraded to use the [http://www.cmake.org/ cmake configuration infrastructure] which is [http://www.cmake.org/http://www.cmake.org/cmake/resources/software.html available in binary form] for all of the platforms that we currently support. While we do not knowingly use cmake features that are unsupported in the 2.8.0 release, we recommend downloading the latest stable release (2.8.4 at the time of the 7th release) as we have not extensively tested configuration with other cmake verions.
+
+As of the 7th release we have tested STM configurations on the following platforms.
+
+  * Linux x86(`_`64)
+  * Solaris x86(`_`64) and SPARC v9
+  * Mac OS X 10.6 x86(`_`64)
+
+We recommend out-of-source builds. As is standard you may create a directory and configure with the execution command `cmake <path-to-RSTM>`. This will configure RSTM with default parameters for your platform, using the Makefile generator. After configuration you can simply `make` and all of the default libraries and executables will be generated.
+
+You have three options for customizing your configuration.
+
+  # You may do an _interactive configuration_ using cmake's `-i` flag. This will prompt you for answers to all of the possible configuration options. Be aware that some options are marked as _advanced_ and thus will only be visible if you say `yes` to cmake's interactive query to show advanced variables. We recommend against setting advanced configuration parameters interactively.
+  # You may explicitly set options on the command line using cmake's `-D` command line functionality. See [http://www.cmake.org/ cmake's documentation for more details]. As an example, to build 32-bit libraries and executables on a platform where 64-bit is the default, you could directly set the `rstm_build_32-bit` option on the command line like `cmake <path-to-RSTM> -Drstm_build_32-bit:BOOL=YES`.
+  # You may configure using a cmake gui, such as the `ccmake` ncurses gui included in the cmake distribution. We recommend this for browsing and setting advanced configuration parameters, which can be accessed by toggling the view to advanced.
+
+Note that our configurations are adaptive in the sense that enabling certain options may add additional options to your gui. An example is enabling 32-bit builds on Mac OS X, which enables the `mesh` benchmarks and related mesh options.
+
+For developers, user configuration options are declared in `UserConfig.cmake` files in the appropriate directories. For example, configuration options for `libstm` are defined in `libstm/UserConfig.cmake`.
+
+== CMake Options ==
+
+This describes the cmake configuration options as of RSTM's 7th release. Note that there are some dependencies between these options, so some may not be visible on your platform given the rest of your configuration settings.
+
+=== *RSTM* Options ===
+
+RSTM options are defined in `<RSTM>/UserConfig.cmake`. These options control the RSTM configuration itself.
+
+=== *libstm* Options===
+
+libstm options are defined in `<RSTM>/libstm/UserConfig.cmake`. These options control the libstm build and are embedded in the configured `include/stm/config.h` header so that libstm-dependent libraries and applications know how the library was configured.
+
+=== *mesh* Options ===
+
+Mesh options are defined in `<RSTM>/mesh/UserConfig.cmake` and control which versions of the mesh application to build.
 
 == Stub Notes ==
-
-We should describe every build option, what it means, and how to use it.
