@@ -38,8 +38,7 @@ This describes the cmake configuration options as of RSTM's 7th release. Note th
 
 RSTM options are defined in `<RSTM>/UserConfig.cmake`. These options control the RSTM configuration itself.
 
-  * `rstm_build_32-bit`: RSTM has been designed to support simultaneous 32 and 64-bit builds on platforms where it is applicable. This option enables 32-bit libraries and applications. All 32-bit targets are appended with the string `32`. As an example, the 32-bit version of libstm is titled `libstm32.a`. The 
-default architecture is determined by your C++ compiler's default `sizeof(void*)`.
+  * `rstm_build_32-bit`: RSTM has been designed to support simultaneous 32 and 64-bit builds on platforms where it is applicable. This option enables 32-bit libraries and applications. All 32-bit targets are appended with the string `32`. As an example, the 32-bit version of libstm is titled `libstm32.a`. The default architecture is determined by your C++ compiler's default `sizeof(void*)`.
 
   * `rstm_build_64-bit`: see `rstm_build_32-bit`
 
