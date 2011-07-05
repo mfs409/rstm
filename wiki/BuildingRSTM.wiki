@@ -1,0 +1,9 @@
+#summary Description of how to build RSTM
+
+= Introduction =
+
+This page is a stub.  It will eventually have instructions on how to configure and build RSTM.  There are two main targets:
+
+  * Library API: This target is suitable for SPARC, and for x86 on platforms that do not have the Intel transactional C++ compiler
+
+  * CXXTM API: This target is suitable for x86 platforms that have the Intel transactional C++ compiler
