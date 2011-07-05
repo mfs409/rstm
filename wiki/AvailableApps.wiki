@@ -1,0 +1,9 @@
+#summary Description of the applications bundled with RSTM
+
+= Introduction =
+
+This page is a stub.  It will eventually describe the applications that are included with RSTM.
+
+  * Microbenchmarks
+  * STAMP (Minh IISWC 2008)
+  * Delaunay triangulation (Scott IISWC 2007)
