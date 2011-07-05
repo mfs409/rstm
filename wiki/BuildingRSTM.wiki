@@ -34,7 +34,7 @@ For developers, user configuration options are declared in `UserConfig.cmake` fi
 
 This describes the cmake configuration options as of RSTM's 7th release. Note that there are some dependencies between these options, so some may not be visible on your platform given the rest of your configuration settings.
 
-=== *RSTM* Options ===
+=== RSTM Options ===
 
 RSTM options are defined in `<RSTM>/UserConfig.cmake`. These options control the RSTM configuration itself.
 
@@ -52,7 +52,7 @@ RSTM options are defined in `<RSTM>/UserConfig.cmake`. These options control the
 
   * `rstm_enable_mesh`: ON builds the mesh benchmark. We currently only support 32 bit mesh builds. Executables will be generated based on your selection of `rstm_enable_itm` and `rstm_enable_itm2stm`.
 
-=== *libstm* Options===
+=== libstm Options===
 
 libstm options are defined in `<RSTM>/libstm/UserConfig.cmake`. These options control the libstm build and are embedded in the configured `include/stm/config.h` header so that libstm-dependent libraries and applications know how the library was configured.
 
@@ -72,7 +72,7 @@ libstm options are defined in `<RSTM>/libstm/UserConfig.cmake`. These options co
 
   * `libstm_enable_cancel_and_throw`: The C++ STM Draft standard permits _cancel-and-throw_ semantics, where a user can throw an exception out of a transaction that also aborts the transaction. In such circumstances writes to the exception object itself must be visible externally, after the transaction aborts. This option enables the library infrastructure to support this behavior. *This option is required by libitm2stm and is thus forced ON if `rstm_enable_itm2stm` is enabled.*
 
-=== *newbench* Options ===
+=== newbench Options ===
 
 Newbench options are defined in `<RSTM>/newbench/UserConfig.cmake` and control how the newbench build occurs.
 
@@ -80,7 +80,7 @@ Newbench options are defined in `<RSTM>/newbench/UserConfig.cmake` and control h
 
   * `newbench_enable_single_source`: libitm and libitm2stm builds of the newbench suite use multi-source builds. This option forces the libstm build to use this same strategy and is appropriate for comparisons with the C++ TM compiler builds. Single-source builds have SSB appended.
 
-=== *mesh* Options ===
+=== mesh Options ===
 
 Mesh options are defined in `<RSTM>/mesh/UserConfig.cmake` and control which versions of the mesh application to build. Mesh currently only supports 32-bit execution, so this option is only available if you have selected `rstm_build_32-bit`. Mesh will always be built with an libitm and libitm2stm version depending on your selections for `rstm_enable_itm` and `rstm_enable_itm2stm`.
 
