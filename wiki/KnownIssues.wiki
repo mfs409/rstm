@@ -1,0 +1,37 @@
+#summary A list of known issues with the current release.
+
+Note: This page is a stub, and will be updated before release.
+
+= Introduction =
+
+We are aware of a few places where the current RSTM code may act in surprising ways, or refuse to compile in surprising ways.  They are listed below.
+
+== Compiling on SPARC ==
+
+We currently only support GNU C++ on SPARC.  You will surely find references to SunCC in the code, and in fact, compiling with SunCC might just work, but we are not confident in our SunCC-specific code right now.  If you can help us, please send a patch!
+
+Additionally, there are endian issues for some of our union code on SPARC.  What this means in practice is that you can't build on SPARC using byte-level logging... you have to use word-level logging.  Since libitm2stm is not supported on SPARC anyway, this shouldn't be a huge problem.
+
+== Compiling Mesh ==
+
+The Mesh code only compiles in 32-bit mode.
+
+== Implicit Run-Time Thread Limits ==
+
+Running more than 256 threads is not supported.  In addition, creating more than 256 transactional threads is not supported.  If your architecture does not have >256 threads, please consider using thread pools instead of creating and destroying threads.  If your architecture does have >256 threads, we believe that a simple change to a single #define will enable higher thread counts (at the cost of more overhead for some algorithms), but we haven't tested it.
+
+Algorithms using ByteLocks do not support running with more than 56 threads.
+
+== Using the Intel compiler with redo-based STM ==
+
+This is surprisingly hard in the current version.  We are building a patch to resolve the problem.
+
+*More details needed*
+
+== Irrevocability ==
+
+* Details needed about frequency of testing, and abort-and-restart-irrevocable *
+
+== Self-Abort ==
+
+Self-abort support is in flux right now.  The draft C++ TM specification favors cancelling transactions to self-aborting them.  Our 'restart' support has not been tested in a while, and 'retry' is not in the current code either.
