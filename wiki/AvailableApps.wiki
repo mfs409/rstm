@@ -2,7 +2,7 @@
 
 = Introduction =
 
-This page is a stub.  It will eventually describe the applications that are included with RSTM.
+This page describes the applications that are included with RSTM.  If you create an application and would like it added to RSTM, please contact us.
 
 == Microbenchmarks ==
 
