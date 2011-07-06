@@ -2,7 +2,7 @@
 
 = Introduction =
 
-RSTM supports two APIs.  The Library API is the legacy interface for RSTM.  On SPARC, it is currently the only supported interface.  On x86 with the Intel transactional C++ compiler, it is also possible to use the [http://groups.google.com/group/tm-languages/attach/199fda7f6cbf4e0d/C%2B%2B-transactional-constructs-1.0.pdf?part=4 C++ STM Draft API}.  It is also possible to write code that works with both APIs.
+RSTM supports two APIs.  The Library API is the legacy interface for RSTM.  On SPARC, it is currently the only supported interface.  On x86 with the Intel transactional C++ compiler, it is also possible to use the [http://groups.google.com/group/tm-languages/attach/199fda7f6cbf4e0d/C%2B%2B-transactional-constructs-1.0.pdf?part=4 C++ STM Draft API].  It is also possible to write code that works with both APIs.
 
 == C++ STM API ==
 If you are planning on using the Intel TM C++ compiler, you could just follow the rules in the draft C++ TM specification.  That is, you could:
