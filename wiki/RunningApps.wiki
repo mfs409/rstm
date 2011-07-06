@@ -2,13 +2,11 @@
 
 = Introduction =
 
-This page is a stub.
+Most of RSTM's configuration is done at compile time.  The following environment variables enable run-time configuration:
 
-You can configure libstm at initialization time through the following environment variables:
-
-  * STM_CONFIG
-  * STM_QTABLE
-  * STM_NUMPROFILES
+  * STM_CONFIG: The name of the STM algorithm to use, or the name of the run-time adaptivity policy to use.
+  * STM_QTABLE: The location of a qtable file to use when using ML-based adaptivity.
+  * STM_NUMPROFILES: The number of transactions to profile before making an adaptivity decision.
 
 == Debugging ==
 Use adaptivity to figure out if your code is the problem.  There is a big difference between code that crashes with CGL and code that only crahses with other STMs.  There is a big difference between code that crashes with Library API and code that crashes with CXXTM API.  You can adapt from outside of any transaction, so it's easy to change algorithms as needed to narrow the scope of your debugging search.
