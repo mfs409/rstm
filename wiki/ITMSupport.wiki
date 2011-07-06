@@ -73,9 +73,8 @@ extern "C" {
 
 == Known Issues ==
 
-If you attempt to initialize the TM system in `main` but also have a top-level transaction `icc` will insert a call to `_ITM_getTransaction` just after the `main` prolog but before your initialization calls. The shim does not support this behavior (it's ok to skip the thread initialization call, but not the process initialization call). It's unclear if this is a bug in the shim, a bug in the ITM ABI which is unclear (in our opinion) on this point, or a bug in the compiler.
-
-As a workaround you can either a) not have a top-level transaction in `main`, or use a `__attribute__((constructor))` routine to initialize the process with `_ITM_initializeProcess`.
+  * Transactions in `main()`
+    * If you attempt to initialize the TM system in `main` but also have a top-level transaction `icc` will insert a call to `_ITM_getTransaction` just after the `main` prolog but before your initialization calls. The shim does not support this behavior (it's ok to skip the thread initialization call, but not the process initialization call). It's unclear if this is a bug in the shim, a bug in the ITM ABI which is unclear (in our opinion) on this point, or a bug in the compiler. As a workaround you can either not have a top-level transaction in `main`, or use a `__attribute__((constructor))` routine to initialize the process with `_ITM_initializeProcess`.
 
 == Debugging advice ==
 
