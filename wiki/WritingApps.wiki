@@ -12,8 +12,8 @@ If you are planning on using the Intel TM C++ compiler, you could just follow th
   * place the proper calls to initalize and shut down the STM library, and each thread's STM context.
 
 By adding an include of <api/api.hpp>, you will also gain the following:
-  * `STM_SET_POLICY(P)` to set the algorithm or adaptivity policy during execution.
-  * `GET_ALGNAME()` to get the initial algorithm with which libstm was configured.
+  * `TM_SET_POLICY(P)` to set the algorithm or adaptivity policy during execution.
+  * `TM_GET_ALGNAME()` to get the initial algorithm with which libstm was configured.
 
 == Library API ==
 
@@ -29,39 +29,39 @@ Consider the following example, which demonstrates manual instrumentation of sha
 
 With the Library API, this becomes:
 {{{
-  BEGIN_TRANSACTION(atomic) {
-    int z = _READ(x);
-    _WRITE(x, z+1);
-  } END_TRANSACTION;
+  TM_BEGIN(atomic) {
+    int z = TM_READ(x);
+    TM_WRITE(x, z+1);
+  } TM_END;
 }}}
 
-Note that `BEGIN_TRANSACTION` should always be given the parameter `atomic`.
+Note that `TM_BEGIN` should always be given the parameter `atomic`.
 
-If your transaction calls `malloc` or `free`, you must use the transaction-safe variants: `TX_ALLOC` and `TX_FREE`.
+If your transaction calls `malloc` or `free`, you must use the transaction-safe variants: `TM_ALLOC` and `TM_FREE`.
 
 Broadly speaking, you need to follow these additional rules:
 
   * Include <api/api.hpp> in your code.
-  * Before any transactions, some thread must call `SYS_INIT`, and after all transactions are done, a thread must call `SYS_SHUTDOWN`.
-  * A thread cannot perform transactions until it calls `THREAD_INIT`.  It should call `THREAD_SHUTDOWN` when it is done.
-  * To forcibly change the current STM algorithm or adaptivity policy, use `STM_SET_POLICY(policyname)`, where policyname is either an algorithm name or an adaptive policy name.
-  * To force a transaction to become irrevocable, use `BECOME_IRREVOC()`.
+  * Before any transactions, some thread must call `TM_SYS_INIT`, and after all transactions are done, a thread must call `TM_SYS_SHUTDOWN`.
+  * A thread cannot perform transactions until it calls `TM_THREAD_INIT`.  It should call `TM_THREAD_SHUTDOWN` when it is done.
+  * To forcibly change the current STM algorithm or adaptivity policy, use `TM_SET_POLICY(policyname)`, where policyname is either an algorithm name or an adaptive policy name.
+  * To force a transaction to become irrevocable, use `TM_BECOME_IRREVOC()`.
 
 Furthermore, you should be careful about the following:
 
-  * `_READ()` and `_WRITE()` require a valid transaction descriptor.  You can either ensure that a call to `GET_TXTHREAD()` occurs in a visible lexical scope, or else pass the descriptor to functions using the STAMP-inspired `TM_ARG` / `TM_ARG_ALONE` / `TM_PARAM` / `TM_PARAM_ALONE` interface.
+  * `TM_READ()` and `TM_WRITE()` require a valid transaction descriptor.  You can either ensure that a call to `TM_GET_THREAD()` occurs in a visible lexical scope, or else pass the descriptor to functions using the STAMP-inspired `TM_ARG` / `TM_ARG_ALONE` / `TM_PARAM` / `TM_PARAM_ALONE` interface.
 
   * Since self-abort does not quite follow the spec (it is not `cancel`), we expose `stm::restart()` for this purpose.
 
-  * To find the algorithm name with which the system was initialized, use `GET_ALGNAME()`.  Note that this only returns the initial algorithm/policy configuration, not any changes due to adaptivity or explicit calls to `STM_SET_POLICY()`
+  * To find the algorithm name with which the system was initialized, use `TM_GET_ALGNAME()`.  Note that this only returns the initial algorithm/policy configuration, not any changes due to adaptivity or explicit calls to `TM_SET_POLICY()`
 
-There is a hack for fast nontransactional initialization of data structures, via `BEGIN_FAST_INITIALIZATION` and `END_FAST_INITIALIZATION`.  See the code for examples.
+There is a hack for fast nontransactional initialization of data structures, via `TM_BEGIN_FAST_INITIALIZATION` and `TM_END_FAST_INITIALIZATION`.  See the code for examples.
 
 == Supporting Both APIs ==
 If you program to the Library API, and then compile with the Intel C++ compiler, everything will _just work_ regardless of which API you use to configure and build.  There are a few caveats:
 
-  * `TX_WAIVER`: If you know that a region should not be instrumented, then you need to place it in a "waiver" block.  To keep "waiver" compatible with the librar API, we use the macro `TX_WAIVER` instead of `__transaction [[waiver]]`.
+  * `TM_WAIVER`: If you know that a region should not be instrumented, then you need to place it in a "waiver" block.  To keep "waiver" compatible with the librar API, we use the macro `TX_WAIVER` instead of `__transaction [[waiver]]`.
 
-  * Any function that is called from a transaction, and has shared memory accesses, must be marked [[transaction_safe]].  Using the `TX_CALLABLE` macro for this purpose ensures compatibility with the Library API.
+  * Any function that is called from a transaction, and has shared memory accesses, must be marked [[transaction_safe]].  Using the `TM_CALLABLE` macro for this purpose ensures compatibility with the Library API.
 
-  * You must make sure that code that requires irrevocability has a call to `BECOME_IRREVOC()`
+  * You must make sure that code that requires irrevocability has a call to `TM_BECOME_IRREVOC()`
