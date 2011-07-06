@@ -72,3 +72,10 @@ There are 31 pre-set combinations of these features that can be used to compare 
   * CBR_TxnRatio_RW_RO_Time
 
 Note that these policies are not necessarily going to give good performance.  However, the code provides a clear demonstration of how ML-based policies work.  Better policies, based on different ML algorithms, are easy to implement in the framework.
+
+== Using ML Adaptivity ==
+There are two environment variables that you will need to set:
+  * STM_NUMPROFILES: the number of transactions to profile before making a decision
+  * STM_QTABLE: the location of a qtable file
+
+An example script for creating a qtable can be found in the source code, as demo_train_cbr.pl.
