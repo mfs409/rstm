@@ -57,7 +57,7 @@ extern "C" {
     * We fully support uninstrumented stack writes for in-place algorithms such as the undo-log based implementations and the Single Lock implementations.
     * We do not fully support uninstrumented stack writes for redo-log implementations. `icc` may choose to elide instrumentation for local stack addresses even when these stack addresses are later passed to a function where they _are_ instrumented. Future read-after-write operations will not "see" redo-log writes. To avoid this issue you can force the compiler to instrument local stack writes by accesses the locations in question through volatile pointers.
   * Dynamic nesting.
-    * RSTM does not yet provide the closed nesting support required to abort inner transactions in a user-visible way (i.e., we do not support the C++ STM Draft's `__cancel` construct from a nested context.
+    * RSTM does not yet provide the closed nesting support required to abort inner transactions in a user-visible way (i.e., we do not support the C++ STM Draft's `__cancel` construct from a nested context).
   
 == Missing Features ==
 
