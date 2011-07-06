@@ -11,9 +11,9 @@ The build of `libitm2stm.a` is in no way dependent on the Intel compiler itself,
 Consider a simplified example for the commands we use to build the CounterBenchSHIM64 benchmark (SHIM indicates that this is using the shim library, as opposed to just `libstm.a` or Intel's `libitm.a`, and the 64 means that this is a 64-bit build):
 
 {{{
-g++ -DITM2STM -DSTM_API_CXXTM -Wall -msse2 -mfpmath=sse -march=core2 -mtune=core2 -include itm/itm.h -O3 -g -I/<RSTM> -I/<RSTM>/include -I/<RSTM>/build/include -I/<RSTM>/newbench -m64 -o CMakeFiles/DListBenchSHIM64.dir/bmharness.cpp.o -c /<RSTM>/newbench/bmharness.cpp
-icpc -Qtm_enabled -DITM2STM -DSTM_API_CXXTM -Wall -wd981,1599 -vec_report0 -O3 -g -xSSE3 -I/<RSTM>/adaptive -I/<RSTM>/include -I/<RSTM>/build/include -I/<RSTM>/newbench -m64 -o CMakeFiles/DListBenchSHIM64.dir/DListBench.o -c -x c++ /<RSTM>/build/newbench/DListBench.cxxtm
-g++ -O3 -g -m64 -L/intel/Compiler/11.0/610/lib/intel64  CMakeFiles/DListBenchSHIM64.dir/bmharness.cpp.o CMakeFiles/DListBenchSHIM64.dir/DListBench.o  -o DListBenchSHIM64 -rdynamic -lirc ../libitm2stm/libitm2stm64.a -lpthread ../libstm/libstm64.a -lrt -Wl,-rpath,/intel/Compiler/11.0/610/lib/intel64
+g++ -include itm/itm.h -m64 -o bmharness.o -c bmharness.cpp
+icpc -Qtm_enabled -m64 -o DListBench.o -c -x c++ DListBench.cxxtm
+g++ -m64 -L/intel/Compiler/11.0/610/lib/intel64 bmharness.o DListBench.o  -o DListBenchSHIM64 -rdynamic -lirc ../libitm2stm/libitm2stm64.a -lpthread ../libstm/libstm64.a -lrt -Wl,-rpath,/intel/Compiler/11.0/610/lib/intel64
 }}}
 
 There are a number of useful things to note here.
@@ -22,6 +22,7 @@ There are a number of useful things to note here.
   # On Linux `libstm.a` needs `-lrt`.
   # The RSTM libraries have the "64" suffix because this is a 64-bit build.
   # `libitm64.a` and `libitm2stm64.a` are fully specified. They could be `-l` instead, this is simply a cmake decision.
+  # We will generally (and arbitrarily) use the `.cxxtm` type for C++ files that use the C++ STM API. We have to tell `icc` that these are C++ file though, hence the `-x c++` flags.
   # *`libitm2stm.a` must appear before `libstm.a` on the link line.*
 
 == Fully Implemented Features ==
