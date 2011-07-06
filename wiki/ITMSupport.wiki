@@ -10,11 +10,11 @@ The build of `libitm2stm.a` is in no way dependent on the Intel compiler itself,
 
 Consider a simplified example for the commands we use to build the CounterBenchSHIM64 benchmark (SHIM indicates that this is using the shim library, as opposed to just `libstm.a` or Intel's `libitm.a`, and the 64 means that this is a 64-bit build):
 
-{{{
+<code>
 g++ -I/<RSTM>/include -include itm/itm.h -m64 -o bmharness.o -c bmharness.cpp
 icpc -Qtm_enabled -m64 -o DListBench.o -c -x c++ DListBench.cxxtm
-g++ -m64 -L/intel/Compiler/11.0/610/lib/intel64 bmharness.o DListBench.o  -o DListBenchSHIM64 -rdynamic -lirc ../libitm2stm/libitm2stm64.a -lpthread ../libstm/libstm64.a -lrt -Wl,-rpath,/intel/Compiler/11.0/610/lib/intel64
-}}}
+g++ -m64 -L/intel/Compiler/11.0/610/lib/intel64 bmharness.o DListBench.o -o DListBenchSHIM64 -rdynamic -lirc \
+  ../libitm2stm/libitm2stm64.a -lpthread ../libstm/libstm64.a -lrt -Wl,-rpath,/intel/Compiler/11.0/610/lib/intel64</code>
 
 There are a number of useful things to note here.
 
