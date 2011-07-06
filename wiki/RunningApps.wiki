@@ -1,0 +1,11 @@
+#summary Description of run-time configuration options
+
+= Introduction =
+
+This page is a stub.
+
+You can configure libstm at initialization time through the following environment variables:
+
+  * STM_CONFIG
+  * STM_QTABLE
+  * STM_NUMPROFILES
