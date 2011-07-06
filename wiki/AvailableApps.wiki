@@ -4,6 +4,55 @@
 
 This page is a stub.  It will eventually describe the applications that are included with RSTM.
 
-  * Microbenchmarks
-  * STAMP (Minh IISWC 2008)
-  * Delaunay triangulation (Scott IISWC 2007)
+== Microbenchmarks ==
+
+The `bench` folder has several microbenchmarks.  In the past, these microbenchmarks were all part of a single executable.  We now build them separately, which makes it much easier to see how to create an individual TM-based application.
+
+=== Data Structure Microbenchmarks ===
+These benchmarks are the traditional way of evaluating STM algorithms:
+  * CounterBench: All threads increment a shared counter
+  * ListBench: Threads insert/remove/lookup from a singly-linked list
+  * DListBench: Threads insert/remove/lookup from a doubly-linked list
+  * HashBench: Threads insert/remove/lookup in a hashtable that uses internal chaining
+  * TreeBench: Threads insert/remove/lookup in a red-black tree
+  * ForestBench: Like Treebench, but each transaction operates on multiple trees in a forest.
+  * TreeOverwriteBench: Like TreeBench, but all transactions are writers that either insert or remove a value.
+
+=== Behavior Microbenchmarks ===
+These benchmarks mirror behaviors that might be common in TM-based applications:
+  * ReadWriteNBench: Each transaction reads N locations, and then writes N locations.
+  * MCASBench: Transactions essentially perform a multi-word compare and swap, by reading and then writing N successive locations.
+  * ReadNWrite1Bench: Transactions read N locations, and then write 1 location.
+
+=== Pathologies and Unit Tests ===
+  * TypeTest: A simple test to ensure that the read/write instrumentation works correctly for all common types.
+  * DisjointBench: Transactions do not conflict.  Useful for observing bottlenecks within an STM implementation.
+  * WWPathologyBench: Transactions are likely to livelock and/or starve (Spear PPoPP 2009).
+
+=== Configuration Parameters ===
+The microbenchmarks accept the following parameters.  Not all have meaning to all microbenchmarks:
+  *     `-d`: number of seconds to time (default 1)
+  *     `-X`: execute fixed tx count, not for a duration
+  *     `-p`: number of threads (default 1)
+  *     `-N`: nops between transactions (default 0)
+  *     `-R`: % lookup txns (remainder split ins/rmv)
+  *     `-m`: range of keys in data set
+  *     `-B`: name of benchmark
+  *     `-S`: number of sets to build (default 1)
+  *     `-O`: operations per transaction (default 1)
+  *     `-h`: print help
+Note that arguments to `-B` are microbenchmark-specific, and can be found in the code.
+
+== STAMP (Minh IISWC 2008) ==
+We build STAMP using a C++ compiler.  This leads to a few minor changes to how comparators are passed to functions.  We include our patched STAMP in the release.
+
+This patch also incorporates Aleksandar Dragojevic's patch for allowing non-power-of-2 thread levels.
+
+For inputs to STAMP applications, please see the STAMP website.
+
+Please note that "yada" does not work correctly.  It is broken in the original STAMP release, and we have not fixed it.
+
+Also, note that labyrinth may not work for some of our algorithms, because it requres self-abort.  There is an easy fix for this problem.  If you are interested, please contact us.
+
+== Delaunay triangulation (Scott IISWC 2007) ==
+We also include a Delaunay triangulation application.  Details of how to use this app, as well as inputs and output checkers, will be added.
