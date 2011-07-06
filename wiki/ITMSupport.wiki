@@ -34,9 +34,9 @@ We have implemented most of the functionality required by the [http://software.i
     * Both redo and undo log implementations operate at the byte level using RSTM's standard word-size logs augmented with byte masks.
   * _cancel-and-throw_ exception objects.
     * ITM registers exception objects and `libstm.a` will either avoid performing undo operations to it, or *actually perform* redo operations to it, depending on the underlying stm implementation.
-    * Note that the Single Lock algorithms cannot abort and thus do not technically support this operation.
+    * Note that the [AvailableAlgorithms Single Lock algorithms] cannot abort and thus do not technically support this operation.
   * Irrevocability.
-    * The Single Lock algorithms are naturally irrevocable.
+    * The [AvailableAlgorithms Single Lock algorithms] are naturally irrevocable.
     * Most of the algorithms implement irrevocability through an _abort-and-restart-as-irrevocable_ mechanism.
     * NOrec uses a more complicated in-flight irrevocability switch.
   * Transactional library calls.
@@ -54,8 +54,12 @@ extern "C" {
   
 == Partially Supported Features ==
 
+  * *Single Lock Semantics*
+    * Both the [http://software.intel.com/en-us/articles/intel-c-stm-compiler-prototype-edition/#Constructs C++ STM API Draft] and the [http://software.intel.com/en-us/articles/intel-c-stm-compiler-prototype-edition/#ABI Intel ITM ABI] require that a TM implementation provide Single-Lock semantics. For C++ this reduces to privatization safety. *Some of the RSTM algorithms are not privatization safe.*
+    * See the [AvailableAlgorithms list of available algorithms] for more details on this point.
+    * Switching to an algorithm that is not privatization safe will print a warning to your error stream.
   * Stack protection.
-    * We fully support uninstrumented stack writes for in-place algorithms such as the undo-log based implementations and the Single Lock implementations.
+    * We fully support uninstrumented stack writes for in-place algorithms such as the undo-log based implementations and the [AvailableAlgorithms Single Lock implementations].
     * We do not fully support uninstrumented stack writes for redo-log implementations. `icc` may choose to elide instrumentation for local stack addresses even when these stack addresses are later passed to a function where they _are_ instrumented. Future read-after-write operations will not "see" redo-log writes. To avoid this issue you can force the compiler to instrument local stack writes by accesses the locations in question through volatile pointers.
   * Dynamic nesting.
     * RSTM does not yet provide the closed nesting support required to abort inner transactions in a user-visible way (i.e., we do not support the C++ STM Draft's `__cancel` construct from a nested context).
@@ -65,7 +69,7 @@ extern "C" {
   * `_ITM_tryCommitTransaction` and `_ITM_commitTransactionToID`
     * These appear to be used to implement certain types of exception handling.
   * SSE use
-    * We log SSE data correctly, but we do not checkpoint or restore SSE registers necessary to correctly abort transactions. Any transaction that uses SSE should select one of the Single Lock algorithms that does not support `__cancel` before execution.
+    * We log SSE data correctly, but we do not checkpoint or restore SSE registers necessary to correctly abort transactions. Any transaction that uses SSE should select one of the [AvailableAlgorithms Single Lock algorithms] that does not support `__cancel` before execution.
 
 == Known Issues ==
 
