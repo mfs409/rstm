@@ -1,0 +1,5 @@
+#summary Description of adaptivity policies in the current release
+
+= Introduction =
+
+This is a stub.  We need to talk about all the adaptive policies in here.
