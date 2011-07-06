@@ -11,7 +11,7 @@ The build of `libitm2stm.a` is in no way dependent on the Intel compiler itself,
 Consider a simplified example for the commands we use to build the CounterBenchSHIM64 benchmark (SHIM indicates that this is using the shim library, as opposed to just `libstm.a` or Intel's `libitm.a`, and the 64 means that this is a 64-bit build):
 
 {{{
-g++ -DITM2STM -DSTM_API_CXXTM -Wall -msse2 -mfpmath=sse -march=core2 -mtune=core2 -include itm/itm.h -O3 -g -I/u/luked/transact/adaptive -I/<RSTM>/include -I/<RSTM>/build/include -I/<RSTM>/newbench -m64 -o CMakeFiles/DListBenchSHIM64.dir/bmharness.cpp.o -c /<RSTM>/newbench/bmharness.cpp
+g++ -DITM2STM -DSTM_API_CXXTM -Wall -msse2 -mfpmath=sse -march=core2 -mtune=core2 -include itm/itm.h -O3 -g -I/<RSTM> -I/<RSTM>/include -I/<RSTM>/build/include -I/<RSTM>/newbench -m64 -o CMakeFiles/DListBenchSHIM64.dir/bmharness.cpp.o -c /<RSTM>/newbench/bmharness.cpp
 icpc -Qtm_enabled -DITM2STM -DSTM_API_CXXTM -Wall -wd981,1599 -vec_report0 -O3 -g -xSSE3 -I/<RSTM>/adaptive -I/<RSTM>/include -I/<RSTM>/build/include -I/<RSTM>/newbench -m64 -o CMakeFiles/DListBenchSHIM64.dir/DListBench.o -c -x c++ /<RSTM>/build/newbench/DListBench.cxxtm
 g++ -O3 -g -m64 -L/intel/Compiler/11.0/610/lib/intel64 -L/lib CMakeFiles/DListBenchSHIM64.dir/bmharness.cpp.o CMakeFiles/DListBenchSHIM64.dir/DListBench.o  -o DListBenchSHIM64 -rdynamic -lirc ../libitm2stm/libitm2stm64.a -lpthread ../libstm/libstm64.a -lrt -Wl,-rpath,/intel/Compiler/11.0/610/lib/intel64
 }}}
