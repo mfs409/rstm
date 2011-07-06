@@ -23,8 +23,8 @@ There are a number of useful things to note here.
   # The RSTM libraries have the "64" suffix because this is a 64-bit build.
   # `libitm64.a` and `libitm2stm64.a` are fully specified. They could be `-l` instead, this is simply a cmake decision.
   # We will generally (and arbitrarily) use the `.cxxtm` type for C++ files that use the C++ STM API. We have to tell `icc` that these are C++ file though, hence the `-x c++` flags.
-  # We're including our version of Intel's `itm.h` in gcc. This is because we need to call `_ITM_(initialize|finalize)(Thread|Process)` directly (it's not part of the C++ STM API, but we can't include Intel's `itm.h` because it claims to be _itm-only_.
-  # *`libitm2stm.a` must appear before `libstm.a` on the link line.*
+  # We're including our version of Intel's `itm.h` in gcc. This is because we need to call `_ITM_(initialize|finalize)(Thread|Process)` directly (it's not part of the C++ STM API, but we can't include Intel's `itm.h` because it claims to be `icc`-only.
+  # *`libitm2stm.a` must appear before `libstm.a` on the link line.* This is a consequence of the "shim" design decision; `libitm2stm.a` maps ITM ABI calls into `libstm.a` calls, which are then resolved statically.
 
 == Fully Implemented Features ==
 
