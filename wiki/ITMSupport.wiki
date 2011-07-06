@@ -11,7 +11,7 @@ The build of `libitm2stm.a` is in no way dependent on the Intel compiler itself,
 Consider a simplified example for the commands we use to build the CounterBenchSHIM64 benchmark (SHIM indicates that this is using the shim library, as opposed to just `libstm.a` or Intel's `libitm.a`, and the 64 means that this is a 64-bit build):
 
 {{{
-g++ -include itm/itm.h -m64 -o bmharness.o -c bmharness.cpp
+g++ -I/<RSTM>/include -include itm/itm.h -m64 -o bmharness.o -c bmharness.cpp
 icpc -Qtm_enabled -m64 -o DListBench.o -c -x c++ DListBench.cxxtm
 g++ -m64 -L/intel/Compiler/11.0/610/lib/intel64 bmharness.o DListBench.o  -o DListBenchSHIM64 -rdynamic -lirc ../libitm2stm/libitm2stm64.a -lpthread ../libstm/libstm64.a -lrt -Wl,-rpath,/intel/Compiler/11.0/610/lib/intel64
 }}}
@@ -23,6 +23,7 @@ There are a number of useful things to note here.
   # The RSTM libraries have the "64" suffix because this is a 64-bit build.
   # `libitm64.a` and `libitm2stm64.a` are fully specified. They could be `-l` instead, this is simply a cmake decision.
   # We will generally (and arbitrarily) use the `.cxxtm` type for C++ files that use the C++ STM API. We have to tell `icc` that these are C++ file though, hence the `-x c++` flags.
+  # We're including our version of Intel's `itm.h` in gcc. This is because we need to call `_ITM_(initialize|finalize)(Thread|Process)` directly (it's not part of the C++ STM API, but we can't include Intel's `itm.h` because it claims to be _itm-only_.
   # *`libitm2stm.a` must appear before `libstm.a` on the link line.*
 
 == Fully Implemented Features ==
@@ -61,10 +62,16 @@ extern "C" {
   
 == Missing Features ==
 
-  * `_`ITM`_`tryCommitTransaction and `_`ITM`_`commitTransactionToID
+  * `_ITM_tryCommitTransaction` and `_ITM_commitTransactionToID`
     * These appear to be used to implement certain types of exception handling.
   * SSE use
     * We log SSE data correctly, but we do not checkpoint or restore SSE registers necessary to correctly abort transactions. Any transaction that uses SSE should select one of the Single Lock algorithms that does not support `__cancel` before execution.
+
+== Known Issues ==
+
+If you attempt to initialize the TM system in `main` but also have a top-level transaction `icc` will insert a call to `_ITM_getTransaction` just after the `main` prolog but before your initialization calls. The shim does not support this behavior (it's ok to skip the thread initialization call, but not the process initialization call). It's unclear if this is a bug in the shim, a bug in the ITM ABI which is unclear (in our opinion) on this point, or a bug in the compiler.
+
+As a workaround you can either a) not have a top-level transaction in `main`, or use a `__attribute__((constructor))` routine to initialize the process with `_ITM_initializeProcess`.
 
 == Debugging advice ==
 
