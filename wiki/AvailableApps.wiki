@@ -55,4 +55,17 @@ Please note that "yada" does not work correctly.  It is broken in the original S
 Also, note that labyrinth may not work for some of our algorithms, because it requres self-abort.  There is an easy fix for this problem.  If you are interested, please contact us.
 
 == Delaunay triangulation (Scott IISWC 2007) ==
-We also include a Delaunay triangulation application.  Details of how to use this app, as well as inputs and output checkers, will be added.
+We also include a Delaunay triangulation application, `mesh`. The benchmark is currently designed to generate a fixed number of points in the plane, and then uses a phase-based approach towards creating a Delaunay triangulation of this set of random points. These phases switch between shared and private access to the set of points.
+
+The `mesh` application does not currently support 64-bit execution, so it will only be available if [BuildingRSTM you have selected] to build 32-bit libraries and applications.
+
+If requested the application will output a set of edges used to build the triangulation. We provide the `Display.java` viewer so that you can visualize this process.
+
+=== Parameters ===
+  *     `-n`: number of random points to generate
+  *     `-w`: number of worker threads to execute
+  *     `-s`: initial random seed
+  *     `-p`: read points from the input rather than random generation
+  *    `-oi`: output edges incrementally
+  *    `-oe`: output edges at end
+  *     `-v`: output individual timings (implied by `-oi` and -oe`)
