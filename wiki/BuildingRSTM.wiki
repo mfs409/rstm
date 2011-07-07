@@ -17,7 +17,7 @@ Note that libitm2stm requires certain settings for libstm, which can introduce o
 
 As of the 7th release, RSTM uses the [http://www.cmake.org/ cmake configuration infrastructure] which is [http://www.cmake.org/http://www.cmake.org/cmake/resources/software.html available in binary form] for all of the platforms that we currently support. While we do not knowingly use cmake features that are unsupported in the 2.8.0 release, we recommend downloading the latest stable release (2.8.4 at the time of the 7th release) as we have not extensively tested configuration with other cmake verions.
 
-As of the 7th release we have tested STM configurations on the following platforms.
+We have tested STM configurations on the following platforms.
 
   * Linux x86(`_`64)
   * Solaris x86(`_`64) and SPARC v9
@@ -32,6 +32,8 @@ We recommend out-of-source builds. As is standard you may create a directory and
   cmake ../rstm_src
   make
 }}}
+
+*NOTE: We do not recommend using the 'make install' command*
 
 You have three options for customizing your configuration:
   # You may do an _interactive configuration_ using cmake's `-i` flag. This will prompt you for answers to all of the possible configuration options. Be aware that some options are marked as _advanced_ and thus will only be visible if you say `yes` to cmake's interactive query to show advanced variables. We recommend against setting advanced configuration parameters interactively.
