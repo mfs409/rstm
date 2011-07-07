@@ -84,21 +84,16 @@
  * DECLARATION OF TM_CALLABLE FUNCTIONS
  * =============================================================================
  */
-
-TM_CALLABLE
-static long
+static TM_CALLABLE long
 queryNumFree (TM_ARGDECL  MAP_T* tablePtr, long id);
 
-TM_CALLABLE
-static long
+static TM_CALLABLE long
 queryPrice (TM_ARGDECL  MAP_T* tablePtr, long id);
 
-TM_CALLABLE
-static bool_t
+static TM_CALLABLE bool_t
 reserve (TM_ARGDECL MAP_T* tablePtr, MAP_T* customerTablePtr, long customerId, long id, reservation_type_t type);
 
-TM_CALLABLE
-bool_t
+static TM_CALLABLE bool_t
 addReservation (TM_ARGDECL  MAP_T* tablePtr, long id, long num, long price);
 
 
@@ -213,7 +208,7 @@ addReservation (TM_ARGDECL  MAP_T* tablePtr, long id, long num, long price)
 }
 
 
-bool_t
+static bool_t
 addReservation_seq (MAP_T* tablePtr, long id, long num, long price)
 {
     reservation_t* reservationPtr;
@@ -738,7 +733,7 @@ manager_reserveFlight (TM_ARGDECL
  * -- Returns TRUE on success, else FALSE
  * =============================================================================
  */
-static bool_t
+static TM_CALLABLE bool_t
 cancel (TM_ARGDECL
         MAP_T* tablePtr, MAP_T* customerTablePtr,
         long customerId, long id, reservation_type_t type)

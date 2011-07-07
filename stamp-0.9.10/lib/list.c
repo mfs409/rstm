@@ -81,18 +81,15 @@
  * DECLARATION OF TM_CALLABLE FUNCTIONS
  * =============================================================================
  */
-
-TM_CALLABLE
-static list_node_t*
+static TM_CALLABLE list_node_t*
 TMfindPrevious (TM_ARGDECL  list_t* listPtr, void* dataPtr);
 
-TM_CALLABLE
-static void
+static TM_CALLABLE void
 TMfreeList (TM_ARGDECL  list_node_t* nodePtr);
 
-TM_CALLABLE
-void
-TMlist_free (TM_ARGDECL  list_t* listPtr);
+// [RSTM] declared in list.h
+/* void */
+/* TMlist_free (TM_ARGDECL  list_t* listPtr); */
 
 /* =============================================================================
  * compareDataPtrAddresses
@@ -104,7 +101,8 @@ compareDataPtrAddresses (const void* a, const void* b)
 {
     return ((long)a - (long)b);
 }
-static long
+
+static TM_CALLABLE long
 TMcompareDataPtrAddresses (TM_ARGDECL const void* a, const void* b)
 {
     return ((long)a - (long)b);
@@ -229,7 +227,7 @@ PallocNode (void* dataPtr)
  * -- Returns NULL on failure
  * =============================================================================
  */
-static list_node_t*
+static TM_CALLABLE list_node_t*
 TMallocNode (TM_ARGDECL  void* dataPtr)
 {
     list_node_t* nodePtr = (list_node_t*)TM_MALLOC(sizeof(list_node_t));
@@ -347,7 +345,7 @@ PfreeNode (list_node_t* nodePtr)
  * TMfreeNode
  * =============================================================================
  */
-static void
+static TM_CALLABLE void
 TMfreeNode (TM_ARGDECL  list_node_t* nodePtr)
 {
     TM_FREE(nodePtr);

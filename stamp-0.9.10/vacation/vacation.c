@@ -332,7 +332,7 @@ initializeClients (manager_t* managerPtr)
  * -- dependent on tasks generated for clients in initializeClients()
  * =============================================================================
  */
-void
+static void
 checkTables (manager_t* managerPtr)
 {
     long i;

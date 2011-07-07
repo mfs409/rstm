@@ -37,19 +37,19 @@ typedef struct comparator
 
     /*** the transactional version */
     union {
-        long int (*compare_tm)(TM_ARGDECL const void*, const void*);
-        long int (*compare_pair_tm)(TM_ARGDECL const pair_t*, const pair_t*);
+        TM_CALLABLE long int (*compare_tm)(TM_ARGDECL const void*, const void*);
+        TM_CALLABLE long int (*compare_pair_tm)(TM_ARGDECL const pair_t*, const pair_t*);
     };
 
     /*** the unions necessitate use of constructors :( */
     comparator (long int (*c1)(const void*, const void*),
-                long int (*c2)(TM_ARGDECL const void*, const void*))
+                TM_CALLABLE long int (*c2)(TM_ARGDECL const void*, const void*))
     {
         compare_notm = c1;
         compare_tm = c2;
     }
     comparator (long int (*c1)(const pair_t*, const pair_t*),
-                long int (*c2)(TM_ARGDECL const pair_t*, const pair_t*))
+                TM_CALLABLE long int (*c2)(TM_ARGDECL const pair_t*, const pair_t*))
     {
         compare_pair_notm = c1;
         compare_pair_tm = c2;

@@ -118,7 +118,7 @@ extern double global_time;
  * usage
  * =============================================================================
  */
-void
+static void
 usage (char* argv0)
 {
     const char* help =

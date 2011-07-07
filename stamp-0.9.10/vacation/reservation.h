@@ -104,6 +104,7 @@ typedef struct reservation {
  * -- Returns NULL on failure
  * =============================================================================
  */
+TM_CALLABLE
 reservation_info_t*
 reservation_info_alloc (TM_ARGDECL  reservation_type_t type, long id, long price);
 
@@ -112,6 +113,7 @@ reservation_info_alloc (TM_ARGDECL  reservation_type_t type, long id, long price
  * reservation_info_free
  * =============================================================================
  */
+TM_CALLABLE
 void
 reservation_info_free (TM_ARGDECL  reservation_info_t* reservationInfoPtr);
 
@@ -119,8 +121,13 @@ reservation_info_free (TM_ARGDECL  reservation_info_t* reservationInfoPtr);
 /* =============================================================================
  * reservation_info_compare
  * -- Returns -1 if A < B, 0 if A = B, 1 if A > B
+ *
+ * [RSTM] this is tagged as TM_CALLABLE to make sure that there's a
+ *        transactional clone available when we're not waivering the
+ *        comparison.
  * =============================================================================
  */
+TM_CALLABLE
 long
 reservation_info_compare (reservation_info_t* aPtr, reservation_info_t* bPtr);
 
@@ -130,6 +137,7 @@ reservation_info_compare (reservation_info_t* aPtr, reservation_info_t* bPtr);
  * -- Returns NULL on failure
  * =============================================================================
  */
+TM_CALLABLE
 reservation_t*
 reservation_alloc (TM_ARGDECL  long id, long price, long numTotal);
 
@@ -212,6 +220,7 @@ reservation_hash (reservation_t* reservationPtr);
  * reservation_free
  * =============================================================================
  */
+TM_CALLABLE
 void
 reservation_free (TM_ARGDECL  reservation_t* reservationPtr);
 
