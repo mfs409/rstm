@@ -126,61 +126,46 @@ struct rbtree {
  * DECLARATION OF TM_CALLABLE FUNCTIONS
  * =============================================================================
  */
-
-TM_CALLABLE
-static node_t*
+static TM_CALLABLE node_t*
 TMlookup (TM_ARGDECL  rbtree_t* s, void* k);
 
-TM_CALLABLE
-static void
+static TM_CALLABLE void
 TMrotateLeft (TM_ARGDECL  rbtree_t* s, node_t* x);
 
-TM_CALLABLE
-static void
+static TM_CALLABLE void
 TMrotateRight (TM_ARGDECL  rbtree_t* s, node_t* x);
 
-TM_CALLABLE
-static inline node_t*
+static TM_CALLABLE inline node_t*
 TMparentOf (TM_ARGDECL  node_t* n);
 
-TM_CALLABLE
-static inline node_t*
+static TM_CALLABLE inline node_t*
 TMleftOf (TM_ARGDECL  node_t* n);
 
-TM_CALLABLE
-static inline node_t*
+static TM_CALLABLE inline node_t*
 TMrightOf (TM_ARGDECL  node_t* n);
 
-TM_CALLABLE
-static inline long
+static TM_CALLABLE inline long
 TMcolorOf (TM_ARGDECL  node_t* n);
 
-TM_CALLABLE
-static inline void
+static TM_CALLABLE inline void
 TMsetColor (TM_ARGDECL  node_t* n, long c);
 
-TM_CALLABLE
-static void
+static TM_CALLABLE void
 TMfixAfterInsertion (TM_ARGDECL  rbtree_t* s, node_t* x);
 
-TM_CALLABLE
-static node_t*
+static TM_CALLABLE node_t*
 TMsuccessor  (TM_ARGDECL  node_t* t);
 
-TM_CALLABLE
-static void
+static TM_CALLABLE void
 TMfixAfterDeletion  (TM_ARGDECL  rbtree_t* s, node_t*  x);
 
-TM_CALLABLE
-static node_t*
+static TM_CALLABLE node_t*
 TMinsert (TM_ARGDECL  rbtree_t* s, void* k, void* v, node_t* n);
 
-TM_CALLABLE
-static node_t*
+static TM_CALLABLE node_t*
 TMgetNode (TM_ARGDECL_ALONE);
 
-TM_CALLABLE
-static node_t*
+static TM_CALLABLE node_t*
 TMdelete (TM_ARGDECL  rbtree_t* s, node_t* p);
 
 static long RED = 0;
@@ -1275,7 +1260,7 @@ compareKeysDefault (const void* a, const void* b)
     return ((long)a - (long)b);
 }
 
-static long
+static TM_CALLABLE long
 TMcompareKeysDefault (TM_ARGDECL const void* a, const void* b)
 {
     return ((long)a - (long)b);
@@ -1332,7 +1317,7 @@ releaseNode (node_t* n)
  * TMreleaseNode
  * =============================================================================
  */
-static void
+static TM_CALLABLE void
 TMreleaseNode  (TM_ARGDECL  node_t* n)
 {
     TM_FREE(n);

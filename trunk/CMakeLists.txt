@@ -72,6 +72,9 @@ endif ()
 if (rstm_enable_bench)
   include (bench/UserConfig.cmake)
 endif ()
+if (rstm_enable_stamp)
+  include (stamp-0.9.10/UserConfig.cmake)
+endif ()
 
 # Build a list of the architectures (-m32/63) that we have configured. This is
 # used all over the place for multilib-like builds.

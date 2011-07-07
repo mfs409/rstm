@@ -82,8 +82,7 @@
  * =============================================================================
  */
 
-TM_CALLABLE
-static void
+static TM_CALLABLE void
 checkReservation (TM_ARGDECL  reservation_t* reservationPtr);
 
 /* =============================================================================

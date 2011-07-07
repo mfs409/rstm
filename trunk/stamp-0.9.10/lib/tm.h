@@ -295,6 +295,8 @@
 
 #  define TM_THREAD_ENTER()             /* nothing */
 #  define TM_THREAD_EXIT()              /* nothing */
+#  define TM_BEGIN_WAIVER()
+#  define TM_END_WAIVER()
 
 #  define P_MALLOC(size)                memory_get(thread_getId(), size)
 #  define P_FREE(ptr)                   /* TODO: thread local free is non-trivial */
@@ -371,6 +373,8 @@
 
 #      define TM_THREAD_ENTER()           omp_set_self()
 #      define TM_THREAD_EXIT()            /* Nothing */
+#      define TM_BEGIN_WAIVER()
+#      define TM_END_WAIVER()
 #      define thread_barrier_wait();      _Pragma ("omp barrier")
 
 #      define P_MALLOC(size)              memory_get(thread_getId(), size)
@@ -389,6 +393,8 @@
                                           STM_SET_SELF(TM_ARG_ALONE)
 
 #      define TM_THREAD_EXIT()            STM_FREE_THREAD(TM_ARG_ALONE)
+#      define TM_BEGIN_WAIVER()
+#      define TM_END_WAIVER()
 
 #      define P_MALLOC(size)              memory_get(thread_getId(), size)
 #      define P_FREE(ptr)                 /* TODO: thread local free is non-trivial */
@@ -409,6 +415,8 @@
 
 #      define TM_THREAD_ENTER()         /* nothing */
 #      define TM_THREAD_EXIT()          /* nothing */
+#      define TM_BEGIN_WAIVER()
+#      define TM_END_WAIVER()
 #      define thread_barrier_wait();    _Pragma ("omp barrier")
 
 #      define P_MALLOC(size)            malloc(size)
@@ -424,6 +432,8 @@
 #      define TM_THREAD_ENTER()         TM_ARGDECL_ALONE = STM_NEW_THREAD(); \
                                         STM_INIT_THREAD(TM_ARG_ALONE, thread_getId())
 #      define TM_THREAD_EXIT()          STM_FREE_THREAD(TM_ARG_ALONE)
+#      define TM_BEGIN_WAIVER()
+#      define TM_END_WAIVER()
 
 #      define P_MALLOC(size)            malloc(size)
 #      define P_FREE(ptr)               free(ptr)
@@ -457,6 +467,56 @@
 
 #  endif /* !OTM */
 
+
+/* =============================================================================
+ * C++ STM API (it's an STM, but it has a HTM-ish interface
+ * =============================================================================
+ */
+#elif defined(CXXTM)
+
+#  define TM_ARG                        /* nothing */
+#  define TM_ARG_ALONE                  /* nothing */
+#  define TM_ARGDECL                    /* nothing */
+#  define TM_ARGDECL_ALONE              /* nothing */
+#  define TM_CALLABLE                   [[transaction_callable]]
+
+#  ifdef ITM
+#      include <itm.h>
+#      define TM_STARTUP(numThread)     _ITM_initializeProcess()
+#      define TM_SHUTDOWN()             _ITM_finalizeProcess()
+#      define TM_THREAD_ENTER()         _ITM_initializeThread()
+#      define TM_THREAD_EXIT()          _ITM_finalizeThread()
+
+#      ifdef STAMP_USE_WAIVER
+#          define TM_BEGIN_WAIVER()     __transaction [[waiver]] {
+#          define TM_END_WAIVER()       }
+#      else
+#          define TM_BEGIN_WAIVER()
+#          define TM_END_WAIVER()
+#      endif
+
+#  else
+#      define TM_STARTUP(numThread)     /* nothing */
+#      define TM_SHUTDOWN()             /* nothing */
+#      define TM_THREAD_ENTER()         /* nothing */
+#      define TM_THREAD_EXIT()          /* nothing */
+#      define TM_BEGIN_WAIVER()
+#      define TM_END_WAIVER()
+#  endif
+
+#  define P_MALLOC(size)                malloc(size)
+#  define P_FREE(ptr)                   free(ptr)
+#  define TM_MALLOC(size)               malloc(size)
+#  define TM_FREE(ptr)                  free(ptr)
+#  define SEQ_MALLOC(size)              malloc(size)
+#  define SEQ_FREE(ptr)                 free(ptr)
+
+#  define TM_BEGIN()                    __transaction [[relaxed]] {
+#  define TM_BEGIN_RO()                 __transaction [[relaxed]] {
+#  define TM_END()                      }
+#  define TM_RESTART()                  assert(0)
+
+#  define TM_EARLY_RELEASE(var)         /* nothing */
 
 /* =============================================================================
  * Sequential execution
@@ -581,6 +641,16 @@
 
 #endif /* TM_H */
 
+/* =============================================================================
+ * Fix some missing things for ITM.
+ * =============================================================================
+ */
+#if defined(ITM)
+extern "C" {
+[[transaction_safe]] void* malloc(size_t) __THROW;
+[[transaction_safe]] void free(void*) __THROW;
+}
+#endif
 
 /* =============================================================================
  *

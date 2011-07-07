@@ -89,6 +89,7 @@ typedef struct customer {
  * customer_alloc
  * =============================================================================
  */
+TM_CALLABLE
 customer_t*
 customer_alloc (TM_ARGDECL  long id);
 
@@ -117,6 +118,7 @@ customer_hash (customer_t* customerPtr);
  * customer_free
  * =============================================================================
  */
+TM_CALLABLE
 void
 customer_free (TM_ARGDECL  customer_t* customerPtr);
 
@@ -142,6 +144,7 @@ customer_addReservationInfo_seq (customer_t* customerPtr,
  * -- Returns TRUE if success, else FALSE
  * =============================================================================
  */
+TM_CALLABLE
 bool_t
 customer_removeReservationInfo (TM_ARGDECL
                                 customer_t* customerPtr,

@@ -155,6 +155,7 @@ TMlist_iter_next (TM_ARGDECL  list_iter_t* itPtr, list_t* listPtr);
  * =============================================================================
  */
 // [RSTM] do we still need TMlist_alloc?
+TM_CALLABLE
 list_t*
 TMlist_alloc (TM_ARGDECL comparator_t* comp);
 
@@ -205,6 +206,7 @@ Plist_free (list_t* listPtr);
  * -- Returns NULL on failure
  * =============================================================================
  */
+TM_CALLABLE
 void
 TMlist_free (TM_ARGDECL  list_t* listPtr);
 
@@ -328,6 +330,7 @@ TMlist_remove (TM_ARGDECL  list_t* listPtr, void* dataPtr);
  * -- Removes all elements
  * =============================================================================
  */
+TM_CALLABLE
 void
 TMlist_clear (TM_ARGDECL list_t* listPtr);
 
