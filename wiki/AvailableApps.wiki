@@ -57,6 +57,8 @@ Also, note that labyrinth may not work for some of our algorithms, because it re
 == Delaunay triangulation (Scott IISWC 2007) ==
 We also include a Delaunay triangulation application, `mesh`. The benchmark is currently designed to generate a fixed number of points in the plane, and then uses a phase-based approach towards creating a Delaunay triangulation of this set of random points. These phases switch between shared and private access to the set of points.
 
+There are currently three options for synchronizing the shared accesses. There is an explcit _coarse-grain lock_ implementation which protects the shared data with a single global pthread lock. There is a substantially more complicated, _fine-grain lock_ implementation which uses many small locks. Finally, if you have access to a C++ STM Draft standard compiler, such as [http://software.intel.com/en-us/articles/intel-c-stm-compiler-prototype-edition/ Intel's experimental STM version of `icc`] you can build using transactional memory. TM supports both Intel's included `libitm.a` as well as our `libitm2stm.a` shim, as selected during configuration. All four versions can be built at the same time.
+
 The `mesh` application does not currently support 64-bit execution, so it will only be available if [BuildingRSTM you have selected] to build 32-bit libraries and applications.
 
 If requested the application will output a set of edges used to build the triangulation. We provide the `Display.java` viewer so that you can visualize this process.
