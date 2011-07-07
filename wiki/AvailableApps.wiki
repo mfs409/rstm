@@ -62,10 +62,10 @@ The `mesh` application does not currently support 64-bit execution, so it will o
 If requested the application will output a set of edges used to build the triangulation. We provide the `Display.java` viewer so that you can visualize this process.
 
 === Parameters ===
-  *     `-n`: number of random points to generate
-  *     `-w`: number of worker threads to execute
-  *     `-s`: initial random seed
-  *     `-p`: read points from the input rather than random generation
+  *    ` -n`: number of random points to generate
+  *    ` -w`: number of worker threads to execute
+  *    ` -s`: initial random seed
+  *    ` -p`: read points from the input rather than random generation
   *    `-oi`: output edges incrementally
   *    `-oe`: output edges at end
-  *     `-v`: output individual timings (implied by `-oi` and -oe`)
+  *    ` -v`: output individual timings (implied by `-oi` and -oe`)
