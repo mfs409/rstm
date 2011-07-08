@@ -94,6 +94,12 @@ Bench options are defined in `<RSTM>/bench/UserConfig.cmake` and control how the
 
   * `bench_enable_multi_source`: libitm and libitm2stm builds of the bench suite use multi-source builds. This option forces the libstm build to use this same strategy and is appropriate for comparisons with the C++ TM compiler builds. Multi-source executables have MSB appended to their names. The libitm and libitm2stm builds are always multi-source.
 
+=== STAMP Options ===
+
+The STAMP options are defined in `<RSTM>/stamp-0.9.10/UserConfig.cmake` and control how the C++ STM build occurs.
+
+  * `stamp_use_waiver`: This defines STAMP's `TM_WAIVER` macro to be `__transaction [[waiver]]` and can only be used with a compiler that supports Intel's waiver extension. It is used in the C++ STM build to call uninstrumented comparators, which is how STAMP was originally designed. You may disable waiver to see how the `__transaction [[waiver]]` extension aids performance in these benchmarks.
+
 === mesh Options ===
 
 Mesh options are defined in `<RSTM>/mesh/UserConfig.cmake` and control which versions of the mesh application to build. Mesh currently only supports 32-bit execution, so this option is only available if you have selected `rstm_build_32-bit`. Mesh will always be built with an libitm and libitm2stm version depending on your selections for `rstm_enable_itm` and `rstm_enable_itm2stm`.
