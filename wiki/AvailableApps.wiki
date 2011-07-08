@@ -54,6 +54,12 @@ Please note that "yada" does not work correctly.  It is broken in the original S
 
 Also, note that labyrinth may not work for some of our algorithms, because it requres self-abort.  There is an easy fix for this problem.  If you are interested, please contact us.
 
+=== C++ STM Stamp ===
+
+We have ported three of the STAMP benchmarks to use the C++ STM API, kmeans, ssca2, and vacation. This is achieved with some custom STAMP macro mapping in tm.h. This means that, if you have configured to `rstm_enable_itm` and/or `rstm_enable_itm2stm`, the build system will build versions of these apps using your C++ STM compiler and link to `libitm.a` and `libitm2stm.a libstm.a`, respectively.
+
+This is described in further detail in our [http://www.cs.purdue.edu/transact11/web/papers/Kestor.pdf TRANSACT '11 paper]. Note that the released code is _not_ the code used to get performance results in that paper. The STAMP release is RSTM's modified version of STAMP, the shim has been entirely rewritten to support a much broader range of ITM behavior, and the underlying STM implementation has evolved dramatically since the RSTM v5 release that the paper was based on.
+
 == Delaunay triangulation (Scott IISWC 2007) ==
 We also include a Delaunay triangulation application, `mesh`. The benchmark is currently designed to generate a fixed number of points in the plane, and then uses a phase-based approach towards creating a Delaunay triangulation of this set of random points. These phases switch between shared and private access to the set of points.
 
