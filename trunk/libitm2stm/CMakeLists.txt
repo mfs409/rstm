@@ -44,6 +44,11 @@ set(asmsources
   arch/x86_64/_ITM_beginTransaction.S
   arch/x86_64/checkpoint_restore.S)
 
+if (itm2stm_enable_assert_on_irrevocable)
+  append_list_property(SOURCE libitm-5.11.cpp COMPILE_DEFINITIONS
+    ITM2STM_ASSERT_ON_IRREVOCABLE)
+endif ()
+  
 # Hack because preprocessed asm files aren't supported in cmake-2.8.4, so we
 # pretend they're C++ files. They also need the additional include directory.
 set_source_files_properties(
