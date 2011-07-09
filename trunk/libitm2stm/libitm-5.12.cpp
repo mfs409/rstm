@@ -43,7 +43,7 @@ namespace {
 /// file.
 template <typename T,
           size_t N = (sizeof(T) / sizeof(void*)),
-          bool A = Aligned<T>::value>
+          bool A = Aligned<T>::value> // Aligned<T> in arch/<*>/TypeAlignment.h
 struct INST {
 };
 

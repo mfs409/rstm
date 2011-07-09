@@ -74,13 +74,9 @@ Scope::LoggedWord::clip(void** lower, void** upper) {
 }
 
 inline void
-Scope::LoggedWord::undo(ThrownObject& thrown, void** protected_stack_end)
+Scope::LoggedWord::undo(ThrownObject& thrown)
 {
-    // first-off we need to protect the stack from dangerous writes.
-    void* top_of_stack;
-    clip(&top_of_stack, protected_stack_end);
-
-    // and protect the exception object
+    // protect the exception object
     clip(thrown.begin(), thrown.end());
 
     // memcpy is tolerant of different "bytes_" values, we could also perform
@@ -95,9 +91,9 @@ Scope::Scope(_ITM_transaction& owner)
       flags_(0),
       id_(_ITM_NoTransactionId),
       thrown_(),
-      do_on_rollback_(),
-      undo_on_rollback_(),
-      do_on_commit_(),
+      do_on_rollback_(4),
+      undo_on_rollback_(16),
+      do_on_commit_(4),
       owner_(owner) {
 #if defined(SCOPE_ABORTED_)
     ASSERT_OFFSET(offsetof(Scope, aborted_), SCOPE_ABORTED_);
@@ -105,11 +101,11 @@ Scope::Scope(_ITM_transaction& owner)
 }
 
 std::pair<void**, size_t>&
-Scope::rollback(void** protected_stack_bound) {
+Scope::rollback() {
     // 1) Undo all of the logged words.
     for (UndoList::iterator i = undo_on_rollback_.begin(),
                             e = undo_on_rollback_.end(); i != e; ++i)
-        i->undo(thrown_, protected_stack_bound);
+        i->undo(thrown_);
 
     // 2) Perform the user's registered onAbort callbacks, in FIFO order
     for (RollbackList::iterator i = do_on_rollback_.begin(),
@@ -117,7 +113,7 @@ Scope::rollback(void** protected_stack_bound) {
         i->eval();
 
     // 3) Clear the commit callbacks.
-    do_on_commit_.clear();
+    do_on_commit_.reset();
 
     // 4) Mark that we're an aborted scope... we'll need to be Scope::enter-ed
     //    to be used again.
