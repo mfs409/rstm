@@ -48,6 +48,10 @@ _ITM_transaction::enter(Node* const scope, const uint32_t flags) {
         // This only runs at the outermost nesting depth. Log the scope here.
         outer_scope_ = scope;
 
+        // Set the overall high stack address for the transaction (needed by
+        // NOrec to filter read validation).
+        thread_handle_.stack_high = scope->stackHigh();
+
         // We must ensure that the write of the transaction's scope occurs
         // *before* the read of the begin function pointer.  on x86, a CAS is
         // faster than using WBR or xchg to achieve the ordering.  On SPARC, WBR

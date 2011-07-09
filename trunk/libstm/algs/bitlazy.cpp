@@ -55,11 +55,11 @@ namespace {
       static TM_FASTCALL void* read_rw(STM_READ_SIG(,,));
       static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,,));
       static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void commit_ro(STM_COMMIT_SIG(,));
-      static TM_FASTCALL void commit_rw(STM_COMMIT_SIG(,));
+      static TM_FASTCALL void commit_ro(TxThread*);
+      static TM_FASTCALL void commit_rw(TxThread*);
 
-      static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,,));
-      static bool irrevoc(STM_IRREVOC_SIG(,));
+      static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
+      static bool irrevoc(TxThread*);
       static void onSwitchTo();
   };
 
@@ -78,7 +78,7 @@ namespace {
    *  BitLazy commit (read-only):
    */
   void
-  BitLazy::commit_ro(STM_COMMIT_SIG(tx,))
+  BitLazy::commit_ro(TxThread* tx)
   {
       // were there remote aborts?
       if (!tx->alive)
@@ -103,7 +103,7 @@ namespace {
    *    release locks, and clean up.
    */
   void
-  BitLazy::commit_rw(STM_COMMIT_SIG(tx,upper_stack_bound))
+  BitLazy::commit_rw(TxThread* tx)
   {
       // try to lock every location in the write set
       rrec_t accumulator = {{0}};
@@ -153,7 +153,7 @@ namespace {
       CFENCE;
 
       // we committed... replay redo log
-      tx->writes.writeback(STM_WHEN_PROTECT_STACK(upper_stack_bound));
+      tx->writes.writeback();
       CFENCE;
 
       // release read locks, write locks
@@ -267,14 +267,14 @@ namespace {
    *  BitLazy unwinder:
    */
   stm::scope_t*
-  BitLazy::rollback(STM_ROLLBACK_SIG(tx, upper_stack_bound, except, len))
+  BitLazy::rollback(STM_ROLLBACK_SIG(tx, except, len))
   {
       PreRollback(tx);
 
       // Perform writes to the exception object if there were any... taking the
       // branch overhead without concern because we're not worried about
       // rollback overheads.
-      STM_ROLLBACK(tx->writes, upper_stack_bound, except, len);
+      STM_ROLLBACK(tx->writes, except, len);
 
       // release the locks
       foreach (BitLockList, i, tx->w_bitlocks)
@@ -292,7 +292,7 @@ namespace {
   /**
    *  BitLazy in-flight irrevocability:
    */
-  bool BitLazy::irrevoc(STM_IRREVOC_SIG(,))
+  bool BitLazy::irrevoc(TxThread*)
   {
       return false;
   }

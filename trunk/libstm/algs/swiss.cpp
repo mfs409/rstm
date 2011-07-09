@@ -71,10 +71,10 @@ namespace
       static TM_FASTCALL bool begin(TxThread*);
       static TM_FASTCALL void* read(STM_READ_SIG(,,));
       static TM_FASTCALL void write(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void commit(STM_COMMIT_SIG(,));
+      static TM_FASTCALL void commit(TxThread*);
 
-      static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,,));
-      static bool irrevoc(STM_IRREVOC_SIG(,));
+      static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
+      static bool irrevoc(TxThread*);
       static void onSwitchTo();
       static void cm_start(TxThread*);
       static void cm_on_rollback(TxThread*);
@@ -208,7 +208,7 @@ namespace
    *  abort, we can ignore them... either we commit and zero our state,
    *  or we abort anyway.
    */
-  void Swiss::commit(STM_COMMIT_SIG(tx,upper_stack_bound))
+  void Swiss::commit(TxThread* tx)
   {
       // read-only case
       if (!tx->writes.size()) {
@@ -230,7 +230,7 @@ namespace
           validate_commit(tx);
 
       // run the redo log
-      tx->writes.writeback(STM_WHEN_PROTECT_STACK(upper_stack_bound));
+      tx->writes.writeback();
 
       // now release all read and write locks covering the writeset
       foreach (NanorecList, i, tx->nanorecs) {
@@ -248,14 +248,14 @@ namespace
 
   // rollback a transaction
   stm::scope_t*
-  Swiss::rollback(STM_ROLLBACK_SIG(tx, upper_stack_bound, except, len))
+  Swiss::rollback(STM_ROLLBACK_SIG(tx, except, len))
   {
       PreRollback(tx);
 
       // Perform writes to the exception object if there were any... taking
       // the branch overhead without concern because we're not worried about
       // rollback overheads.
-      STM_ROLLBACK(tx->writes, upper_stack_bound, except, len);
+      STM_ROLLBACK(tx->writes, except, len);
 
       // now release all read and write locks covering the writeset... often,
       // we didn't acquire the read locks, but it's harmless to do it like
@@ -341,7 +341,7 @@ namespace
   }
 
   /*** Become irrevocable via abort-and-restart */
-  bool Swiss::irrevoc(STM_IRREVOC_SIG(,)) { return false; }
+  bool Swiss::irrevoc(TxThread*) { return false; }
 
   /***  Keep SwissTM metadata healthy */
   void Swiss::onSwitchTo()

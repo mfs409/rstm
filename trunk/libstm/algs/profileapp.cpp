@@ -59,11 +59,11 @@ namespace {
       static TM_FASTCALL void* read_rw(STM_READ_SIG(,,));
       static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,,));
       static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void commit_ro(STM_COMMIT_SIG(,));
-      static TM_FASTCALL void commit_rw(STM_COMMIT_SIG(,));
+      static TM_FASTCALL void commit_ro(TxThread*);
+      static TM_FASTCALL void commit_rw(TxThread*);
 
-      static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,,));
-      static bool irrevoc(STM_IRREVOC_SIG(,));
+      static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
+      static bool irrevoc(TxThread*);
       static void onSwitchTo();
   };
 
@@ -111,7 +111,7 @@ namespace {
    */
   template <int COUNTMODE>
   void
-  ProfileApp<COUNTMODE>::commit_ro(STM_COMMIT_SIG(tx,))
+  ProfileApp<COUNTMODE>::commit_ro(TxThread* tx)
   {
       // NB: statically optimized version of RW code for RO case
       unsigned long long runtime = tick() - profiles[0].txn_time;
@@ -140,10 +140,10 @@ namespace {
    */
   template <int COUNTMODE>
   void
-  ProfileApp<COUNTMODE>::commit_rw(STM_COMMIT_SIG(tx,upper_stack_bound))
+  ProfileApp<COUNTMODE>::commit_rw(TxThread* tx)
   {
       // run the redo log
-      tx->writes.writeback(STM_WHEN_PROTECT_STACK(upper_stack_bound));
+      tx->writes.writeback();
       // remember write set size before clearing it
       int x = tx->writes.size();
       tx->writes.reset();
@@ -249,7 +249,7 @@ namespace {
    */
   template <int COUNTMODE>
   stm::scope_t*
-  ProfileApp<COUNTMODE>::rollback(STM_ROLLBACK_SIG(,,,))
+  ProfileApp<COUNTMODE>::rollback(STM_ROLLBACK_SIG(,,))
   {
       UNRECOVERABLE("ProfileApp should never incur an abort");
       return NULL;
@@ -260,7 +260,7 @@ namespace {
    */
   template <int COUNTMODE>
   bool
-  ProfileApp<COUNTMODE>::irrevoc(STM_IRREVOC_SIG(,))
+  ProfileApp<COUNTMODE>::irrevoc(TxThread*)
   {
       // NB: there is no reason why we can't support this, we just don't yet.
       UNRECOVERABLE("ProfileApp does not support irrevocability");

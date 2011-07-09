@@ -35,10 +35,10 @@ namespace {
       static TM_FASTCALL bool begin(TxThread*);
       static TM_FASTCALL void* read(STM_READ_SIG(,,));
       static TM_FASTCALL void write(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void commit(STM_COMMIT_SIG(,));
+      static TM_FASTCALL void commit(TxThread*);
 
-      static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,,));
-      static bool irrevoc(STM_IRREVOC_SIG(,));
+      static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
+      static bool irrevoc(TxThread*);
       static void onSwitchTo();
   };
 
@@ -57,7 +57,7 @@ namespace {
   /**
    *  Serial commit
    */
-  void Serial::commit(STM_COMMIT_SIG(tx,))
+  void Serial::commit(TxThread* tx)
   {
       // release the lock, finalize mm ops, and log the commit
       tatas_release(&timestamp.val);
@@ -93,12 +93,12 @@ namespace {
    *  Serial unwinder:
    */
   stm::scope_t*
-  Serial::rollback(STM_ROLLBACK_SIG(tx, upper_stack_bound, except, len))
+  Serial::rollback(STM_ROLLBACK_SIG(tx, except, len))
   {
       PreRollback(tx);
 
       // undo all writes
-      STM_UNDO(tx->undo_log, upper_stack_bound, except, len);
+      STM_UNDO(tx->undo_log, except, len);
 
       // release the lock
       tatas_release(&timestamp.val);
@@ -129,7 +129,7 @@ namespace {
    *        no global coordination.
    */
   bool
-  Serial::irrevoc(STM_IRREVOC_SIG(tx,))
+  Serial::irrevoc(TxThread* tx)
   {
       UNRECOVERABLE("Serial::irrevoc should not be called!");
       return false;

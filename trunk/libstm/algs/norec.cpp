@@ -33,21 +33,21 @@ namespace {
 
   const uintptr_t VALIDATION_FAILED = 1;
   NOINLINE uintptr_t validate(TxThread*);
-  bool irrevoc(STM_IRREVOC_SIG(,));
+  bool irrevoc(TxThread*);
   void onSwitchTo();
 
   template <class CM>
   struct NOrec_Generic
   {
       static TM_FASTCALL bool begin(TxThread*);
-      static TM_FASTCALL void commit(STM_COMMIT_SIG(,));
-      static TM_FASTCALL void commit_ro(STM_COMMIT_SIG(,));
-      static TM_FASTCALL void commit_rw(STM_COMMIT_SIG(,));
+      static TM_FASTCALL void commit(TxThread*);
+      static TM_FASTCALL void commit_ro(TxThread*);
+      static TM_FASTCALL void commit_rw(TxThread*);
       static TM_FASTCALL void* read_ro(STM_READ_SIG(,,));
       static TM_FASTCALL void* read_rw(STM_READ_SIG(,,));
       static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,,));
       static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,,));
-      static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,,));
+      static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
       static void initialize(int id, const char* name);
   };
 
@@ -66,7 +66,7 @@ namespace {
           // validation early
           bool valid = true;
           foreach (ValueList, i, tx->vlist)
-              valid &= i->isValid();
+              valid &= STM_LOG_VALUE_IS_VALID(i, tx);
 
           if (!valid)
               return VALIDATION_FAILED;
@@ -79,14 +79,14 @@ namespace {
   }
 
   bool
-  irrevoc(STM_IRREVOC_SIG(tx,upper_stack_bound))
+  irrevoc(TxThread* tx)
   {
       while (!bcasptr(&timestamp.val, tx->start_time, tx->start_time + 1))
           if ((tx->start_time = validate(tx)) == VALIDATION_FAILED)
               return false;
 
       // redo writes
-      tx->writes.writeback(STM_WHEN_PROTECT_STACK(upper_stack_bound));
+      tx->writes.writeback();
 
       // Release the sequence lock, then clean up
       CFENCE;
@@ -146,7 +146,7 @@ namespace {
 
   template <class CM>
   void
-  NOrec_Generic<CM>::commit(STM_COMMIT_SIG(tx,upper_stack_bound))
+  NOrec_Generic<CM>::commit(TxThread* tx)
   {
       // From a valid state, the transaction increments the seqlock.  Then it
       // does writeback and increments the seqlock again
@@ -164,7 +164,7 @@ namespace {
           if ((tx->start_time = validate(tx)) == VALIDATION_FAILED)
               tx->tmabort(tx);
 
-      tx->writes.writeback(STM_WHEN_PROTECT_STACK(upper_stack_bound));
+      tx->writes.writeback();
 
       // Release the sequence lock, then clean up
       CFENCE;
@@ -177,7 +177,7 @@ namespace {
 
   template <class CM>
   void
-  NOrec_Generic<CM>::commit_ro(STM_COMMIT_SIG(tx,))
+  NOrec_Generic<CM>::commit_ro(TxThread* tx)
   {
       // Since all reads were consistent, and no writes were done, the read-only
       // NOrec transaction just resets itself and is done.
@@ -188,7 +188,7 @@ namespace {
 
   template <class CM>
   void
-  NOrec_Generic<CM>::commit_rw(STM_COMMIT_SIG(tx,upper_stack_bound))
+  NOrec_Generic<CM>::commit_rw(TxThread* tx)
   {
       // From a valid state, the transaction increments the seqlock.  Then it does
       // writeback and increments the seqlock again
@@ -198,7 +198,7 @@ namespace {
           if ((tx->start_time = validate(tx)) == VALIDATION_FAILED)
               tx->tmabort(tx);
 
-      tx->writes.writeback(STM_WHEN_PROTECT_STACK(upper_stack_bound));
+      tx->writes.writeback();
 
       // Release the sequence lock, then clean up
       CFENCE;
@@ -235,8 +235,9 @@ namespace {
           CFENCE;
       }
 
-      // log the address and value
-      tx->vlist.insert(STM_VALUE_LIST_ENTRY(addr, tmp, mask));
+      // log the address and value, uses the macro to deal with
+      // STM_PROTECT_STACK
+      STM_LOG_VALUE(tx, addr, tmp, mask);
       return tmp;
   }
 
@@ -280,7 +281,7 @@ namespace {
 
   template <class CM>
   stm::scope_t*
-  NOrec_Generic<CM>::rollback(STM_ROLLBACK_SIG(tx, upper_stack_bound, except, len))
+  NOrec_Generic<CM>::rollback(STM_ROLLBACK_SIG(tx, except, len))
   {
       stm::PreRollback(tx);
 
@@ -290,7 +291,7 @@ namespace {
       // Perform writes to the exception object if there were any... taking the
       // branch overhead without concern because we're not worried about
       // rollback overheads.
-      STM_ROLLBACK(tx->writes, upper_stack_bound, except, len);
+      STM_ROLLBACK(tx->writes, except, len);
 
       tx->vlist.reset();
       tx->writes.reset();

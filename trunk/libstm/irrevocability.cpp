@@ -48,7 +48,7 @@ namespace {
    *      X's default gcc-4.2.1. It's fine if we use the fully qualified
    *      namespace here.
    */
-  stm::scope_t* rollback_irrevocable(STM_ROLLBACK_SIG(,,,))
+  stm::scope_t* rollback_irrevocable(STM_ROLLBACK_SIG(,,))
   {
       UNRECOVERABLE("Irrevocable thread attempted to rollback.");
       return NULL;
@@ -72,7 +72,7 @@ namespace {
   /**
    *  custom commit for irrevocable transactions
    */
-  TM_FASTCALL void commit_irrevocable(STM_COMMIT_SIG(tx,))
+  TM_FASTCALL void commit_irrevocable(TxThread* tx)
   {
       // make self non-irrevocable, and unset local r/w/c barriers
       tx->irrevocable = false;
@@ -117,7 +117,7 @@ namespace stm
    *  irrevocable barriers---it has to be done here because the rollback that
    *  the abort triggers will reset anything we try and set here.
    */
-  void become_irrevoc(STM_WHEN_PROTECT_STACK(void** upper_stack_bound))
+  void become_irrevoc()
   {
       TxThread* tx = Self;
       // special code for degenerate STM implementations
@@ -161,13 +161,8 @@ namespace stm
           while ((i != (tx->id-1)) && (threads[i]->scope))
               spin64();
 
-      // try to become irrevocable inflight (protects the stack during commit if
-      // necessary)
-#if defined(STM_PROTECT_STACK)
-      tx->irrevocable = TxThread::tmirrevoc(tx, upper_stack_bound);
-#else
+      // try to become irrevocable inflight
       tx->irrevocable = TxThread::tmirrevoc(tx);
-#endif
 
       // If inflight succeeded, switch our barriers and return true.
       if (tx->irrevocable) {
@@ -212,6 +207,7 @@ namespace stm
    */
   bool begin_blocker(TxThread* tx)
   {
+      // if the caller is trying to restart as irrevocable, let them
       if (tx->irrevocable) {
           set_irrevocable_barriers(*tx);
           return true;

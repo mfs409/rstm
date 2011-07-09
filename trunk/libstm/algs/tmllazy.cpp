@@ -40,11 +40,11 @@ namespace {
       static TM_FASTCALL void* read_rw(STM_READ_SIG(,,));
       static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,,));
       static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void commit_ro(STM_COMMIT_SIG(,));
-      static TM_FASTCALL void commit_rw(STM_COMMIT_SIG(,));
+      static TM_FASTCALL void commit_ro(TxThread*);
+      static TM_FASTCALL void commit_rw(TxThread*);
 
-      static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,,));
-      static bool irrevoc(STM_IRREVOC_SIG(,));
+      static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
+      static bool irrevoc(TxThread*);
       static void onSwitchTo();
   };
 
@@ -67,7 +67,7 @@ namespace {
    *  TMLLazy commit (read-only context):
    */
   void
-  TMLLazy::commit_ro(STM_COMMIT_SIG(tx,))
+  TMLLazy::commit_ro(TxThread* tx)
   {
       // no metadata to manage, so just be done!
       OnReadOnlyCommit(tx);
@@ -77,14 +77,14 @@ namespace {
    *  TMLLazy commit (writer context):
    */
   void
-  TMLLazy::commit_rw(STM_COMMIT_SIG(tx,upper_stack_bound))
+  TMLLazy::commit_rw(TxThread* tx)
   {
       // we have writes... if we can't get the lock, abort
       if (!bcasptr(&timestamp.val, tx->start_time, tx->start_time + 1))
           tx->tmabort(tx);
 
       // we're committed... run the redo log
-      tx->writes.writeback(STM_WHEN_PROTECT_STACK(upper_stack_bound));
+      tx->writes.writeback();
 
       // release the sequence lock and clean up
       timestamp.val++;
@@ -154,13 +154,13 @@ namespace {
    *  TMLLazy unwinder
    */
   stm::scope_t*
-  TMLLazy::rollback(STM_ROLLBACK_SIG(tx, upper_stack_bound, except, len))
+  TMLLazy::rollback(STM_ROLLBACK_SIG(tx, except, len))
   {
       PreRollback(tx);
       // Perform writes to the exception object if there were any... taking the
       // branch overhead without concern because we're not worried about
       // rollback overheads.
-      STM_ROLLBACK(tx->writes, upper_stack_bound, except, len);
+      STM_ROLLBACK(tx->writes, except, len);
 
       tx->writes.reset();
       return PostRollback(tx, read_ro, write_ro, commit_ro);
@@ -170,7 +170,7 @@ namespace {
    *  TMLLazy in-flight irrevocability:
    */
   bool
-  TMLLazy::irrevoc(STM_IRREVOC_SIG(tx,upper_stack_bound))
+  TMLLazy::irrevoc(TxThread* tx)
   {
       // we are running in isolation by the time this code is run.  Make sure
       // we are valid.
@@ -178,7 +178,7 @@ namespace {
           return false;
 
       // push all writes back to memory and clear writeset
-      tx->writes.writeback(STM_WHEN_PROTECT_STACK(upper_stack_bound));
+      tx->writes.writeback();
       timestamp.val++;
 
       // return the STM to a state where it can be used after we finish our

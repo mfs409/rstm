@@ -9,8 +9,8 @@
  */
 
 /**
- *  Implement an undo log so that we can centralize all logic for
- *  stack-filtering and abort/throw behavior in in-place update STMs
+ *  Implement an undo log so that we can centralize all logic for undo behavior
+ *  in in-place update STMs
  */
 
 #ifndef UNDO_LOG_HPP__
@@ -22,10 +22,10 @@
 
 /**
  *  An undo log is a pretty simple structure. We never need to search it, so
- *  its only purpose is to store stuff and write stuff out when we
- *  abort. It's split out into its own class in order to deal with the
- *  configuration-based behavior that we need it to observe, like
- *  byte-accesses, stack protection, etc.
+ *  its only purpose is to store stuff and write stuff out when we abort. It is
+ *  split out into its own class in order to deal with the configuration-based
+ *  behavior that we need it to observe, like byte-accesses, abort-on-throw,
+ *  etc.
  */
 namespace stm
 {
@@ -50,13 +50,13 @@ namespace stm
 
       /**
        *  Called in order to find out if the logged word falls within the
-       *  address range. This is used to both filter out undo operations to
-       *  the protected stack, and the exception object.
+       *  address range. This is used to filter out undo operations to the
+       *  exception object.
        *
-       *  Note that while the wordlog can _only_ be completely filtered out,
-       *  we don't have support for partial filtering here. This is almost
-       *  certainly ok, since the stack is word aligned, and an exception
-       *  object is probably aligned as well, and at least a word large.
+       *  Note that the wordlog can _only_ be completely filtered out, we don't
+       *  have support for partial filtering here. This is almost certainly ok,
+       *  since the stack is word aligned, and an exception object is probably
+       *  aligned as well, and at least a word large.
        *
        *  The bytelog version /can/ be partially filtered, which is just a
        *  masking operation.
@@ -96,7 +96,7 @@ namespace stm
           mask = pmask;
       }
 
-      /*** write (undo) a log entry */
+      /*** write the masked bytes of an aligned word */
       inline static void DoMaskedWrite(void** addr, void* val, uintptr_t mask)
       {
           // common case is word access
@@ -180,26 +180,18 @@ namespace stm
       UndoLog(const uintptr_t cap) : stm::MiniVector<UndoLogEntry>(cap) { }
 
       /**
-       * A utility for undo-log implementations that undoes all of the
-       * accesses in a write log except for those that took place to an
-       * exception object that is being thrown-on-abort. This is mainly to
-       * support the itm2stm shim at the moment, since baseline stm doesn't
-       * have abort-on-throw capabilities.
+       * A utility for undo-log implementations that undoes all of the accesses
+       * in a write log except for those that took place to an exception object
+       * that is being thrown-on-abort. This is mainly to support the itm2stm
+       * shim at the moment, since baseline stm doesn't have abort-on-throw
+       * capabilities.
        */
-#if !defined(STM_PROTECT_STACK) && !defined(STM_ABORT_ON_THROW)
+#if !defined(STM_ABORT_ON_THROW)
       void undo();
-#   define STM_UNDO(log, stack, except, len) log.undo()
-#elif defined(STM_PROTECT_STACK) && !defined(STM_ABORT_ON_THROW)
-      void undo(void** upper_stack_bound);
-#   define STM_UNDO(log, stack, except, len) log.undo(stack)
-#elif !defined(STM_PROTECT_STACK) && defined(STM_ABORT_ON_THROW)
-      void undo(void** except, size_t len);
-#   define STM_UNDO(log, stack, except, len) log.undo(except, len)
-#elif defined(STM_PROTECT_STACK) && defined(STM_ABORT_ON_THROW)
-      void undo(void** upper_stack_bound, void** exception, size_t len);
-#   define STM_UNDO(log, stack, except, len) log.undo(stack, except, len)
+#   define STM_UNDO(log, except, len) log.undo()
 #else
-#   error if/else logic error
+      void undo(void** except, size_t len);
+#   define STM_UNDO(log, except, len) log.undo(except, len)
 #endif
   };
 }

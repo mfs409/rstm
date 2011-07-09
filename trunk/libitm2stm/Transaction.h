@@ -1,4 +1,4 @@
-/**
+/** -*- C++ -*-
  *  Copyright (C) 2011
  *  University of Rochester Department of Computer Science
  *    and
@@ -79,6 +79,11 @@ struct _ITM_transaction {
         return scopes_;
     }
 
+    /// The outermost scope.
+    inline Node* outer() const {
+        return outer_scope_;
+    }
+
     /// The thread handle for RSTM. Used frequently in the various barrier
     /// (read/write/log) code.
     inline stm::TxThread& handle() const {
@@ -87,26 +92,18 @@ struct _ITM_transaction {
 
     /// Perform whatever actions are required to undo the effects of the inner
     /// scope. Supports all of the various ways a transaction can abort (cancel,
-    /// retry, conflict abort). We need a stack address that represents the
-    /// lower bound of the protected stack region, so that an undo-log TM
-    /// doesn't clobber any part of the stack that we're going to need before we
-    /// \code{restart} or \code{cancel} the scope.
-    void rollback(void** protected_stack_lower_bound);
+    /// retry, conflict abort).
+    void rollback();
 
     /// Performs whatever actions are required to commit a scope. Unlike
     /// rollback, the caller doesn't need to leave the scope---it's done
-    /// internally. We need a stack address that represents the lower bound of
-    /// the protected stack region so that a redo-log TM doesn't clobber any
-    /// part of the stack that we need to complete the ABI call.
-    void commit(void** protected_stack_lower_bound);
+    /// internally.
+    void commit();
 
     /// Performs whatever actions are required to commit a scope, but returning
     /// "false" if the commit fails rather than doing a non-local control
-    /// transfer. Like "commit" the caller does not need to leave the scope. We
-    /// need a stack address that represents the lower bound of the protected
-    /// stack region so that a redo-log TM doesn't clobber any part of the stack
-    /// that we need.
-    bool tryCommit(void** protected_stack_lower_bound);
+    /// transfer. Like "commit" the caller does not need to leave the scope.
+    bool tryCommit();
 
     /// This is a bit of a confusing call as described in the ABI. It seems to
     /// mean that we're supposed to just pop scopes, without rolling back or
@@ -174,26 +171,20 @@ struct _ITM_transaction {
     GCC_FASTCALL Node* leave() __attribute__((used));
 
     /// Corresponds to aborting a scope and continuing execution outside of the
-    /// scope---this is the standard C++ cancel mechanism. This calls rollback
-    /// internally, thus we need a stack address to serve as the protected stack
-    /// lower bound.
-    void cancel(void** protected_stack_lower_bound) NORETURN;
+    /// scope---this is the standard C++ cancel mechanism.
+    void cancel() NORETURN;
 
     /// Corresponds to aborting and retrying a scope. Implemented here by
     /// rolling back and leaving (popping) the scope, and then re-executing the
-    /// enter functionality, which puts the scope back on the scopes stack. This
-    /// calls rollback internally, thus we need a stack address to serve as the
-    /// protected stack lower bound.
+    /// enter functionality, which puts the scope back on the scopes stack.
     ///
     /// Inlined in libitm-5.8, and marked as used for tmabort in libitm-5.1,5.
-    void restart(void** protected_stack_lower_bound) NORETURN
+    void restart() NORETURN
         __attribute__((used));
 
     /// Implements the abort logic layed out in the ABI specification. Abort is
     /// implemented in terms of "rollback," "leave," "cancel," and "restart."
-    /// This serves as one of the initial entry point to rollback and thus we
-    /// need a stack address to serve as the protected stack lower bound.
-    void abort(_ITM_abortReason why, void** protected_stack_lower_bound)
+    void abort(_ITM_abortReason why)
         NORETURN;
 
     /// Wraps the logic that checks if the library is irrevocable. Used in both

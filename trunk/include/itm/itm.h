@@ -10,7 +10,7 @@
 
 /**
  *  The Intel compiler exposes some of the ABI to client programmers, but they
- *  do so in an icc-specific header. Here we expose what we need from libitm.h"
+ *  do so in an icc-specific header. Here we expose what we need from libitm.h.
  */
 
 #ifndef RSTM_ITM_ITM_H

@@ -34,10 +34,10 @@ namespace {
       static TM_FASTCALL bool begin(TxThread*);
       static TM_FASTCALL void* read(STM_READ_SIG(,,));
       static TM_FASTCALL void write(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void commit(STM_COMMIT_SIG(,));
+      static TM_FASTCALL void commit(TxThread*);
 
-      static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,,));
-      static bool irrevoc(STM_IRREVOC_SIG(,));
+      static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
+      static bool irrevoc(TxThread*);
       static void onSwitchTo();
   };
 
@@ -56,7 +56,7 @@ namespace {
    *  Ticket commit:
    */
   void
-  Ticket::commit(STM_COMMIT_SIG(tx,)) {
+  Ticket::commit(TxThread* tx) {
       // release the lock, finalize mm ops, and log the commit
       ticket_release(&ticketlock);
       OnCGLCommit(tx);
@@ -84,7 +84,7 @@ namespace {
    *    In Ticket, aborts are never valid
    */
   stm::scope_t*
-  Ticket::rollback(STM_ROLLBACK_SIG(,,,))
+  Ticket::rollback(STM_ROLLBACK_SIG(,,))
   {
       UNRECOVERABLE("ATTEMPTING TO ABORT AN IRREVOCABLE TICKET TRANSACTION");
       return NULL;
@@ -97,7 +97,7 @@ namespace {
    *    Instead, the become_irrevoc() call should just return true.
    */
   bool
-  Ticket::irrevoc(STM_IRREVOC_SIG(,))
+  Ticket::irrevoc(TxThread*)
   {
       UNRECOVERABLE("IRREVOC_TICKET SHOULD NEVER BE CALLED");
       return false;

@@ -21,6 +21,15 @@ class Checkpoint {
     void restore(uint32_t flags) asm("_stm_itm2stm_checkpoint_restore")
         NORETURN;
 
+    // Returns the address that represents the high value of the protected
+    // stack at the time of this call. Currently this means the frame address
+    // of the caller.
+    //
+    // NB: *frame address must be first word!*
+    void** stackHigh() const {
+        return (void**)checkpoint_[0];
+    }
+
   protected:
     void* checkpoint_[CHECKPOINT_SIZE];
 };

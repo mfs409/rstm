@@ -59,11 +59,11 @@ namespace
       static TM_FASTCALL void* read_rw(STM_READ_SIG(,,));
       static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,,));
       static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void commit_ro(STM_COMMIT_SIG(,));
-      static TM_FASTCALL void commit_rw(STM_COMMIT_SIG(,));
+      static TM_FASTCALL void commit_ro(TxThread*);
+      static TM_FASTCALL void commit_rw(TxThread*);
 
-      static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,,));
-      static bool irrevoc(STM_IRREVOC_SIG(,));
+      static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
+      static bool irrevoc(TxThread*);
       static void onSwitchTo();
       static NOINLINE void validate(TxThread*);
       static NOINLINE void validate_committime(TxThread*);
@@ -96,7 +96,7 @@ namespace
    *    we have.
    */
   void
-  OrecFair::commit_ro(STM_COMMIT_SIG(tx,))
+  OrecFair::commit_ro(TxThread* tx)
   {
       // If I had priority, release it
       if (tx->prio) {
@@ -126,7 +126,7 @@ namespace
    *    wait for that thread to detect our conflict and abort itself.
    */
   void
-  OrecFair::commit_rw(STM_COMMIT_SIG(tx,upper_stack_bound))
+  OrecFair::commit_rw(TxThread* tx)
   {
       // try to lock every location in the write set
       WriteSet::iterator i = tx->writes.begin(), e = tx->writes.end();
@@ -195,7 +195,7 @@ namespace
           validate_committime(tx);
 
       // run the redo log
-      tx->writes.writeback(STM_WHEN_PROTECT_STACK(upper_stack_bound));
+      tx->writes.writeback();
 
       // NB: if we did the faa, then released writelocks, then released
       //     readlocks, we might be faster
@@ -441,14 +441,14 @@ namespace
    *        be completely faithful to [Spear PPoPP 2009]
    */
   stm::scope_t*
-  OrecFair::rollback(STM_ROLLBACK_SIG(tx, upper_stack_bound, except, len))
+  OrecFair::rollback(STM_ROLLBACK_SIG(tx, except, len))
   {
       PreRollback(tx);
 
       // Perform writes to the exception object if there were any... taking
       // the branch overhead without concern because we're not worried about
       // rollback overheads.
-      STM_ROLLBACK(tx->writes, upper_stack_bound, except, len);
+      STM_ROLLBACK(tx->writes, except, len);
 
       // release the locks and restore version numbers
       foreach (OrecList, i, tx->locks)
@@ -479,7 +479,7 @@ namespace
    *  OrecFair in-flight irrevocability: use abort-and-restart
    */
   bool
-  OrecFair::irrevoc(STM_IRREVOC_SIG(tx,upper_stack_bound))
+  OrecFair::irrevoc(TxThread* tx)
   {
       return false;
   }

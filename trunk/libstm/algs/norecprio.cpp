@@ -42,11 +42,11 @@ namespace {
       static TM_FASTCALL void* read_rw(STM_READ_SIG(,,));
       static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,,));
       static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void commit_ro(STM_COMMIT_SIG(,));
-      static TM_FASTCALL void commit_rw(STM_COMMIT_SIG(,));
+      static TM_FASTCALL void commit_ro(TxThread*);
+      static TM_FASTCALL void commit_rw(TxThread*);
 
-      static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,,));
-      static bool irrevoc(STM_IRREVOC_SIG(,));
+      static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
+      static bool irrevoc(TxThread*);
       static void onSwitchTo();
 
       static const uintptr_t VALIDATION_FAILED = 1;
@@ -86,7 +86,7 @@ namespace {
    *    release it.
    */
   void
-  NOrecPrio::commit_ro(STM_COMMIT_SIG(tx,))
+  NOrecPrio::commit_ro(TxThread* tx)
   {
       // read-only fastpath
       tx->vlist.reset();
@@ -106,7 +106,7 @@ namespace {
    *    to be "fair", without any guarantees.
    */
   void
-  NOrecPrio::commit_rw(STM_COMMIT_SIG(tx,upper_stack_bound))
+  NOrecPrio::commit_rw(TxThread* tx)
   {
       // wait for all higher-priority transactions to complete
       //
@@ -126,7 +126,7 @@ namespace {
               tx->tmabort(tx);
 
       // redo writes
-      tx->writes.writeback(STM_WHEN_PROTECT_STACK(upper_stack_bound));
+      tx->writes.writeback();
 
       // release the sequence lock, then clean up
       CFENCE;
@@ -160,8 +160,9 @@ namespace {
           CFENCE;
       }
 
-      // log the read
-      tx->vlist.insert(STM_VALUE_LIST_ENTRY(addr, tmp, mask));
+      // log the address and value, uses the macro to deal with
+      // STM_PROTECT_STACK
+      STM_LOG_VALUE(tx, addr, tmp, mask);
       return tmp;
   }
 
@@ -221,14 +222,14 @@ namespace {
    *    If we abort, be sure to release priority
    */
   stm::scope_t*
-  NOrecPrio::rollback(STM_ROLLBACK_SIG(tx, upper_stack_bound, except, len))
+  NOrecPrio::rollback(STM_ROLLBACK_SIG(tx, except, len))
   {
       PreRollback(tx);
 
       // Perform writes to the exception object if there were any... taking the
       // branch overhead without concern because we're not worried about
       // rollback overheads.
-      STM_ROLLBACK(tx->writes, upper_stack_bound, except, len);
+      STM_ROLLBACK(tx->writes, except, len);
 
       tx->vlist.reset();
       tx->writes.reset();
@@ -245,7 +246,7 @@ namespace {
    *  hard, so we're just going to use abort-and-restart
    */
   bool
-  NOrecPrio::irrevoc(STM_IRREVOC_SIG(tx,upper_stack_bound))
+  NOrecPrio::irrevoc(TxThread* tx)
   {
       return false;
   }
@@ -271,7 +272,7 @@ namespace {
           // validation early
           bool valid = true;
           foreach (ValueList, i, tx->vlist)
-              valid &= i->isValid();
+              valid &= STM_LOG_VALUE_IS_VALID(i, tx);
 
           if (!valid)
               return VALIDATION_FAILED;

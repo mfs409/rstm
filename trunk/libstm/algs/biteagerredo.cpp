@@ -40,11 +40,11 @@ namespace {
       static TM_FASTCALL void* read_rw(STM_READ_SIG(,,));
       static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,,));
       static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void commit_ro(STM_COMMIT_SIG(,));
-      static TM_FASTCALL void commit_rw(STM_COMMIT_SIG(,));
+      static TM_FASTCALL void commit_ro(TxThread*);
+      static TM_FASTCALL void commit_rw(TxThread*);
 
-      static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,,));
-      static bool irrevoc(STM_IRREVOC_SIG(,));
+      static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
+      static bool irrevoc(TxThread*);
       static void onSwitchTo();
   };
 
@@ -75,7 +75,7 @@ namespace {
    *  BitEagerRedo commit (read-only):
    */
   void
-  BitEagerRedo::commit_ro(STM_COMMIT_SIG(tx,))
+  BitEagerRedo::commit_ro(TxThread* tx)
   {
       // read-only... release read locks
       foreach (BitLockList, i, tx->r_bitlocks)
@@ -89,10 +89,10 @@ namespace {
    *  BitEagerRedo commit (writing context):
    */
   void
-  BitEagerRedo::commit_rw(STM_COMMIT_SIG(tx,upper_stack_bound))
+  BitEagerRedo::commit_rw(TxThread* tx)
   {
       // replay redo log
-      tx->writes.writeback(STM_WHEN_PROTECT_STACK(upper_stack_bound));
+      tx->writes.writeback();
       CFENCE;
 
       // release write locks, then read locks
@@ -270,14 +270,14 @@ namespace {
    *  BitEagerRedo unwinder:
    */
   stm::scope_t*
-  BitEagerRedo::rollback(STM_ROLLBACK_SIG(tx, upper_stack_bound, except, len))
+  BitEagerRedo::rollback(STM_ROLLBACK_SIG(tx, except, len))
   {
       PreRollback(tx);
 
       // Perform writes to the exception object if there were any... taking the
       // branch overhead without concern because we're not worried about
       // rollback overheads.
-      STM_ROLLBACK(tx->writes, upper_stack_bound, except, len);
+      STM_ROLLBACK(tx->writes, except, len);
 
       // release write locks, then read locks
       foreach (BitLockList, i, tx->w_bitlocks)
@@ -299,7 +299,7 @@ namespace {
   /**
    *  BitEagerRedo in-flight irrevocability:
    */
-  bool BitEagerRedo::irrevoc(STM_IRREVOC_SIG(,))
+  bool BitEagerRedo::irrevoc(TxThread*)
   {
       return false;
   }

@@ -19,9 +19,11 @@
  *  order to explicitly use pthread_getspecific.
  */
 
-// NB: This file could use significant hardening, using template
-//     metaprogramming to support all the necessary types, i.e., arrays,
-//     unions, etc.
+/**
+ *  NB: This file could use significant hardening, using template
+ *  metaprogramming to support all the necessary types, i.e., arrays, unions,
+ *  etc.
+ */
 
 #ifndef STM_COMMON_THREAD_LOCAL_H
 #define STM_COMMON_THREAD_LOCAL_H

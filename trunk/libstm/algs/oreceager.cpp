@@ -67,14 +67,14 @@ namespace {
   struct OrecEager_Generic
   {
       static TM_FASTCALL bool begin(TxThread*);
-      static TM_FASTCALL void commit(STM_COMMIT_SIG(,));
+      static TM_FASTCALL void commit(TxThread*);
       static void initialize(int id, const char* name);
-      static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,,));
+      static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
   };
 
   TM_FASTCALL void* read(STM_READ_SIG(,,));
   TM_FASTCALL void write(STM_WRITE_SIG(,,,));
-  bool irrevoc(STM_IRREVOC_SIG(,));
+  bool irrevoc(TxThread*);
   NOINLINE void validate(TxThread*);
   void onSwitchTo();
 
@@ -121,7 +121,7 @@ namespace {
    */
   template <class CM>
   void
-  OrecEager_Generic<CM>::commit(STM_COMMIT_SIG(tx,))
+  OrecEager_Generic<CM>::commit(TxThread* tx)
   {
       // use the lockset size to identify if tx is read-only
       if (!tx->locks.size()) {
@@ -258,13 +258,13 @@ namespace {
    */
   template <class CM>
   stm::scope_t*
-  OrecEager_Generic<CM>::rollback(STM_ROLLBACK_SIG(tx, upper_stack_bound, except, len))
+  OrecEager_Generic<CM>::rollback(STM_ROLLBACK_SIG(tx, except, len))
   {
       // common rollback code
       PreRollback(tx);
 
       // run the undo log
-      STM_UNDO(tx->undo_log, upper_stack_bound, except, len);
+      STM_UNDO(tx->undo_log, except, len);
 
       // release the locks and bump version numbers by one... track the highest
       // version number we write, in case it is greater than timestamp.val
@@ -303,7 +303,7 @@ namespace {
    *        stack.
    */
   bool
-  irrevoc(STM_IRREVOC_SIG(tx,))
+  irrevoc(TxThread* tx)
   {
       // NB: This code is probably more expensive than it needs to be...
 

@@ -59,18 +59,6 @@
 #error "Either STM_WS_BYTELOG or STM_WS_WORDLOG must be defined"
 #endif
 
-/**
- *  We need to protect the stack from "stale" writes during redo-writeback and
- *  undo-undo. This requires some platform-specific functionality to get some
- *  stack information.
- */
-#ifdef STM_PROTECT_STACK
-#   define STM_WHEN_PROTECT_STACK(S) S
-#   define TOP_OF_ARGS(N) ((void**)__builtin_frame_address(0) + 2 + N)
-#else
-#   define STM_WHEN_PROTECT_STACK(S)
-#endif
-
 #ifdef STM_ABORT_ON_THROW
 #   define STM_WHEN_ABORT_ON_THROW(S) S
 #else
@@ -85,27 +73,11 @@
 #   define STM_WRITE_SIG(tx, addr, val, mask) TxThread* tx, void** addr, void* val
 #endif
 
-#if defined(STM_PROTECT_STACK)
-#   define STM_COMMIT_SIG(tx, stack)  TxThread* tx, void** stack
-#   define STM_IRREVOC_SIG(tx, stack) TxThread* tx, void** stack
-#else
-#   define STM_COMMIT_SIG(tx, stack)  TxThread* tx
-#   define STM_IRREVOC_SIG(tx, stack) TxThread* tx
-#endif
-
-#if defined(STM_PROTECT_STACK) && defined(STM_ABORT_ON_THROW)
-#   define STM_ROLLBACK_SIG(tx, stack, exception, len)                  \
-    TxThread* tx, void** stack, void** exception, size_t len
-#elif defined(STM_PROTECT_STACK) && !defined(STM_ABORT_ON_THROW)
-#   define STM_ROLLBACK_SIG(tx, stack, exception, len)  \
-    TxThread* tx, void** stack
-#elif !defined(STM_PROTECT_STACK) && defined(STM_ABORT_ON_THROW)
-#   define STM_ROLLBACK_SIG(tx, stack, exception, len)  \
+#if defined(STM_ABORT_ON_THROW)
+#   define STM_ROLLBACK_SIG(tx, exception, len)  \
     TxThread* tx, void** exception, size_t len
-#elif !defined(STM_PROTECT_STACK) && !defined(STM_ABORT_ON_THROW)
-#   define STM_ROLLBACK_SIG(tx, stack, exception, len)  TxThread* tx
 #else
-#   error Preprocessor if/else logic error
+#   define STM_ROLLBACK_SIG(tx, exception, len)  TxThread* tx
 #endif
 
 #endif // MACROS_HPP__
