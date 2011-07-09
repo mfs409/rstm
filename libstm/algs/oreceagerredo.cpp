@@ -45,11 +45,11 @@ namespace {
       static TM_FASTCALL void* read_rw(STM_READ_SIG(,,));
       static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,,));
       static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void commit_ro(STM_COMMIT_SIG(,));
-      static TM_FASTCALL void commit_rw(STM_COMMIT_SIG(,));
+      static TM_FASTCALL void commit_ro(TxThread*);
+      static TM_FASTCALL void commit_rw(TxThread*);
 
-      static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,,));
-      static bool irrevoc(STM_IRREVOC_SIG(,));
+      static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
+      static bool irrevoc(TxThread*);
       static void onSwitchTo();
       static NOINLINE void validate(TxThread*);
   };
@@ -73,7 +73,7 @@ namespace {
    *    Standard commit: we hold no locks, and we're valid, so just clean up
    */
   void
-  OrecEagerRedo::commit_ro(STM_COMMIT_SIG(tx,))
+  OrecEagerRedo::commit_ro(TxThread* tx)
   {
       tx->r_orecs.reset();
       OnReadOnlyCommit(tx);
@@ -87,7 +87,7 @@ namespace {
    *    release locks.
    */
   void
-  OrecEagerRedo::commit_rw(STM_COMMIT_SIG(tx,upper_stack_bound))
+  OrecEagerRedo::commit_rw(TxThread* tx)
   {
       // note: we're using timestamps in the same manner as
       // OrecLazy... without the single-thread optimization
@@ -102,7 +102,7 @@ namespace {
       }
 
       // run the redo log
-      tx->writes.writeback(STM_WHEN_PROTECT_STACK(upper_stack_bound));
+      tx->writes.writeback();
 
       // we're a writer, so increment the global timestamp
       tx->end_time = 1 + faiptr(&timestamp.val);
@@ -293,14 +293,14 @@ namespace {
    *    To unwind, we must release locks, but we don't have an undo log to run.
    */
   stm::scope_t*
-  OrecEagerRedo::rollback(STM_ROLLBACK_SIG(tx, upper_stack_bound, except, len))
+  OrecEagerRedo::rollback(STM_ROLLBACK_SIG(tx, except, len))
   {
       PreRollback(tx);
 
       // Perform writes to the exception object if there were any... taking the
       // branch overhead without concern because we're not worried about
       // rollback overheads.
-      STM_ROLLBACK(tx->writes, upper_stack_bound, except, len);
+      STM_ROLLBACK(tx->writes, except, len);
 
       // release the locks and restore version numbers
       foreach (OrecList, i, tx->locks)
@@ -317,7 +317,7 @@ namespace {
    *  OrecEagerRedo in-flight irrevocability: use abort-and-restart.
    */
   bool
-  OrecEagerRedo::irrevoc(STM_IRREVOC_SIG(,))
+  OrecEagerRedo::irrevoc(TxThread*)
   {
       return false;
   }

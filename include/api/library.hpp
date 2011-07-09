@@ -108,12 +108,7 @@ namespace stm
           return;
 
       // dispatch to the appropriate end function
-#ifdef STM_PROTECT_STACK
-      void* top_of_stack;
-      tx->tmcommit(tx, &top_of_stack);
-#else
       tx->tmcommit(tx);
-#endif
 
       // zero scope (to indicate "not in tx")
       CFENCE;
@@ -210,15 +205,7 @@ namespace stm
   /**
    *  Try to become irrevocable.  Call this from within a transaction.
    */
-  bool become_irrevoc(STM_WHEN_PROTECT_STACK(void** top_of_stack));
-
-#ifdef STM_PROTECT_STACK
-#   define TM_BECOME_IRREVOC() ({    \
-  void* top_of_stack; \
-  stm::become_irrevoc(&top_of_stack); })
-#else
-#   define TM_BECOME_IRREVOC() stm::become_irrevoc()
-#endif
+  bool become_irrevoc();
 
   /**
    *  Abort the current transaction and restart immediately.

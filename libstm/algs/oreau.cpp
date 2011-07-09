@@ -48,11 +48,11 @@ namespace {
       static TM_FASTCALL void* read_rw(STM_READ_SIG(,,));
       static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,,));
       static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void commit_ro(STM_COMMIT_SIG(,));
-      static TM_FASTCALL void commit_rw(STM_COMMIT_SIG(,));
+      static TM_FASTCALL void commit_ro(TxThread*);
+      static TM_FASTCALL void commit_rw(TxThread*);
 
-      static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,,));
-      static bool irrevoc(STM_IRREVOC_SIG(,));
+      static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
+      static bool irrevoc(TxThread*);
       static void onSwitchTo();
       static NOINLINE void validate(TxThread*);
   };
@@ -98,7 +98,7 @@ namespace {
    */
   template <class CM>
   void
-  OrEAU_Generic<CM>::commit_ro(STM_COMMIT_SIG(tx,))
+  OrEAU_Generic<CM>::commit_ro(TxThread* tx)
   {
       CM::onCommit(tx);
       tx->r_orecs.reset();
@@ -110,7 +110,7 @@ namespace {
    */
   template <class CM>
   void
-  OrEAU_Generic<CM>::commit_rw(STM_COMMIT_SIG(tx,upper_stack_bound))
+  OrEAU_Generic<CM>::commit_rw(TxThread* tx)
   {
       // we're a writer, so increment the global timestamp
       tx->end_time = 1 + faiptr(&timestamp.val);
@@ -344,11 +344,11 @@ namespace {
    */
   template <class CM>
   stm::scope_t*
-  OrEAU_Generic<CM>::rollback(STM_ROLLBACK_SIG(tx, upper_stack_bound, except, len))
+  OrEAU_Generic<CM>::rollback(STM_ROLLBACK_SIG(tx, except, len))
   {
       PreRollback(tx);
       // run the undo log
-      STM_UNDO(tx->undo_log, upper_stack_bound, except, len);
+      STM_UNDO(tx->undo_log, except, len);
 
       // release the locks and bump version numbers
       uintptr_t max = 0;
@@ -384,7 +384,7 @@ namespace {
    */
   template <class CM>
   bool
-  OrEAU_Generic<CM>::irrevoc(STM_IRREVOC_SIG(tx,upper_stack_bound))
+  OrEAU_Generic<CM>::irrevoc(TxThread* tx)
   {
       return false;
   }

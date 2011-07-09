@@ -42,10 +42,10 @@ namespace {
       static TM_FASTCALL bool begin(TxThread*);
       static TM_FASTCALL void* read(STM_READ_SIG(,,));
       static TM_FASTCALL void write(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void commit(STM_COMMIT_SIG(,));
+      static TM_FASTCALL void commit(TxThread*);
 
-      static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,,));
-      static bool irrevoc(STM_IRREVOC_SIG(,));
+      static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
+      static bool irrevoc(TxThread*);
       static void onSwitchTo();
   };
 
@@ -72,7 +72,7 @@ namespace {
    *  TML commit:
    */
   void
-  TML::commit(STM_COMMIT_SIG(tx,))
+  TML::commit(TxThread* tx)
   {
       // writing context: release lock, free memory, remember commit
       if (tx->tmlHasLock) {
@@ -134,7 +134,7 @@ namespace {
    *        exception objects pending.
    */
   stm::scope_t*
-  TML::rollback(STM_ROLLBACK_SIG(tx,,,))
+  TML::rollback(STM_ROLLBACK_SIG(tx,,))
   {
       PreRollback(tx);
       return PostRollback(tx);
@@ -147,7 +147,7 @@ namespace {
    *    never be called.
    */
   bool
-  TML::irrevoc(STM_IRREVOC_SIG(,))
+  TML::irrevoc(TxThread*)
   {
       UNRECOVERABLE("IRREVOC_TML SHOULD NEVER BE CALLED");
       return false;

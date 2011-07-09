@@ -86,6 +86,17 @@ namespace stm
 
   }; // class MiniVector
 
+  /*** double the size of a minivector */
+  template <class T>
+  void MiniVector<T>::expand()
+  {
+      T* temp = m_elements;
+      m_cap *= 2;
+      m_elements = static_cast<T*>(malloc(sizeof(T) * m_cap));
+      assert(m_elements);
+      memcpy(m_elements, temp, sizeof(T)*m_size);
+      free(temp);
+  }
 } // stm
 
 #endif // MINIVECTOR_HPP__

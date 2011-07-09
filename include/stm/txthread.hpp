@@ -55,6 +55,10 @@ namespace stm
       uint32_t       num_restarts;  // stats counter: restart()s
       uint32_t       num_ro;        // stats counter: read-only commits
       scope_t* volatile scope;      // used to roll back; also flag for isTxnl
+#ifdef STM_PROTECT_STACK
+      void**         stack_high;    // the stack pointer at begin_tx time
+      void**         stack_low;     // norec stack low-water mark
+#endif
       uintptr_t      start_time;    // start time of transaction
       uintptr_t      end_time;      // end time of transaction
       uintptr_t      ts_cache;      // last validation time
@@ -115,7 +119,7 @@ namespace stm
       static TM_FASTCALL bool(*volatile tmbegin)(TxThread*);
 
       /*** Per-thread commit, read, and write pointers */
-      TM_FASTCALL void(*tmcommit)(STM_COMMIT_SIG(,));
+      TM_FASTCALL void(*tmcommit)(TxThread*);
       TM_FASTCALL void*(*tmread)(STM_READ_SIG(,,));
       TM_FASTCALL void(*tmwrite)(STM_WRITE_SIG(,,,));
 
@@ -125,7 +129,7 @@ namespace stm
        * stack. Rollback behavior changes per-implementation (some, such as
        * CGL, can't rollback) so we add it here.
        */
-      static scope_t* (*tmrollback)(STM_ROLLBACK_SIG(,,,));
+      static scope_t* (*tmrollback)(STM_ROLLBACK_SIG(,,));
 
       /**
        * The function for aborting a transaction. The "tmabort" function is
@@ -139,7 +143,7 @@ namespace stm
       static NORETURN void (*tmabort)(TxThread*);
 
       /*** how to become irrevocable in-flight */
-      static bool(*tmirrevoc)(STM_IRREVOC_SIG(,));
+      static bool(*tmirrevoc)(TxThread*);
 
       /**
        * for shutting down threads.  Currently a no-op.

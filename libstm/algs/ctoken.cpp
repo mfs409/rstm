@@ -47,11 +47,11 @@ namespace {
       static TM_FASTCALL void* read_rw(STM_READ_SIG(,,));
       static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,,));
       static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void commit_ro(STM_COMMIT_SIG(tx,));
-      static TM_FASTCALL void commit_rw(STM_COMMIT_SIG(tx,));
+      static TM_FASTCALL void commit_ro(TxThread* tx);
+      static TM_FASTCALL void commit_rw(TxThread* tx);
 
-      static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,,));
-      static bool irrevoc(STM_IRREVOC_SIG(,));
+      static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
+      static bool irrevoc(TxThread*);
       static void onSwitchTo();
       static NOINLINE void validate(TxThread* tx, uintptr_t finish_cache);
   };
@@ -72,7 +72,7 @@ namespace {
    *  CToken commit (read-only):
    */
   void
-  CToken::commit_ro(STM_COMMIT_SIG(tx,))
+  CToken::commit_ro(TxThread* tx)
   {
       // reset lists and we are done
       tx->r_orecs.reset();
@@ -85,7 +85,7 @@ namespace {
    *  NB:  Only valid if using pointer-based adaptivity
    */
   void
-  CToken::commit_rw(STM_COMMIT_SIG(tx,upper_stack_bound))
+  CToken::commit_rw(TxThread* tx)
   {
       // wait until it is our turn to commit, then validate, acquire, and do
       // writeback
@@ -103,11 +103,6 @@ namespace {
       if (tx->writes.size() != 0) {
           // mark every location in the write set, and do write-back
           foreach (WriteSet, i, tx->writes) {
-#ifdef STM_PROTECT_STACK
-              volatile void* top_of_stack;
-              if (i->addr >= &top_of_stack && i->addr < upper_stack_bound)
-                  continue;
-#endif
               // get orec
               orec_t* o = get_orec(i->addr);
               // mark orec
@@ -205,14 +200,14 @@ namespace {
    *  CToken unwinder:
    */
   stm::scope_t*
-  CToken::rollback(STM_ROLLBACK_SIG(tx, upper_stack_bound, except, len))
+  CToken::rollback(STM_ROLLBACK_SIG(tx, except, len))
   {
       PreRollback(tx);
 
       // Perform writes to the exception object if there were any... taking the
       // branch overhead without concern because we're not worried about
       // rollback overheads.
-      STM_ROLLBACK(tx->writes, upper_stack_bound, except, len);
+      STM_ROLLBACK(tx->writes, except, len);
 
       // reset all lists, but keep any order we acquired
       tx->r_orecs.reset();
@@ -228,7 +223,7 @@ namespace {
    *  CToken in-flight irrevocability:
    */
   bool
-  CToken::irrevoc(STM_IRREVOC_SIG(,))
+  CToken::irrevoc(TxThread*)
   {
       UNRECOVERABLE("CToken Irrevocability not yet supported");
       return false;

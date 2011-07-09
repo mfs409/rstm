@@ -1,4 +1,4 @@
-/**
+/** -*- C++ -*-
  *  Copyright (C) 2011
  *  University of Rochester Department of Computer Science
  *    and
@@ -11,9 +11,10 @@
 #ifndef STM_ITM2STM_SCOPE_H
 #define STM_ITM2STM_SCOPE_H
 
-#include <vector>       // std::vector, std::pair
-#include "libitm.h"     // _ITM_ stuff
-#include "Checkpoint.h" // class Checkpoint
+#include <utility>            // std::pair
+#include "libitm.h"           // _ITM_ stuff
+#include "Checkpoint.h"       // class Checkpoint
+#include "stm/MiniVector.hpp"
 
 namespace itm2stm {
 /// A Scope maintains the data associated with a nested transaction. This
@@ -85,10 +86,8 @@ class Scope : public Checkpoint /* asm needs this as first superclass */
     /// ThrownObject type externally. If there was no thrown object then the
     /// returned value will be the pair (NULL, 0).
     ///
-    /// The stack maintains an undo log in support of the _ITM_L* calls. We need
-    /// to make sure not to clobber the protected stack during rollback, hence
-    /// the protected_stack address parameter.
-    std::pair<void**, size_t>& rollback(void** protected_stack);
+    /// The stack maintains an undo log in support of the _ITM_L* calls.
+    std::pair<void**, size_t>& rollback();
 
     /// Called to commit a scope. Inlined because we care about commit
     /// performance.
@@ -96,8 +95,8 @@ class Scope : public Checkpoint /* asm needs this as first superclass */
         for (CommitList::iterator i = do_on_commit_.begin(),
                                   e = do_on_commit_.end(); i != e; ++i)
             i->eval();
-        do_on_rollback_.clear();
-        undo_on_rollback_.clear();
+        do_on_rollback_.reset();
+        undo_on_rollback_.reset();
         // don't reset thrown, it's reset by Scope::enter.
     }
 
@@ -107,20 +106,28 @@ class Scope : public Checkpoint /* asm needs this as first superclass */
     // Resets the thrown object.
     void clearThrownObject();
 
-    /// This is called from the logging functions (_ITM_L*) which do all of the
-    /// heavy lifting. All the scope has to do is save the data being passed.
+    /// This is called from the logging functions (_ITM_L*), and forwards to
+    /// the SHIM_LOG_HELPER template to perform the logging. It's also used to
+    /// log stack accesses from nested transactions (from _ITM_W*).
+    template <typename T>
+    void log(const T* address) {
+        SHIM_LOG_HELPER<T>::log(this, address);
+    }
+
+    /// This version of log is used directly by the _ITM_LB routine, and also
+    /// supports the SHIM_LOG_HELPER template.
     void log(void** addr, void* value, size_t bytes) {
-        undo_on_rollback_.push_back(LoggedWord(addr, value, bytes));
+        undo_on_rollback_.insert(LoggedWord(addr, value, bytes));
     }
 
     /// Registration handler is trivial so we inline it.
     void registerOnCommit(_ITM_userCommitFunction f, void* arg) {
-        do_on_commit_.push_back(make_callback(f, arg));
+        do_on_commit_.insert(make_callback(f, arg));
     }
 
     /// Registration handler is trivial so we inline it.
     void registerOnAbort(_ITM_userUndoFunction f, void* arg) {
-        do_on_rollback_.push_back(make_callback(f, arg));
+        do_on_rollback_.insert(make_callback(f, arg));
     }
 
   private:
@@ -178,11 +185,11 @@ class Scope : public Checkpoint /* asm needs this as first superclass */
         void*    value_;
         size_t   bytes_;
 
-        /// The clip routine is used to protect against undoing to both thrown
-        /// objects and the protected stack. We aren't capable of undoing to a
-        /// discontinuous range (i.e., if the logged value is larger than the
-        /// range, and the range is completely contained withing the logged
-        /// address range, and there is some "left-over" space on each side).
+        /// The clip routine is used to protect against undoing to thrown
+        /// objects. We aren't capable of undoing to a discontinuous range
+        /// (i.e., if the logged value is larger than the range, and the range
+        /// is completely contained withing the logged address range, and there
+        /// is some "left-over" space on each side).
         ///
         /// The range is [lower, upper)
         void clip(void** lower, void** upper);
@@ -194,16 +201,12 @@ class Scope : public Checkpoint /* asm needs this as first superclass */
 
         void** begin() const;
         void** end() const;
-        void undo(ThrownObject&, void** protected_stack_lower_bound);
+        void undo(ThrownObject&);
     };
 
-    /// We expect these features to be used uncommonly, thus we're happy just to
-    /// store them as vectors. Should this become a bottleneck, particularly
-    /// calls to "clear" them, we could go with something more optimized like an
-    /// stm::MiniVector.
-    typedef std::vector<Callback<_ITM_userUndoFunction> > RollbackList;
-    typedef std::vector<Callback<_ITM_userCommitFunction> > CommitList;
-    typedef std::vector<LoggedWord> UndoList;
+    typedef stm::MiniVector<Callback<_ITM_userUndoFunction> > RollbackList;
+    typedef stm::MiniVector<Callback<_ITM_userCommitFunction> > CommitList;
+    typedef stm::MiniVector<LoggedWord> UndoList;
 
     bool                aborted_;
     uint32_t              flags_;
@@ -215,6 +218,34 @@ class Scope : public Checkpoint /* asm needs this as first superclass */
     _ITM_transaction&     owner_; // this is needed to handle conflict
                                   // aborts---see
                                   // itm2stm-5.8.cpp:stm::TxThread::tmabort
+
+    /// This template provides a nice interface to the shim's logging
+    /// capabilities. It chunks the logged type into words, and logs them all
+    /// individually. If the logged type is just 1 word we expect that the loop
+    /// will be eliminated.
+    ///
+    /// We specialize for subword types where W == 0 later.
+    template <typename T, size_t W = sizeof(T) / sizeof(void*)>
+    struct SHIM_LOG_HELPER {
+        static void log(Scope* const scope, const T* addr) {
+            void** address = reinterpret_cast<void**>(const_cast<T*>(addr));
+            for (size_t i = 0; i < W; ++i)
+                scope->log(address, *address, sizeof(void*));
+        }
+    };
+
+    /// This is the specialized logger for subword types.
+    template <typename T>
+    struct SHIM_LOG_HELPER<T, 0u> {
+        static void log(Scope* const scope, const T* addr) {
+            void** address = reinterpret_cast<void**>(const_cast<T*>(addr));
+            union {
+                T val;
+                void* word;
+            } cast = { *addr };
+            scope->log(address, cast.word, sizeof(T));
+        }
+    };
 };
 } // namespace itm2stm
 

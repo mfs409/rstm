@@ -84,50 +84,38 @@ static void synchronized_baste(point* lp, point* rp, int dir,
             tx_side left;
             tx_side right;
 
-            // Workaround for icc redo-log, RAW stack location bug.
-            point** volatile workaround_left_p = &left.p;
-            point** volatile workaround_right_p = &right.p;
-            edge** volatile workaround_left_b = &left.b;
-            edge** volatile workaround_right_b = &right.b;
-            point** volatile workaround_left_bp = &left.bp;
-            point** volatile workaround_right_bp = &right.bp;
-
             done = false;
             left.initialize(cur_edge, lp, 1-dir);
             right.initialize(cur_edge, rp, dir);
-            if (*workaround_left_bp == *workaround_right_bp) {
+            if (left.bp == right.bp) {
                 // I've been boxed in by a neighbor
                 done = true;
             } else {
-                int ly = (*workaround_left_p)->coord[ydim];
-                int ry = (*workaround_right_p)->coord[ydim];
+                int ly = left.p->coord[ydim];
+                int ry = right.p->coord[ydim];
                 if (dir == ccw ? (ly > ry) : (ly < ry)) {
                     // prefer to move on the left
-                    traversed = left.move(*workaround_right_p);
+                    traversed = left.move(right.p);
                     if (traversed == NULL) {
-                        traversed = right.move(*workaround_left_p);
+                        traversed = right.move(left.p);
                     }
                 } else {
                     // prefer to move on the right
-                    traversed = right.move(*workaround_left_p);
+                    traversed = right.move(left.p);
                     if (traversed == NULL) {
-                        traversed = left.move(*workaround_right_p);
+                        traversed = left.move(right.p);
                     }
                 }
                 if (traversed == NULL) {
                     // can't move
                     done = true;
                 } else {
-                    cur_edge = new edge(*workaround_left_p,
-                                        *workaround_right_p,
-                                        *workaround_left_b,
-                                        *workaround_right_b,
-                                        dir);
+                    cur_edge = new edge(left.p, right.p, left.b, right.b, dir);
                 }
             }
             if (!done) {
-                lp = *workaround_left_p;
-                rp = *workaround_right_p;
+                lp = left.p;
+                rp = right.p;
             }
         } END_TRANSACTION;
 

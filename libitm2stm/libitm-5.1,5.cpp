@@ -38,12 +38,6 @@ THREAD_LOCAL_DECL_TYPE(_ITM_transaction*) td;
 /// Don't need any of the funky user-visible abort handling because the abort is
 /// invisible. Just treat it like a restart of the current scope. This is passed
 /// to sys_init.
-///
-/// Since the stm abort path doesn't protect the stack (RSTM assumes for the
-/// moment that aborts are implemented via a longjmp-style mechanism), the best
-/// that we can do is to protect the stack from here on. This is fine because we
-/// /do/ have a longjmp-style abort mechanism, and any stack clobbering that
-/// happens here is not an issue.
 void
 tmabort(stm::TxThread* tx) {
     // Clear the exception object if there is one. This is because tmabort is
@@ -52,7 +46,7 @@ tmabort(stm::TxThread* tx) {
     // rollback behavior for it, which we don't want.
     Scope* scope = static_cast<Scope*>(tx->scope);
     scope->clearThrownObject();
-    scope->getOwner().restart(COMPUTE_PROTECTED_STACK_ADDRESS_DEFAULT(1));
+    scope->getOwner().restart();
 }
 }
 

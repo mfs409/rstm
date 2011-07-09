@@ -37,30 +37,6 @@ namespace
 
 namespace stm
 {
-  /*** double the size of a minivector */
-  template <class T>
-  void MiniVector<T>::expand()
-  {
-      T* temp = m_elements;
-      m_cap *= 2;
-      m_elements = typed_malloc<T>(m_cap);
-      assert(m_elements);
-      memcpy(m_elements, temp, sizeof(T)*m_size);
-      free(temp);
-  }
-
-  /***  must instantiate explicitly! */
-  template void MiniVector<void*>::expand();
-  template void MiniVector<orec_t*>::expand();
-  template void MiniVector<bytelock_t*>::expand();
-  template void MiniVector<bitlock_t*>::expand();
-  template void MiniVector<WriteSetEntry>::expand();
-  template void MiniVector<rrec_t*>::expand();
-  template void MiniVector<nanorec_t>::expand();
-  template void MiniVector<qtable_t>::expand();
-  template void MiniVector<ValueListEntry>::expand();
-  template void MiniVector<UndoLogEntry>::expand();
-
   /**
    * This doubles the size of the index. This *does not* do anything as
    * far as actually doing memory allocation. Callers should delete[] the
@@ -137,10 +113,10 @@ namespace stm
 
   /**
    * Deal with the actual rollback of log entries, which depends on the
-   * STM_ABORT_ON_THROW and STM_PROTECT_STACK configuration, as well as on the
-   * type of write logging we're doing.
+   * STM_ABORT_ON_THROW configuration as well as on the type of write logging
+   * we're doing.
    */
-#if defined(STM_ABORT_ON_THROW) && !defined(STM_PROTECT_STACK)
+#if defined(STM_ABORT_ON_THROW)
   void WriteSet::rollback(void** exception, size_t len)
   {
       // early exit if there's no exception
@@ -153,50 +129,17 @@ namespace stm
       for (iterator i = begin(), e = end(); i != e; ++i)
           i->rollback(exception, upper);
   }
-#elif defined(STM_ABORT_ON_THROW) && defined(STM_PROTECT_STACK)
-  /**
-   *  Encapsulate rollback in a situation where there could be an exception
-   *  object that we need to commit writes to. Don't commit writes to a
-   *  protected stack region.
-   */
-  void WriteSet::rollback(void** upper_stack_addr, void** exception,
-                          size_t len)
-  {
-      // early exit if there's no exception
-      if (!len)
-          return;
-
-      void** upper = (void**)((uint8_t*)exception + len);
-      for (iterator i = begin(), e = end(); i != e; ++i) {
-          // The filter call returns true if the entry is entirely contained in
-          // the address. As a side effect, for the byte-log it updates the
-          // log's mask if there's an awkward intersection.
-          void* top_of_stack;
-          if (i->filter(&top_of_stack, upper_stack_addr))
-              continue;
-          i->rollback(exception, upper);
-      }
-  }
 #else
+  // rollback was inlined
 #endif
 
-#if !defined(STM_PROTECT_STACK) && !defined(STM_ABORT_ON_THROW)
+#if !defined(STM_ABORT_ON_THROW)
   void UndoLog::undo()
   {
       for (iterator i = end() - 1, e = begin(); i >= e; --i)
           i->undo();
   }
-#elif defined(STM_PROTECT_STACK) && !defined(STM_ABORT_ON_THROW)
-  void UndoLog::undo(void** upper_stack_bound)
-  {
-      for (iterator i = end() - 1, e = begin(); i >= e; --i) {
-          void* top_of_stack;
-          if (i->filter(&top_of_stack, upper_stack_bound))
-              continue;
-          i->undo();
-      }
-  }
-#elif !defined(STM_PROTECT_STACK) && defined(STM_ABORT_ON_THROW)
+#else
   void UndoLog::undo(void** exception, size_t len)
   {
       // don't undo the exception object, if it happens to be logged, also
@@ -217,43 +160,11 @@ namespace stm
           i->undo();
       }
   }
-#elif defined(STM_PROTECT_STACK) && defined(STM_ABORT_ON_THROW)
-  void UndoLog::undo(void** upper_stack_bound, void** exception, size_t len)
-  {
-      // don't undo the exception object, if it happens to be logged, also
-      // don't branch on the inner loop if there isn't an exception
-      //
-      // for byte-logging we need to deal with the mask to see if the write
-      // is going to be in the exception range
-      //
-      // don't write to the protected stack region
-      if (!exception) {  // common case only adds one branch
-          for (iterator i = end() - 1, e = begin(); i >= e; --i) {
-              void* top_of_stack;
-              if (i->filter(&top_of_stack, upper_stack_bound))
-                  continue;
-              i->undo();
-          }
-          return;
-      }
-
-      void** upper = (void**)((uint8_t*)exception + len);
-      for (iterator i = end() - 1, e = begin(); i >= e; --i) {
-          void* top_of_stack;
-          if (i->filter(&top_of_stack, upper_stack_bound))
-              continue;
-          if (i->filter(exception, upper))
-              continue;
-          i->undo();
-      }
-  }
-#else
-#   error if/else logic error
 #endif
 
   /**
-   * We outline the slowpath filter. If this /ever/ happens it will be such
-   * a corner case that it just doesn't matter. Plus this is an abort path
+   * We outline the slowpath filter. If this /ever/ happens it will be such a
+   * corner case that it just doesn't matter. Plus this is an abort path
    * anyway... consider it a contention management technique.
    */
   bool ByteLoggingUndoLogEntry::filterSlow(void** lower, void** upper)

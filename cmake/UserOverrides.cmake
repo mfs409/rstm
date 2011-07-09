@@ -24,7 +24,9 @@ set(rstm_init_cxx_flags_Sun_RELWITHDEB_INFO -O5 -g0)
 set(rstm_init_cxx_flags_GNU_x86 -msse2 -mfpmath=sse -march=core2 -mtune=core2)
 set(rstm_init_cxx_flags_GNU_sparc -mcpu=v9)
 set(rstm_init_cxx_flags_GNU_RELWITHDEBINFO -O3 -g)
-set(rstm_init_cxx_flags_Intel -wd981,1599 -vec_report0) # universally unhelpful
+# the below warnings aren't helpful, and omitting the frame pointer will break
+# stack protection for redo-log tms.
+set(rstm_init_cxx_flags_Intel -wd981,1599 -vec_report0 -fno-omit-frame-pointer)
 set(rstm_init_cxx_flags_Intel_DEBUG -g -debug all)
 set(rstm_init_cxx_flags_Intel_x86_RELWITHDEBINFO -O3 -g -xSSE3) # icpc has no SSE2
 set(rstm_init_cxx_flags_Intel_x86_RELEASE -O3 -DNDEBUG -xSSE3) # icpc has no SSE2

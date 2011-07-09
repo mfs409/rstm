@@ -97,7 +97,7 @@ TMcompareReservationInfo (TM_ARGDECL const void* aPtr, const void* bPtr)
     long r;
     TM_BEGIN_WAIVER();
     r = reservation_info_compare((reservation_info_t*)aPtr,
-                                    (reservation_info_t*)bPtr);
+                                 (reservation_info_t*)bPtr);
     TM_END_WAIVER();
     return r;
 }

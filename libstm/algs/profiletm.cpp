@@ -36,11 +36,11 @@ namespace
       static TM_FASTCALL void* read_rw(STM_READ_SIG(,,));
       static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,,));
       static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void commit_ro(STM_COMMIT_SIG(,));
-      static TM_FASTCALL void commit_rw(STM_COMMIT_SIG(,));
+      static TM_FASTCALL void commit_ro(TxThread*);
+      static TM_FASTCALL void commit_rw(TxThread*);
 
-      static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,,));
-      static bool irrevoc(STM_IRREVOC_SIG(,));
+      static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
+      static bool irrevoc(TxThread*);
       static void onSwitchTo();
   };
 
@@ -107,7 +107,7 @@ namespace
    *    the final transaction of the set that were requested.
    */
   void
-  ProfileTM::commit_ro(STM_COMMIT_SIG(tx,))
+  ProfileTM::commit_ro(TxThread* tx)
   {
       // figure out this transaction's running time
       unsigned long long tmp = tick();
@@ -129,10 +129,10 @@ namespace
    *    Same as RO case, but we must also perform the writeback.
    */
   void
-  ProfileTM::commit_rw(STM_COMMIT_SIG(tx,upper_stack_bound))
+  ProfileTM::commit_rw(TxThread* tx)
   {
       // we're committed... run the redo log, remember that this is a commit
-      tx->writes.writeback(STM_WHEN_PROTECT_STACK(upper_stack_bound));
+      tx->writes.writeback();
       int x = tx->writes.size();
       tx->writes.reset();
 
@@ -215,14 +215,14 @@ namespace
    *    NB: This code has not been tested in a while
    */
   stm::scope_t*
-  ProfileTM::rollback(STM_ROLLBACK_SIG(tx, upper_stack_bound, except, len))
+  ProfileTM::rollback(STM_ROLLBACK_SIG(tx, except, len))
   {
       PreRollback(tx);
 
       // Perform writes to the exception object if there were any... taking the
       // branch overhead without concern because we're not worried about
       // rollback overheads.
-      STM_ROLLBACK(tx->writes, upper_stack_bound, except, len);
+      STM_ROLLBACK(tx->writes, except, len);
 
       // finish the profile
       profiles[last_complete.val].txn_time =
@@ -264,7 +264,7 @@ namespace
    *        crash the application.  That's not a good long-term plan
    */
   bool
-  ProfileTM::irrevoc(STM_IRREVOC_SIG(,))
+  ProfileTM::irrevoc(TxThread*)
   {
       UNRECOVERABLE("Irrevocable ProfileTM transactions are not supported");
       return false;

@@ -105,7 +105,7 @@ namespace stm
        * starts
        */
       bool  (*TM_FASTCALL begin) (TxThread*);
-      void  (*TM_FASTCALL commit)(STM_COMMIT_SIG(,));
+      void  (*TM_FASTCALL commit)(TxThread*);
       void* (*TM_FASTCALL read)  (STM_READ_SIG(,,));
       void  (*TM_FASTCALL write) (STM_WRITE_SIG(,,,));
 
@@ -113,10 +113,10 @@ namespace stm
        * rolls the transaction back without unwinding, returns the scope (which
        * is set to null during rollback)
        */
-      scope_t* (* rollback)(STM_ROLLBACK_SIG(,,,));
+      scope_t* (* rollback)(STM_ROLLBACK_SIG(,,));
 
       /*** the restart, retry, and irrevoc methods to use */
-      bool  (* irrevoc)(STM_IRREVOC_SIG(,));
+      bool  (* irrevoc)(TxThread*);
 
       /*** the code to run when switching to this alg */
       void  (* switcher) ();
@@ -235,7 +235,7 @@ namespace stm
 
   typedef TM_FASTCALL void* (*ReadBarrier)(STM_READ_SIG(,,));
   typedef TM_FASTCALL void (*WriteBarrier)(STM_WRITE_SIG(,,,));
-  typedef TM_FASTCALL void (*CommitBarrier)(STM_COMMIT_SIG(,));
+  typedef TM_FASTCALL void (*CommitBarrier)(TxThread*);
 
   inline void OnReadWriteCommit(TxThread* tx, ReadBarrier read_ro,
                                 WriteBarrier write_ro, CommitBarrier commit_ro)

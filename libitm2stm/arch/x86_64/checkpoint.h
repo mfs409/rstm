@@ -13,8 +13,9 @@
 
 #define CHECKPOINT_SIZE 8
 
-#define CHECKPOINT_RBX_ 0
-#define CHECKPOINT_RBP_ 8
+// NB: RBP needs to be the first word
+#define CHECKPOINT_RBP_ 0
+#define CHECKPOINT_RBX_ 8
 #define CHECKPOINT_R12_ 16
 #define CHECKPOINT_R13_ 24
 #define CHECKPOINT_R14_ 32

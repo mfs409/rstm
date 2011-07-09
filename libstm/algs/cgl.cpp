@@ -39,10 +39,10 @@ namespace
       // begin_CGL is external
       static TM_FASTCALL void* read(STM_READ_SIG(,,));
       static TM_FASTCALL void write(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void commit(STM_COMMIT_SIG(,));
+      static TM_FASTCALL void commit(TxThread*);
 
-      static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,,));
-      static bool irrevoc(STM_IRREVOC_SIG(,));
+      static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
+      static bool irrevoc(TxThread*);
       static void onSwitchTo();
   };
 
@@ -50,7 +50,7 @@ namespace
    *  CGL commit
    */
   void
-  CGL::commit(STM_COMMIT_SIG(tx,))
+  CGL::commit(TxThread* tx)
   {
       // release the lock, finalize mm ops, and log the commit
       tatas_release(&timestamp.val);
@@ -81,7 +81,7 @@ namespace
    *    In CGL, aborts are never valid
    */
   stm::scope_t*
-  CGL::rollback(STM_ROLLBACK_SIG(,,,))
+  CGL::rollback(STM_ROLLBACK_SIG(,,))
   {
       UNRECOVERABLE("ATTEMPTING TO ABORT AN IRREVOCABLE CGL TRANSACTION");
       return NULL;
@@ -94,7 +94,7 @@ namespace
    *    Instead, the become_irrevoc() call should just return true.
    */
   bool
-  CGL::irrevoc(STM_IRREVOC_SIG(,))
+  CGL::irrevoc(TxThread*)
   {
       UNRECOVERABLE("CGL::IRREVOC SHOULD NEVER BE CALLED");
       return false;

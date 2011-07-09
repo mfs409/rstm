@@ -45,11 +45,11 @@ namespace {
       static TM_FASTCALL void* read_rw(STM_READ_SIG(,,));
       static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,,));
       static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void commit_ro(STM_COMMIT_SIG(,));
-      static TM_FASTCALL void commit_rw(STM_COMMIT_SIG(,));
+      static TM_FASTCALL void commit_ro(TxThread*);
+      static TM_FASTCALL void commit_rw(TxThread*);
 
-      static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,,));
-      static bool irrevoc(STM_IRREVOC_SIG(,));
+      static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
+      static bool irrevoc(TxThread*);
       static void onSwitchTo();
       static NOINLINE void privtest(TxThread* tx, uintptr_t ts);
   };
@@ -84,7 +84,7 @@ namespace {
    *    RO commit is trivial
    */
   void
-  OrecALA::commit_ro(STM_COMMIT_SIG(tx,))
+  OrecALA::commit_ro(TxThread* tx)
   {
       tx->r_orecs.reset();
       OnReadOnlyCommit(tx);
@@ -102,7 +102,7 @@ namespace {
    *    then can this txn mark its writeback complete.
    */
   void
-  OrecALA::commit_rw(STM_COMMIT_SIG(tx,upper_stack_bound))
+  OrecALA::commit_rw(TxThread* tx)
   {
       // acquire locks
       foreach (WriteSet, i, tx->writes) {
@@ -138,7 +138,7 @@ namespace {
       }
 
       // run the redo log
-      tx->writes.writeback(STM_WHEN_PROTECT_STACK(upper_stack_bound));
+      tx->writes.writeback();
 
       // release locks
       CFENCE;
@@ -237,14 +237,14 @@ namespace {
    *    consistent.
    */
   stm::scope_t*
-  OrecALA::rollback(STM_ROLLBACK_SIG(tx, upper_stack_bound, except, len))
+  OrecALA::rollback(STM_ROLLBACK_SIG(tx, except, len))
   {
       PreRollback(tx);
 
       // Perform writes to the exception object if there were any... taking the
       // branch overhead without concern because we're not worried about
       // rollback overheads.
-      STM_ROLLBACK(tx->writes, upper_stack_bound, except, len);
+      STM_ROLLBACK(tx->writes, except, len);
 
       // release the locks and restore version numbers
       foreach (OrecList, i, tx->locks)
@@ -272,7 +272,7 @@ namespace {
    *    serial by the time this code runs.
    */
   bool
-  OrecALA::irrevoc(STM_IRREVOC_SIG(,))
+  OrecALA::irrevoc(TxThread*)
   {
       return false;
   }

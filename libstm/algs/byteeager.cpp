@@ -39,11 +39,11 @@ namespace {
       static TM_FASTCALL void* read_rw(STM_READ_SIG(,,));
       static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,,));
       static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void commit_ro(STM_COMMIT_SIG(,));
-      static TM_FASTCALL void commit_rw(STM_COMMIT_SIG(,));
+      static TM_FASTCALL void commit_ro(TxThread*);
+      static TM_FASTCALL void commit_rw(TxThread*);
 
-      static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,,));
-      static bool irrevoc(STM_IRREVOC_SIG(,));
+      static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
+      static bool irrevoc(TxThread*);
       static void onSwitchTo();
   };
 
@@ -74,7 +74,7 @@ namespace {
    *  ByteEager commit (read-only):
    */
   void
-  ByteEager::commit_ro(STM_COMMIT_SIG(tx,))
+  ByteEager::commit_ro(TxThread* tx)
   {
       // read-only... release read locks
       foreach (ByteLockList, i, tx->r_bytelocks)
@@ -88,7 +88,7 @@ namespace {
    *  ByteEager commit (writing context):
    */
   void
-  ByteEager::commit_rw(STM_COMMIT_SIG(tx,))
+  ByteEager::commit_rw(TxThread* tx)
   {
       // release write locks, then read locks
       foreach (ByteLockList, i, tx->w_bytelocks)
@@ -252,13 +252,13 @@ namespace {
    *  ByteEager unwinder:
    */
   stm::scope_t*
-  ByteEager::rollback(STM_ROLLBACK_SIG(tx, upper_stack_bound, except, len))
+  ByteEager::rollback(STM_ROLLBACK_SIG(tx, except, len))
   {
       PreRollback(tx);
 
       // Undo the writes, while at the same time watching out for the exception
       // object.
-      STM_UNDO(tx->undo_log, upper_stack_bound, except, len);
+      STM_UNDO(tx->undo_log, except, len);
 
       // release write locks, then read locks
       foreach (ByteLockList, i, tx->w_bytelocks)
@@ -280,7 +280,7 @@ namespace {
   /**
    *  ByteEager in-flight irrevocability:
    */
-  bool ByteEager::irrevoc(STM_IRREVOC_SIG(,))
+  bool ByteEager::irrevoc(TxThread*)
   {
       return false;
   }

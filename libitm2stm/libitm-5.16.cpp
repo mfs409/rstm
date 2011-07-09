@@ -15,29 +15,8 @@
 #include "Scope.h"
 using namespace itm2stm;
 
-namespace {
-template <typename T, size_t W = sizeof(T) / sizeof(void*)>
-struct INST {
-    static void log(Scope* scope, const T* addr) {
-        void** address = reinterpret_cast<void**>(const_cast<T*>(addr));
-        for (size_t i = 0; i < W; ++i)
-            scope->log(address, *address, sizeof(void*));
-    }
-};
-
-template <typename T>
-struct INST<T, 0u> {
-    static void log(Scope* scope, const T* addr) {
-        void** address = reinterpret_cast<void**>(const_cast<T*>(addr));
-        union {
-            T val;
-            void* word;
-        } cast = { *addr };
-        scope->log(address, cast.word, sizeof(T));
-    }
-};
-}
-
+/// _ITM_LB can log arbitrary data. This implements a routine that chunks the
+/// passed data into word sized blocks, and logs them all individually.
 void
 _ITM_LB(_ITM_transaction* td, const void* addr, size_t bytes) {
     void**  address = reinterpret_cast<void**>(const_cast<void*>(addr));
@@ -65,10 +44,12 @@ _ITM_LB(_ITM_transaction* td, const void* addr, size_t bytes) {
     }
 }
 
+/// The rest of the log calls have a well-known size at compile time, so we can
+/// just directly use the scope's templated log functionality.
 #define GENERATE_LOG(TYPE, EXT)                                 \
     void                                                        \
     _ITM_L##EXT(_ITM_transaction* td, const TYPE* address) {    \
-        INST<TYPE>::log(td->inner(), address);                  \
+        td->inner()->log(address);                              \
     }
 
 GENERATE_LOG(uint8_t, U1)

@@ -17,51 +17,47 @@ using stm::TxThread;
 using namespace itm2stm;
 
 namespace {
-// -----------------------------------------------------------------------------
-// We use the compiler to automatically generate all of the barriers that we
-// will call, using standard metaprogramming techniques. This declares the
-// instrumentation template that we will specialize for subword and other
-// types.
-//
-// The first parameter is the actual type that we want to instrument, and is
-// instantiated with the types coming from from the ITM ABI.
-//
-// The second parameter is nominally the number of words that are needed to
-// store the type on the host architecture. For subword types this is 0, word
-// types are 1, and multiword types are N > 1. We also use N manually to load
-// and store unaligned subword types that overflow a word boundary---in which
-// case the default sizeof(T) /sizeof(void*) doesn't hold. See INST<T, N, false>
-// for more details.
-//
-// The final parameter is the "aligned" flag, and allows us to customize aligned
-// versions for each type. This parameter comes from the architecture-specific
-// TypeAlignments.h header. Most architectures don't support unaligned types, so
-// the INST<T, N, false> implementations won't even be compiled.
-//
-// The ITM ABI is implemented using these default template parameters, using a
-// simple macro-expansion for each ABI type---this occurs at the end of the
-// file.
-// -----------------------------------------------------------------------------
+/// We use the compiler to automatically generate all of the barriers that we
+/// will call, using standard metaprogramming techniques. This declares the
+/// instrumentation template that we will specialize for subword and other
+/// types.
+///
+/// The first parameter is the actual type that we want to instrument, and is
+/// instantiated with the types coming from from the ITM ABI.
+///
+/// The second parameter is nominally the number of words that are needed to
+/// store the type on the host architecture. For subword types this is 0, word
+/// types are 1, and multiword types are N > 1. We also use N manually to load
+/// and store unaligned subword types that overflow a word boundary---in which
+/// case the default sizeof(T) /sizeof(void*) doesn't hold. See INST<T, N,
+/// false> for more details.
+///
+/// The final parameter is the "aligned" flag, and allows us to customize
+/// aligned versions for each type. This parameter comes from the
+/// architecture-specific TypeAlignments.h header. Many architectures don't
+/// support unaligned types, so the INST<T, N, false> implementations won't be
+/// compiled.
+///
+/// The ITM ABI is implemented using these default template parameters, using a
+/// simple macro-expansion for each ABI type---this occurs at the end of the
+/// file.
 template <typename T,
           size_t N = (sizeof(T) / sizeof(void*)),
           bool A = Aligned<T>::value>
 struct INST {
 };
 
-
-// -----------------------------------------------------------------------------
-// Potentially unaligned N-word accesses. The ReadUnalgned and WriteUnaligned
-// are completely generic given T... we exploit this to use them manually for
-// subword unaligned accesses, where the access overflows into a second word. In
-// that case, we manually pass thr subword T, and N=1.
-// -----------------------------------------------------------------------------
+/// Potentially unaligned N-word accesses. The ReadUnalgned and WriteUnaligned
+/// are completely generic given T... we exploit this to use them manually for
+/// subword unaligned accesses, where the access overflows into a second
+/// word. In that case, we manually pass thr subword T, and N=1.
 template <typename T, size_t N>
 struct INST<T, N, false> {
-    // -------------------------------------------------------------------------
-    // This read method is completely generic, given that N is set correctly to
-    // be 1 for subword accesses, and sizeof(T) / sizeof(void*) for
-    // word/multiword accesses.
-    // -------------------------------------------------------------------------
+
+    /// This read method is completely generic, given that N is set correctly to
+    /// be 1 for subword accesses, and sizeof(T) / sizeof(void*) for
+    /// word/multiword accesses. We exploit this to handle an unaligned subword
+    /// access.
     inline static T
     ReadUnaligned(TxThread& tx, const T* addr, uintptr_t offset) {
         union {
@@ -89,11 +85,9 @@ struct INST<T, N, false> {
         return *reinterpret_cast<T*>(cast.to + offset);
     }
 
-    // -------------------------------------------------------------------------
-    // This write method is completely generic, given that N is set correctly to
-    // be 1 for subword accesses, and sizeof(T) / sizeof(void*) for
-    // word/multiword accesses.
-    // -------------------------------------------------------------------------
+    /// This write method is completely generic, given that N is set correctly
+    /// to be 1 for subword accesses, and sizeof(T) / sizeof(void*) for
+    /// word/multiword accesses.
     inline static void
     WriteUnaligned(TxThread& tx, T* addr, const T value, uintptr_t offset) {
         union {
@@ -139,13 +133,13 @@ struct INST<T, N, false> {
     }
 };
 
-// -----------------------------------------------------------------------------
-// Aligned N-word accesses (where N can be 1). I expect that the compiler will
-// aggressively optimize this since N is a compile-time constant, and that at
-// least N=1 won't have a loop (it might even unroll the loop for other sizes).
-// -----------------------------------------------------------------------------
+/// Aligned N-word accesses (where N can be 1).
 template <typename T, size_t N>
 struct INST<T, N, true> {
+    /// Aligned N-word read implemented as a loop. I expect that the compiler
+    /// will aggressively optimize this since N is a compile-time constant, and
+    /// that at least N=1 won't have a loop (it might even unroll the loop for
+    /// other sizes).
     inline static T Read(TxThread& tx, const T* addr) {
         // the T* is aligned on a word boundary, so we can just use a "T"
         // directly as the second half of this union.
@@ -165,6 +159,10 @@ struct INST<T, N, true> {
         return cast.to;
     }
 
+    /// Aligned N-word store implemented as a loop. I expect that the compiler
+    /// will aggressively optimize this since N is a compile-time constant, and
+    /// that at least N=1 won't have a loop (it might even unroll the loop for
+    /// other sizes).
     inline static void Write(TxThread& tx, T* addr, const T value) {
         // The T* is aligned on a word boundary, so we can just use a T as the
         // first half of this union, and then store it as void* chunks.
@@ -183,10 +181,8 @@ struct INST<T, N, true> {
     }
 };
 
-// -----------------------------------------------------------------------------
-// Potentially overflowing subword accesses---an unaligned access could overflow
-// into the next word, which we need to check for.
-// -----------------------------------------------------------------------------
+/// Potentially overflowing subword accesses---an unaligned access could
+/// overflow into the next word, which we need to check for.
 template <typename T>
 struct INST<T, 0u, false> {
     inline static T Read(TxThread& tx, const T* addr) {
@@ -214,10 +210,8 @@ struct INST<T, 0u, false> {
     }
 };
 
-// -----------------------------------------------------------------------------
-// Non-overflowing subword accesses---these aren't necessarily aligned, but they
-// only require a single tmread to satisfy.
-// -----------------------------------------------------------------------------
+/// Non-overflowing subword accesses---these aren't necessarily aligned, but
+/// they only require a single tmread to satisfy.
 template <typename T>
 struct INST<T, 0u, true> {
     inline static T Read(TxThread& tx, const T* addr) {
@@ -232,9 +226,7 @@ struct INST<T, 0u, true> {
         union {
             void* from;
             uint8_t to[sizeof(void*)];
-        } cast = {
-            tx.tmread(&tx, base_of(addr), mask)
-        };
+        } cast = { tx.tmread(&tx, base_of(addr), mask) };
 
         // pick out the right T from the "to" array and return it
         return *reinterpret_cast<T*>(cast.to + offset);
@@ -260,8 +252,50 @@ struct INST<T, 0u, true> {
         tx.tmwrite(&tx, base, cast.to, mask);
     }
 };
-}
 
+/// It is possible that a transaction-local stack access will sometimes be
+/// instrumented and sometimes not be instrumented. *In order to support
+/// redo-logging code we must not log these writes using tmwrite!*
+///
+/// If we are in a nested context, and the write is to an outer context, we
+/// need to _ITM_Log it so that we can undo it if the user calls cancel.
+///
+/// NB: We're assuming that, if we get an address in the protected region, the
+///     range [address, (char*)address + sizeof(T)) falls entirely within our
+///     protected stack region, and that there isn't any possible overlap
+///     across nested transaction boundaries. I think that this is a legitimate
+///     assumption, but a user could always do something with casting or array
+///     overflow that might invalidate it.
+///
+/// NB: This may make more sense as a _ITM_transaction member, but we can't do
+///     that because of the way that the _ITM_ ABI declares _ITM_transaction.
+template <typename T>
+inline bool is_stack_write(const _ITM_transaction* const tx, const T* address) {
+    // common case is a non-stack write.
+    const void* begin = static_cast<const void*>(address);
+
+    if (begin < __builtin_frame_address(0))
+        return false;
+    if (begin > tx->outer()->stackHigh())
+        return false;
+    if (begin < tx->inner()->stackHigh())
+        return true;
+
+    // We have an instrumented write to a stack location between the inner and
+    // outer scope. If the user issues an explicit cancel_inner we'll need to
+    // restore the value, so we need to log it.
+    tx->inner()->log(address);
+    return true;
+}
+} // namespace
+
+/// Given a type and the corresponding ABI extension (e.g., U4, U8) this will
+/// instantiate all of the barriers that we need.
+///
+/// Note that the write barriers all test to see if this is a transaction-local
+/// stack address, and just perform an in-place write if it is. The
+/// is_stack_address will log the old address in the scope's undo log if it
+/// detects that the write might need to be undone on a nested cancal_inner.
 #define BARRIERS(TYPE, EXT)                                     \
     TYPE                                                        \
     _ITM_R##EXT(_ITM_transaction* td, const TYPE* address) {    \
@@ -285,19 +319,29 @@ struct INST<T, 0u, true> {
                                                                 \
     void                                                        \
     _ITM_W##EXT(_ITM_transaction* td, TYPE* address, const TYPE value) { \
-        INST<TYPE>::Write(td->handle(), address, value);        \
-    }                                                           \
-                                                                \
-    void                                                        \
+        if (is_stack_write(td, address))                                \
+            *address = value;                                           \
+        else                                                            \
+            INST<TYPE>::Write(td->handle(), address, value);            \
+    }                                                                   \
+                                                                        \
+    void                                                                \
     _ITM_WaR##EXT(_ITM_transaction* td, TYPE* address, const TYPE value) { \
-        INST<TYPE>::Write(td->handle(), address, value);        \
-    }                                                           \
-                                                                \
-    void                                                        \
+        if (is_stack_write(td, address))                                \
+            *address = value;                                           \
+        else                                                            \
+            INST<TYPE>::Write(td->handle(), address, value);            \
+    }                                                                   \
+                                                                        \
+    void                                                                \
     _ITM_WaW##EXT(_ITM_transaction* td, TYPE* address, const TYPE value) { \
-        INST<TYPE>::Write(td->handle(), address, value);        \
+        if (is_stack_write(td, address))                                \
+            *address = value;                                           \
+        else                                                            \
+            INST<TYPE>::Write(td->handle(), address, value);            \
     }
 
+/// Now, for each type instantiate the barriers.
 BARRIERS(uint8_t, U1)
 BARRIERS(uint16_t, U2)
 BARRIERS(uint32_t, U4)

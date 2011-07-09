@@ -37,11 +37,8 @@ namespace
   default_abort_handler(TxThread* tx)
   {
       jmp_buf* scope = (jmp_buf*)TxThread::tmrollback(tx
-#if defined(STM_PROTECT_STACK)
-                                                , TOP_OF_ARGS(1)
-#endif
 #if defined(STM_ABORT_ON_THROW)
-                                                , NULL, 0
+                                                      , NULL, 0
 #endif
                                                );
       // need to null out the scope
@@ -64,6 +61,10 @@ namespace stm
         allocator(),
         num_commits(0), num_aborts(0), num_restarts(0),
         num_ro(0), scope(NULL),
+#ifdef STM_STACK_PROTECT
+        stack_high(NULL),
+        stack_low(~0x0),
+#endif
         start_time(0), tmlHasLock(false), undo_log(64), vlist(64), writes(64),
         r_orecs(64), locks(64),
         wf((filter_t*)FILTER_ALLOC(sizeof(filter_t))),
@@ -169,9 +170,9 @@ namespace stm
   /**
    *  The tmrollback, tmabort, and tmirrevoc pointers
    */
-  scope_t* (*TxThread::tmrollback)(STM_ROLLBACK_SIG(,,,));
+  scope_t* (*TxThread::tmrollback)(STM_ROLLBACK_SIG(,,));
   NORETURN void (*TxThread::tmabort)(TxThread*) = default_abort_handler;
-  bool (*TxThread::tmirrevoc)(STM_IRREVOC_SIG(,)) = NULL;
+  bool (*TxThread::tmirrevoc)(TxThread*) = NULL;
 
   /*** the init factory */
   void TxThread::thread_init()

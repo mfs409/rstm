@@ -10,6 +10,7 @@
 include (CustomAddExecutable)
 include (AddTargetDefinitions)
 include (AppendProperty)
+include (AppendFlags)
 
 set(
   sources

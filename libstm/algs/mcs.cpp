@@ -34,10 +34,10 @@ namespace  {
       static TM_FASTCALL bool begin(TxThread*);
       static TM_FASTCALL void* read(STM_READ_SIG(,,));
       static TM_FASTCALL void write(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void commit(STM_COMMIT_SIG(,));
+      static TM_FASTCALL void commit(TxThread*);
 
-      static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,,));
-      static bool irrevoc(STM_IRREVOC_SIG(,));
+      static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
+      static bool irrevoc(TxThread*);
       static void onSwitchTo();
   };
 
@@ -58,7 +58,7 @@ namespace  {
    *  MCS commit
    */
   void
-  MCS::commit(STM_COMMIT_SIG(tx,))
+  MCS::commit(TxThread* tx)
   {
       // release the lock, finalize mm ops, and log the commit
       mcs_release(&mcslock, tx->my_mcslock);
@@ -89,7 +89,7 @@ namespace  {
    *    In MCS, aborts are never valid
    */
   stm::scope_t*
-  MCS::rollback(STM_ROLLBACK_SIG(,,,))
+  MCS::rollback(STM_ROLLBACK_SIG(,,))
   {
       UNRECOVERABLE("ATTEMPTING TO ABORT AN IRREVOCABLE MCS TRANSACTION");
       return NULL;
@@ -102,7 +102,7 @@ namespace  {
    *    Instead, the become_irrevoc() call should just return true
    */
   bool
-  MCS::irrevoc(STM_IRREVOC_SIG(,))
+  MCS::irrevoc(TxThread*)
   {
       UNRECOVERABLE("MCS::IRREVOC SHOULD NEVER BE CALLED");
       return false;

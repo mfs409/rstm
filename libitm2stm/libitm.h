@@ -16,7 +16,7 @@
 #ifndef STM_ITM2STM_LIBITM_H
 #define STM_ITM2STM_LIBITM_H
 
-#include <itm/itm.h> // 5.1 is public
+#include <itm/itm.h>    // The public header for client use (like 5.1)
 
 #ifdef __cplusplus
 extern "C" {

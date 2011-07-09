@@ -48,12 +48,12 @@ namespace {
       static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,,));
       static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,,));
       static TM_FASTCALL void write_turbo(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void commit_ro(STM_COMMIT_SIG(,));
-      static TM_FASTCALL void commit_rw(STM_COMMIT_SIG(,));
-      static TM_FASTCALL void commit_turbo(STM_COMMIT_SIG(,));
+      static TM_FASTCALL void commit_ro(TxThread*);
+      static TM_FASTCALL void commit_rw(TxThread*);
+      static TM_FASTCALL void commit_turbo(TxThread*);
 
-      static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,,));
-      static bool irrevoc(STM_IRREVOC_SIG(,));
+      static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
+      static bool irrevoc(TxThread*);
       static void onSwitchTo();
       static NOINLINE void validate(TxThread*, uintptr_t finish_cache);
   };
@@ -82,7 +82,7 @@ namespace {
    *  CTokenTurbo commit (read-only):
    */
   void
-  CTokenTurbo::commit_ro(STM_COMMIT_SIG(tx,))
+  CTokenTurbo::commit_ro(TxThread* tx)
   {
       tx->r_orecs.reset();
       tx->order = -1;
@@ -95,7 +95,7 @@ namespace {
    *  Only valid with pointer-based adaptivity
    */
   void
-  CTokenTurbo::commit_rw(STM_COMMIT_SIG(tx,upper_stack_bound))
+  CTokenTurbo::commit_rw(TxThread* tx)
   {
       // we need to transition to fast here, but not till our turn
       while (last_complete.val != ((uintptr_t)tx->order - 1)) {
@@ -114,11 +114,6 @@ namespace {
       if (tx->writes.size() != 0) {
           // mark every location in the write set, and perform write-back
           foreach (WriteSet, i, tx->writes) {
-#ifdef STM_PROTECT_STACK
-              volatile void* top_of_stack;
-              if (i->addr >= &top_of_stack && i->addr < upper_stack_bound)
-                  continue;
-#endif
               orec_t* o = get_orec(i->addr);
               o->v.all = tx->order;
               CFENCE; // WBW
@@ -142,7 +137,7 @@ namespace {
    *  CTokenTurbo commit (turbo mode):
    */
   void
-  CTokenTurbo::commit_turbo(STM_COMMIT_SIG(tx,))
+  CTokenTurbo::commit_turbo(TxThread* tx)
   {
       CFENCE; // wbw between writeback and last_complete.val update
       last_complete.val = tx->order;
@@ -284,7 +279,7 @@ namespace {
    *        logging to address this, and add it in Pipeline too.
    */
   stm::scope_t*
-  CTokenTurbo::rollback(STM_ROLLBACK_SIG(tx, upper_stack_bound, except, len))
+  CTokenTurbo::rollback(STM_ROLLBACK_SIG(tx, except, len))
   {
       PreRollback(tx);
       // we cannot be in turbo mode
@@ -294,7 +289,7 @@ namespace {
       // Perform writes to the exception object if there were any... taking the
       // branch overhead without concern because we're not worried about
       // rollback overheads.
-      STM_ROLLBACK(tx->writes, upper_stack_bound, except, len);
+      STM_ROLLBACK(tx->writes, except, len);
 
       tx->r_orecs.reset();
       tx->writes.reset();
@@ -308,7 +303,7 @@ namespace {
   /**
    *  CTokenTurbo in-flight irrevocability:
    */
-  bool CTokenTurbo::irrevoc(STM_IRREVOC_SIG(,))
+  bool CTokenTurbo::irrevoc(TxThread*)
   {
       UNRECOVERABLE("CTokenTurbo Irrevocability not yet supported");
       return false;
