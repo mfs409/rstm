@@ -203,9 +203,9 @@ namespace stm
   const char* get_algname();
 
   /**
-   *  Try to become irrevocable.  Call this from within a transaction.
+   *  Become irrevocable.  Call this from within a transaction.
    */
-  bool become_irrevoc();
+  void become_irrevoc();
 
   /**
    *  Abort the current transaction and restart immediately.
@@ -281,7 +281,7 @@ namespace stm
 #define TM_ALLOC             stm::tx_alloc
 #define TM_FREE              stm::tx_free
 #define TM_SET_POLICY(P)     stm::set_policy(P)
-
+#define TM_BECOME_IRREVOC()  stm::becom_irrevoc()
 #define TM_GET_ALGNAME()     stm::get_algname()
 
 /**
