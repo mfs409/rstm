@@ -22,7 +22,11 @@ Algorithms using ByteLocks do not support running with more than 56 threads.
 
 == Using the Intel compiler with redo-based STM ==
 
-This is surprisingly hard in the current version.  We are building a patch to resolve the problem.  See the [ITMSupport ITMSupport] page for more information.
+  * Transaction local stack accesses 
+The rstm_v7_201107.tgz release file does not properly handle transaction local stack accesses for buffered-update STM algorithms. A workaround exists. See ITMSupport for more details. *This has been resolved in the [http://code.google.com/p/rstm/source/checkout svn repository] and should no longer be a concern.*
+
+  * Memory management
+Certain, non-transactional uses of `munmap` may cause concurrent speculative transactions to suffer from segmentation faults that are inconsistent with single-lock execution. If you _must_ use `mmap/munmap` directly it is your responsibility to ensure that no concurrent speculative transactions  exist. You may do this by performing all `munmap` operations in `[[relaxed]]` transactions. Other memory management operations should work correctly. A more general fix for this is being developed.
 
 == Irrevocability ==
 
