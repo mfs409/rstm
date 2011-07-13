@@ -30,7 +30,8 @@ set(cxxtm_sources)
 # recognized as C++ TM sources (we can't just set the LANGUAGE property on the
 # .cpps because we might want them to be plain C++ for the FGL, CGL, and STM
 # builds). 
-if (rstm_enable_itm OR rstm_enable_itm2stm)
+if (rstm_enable_itm OR rstm_enable_itm2stm AND
+    CMAKE_CXX-tm_COMPILER_ID MATCHES "Intel")
   include_directories(${CMAKE_CURRENT_SOURCE_DIR})
   foreach (source ${sources})
     configure_file(${source} ${source}.cxxtm COPYONLY)
@@ -75,13 +76,13 @@ foreach (arch 32) #${rstm_archs})
   #   target_link_libraries(${exec} ${CMAKE_THREAD_LIBS_INIT})
   # endif ()
   
-  if (rstm_enable_itm)
+  if (rstm_enable_itm AND CMAKE_CXX-tm_COMPILER_ID MATCHES "Intel")
     add_itm_executable(exec meshITM ${arch} ${cxxtm_sources})
     add_target_definitions(${exec} ITM)
     target_link_libraries(${exec} ${CMAKE_THREAD_LIBS_INIT} ${rt})
   endif ()
 
-  if (rstm_enable_itm2stm)
+  if (rstm_enable_itm2stm AND CMAKE_CXX-tm_COMPILER_ID MATCHES "Intel")
     add_itm2stm_executable(exec meshSHIM ${arch} ${cxxtm_sources})
     add_target_definitions(${exec} ITM)
     target_link_libraries(${exec} ${CMAKE_THREAD_LIBS_INIT})

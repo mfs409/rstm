@@ -34,12 +34,12 @@ foreach (arch ${rstm_archs})
     #ENABLE_KERNEL4
     )
 
-  if (rstm_enable_itm)
+  if (rstm_enable_itm AND CMAKE_CXX-tm_COMPILER_ID MATCHES "Intel")
     add_stamp_itm_executable(exec_itm ssca2 ${arch} ${sources})
     add_target_definitions(${exec_itm} ENABLE_KERNEL1)
   endif ()
   
-  if (rstm_enable_itm2stm)
+  if (rstm_enable_itm2stm AND CMAKE_CXX-tm_COMPILER_ID MATCHES "Intel")
     add_stamp_itm2stm_executable(exec_shim ssca2 ${arch} ${sources})
     add_target_definitions(${exec_shim} ENABLE_KERNEL1)
   endif ()
