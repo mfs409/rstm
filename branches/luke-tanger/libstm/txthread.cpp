@@ -184,6 +184,19 @@ namespace stm
       Self = new TxThread();
   }
 
+  /*** the lib_globals thread initializer */
+  void thread_init()
+  {
+      TxThread::thread_init();
+  }
+
+  /*** the lib_globals thread finalizer */
+  void thread_shutdown()
+  {
+      TxThread::thread_shutdown();
+  }
+
+
   /**
    *  Simplified support for self-abort
    */
