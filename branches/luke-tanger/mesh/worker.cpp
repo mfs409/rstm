@@ -80,7 +80,7 @@ static void synchronized_baste(point* lp, point* rp, int dir,
     while (!done) {
         edge* traversed = NULL;     // initialize to avoid complaint from gcc
 
-        BEGIN_TRANSACTION(atomic) {
+        TM_BEGIN(atomic) {
             tx_side left;
             tx_side right;
 
@@ -117,7 +117,7 @@ static void synchronized_baste(point* lp, point* rp, int dir,
                 lp = left.p;
                 rp = right.p;
             }
-        } END_TRANSACTION;
+        } TM_END;
 
         if (done) return;
         // Enqueues should be done only if the transaction commits:
@@ -193,9 +193,9 @@ static void reconsider_edge(edge* e, const int col, region_info **regions) {
 #else
     edge* surrounding_edges[4];
     bool handled;
-    BEGIN_TRANSACTION(atomic) {
+    TM_BEGIN(atomic) {
         handled = e->reconsider(col, true, surrounding_edges);
-    } END_TRANSACTION;
+    } TM_END;
     assert(handled);    // should never return false when transactional
     for (int i = 0; i < 4; i++) {
         edge *e = surrounding_edges[i];
@@ -336,11 +336,11 @@ static void do_work(const int col, region_info **regions, barrier *bar)
             starter = new edge(lp, rp, lb, rb, ccw);
         }
 #else
-        BEGIN_TRANSACTION(atomic) {
+        TM_BEGIN(atomic) {
             edge* lb = hull_edge(lp, cw);
             edge* rb = hull_edge(rp, ccw);
             starter = new edge(lp, rp, lb, rb, ccw);
-        } END_TRANSACTION;
+        } TM_END;
 #endif
     }
 

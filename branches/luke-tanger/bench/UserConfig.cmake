@@ -20,3 +20,14 @@ cmake_dependent_option(
   "ON to enable the single source build." ON
   "rstm_enable_bench" OFF)
 mark_as_advanced(bench_enable_single_source)
+
+# Ask about building with tanger bindings.
+option(
+  bench_enable_tanger
+  "ON to enable building with the tanger API and llvm optimization" ON)
+
+set(
+  bench_dragonegg_plugin "/u/luked/local/source/dragonegg-2.9/dragonegg.so"
+  CACHE FILEPATH "The full path to the dragonegg plugin.")
+  
+  

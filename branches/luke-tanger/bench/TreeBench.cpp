@@ -20,6 +20,7 @@
 #include <iostream>
 #include <alt-license/rand_r_32.h>
 #include <api/api.hpp>
+#include <common/ThreadLocal.hpp>
 #include "bmconfig.hpp"
 
 /**
@@ -42,7 +43,6 @@
 #include "Tree.hpp"
 
 
-
 /**
  *  Step 3:
  *    Declare an instance of the data type, and provide init, test, and verify
@@ -51,6 +51,13 @@
 
 /*** the tree we will manipulate in the experiment */
 RBTree* SET;
+
+/**
+ *  We keep track of how many lookup operations find what they are looking
+ *  for. This prevents smart compilers from concluding that the lookup
+ *  transaction is dead code and eliminating it.
+ */
+THREAD_LOCAL_DECL_TYPE(long) lookup_found;
 
 /*** Initialize the counter */
 void bench_init()
@@ -70,9 +77,13 @@ void bench_test(uintptr_t, uint32_t* seed)
     uint32_t val = rand_r_32(seed) % CFG.elements;
     uint32_t act = rand_r_32(seed) % 100;
     if (act < CFG.lookpct) {
+        bool found = false;
         TM_BEGIN(atomic) {
-            SET->lookup(val TM_PARAM);
+            found = SET->lookup(val TM_PARAM);
         } TM_END;
+
+        // This prevents unwanted dead-code elimination.
+        lookup_found = (found) ? lookup_found + 1 : lookup_found;
     }
     else if (act < CFG.inspct) {
         TM_BEGIN(atomic) {

@@ -54,45 +54,61 @@ extern unsigned long long last_time;
 class thread;
 extern THREAD_LOCAL_DECL_TYPE(thread*) currentThread;
 
-#ifdef CGL
-#   define BEGIN_TRANSACTION(TYPE) {with_lock tx_cs(io_lock);
-#   define END_TRANSACTION }
+#if defined(CGL)
+#define TM_BEGIN(TYPE)              { with_lock tx_cs(io_lock);
+#define TM_END                      }
+
+#define TRANSACTION_SAFE
+#define TRANSACTION_PURE
+#define TRANSACTION_WAIVER
+#elif defined(ITM)
+#define TM_BEGIN(TYPE)              currentThread->enter_transaction();     \
+                                    currentThread->erase_buffered_output(); \
+                                    __transaction [[TYPE]]                  \
+                                    {
+#define TM_END                      }                                       \
+                                    currentThread->dump_buffered_output();  \
+                                    currentThread->leave_transaction();
+
+#define TRANSACTION_SAFE            [[transaction_safe]]
+#define TRANSACTION_PURE            [[transaction_pure]]
+#define TRANSACTION_WAIVER          __transaction [[waiver]]
+#elif defined(TANGER)
+#include "alt-license/tanger-stm.h"
+#define TM_BEGIN(TYPE)              currentThread->enter_transaction();     \
+                                    currentThread->erase_buffered_output(); \
+                                    { tanger_begin();
+#define TM_END                        tanger_commit(); }                    \
+                                    currentThread->dump_buffered_output();  \
+                                    currentThread->leave_transaction();
+
+#define TRANSACTION_SAFE            __attribute__((tm_safe))
+#define TRANSACTION_PURE            __attribute__((transaction_pure))
+#define TRANSACTION_WAIVER
+#else
+#error "Unknown or unspecified synchronization API"
 #endif
 
 #ifdef ITM
-#   include <new>
-    [[transaction_safe]]
-    void* operator new (std::size_t size) throw (std::bad_alloc);
-    [[transaction_safe]] void operator delete(void* ptr) throw();
-#   define BEGIN_TRANSACTION(TYPE)              \
-    currentThread->enter_transaction();         \
-    currentThread->erase_buffered_output();     \
-    __transaction [[TYPE]] {
-#   define END_TRANSACTION }                   \
-        currentThread->dump_buffered_output(); \
-        currentThread->leave_transaction();
-#   define TRANSACTION_SAFE [[transaction_safe]]
-#   define TRANSACTION_PURE [[transaction_pure]]
-#   define TRANSACTION_WAIVER __transaction [[waiver]]
-
+#include <new>
 #include "itm.h"
 
-#   define  SYS_INIT                   _ITM_initializeProcess
-#   define  THREAD_INIT                _ITM_initializeThread
-#   define  THREAD_SHUTDOWN            _ITM_finalizeThread
-#   define  SYS_SHUTDOWN               _ITM_finalizeProcess
+[[transaction_safe]]
+void* operator new(std::size_t size) throw(std::bad_alloc);
 
+[[transaction_safe]]
+void operator delete(void* ptr) throw();
+
+#define SYS_INIT                   _ITM_initializeProcess
+#define THREAD_INIT                _ITM_initializeThread
+#define THREAD_SHUTDOWN            _ITM_finalizeThread
+#define SYS_SHUTDOWN               _ITM_finalizeProcess
 #else
-
-#   define TRANSACTION_SAFE
-#   define TRANSACTION_PURE
-#   define TRANSACTION_WAIVER
-
-#   define  SYS_INIT()
-#   define  THREAD_INIT()
-#   define  THREAD_SHUTDOWN()
-#   define  SYS_SHUTDOWN()
-
+#define SYS_INIT()
+#define THREAD_INIT()
+#define THREAD_SHUTDOWN()
+#define SYS_SHUTDOWN()
 #endif
+
 
 #endif // MESH_CONFIG_HPP__

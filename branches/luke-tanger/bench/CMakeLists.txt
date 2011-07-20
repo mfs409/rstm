@@ -56,6 +56,22 @@ if (bench_enable_single_source)
     endforeach ()
   endforeach ()
 endif ()
+
+# Build the tanger executables
+# [ld] For now this is a big hack, because I don't really know enough about
+#      cmake to do a good job with it in a short period of time.
+if (bench_enable_tanger)
+  foreach (bench ${benchmarks})
+    foreach (arch ${rstm_archs})
+      # 1) build llvm bitcode files
+      # 2) link the llvm bitcode files into one big bitcode
+      # 3) run the tanger transformation on the bitcode using its opt
+      # 4) link with a tanger library
+      # 5) generate code from the linked bitcode
+    endforeach ()
+  endforeach ()
+endif ()
+
 # Build the CXX-tm executables, if the user has a configuration that is
 # appropriate.
 if (CMAKE_CXX-tm_COMPILER)

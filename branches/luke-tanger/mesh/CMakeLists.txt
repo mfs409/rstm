@@ -55,7 +55,7 @@ if (CMAKE_SYSTEM_NAME MATCHES "Linux")
   set(rt rt)
 endif ()
 
-# We onl support 32-bit builds with mesh
+# We only support 32-bit builds with mesh
 foreach (arch 32) #${rstm_archs})
   if (mesh_enable_cgl)
     add_multiarch_executable(exec meshCGL ${arch} ${sources})
