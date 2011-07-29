@@ -82,8 +82,8 @@ extern THREAD_LOCAL_DECL_TYPE(thread*) currentThread;
                                     currentThread->dump_buffered_output();  \
                                     currentThread->leave_transaction();
 
-#define TRANSACTION_SAFE            __attribute__((tm_safe))
-#define TRANSACTION_PURE            __attribute__((transaction_pure))
+#define TRANSACTION_SAFE            // __attribute__((tm_safe))
+#define TRANSACTION_PURE            // __attribute__((transaction_pure))
 #define TRANSACTION_WAIVER
 #else
 #error "Unknown or unspecified synchronization API"

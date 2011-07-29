@@ -51,7 +51,7 @@
  *    pthreads: extern ThreadLocal<Foo*, sizeof(Foo*)> a;
  */
 #if defined(STM_TLS_PTHREAD)
-# define THREAD_LOCAL_DECL_TYPE(X) stm::tls::ThreadLocal<X, sizeof(X)>
+# define THREAD_LOCAL_DECL_TYPE(X) stm::tls::ThreadLocal<X, sizeof(X)/sizeof(void*)>
 #elif defined(STM_OS_WINDOWS)
 # define THREAD_LOCAL_DECL_TYPE(X) __declspec(thread) X
 #elif defined(STM_CC_GCC) || defined(STM_CC_SUN)
@@ -79,25 +79,51 @@ namespace stm
      *  The basic thread local wrapper. The pthread interface stores the
      *  value as a void*, and this class manages that void* along with the
      *  pthread key.
-    */
+     *
+     *  NB: There are other ways to do this since all of the clients of this
+     *      interface are template classes. This would save us a vtable
+     *      pointer. The vtable pointer is really only there to support the
+     *      destructor. We could simply call an interface function from the
+     *      clients during their destruction. This would result in a more
+     *      traditional policy-based implementation.
+     */
     class PThreadLocalImplementation
     {
       protected:
+        /**
+         *  The constructor creates a pthread specific key and then assigns the
+         *  incoming value to it.
+         */
         PThreadLocalImplementation(void* const v)
         {
             pthread_key_create(&key, NULL);
             pthread_setspecific(key, v);
         }
 
-        virtual ~PThreadLocalImplementation() { pthread_key_delete(key); }
-        void* getValue() const { return pthread_getspecific(key); }
-        void setValue(void* const v) { pthread_setspecific(key, v); }
+        /**
+         *  The destructor deletes the pthread key. Note that this is virtual
+         *  because our /actual/ thread local implementations are all templates
+         *  that inherit from this base class.
+         */
+        virtual ~PThreadLocalImplementation() {
+            pthread_key_delete(key);
+        }
+
+        /** Returns the value stored with the key. */
+        void* getValue() const {
+            return pthread_getspecific(key);
+        }
+
+        /** Sets the value stored at the key. */
+        void setValue(void* const v) {
+            pthread_setspecific(key, v);
+        }
 
       private:
         pthread_key_t key;
 
       private:
-        // Do not implement
+        // Do not implement.
         PThreadLocalImplementation();
         PThreadLocalImplementation(const PThreadLocalImplementation&);
 
@@ -120,34 +146,51 @@ namespace stm
      *   2) Data that is too large.
      *
      *  This distinction is important when we consider levels of
-     *  indirection. The pthread interface gives us access to void* sized
-     *  slots of data. If we can fit what we need there, then we have just
-     *  the one level of indirection to access it. If we can't, then we need
-     *  to allocate space elsewhere for it, and store a pointer to that space
-     *  in the slot.
+     *  indirection. The pthread interface gives us access to void* sized slots
+     *  of data. If we can fit what we need there, then we have just the one
+     *  level of indirection to access it. If we can't, then we need to
+     *  allocate space elsewhere for it, and store a pointer to that space in
+     *  the slot.
      *
      *  Pointer data is easy to manage, since the client expects the location
-     *  to look like a pointer, and pthreads is giving us a pointer. The
-     *  client is going to have to manage the memory if it's dynamically
-     *  allocated, so we can just return it as needed.
+     *  to look like a pointer, and pthreads is giving us a pointer. The client
+     *  is going to have to manage the memory if it's dynamically allocated, so
+     *  we can just return it as needed.
      *
-     *  The main problem to this interface is that each interaction requires
-     *  a pthread library call. If the client knew there was a pthreads
-     *  interface (or just an interface more expensive than __thread)
-     *  underneath then it could optimize for that situation.
+     *  The main problem to this interface is that each interaction requires a
+     *  pthread library call. If the client knew there was a pthreads interface
+     *  (or just an interface more expensive than __thread) underneath then it
+     *  could optimize for that situation.
      */
 
     /**
      *  The ThreadLocal template for objects that are larger than the size
-     *  allotted by a pthread_getspecific. It uses either malloc and free or
-     *  a trivial new constructor to allocate and deallocate space for the
-     *  data, and memcpy to write to the data as needed. It owns the
-     *  allocated space, which is fine because the client is thinking of this
-     *  as automatically managed anyway.
+     *  allotted by a pthread_getspecific. It uses either malloc and free or a
+     *  trivial new constructor to allocate and deallocate space for the data,
+     *  and memcpy to write to the data as needed. It owns the allocated space,
+     *  which is fine because the client is thinking of this as automatically
+     *  managed anyway.
      *
-     *  Currently, we trigger an error if the type has a constructor, but
-     *  doesn't have a default constructor. This is the same approach that
-     *  C++ takes with arrays of user-defined classes.
+     *  Right now all the client can do is take the address of the thread local
+     *  object, and access it through that pointer. If we need more
+     *  functionality to make the ThreadLocal template easier to use, we can
+     *  add it. In fact, the partial specializations for word and subword data
+     *  /do/ have more functionality. This mismatch is not intentional, it's
+     *  just demand-driven. Basically, a multi-word type is likely to be a
+     *  struct type, where using a pointer is natural, while a word type is
+     *  often a math type (like an integer) and an extended interface is more
+     *  convenient.
+     *
+     *  NB: Currently, we trigger an error if the type has a constructor, but
+     *      doesn't have a default constructor. This is the same approach that
+     *      C++ takes with arrays of user-defined classes.
+     *
+     *      It's probably better to malloc and free the underlying space,
+     *      rather than running the constructor/destructor.
+     *
+     *  NB: We know that this is for objects that are larger than a word
+     *      because we provide partial template implementations for S=0 (< word
+     *      sized) and S=1 (word sized).
      */
     template <typename T, unsigned S>
     class ThreadLocal : public PThreadLocalImplementation
@@ -155,14 +198,33 @@ namespace stm
       public:
         ThreadLocal() : PThreadLocalImplementation(new T()) { }
 
-        ThreadLocal(T t) : PThreadLocalImplementation(new T())
-        {
+        /**
+         *  This constructor allocates a T and sets the stored key to be the
+         *  address of the new T. It then uses memcpy to copy the bits of the
+         *  passed T into the heap-allocated location. This avoids the problem
+         *  that T might have a copy operator that does something odd.
+         *
+         *  The passed T should no longer be used after this constructor call,
+         *  since the /actual/ thread local object is the heap object.
+         */
+        ThreadLocal(T t) : PThreadLocalImplementation(new T()) {
             __builtin_memcpy(getValue(), &t, S);
         }
 
-        virtual ~ThreadLocal() { delete static_cast<T*>(getValue()); }
+        /** We "newed" the heap location so we delete it here. */
+        virtual ~ThreadLocal() {
+            delete static_cast<T*>(getValue());
+        }
 
-        T* operator&() const { return static_cast<T*>(getValue()); }
+        /**
+         *  Get the address of the thread local.
+         *
+         *  NB: This is the only way to interact with multi-word data at the
+         *      moment.
+         */
+        T* operator&() const {
+            return static_cast<T*>(getValue());
+        }
 
       private:
         // Do not implement these. We assume that anyone trying to copy the
@@ -178,26 +240,82 @@ namespace stm
      *  don't need to allocate any extra space for the stored item.
      */
     template <typename T>
-    class ThreadLocal<T, sizeof(void*)> : public PThreadLocalImplementation
+    class ThreadLocal<T, 1u> : public PThreadLocalImplementation
     {
       public:
-        ThreadLocal() : PThreadLocalImplementation(NULL) { }
-
-        ThreadLocal(T t) : PThreadLocalImplementation(NULL)
-        {
-            __builtin_memcpy(getValue(), &t, sizeof(T));
+        ThreadLocal() : PThreadLocalImplementation(NULL) {
         }
 
-        T* operator&() const { return static_cast<T*>(getValue()); }
+        /**
+         *  The word-sized constructor casts the T to a void* and then just
+         *  sets the stored value to that void*. This inhibits some type-based
+         *  alias optimization, but we already know that pthreads has overhead
+         *  that __thread doesn't.
+         */
+        ThreadLocal(T t) : PThreadLocalImplementation(NULL) {
+            // Union performs safe cast. Alternative "reinterpret_cast" doesn't
+            // work for all types (e.g., floating point types).
+            union {
+                T from;
+                void* to;
+            } cast = { t };
+            setValue(cast.to);
+        }
+
+        /**
+         *  Implicit conversion to a T. It's not obvious that this is the best
+         *  option, but it's certainly the easiest. This lets us perform math
+         *  on something like an integer without anything that we don't require
+         *  for __thread use.
+         *
+         *  A more robust solution would be to use type-traits and extended
+         *  template parameters, and add math operators to specializations
+         *  where they make sense.
+         */
+        operator T() {
+            // Union performs safe cast. Alternative "reinterpret_cast" doesn't
+            // work for all types (e.g., floating point types).
+            union {
+                void* from;
+                T to;
+            } cast = { getValue() };
+            return cast.to;
+        }
+
+        /** Assignment from a T. */
+        ThreadLocal<T, 1u>& operator=(const T rhs) {
+            union {
+                T from;
+                void* to;
+            } cast = { rhs };
+            setValue(cast.to);
+            return *this;
+        }
 
       private:
         // Do not implement these. We assume that anyone trying to copy the
         // ThreadLocal object probably wants to copy the underlying object
         // instead.
-        ThreadLocal(const ThreadLocal<T, sizeof(void*)>&);
+        ThreadLocal(const ThreadLocal<T, 1u>&);
 
-        ThreadLocal<T,sizeof(void*)>&
-        operator=(const ThreadLocal<T,sizeof(void*)>&);
+        ThreadLocal<T, 1u>& operator=(const ThreadLocal<T, 1u>&);
+    };
+
+    /**
+     *  The ThreadLocal template for objects that are less than the size of a
+     *  void*.
+     *
+     *  NB: Currently unused by RSTM, which is why no interface is
+     *      implemented.
+     */
+    template <typename T>
+    class ThreadLocal<T, 0u> : public PThreadLocalImplementation {
+      private:
+        // Do not implement these. We assume that anyone that is trying to copy
+        // the ThreadLocal object probably wants to copy the underlying object
+        // instead.
+        ThreadLocal(const ThreadLocal<T, 0u>&);
+        ThreadLocal<T, 0u>& operator=(const ThreadLocal<T, 0u>&);
     };
 
     /**
@@ -218,37 +336,61 @@ namespace stm
      *  underlying pointer.
      */
     template <typename T>
-    class ThreadLocal<T*, sizeof(void*)> : public PThreadLocalImplementation
+    class ThreadLocal<T*, 1u> : public PThreadLocalImplementation
     {
       public:
         ThreadLocal(T* t = NULL) : PThreadLocalImplementation(t) { }
 
         virtual ~ThreadLocal() { }
 
-        // The smart pointer interface to the variable.
-        const T& operator*() const { return *static_cast<T*>(getValue()); }
-        const T* operator->() const { return static_cast<T*>(getValue()); }
-        T& operator*() { return *static_cast<T*>(getValue()); }
-        T* operator->() { return static_cast<T*>(getValue()); }
-        operator T*() { return static_cast<T*>(getValue()); }
+        /**
+         *  The smart pointer interface to the variable. These just perovide a
+         *  cast-based interface that make the void* value that we store look
+         *  like a T*.
+         */
+        const T& operator*() const {
+            return *static_cast<T*>(getValue());
+        }
 
-        // allow assignments
-        ThreadLocal<T*, sizeof(void*)>& operator=(T* rhs) {
+        const T* operator->() const {
+            return static_cast<T*>(getValue());
+        }
+
+        T& operator*() {
+            return *static_cast<T*>(getValue());
+        }
+
+        operator T*() {
+            return static_cast<T*>(getValue());
+        }
+
+        T* operator->() {
+            return static_cast<T*>(getValue());
+        }
+
+        /** Assignment operator from a T*. */
+        ThreadLocal<T*, 1u>& operator=(T* rhs) {
             setValue(rhs);
             return *this;
         }
 
-        bool operator==(T* rhs) { return (getValue() == rhs); }
+        /**
+         *  Test for equality with a T*... boils down to an address check. Is
+         *  the right-hand-side equivalent to the pointer we're storing with
+         *  the key?
+         */
+        bool operator==(T* rhs) {
+            return (getValue() == rhs);
+        }
 
       private:
         // Restrict access to potentially dangerous things. Start by
         // preventing the thread local to be copied around (presumably people
         // trying to copy a ThreadLocal /actually/ want to copy the
         // underlying object).
-        ThreadLocal(const ThreadLocal<T*, sizeof(T*)>&);
+        ThreadLocal(const ThreadLocal<T*, 1u>&);
 
-        ThreadLocal<T*, sizeof(T*)>&
-        operator=(const ThreadLocal<T*, sizeof(T*)>&);
+        ThreadLocal<T*, 1u>& operator=(const ThreadLocal<T*, 1u>&);
     };
   } // namespace stm::tls
 } // namespace stm

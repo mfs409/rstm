@@ -1,103 +1,104 @@
-CXX               = g++-4.5.3
-DRAGONEGG         = /u/luked/local/source/dragonegg-2.9/dragonegg.so
-LLC               = llc
-LLVM-AS           = llvm-as
+CXX               = g++
+LLVM              = /Users/luked/Work/sandboxing/local/llvm-2.9
+TANGERLLVM        = /Users/luked/Work/sandboxing/local/llvm-2.8
+
+LLC               = $(LLVM)/bin/llc
+LLVM-AS           = $(LLVM)/bin/llvm-as
 LLVM-GXX          = llvm-g++
-LLVM-DIS          = llvm-dis
-LLVM-OPT          = opt
-TANGERLLVM        = /u/luked/local/llvm-2.8
+LLVM-DIS          = $(LLVM)/bin/llvm-dis
+LLVM-OPT          = $(LLVM)/bin/opt
+LLVM-LINK         = $(LLVM)/bin/llvm-link
+LLVMC             = $(LLVM)/bin/llvmc
+
 TANGERLLVM-CONFIG = $(TANGERLLVM)/bin/llvm-config
 TANGEROPT         = $(TANGERLLVM)/bin/opt
 TANGERLLVM-AS     = $(TANGERLLVM)/bin/llvm-as
 TANGERBUILD       = $(shell $(TANGERLLVM-CONFIG) --build-mode)
-TANGERSRC         = /u/luked/local/source/DTMC_R3/tanger_R3
-TANGERPASS        = $(TANGERSRC)/$(TANGERBUILD)/lib/libtanger.so
-SANDBOXPASS       = /u/luked/sandboxing/build/sandbox/$(TANGERBUILD)/lib/sandbox.so 
+TANGERSRC         = /Users/luked/Work/sandboxing/externals/tanger_R3
+TANGERPASS        = $(TANGERSRC)/$(TANGERBUILD)/lib/libtanger.dylib
+SANDBOXPASS       = /Users/luked/Work/sandboxing/build/transform/$(TANGERBUILD)/lib/sandbox.dylib
 
 CXXFLAGS += -O3 -I. -I.. -I../include -I../../../build/rstm/include -DSTM_API_TANGER
-CXXFLAGS += -fno-rtti -fno-exceptions
+CXXFLAGS += -fno-exceptions #-fno-rtti
 
 BENCHMARKS = CounterBench TreeBench DListBench DisjointBench ForestBench \
              HashBench ListBench MCASBench ReadNWrite1Bench ReadWriteNBench \
              TreeOverwriteBench WWPathologyBench
 
+.PRECIOUS: %.tanger.bc
+.PHONY: all clean
+
 all: $(BENCHMARKS)
 
-ifndef USE_DRAGONEGG
 %.bc: %.cpp
 	$(LLVM-GXX) $(CXXFLAGS) -emit-llvm -c $^ -o $@
-else
-%.ll: %.cpp
-	$(CXX) -fplugin=$(DRAGONEGG) $(CXXFLAGS) -flto -S $^ -o $@
-
-%.bc: %.ll
-	$(LLVM-AS) -o $@ $^
-endif
 
 %.ll: %.bc
 	$(LLVM-DIS) $^
 
 # Extended this section so that we can do multi-source tanger builds. The point
 # was to avoid dead-code elimination from causing trouble in the Tree
-# benchmarks.
+# benchmarks. The multi-source build doesn't actually help at all here, llvm
+# still eliminates the lookup routine during LTO. I've added some useless work
+# to try and sort that out.
 
 CounterBench.merged.bc: CounterBench.bc
-	llvm-link -o $@ $^
+	$(LLVM-LINK) -o $@ $^
 
 TreeBench.merged.bc: TreeBench.bc Tree.bc
-	llvm-link -o $@ $^
+	$(LLVM-LINK) -o $@ $^
 
 DListBench.merged.bc: DListBench.bc
-	llvm-link -o $@ $^
+	$(LLVM-LINK) -o $@ $^
 
 DisjointBench.merged.bc: DisjointBench.bc
-	llvm-link -o $@ $^
+	$(LLVM-LINK) -o $@ $^
 
 ForestBench.merged.bc: ForestBench.bc Tree.bc
-	llvm-link -o $@ $^
+	$(LLVM-LINK) -o $@ $^
 
 HashBench.merged.bc: HashBench.bc
-	llvm-link -o $@ $^
+	$(LLVM-LINK) -o $@ $^
 
 ListBench.merged.bc: ListBench.bc
-	llvm-link -o $@ $^
+	$(LLVM-LINK) -o $@ $^
 
 MCASBench.merged.bc: MCASBench.bc
-	llvm-link -o $@ $^
+	$(LLVM-LINK) -o $@ $^
 
 ReadNWrite1Bench.merged.bc: ReadNWrite1Bench.bc
-	llvm-link -o $@ $^
+	$(LLVM-LINK) -o $@ $^
 
 ReadWriteNBench.merged.bc: ReadWriteNBench.bc
-	llvm-link -o $@ $^
+	$(LLVM-LINK) -o $@ $^
 
 TreeOverwriteBench.merged.bc: TreeOverwriteBench.bc Tree.bc
-	llvm-link -o $@ $^
+	$(LLVM-LINK) -o $@ $^
 
 WWPathologyBench.merged.bc: WWPathologyBench.bc
-	llvm-link -o $@ $^
+	$(LLVM-LINK) -o $@ $^
 
 %.tanger.bc: %.merged.bc
 	$(TANGEROPT) -load $(TANGERPASS) -tanger -tanger-whole-program \
 	-tanger-indirect-auto -tanger-resolve-nontxnal -O3 -o $@ $^
 
 %.sandboxed.bc: %.tanger.bc
-	$(LLVM-OPT) -load $(SANDBOXPASS) -sandbox -o $@ $^
+	$(LLVM-OPT) -load $(SANDBOXPASS) -sandbox -stats -debug -o $@ $^ &> $@.info
 
 %.tanger.linked.bc: %.sandboxed.bc \
                     $(TANGERSRC)/$(TANGERBUILD)/lib/libtanger-stm.bc \
                     $(TANGERSRC)/$(TANGERBUILD)/lib/stmsupport.bc
-	llvm-link -o $@ $^
+	$(LLVM-LINK) -o $@ $^
 
 %.tanger.linked.o: %.tanger.linked.bc
-	llvmc -O3 -native -o $@ -c $^ 
+	$(LLVMC) -O3 -native -o $@ -c $^ 
 
 bmharness.o: bmharness.cpp
 	$(CXX) $(CXXFLAGS) -o $@ -c $^
 
 $(BENCHMARKS): % : %.tanger.linked.o bmharness.o
-	$(CXX) $(LDFLAGS) -o $@ $^ -lrt -lpthread 
+	$(CXX) $(LDFLAGS) -o $@ $^ -lpthread 
 
 clean:
-	rm -f *.bc *.ll *.o *.s
+	rm -f *.bc *.ll *.o *.s *.dot
 	rm -f $(BENCHMARKS)

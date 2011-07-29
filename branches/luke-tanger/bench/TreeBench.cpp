@@ -18,6 +18,7 @@
  *    Include the configuration code for the harness, and the API code.
  */
 #include <iostream>
+#include <cassert>
 #include <alt-license/rand_r_32.h>
 #include <api/api.hpp>
 #include <common/ThreadLocal.hpp>
@@ -83,7 +84,8 @@ void bench_test(uintptr_t, uint32_t* seed)
         } TM_END;
 
         // This prevents unwanted dead-code elimination.
-        lookup_found = (found) ? lookup_found + 1 : lookup_found;
+        if (found)
+            lookup_found = lookup_found + 1;
     }
     else if (act < CFG.inspct) {
         TM_BEGIN(atomic) {

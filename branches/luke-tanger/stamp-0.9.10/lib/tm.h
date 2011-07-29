@@ -361,7 +361,7 @@
 #    define TM_ARGDECL_ALONE              STM_THREAD_T* TM_ARG_ALONE
 #    define TM_CALLABLE                   /* nothing */
 
-#endif /* !OTM */
+#  endif /* !OTM */
 
 #  ifdef SIMULATOR
 
@@ -514,6 +514,42 @@
 #  define TM_BEGIN()                    __transaction [[relaxed]] {
 #  define TM_BEGIN_RO()                 __transaction [[relaxed]] {
 #  define TM_END()                      }
+#  define TM_RESTART()                  assert(0)
+
+#  define TM_EARLY_RELEASE(var)         /* nothing */
+
+/* =============================================================================
+ * C++ STM API (it's an STM, but it has a HTM-ish interface
+ * =============================================================================
+ */
+#elif defined(TANGER)
+
+#include "alt-license/tanger-stm.h"     /* tanger native API */
+#include "common/platform.hpp"          /* nop() */
+
+#  define TM_ARG                        /* nothing */
+#  define TM_ARG_ALONE                  /* nothing */
+#  define TM_ARGDECL                    /* nothing */
+#  define TM_ARGDECL_ALONE              /* nothing */
+#  define TM_CALLABLE                   /* nothing */
+
+#  define TM_STARTUP(numThread)         /* nothing */
+#  define TM_SHUTDOWN()                 /* nothing */
+#  define TM_THREAD_ENTER()             /* nothing */
+#  define TM_THREAD_EXIT()              /* nothing */
+#  define TM_BEGIN_WAIVER()
+#  define TM_END_WAIVER()
+
+#  define P_MALLOC(size)                malloc(size)
+#  define P_FREE(ptr)                   free(ptr)
+#  define TM_MALLOC(size)               malloc(size)
+#  define TM_FREE(ptr)                  free(ptr)
+#  define SEQ_MALLOC(size)              malloc(size)
+#  define SEQ_FREE(ptr)                 free(ptr)
+
+#  define TM_BEGIN()                    { tanger_begin();
+#  define TM_BEGIN_RO()                 { tanger_begin();
+#  define TM_END()                        tanger_commit(); }
 #  define TM_RESTART()                  assert(0)
 
 #  define TM_EARLY_RELEASE(var)         /* nothing */

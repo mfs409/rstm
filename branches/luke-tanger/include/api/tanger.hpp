@@ -27,7 +27,7 @@
 
 #include "alt-license/tanger-stm.h"     // tanger native API
 #include "common/platform.hpp"          // nop()
-#include "stm/lib_globals.hpp"          // get_algname()
+//#include "stm/lib_globals.hpp"          // get_algname()
 
 #define  TM_CALLABLE
 #define  TM_BEGIN(TYPE)                  { tanger_begin();
