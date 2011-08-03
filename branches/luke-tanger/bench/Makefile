@@ -1,3 +1,5 @@
+SANDBOX          ?= trivial
+
 CXX               = g++
 LLVM              = /Users/luked/Work/sandboxing/local/llvm-2.9
 TANGERLLVM        = /Users/luked/Work/sandboxing/local/llvm-2.8
@@ -15,8 +17,10 @@ TANGEROPT         = $(TANGERLLVM)/bin/opt
 TANGERLLVM-AS     = $(TANGERLLVM)/bin/llvm-as
 TANGERBUILD       = $(shell $(TANGERLLVM-CONFIG) --build-mode)
 TANGERSRC         = /Users/luked/Work/sandboxing/externals/tanger_R3
-TANGERPASS        = $(TANGERSRC)/$(TANGERBUILD)/lib/libtanger.dylib
-SANDBOXPASS       = /Users/luked/Work/sandboxing/build/transform/$(TANGERBUILD)/lib/sandbox.dylib
+TANGERSO          = $(TANGERSRC)/$(TANGERBUILD)/lib/libtanger.dylib
+
+SANDBOXBUILD      = /Users/luked/Work/sandboxing/build/transform/$(TANGERBUILD)
+SANDBOXSO         = $(SANDBOXBUILD)/lib/sandbox.dylib
 
 CXXFLAGS += -O3 -I. -I.. -I../include -I../../../build/rstm/include -DSTM_API_TANGER
 CXXFLAGS += -fno-exceptions #-fno-rtti
@@ -24,6 +28,11 @@ CXXFLAGS += -fno-exceptions #-fno-rtti
 BENCHMARKS = CounterBench TreeBench DListBench DisjointBench ForestBench \
              HashBench ListBench MCASBench ReadNWrite1Bench ReadWriteNBench \
              TreeOverwriteBench WWPathologyBench
+
+SANDBOXPASS_stats   = -sandbox-stats
+
+SANDBOXPASS_trivial = -sandbox-trivial
+SANDBOXLIBS_trivial = $(SANDBOXBUILD)/lib/sandboxing_stats.bc
 
 .PRECIOUS: %.tanger.bc
 .PHONY: all clean
@@ -79,15 +88,16 @@ WWPathologyBench.merged.bc: WWPathologyBench.bc
 	$(LLVM-LINK) -o $@ $^
 
 %.tanger.bc: %.merged.bc
-	$(TANGEROPT) -load $(TANGERPASS) -tanger -tanger-whole-program \
+	$(TANGEROPT) -load $(TANGERSO) -tanger -tanger-whole-program \
 	-tanger-indirect-auto -tanger-resolve-nontxnal -O3 -o $@ $^
 
 %.sandboxed.bc: %.tanger.bc
-	$(LLVM-OPT) -load $(SANDBOXPASS) -sandbox -stats -debug -o $@ $^ &> $@.info
+	$(LLVM-OPT) -load $(SANDBOXSO) $(SANDBOXPASS_$(SANDBOX)) -stats -debug -o $@ $^ &> $*.dat
 
 %.tanger.linked.bc: %.sandboxed.bc \
                     $(TANGERSRC)/$(TANGERBUILD)/lib/libtanger-stm.bc \
-                    $(TANGERSRC)/$(TANGERBUILD)/lib/stmsupport.bc
+                    $(TANGERSRC)/$(TANGERBUILD)/lib/stmsupport.bc \
+					$(SANDBOXLIBS_$(SANDBOX))
 	$(LLVM-LINK) -o $@ $^
 
 %.tanger.linked.o: %.tanger.linked.bc
@@ -100,5 +110,5 @@ $(BENCHMARKS): % : %.tanger.linked.o bmharness.o
 	$(CXX) $(LDFLAGS) -o $@ $^ -lpthread 
 
 clean:
-	rm -f *.bc *.ll *.o *.s *.dot
+	rm -f *.bc *.ll *.o *.s *.dot *.dat
 	rm -f $(BENCHMARKS)

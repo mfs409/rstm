@@ -481,7 +481,7 @@ adtree_getCount (adtree_t* adtreePtr, vector_t* queryVectorPtr)
 static void printNode (adtree_node_t* nodePtr);
 static void printVary (adtree_vary_t* varyPtr);
 
-bool_t global_doPrint = FALSE;
+bool_t global_doPrint = false;
 
 
 static void
@@ -565,7 +565,7 @@ countData (data_t* dataPtr, vector_t* queryVectorPtr)
     long numRecord = dataPtr->numRecord;
     for (r = 0; r < numRecord; r++) {
         char* record = data_getRecord(dataPtr, r);
-        bool_t isMatch = TRUE;
+        bool_t isMatch = true;
         long q;
         for (q = 0; q < numQuery; q++) {
             query_t* queryPtr = (query_t*)vector_at(queryVectorPtr, q);
@@ -573,7 +573,7 @@ countData (data_t* dataPtr, vector_t* queryVectorPtr)
             if ((queryValue != QUERY_VALUE_WILDCARD) &&
                 ((char)queryValue) != record[queryPtr->index])
             {
-                isMatch = FALSE;
+                isMatch = false;
                 break;
             }
         }

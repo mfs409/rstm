@@ -199,10 +199,10 @@ grid_isPointValid (grid_t* gridPtr, long x, long y, long z)
         y < 0 || y >= gridPtr->height ||
         z < 0 || z >= gridPtr->depth)
     {
-        return FALSE;
+        return false;
     }
 
-    return TRUE;
+    return true;
 }
 
 
@@ -255,7 +255,7 @@ bool_t
 grid_isPointEmpty (grid_t* gridPtr, long x, long y, long z)
 {
     long value = grid_getPoint(gridPtr, x, y, z);
-    return ((value == GRID_POINT_EMPTY) ? TRUE : FALSE);
+    return ((value == GRID_POINT_EMPTY) ? true : false);
 }
 
 
@@ -267,7 +267,7 @@ bool_t
 grid_isPointFull (grid_t* gridPtr, long x, long y, long z)
 {
     long value = grid_getPoint(gridPtr, x, y, z);
-    return ((value == GRID_POINT_FULL) ? TRUE : FALSE);
+    return ((value == GRID_POINT_FULL) ? true : false);
 }
 
 

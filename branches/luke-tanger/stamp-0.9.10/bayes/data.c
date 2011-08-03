@@ -305,7 +305,7 @@ data_getRecord (data_t* dataPtr, long index)
 
 /* =============================================================================
  * data_copy
- * -- Returns FALSE on failure
+ * -- Returns false on failure
  * =============================================================================
  */
 bool_t
@@ -317,7 +317,7 @@ data_copy (data_t* dstPtr, data_t* srcPtr)
         SEQ_FREE(dstPtr->records);
         dstPtr->records = (char*)calloc(numSrcDatum, sizeof(char));
         if (dstPtr->records == NULL) {
-            return FALSE;
+            return false;
         }
     }
 
@@ -325,7 +325,7 @@ data_copy (data_t* dstPtr, data_t* srcPtr)
     dstPtr->numRecord = srcPtr->numRecord;
     memcpy(dstPtr->records, srcPtr->records, (numSrcDatum * sizeof(char)));
 
-    return TRUE;
+    return true;
 }
 
 

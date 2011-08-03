@@ -95,7 +95,7 @@ table_alloc (long numBucket, comparator_t* compare);
 
 /* =============================================================================
  * table_insert
- * -- Returns TRUE if successful, else FALSE
+ * -- Returns true if successful, else false
  * =============================================================================
  */
 bool_t
@@ -104,7 +104,7 @@ table_insert (table_t* tablePtr, ulong_t hash, void* dataPtr);
 
 /* =============================================================================
  * TMtable_insert
- * -- Returns TRUE if successful, else FALSE
+ * -- Returns true if successful, else false
  * =============================================================================
  */
 bool_t
@@ -113,7 +113,7 @@ TMtable_insert (TM_ARGDECL  table_t* tablePtr, ulong_t hash, void* dataPtr);
 
 /* =============================================================================
  * table_remove
- * -- Returns TRUE if successful, else FALSE
+ * -- Returns true if successful, else false
  * =============================================================================
  */
 bool_t

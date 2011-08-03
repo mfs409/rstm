@@ -100,11 +100,11 @@
 #  define MAP_FREE(map)               jsw_adelete(map)
 #  define MAP_CONTAINS(map, key) \
     ({ \
-        bool_t success = FALSE; \
+        bool_t success = false; \
         pair_t searchPair; \
         searchPair.firstPtr = (void*)key; \
         if (jsw_afind(map, (void*)&searchPair) != NULL) { \
-            success = TRUE; \
+            success = true; \
         } \
         success; \
      })
@@ -121,24 +121,24 @@
      })
 #  define MAP_INSERT(map, key, data) \
     ({ \
-        bool_t success = FALSE; \
+        bool_t success = false; \
         pair_t* insertPtr = pair_alloc((void*)(key), (void*)data); \
         if (insertPtr != NULL) { \
             if (jsw_ainsert(map, (void*)insertPtr)) { \
-                success = TRUE; \
+                success = true; \
             } \
         } \
         success; \
      })
 #  define MAP_REMOVE(map, key) \
     ({ \
-        bool_t success = FALSE; \
+        bool_t success = false; \
         pair_t searchPair; \
         searchPair.firstPtr = (void*)(key); \
         pair_t* pairPtr = (pair_t*)jsw_afind(map, (void*)&searchPair); \
         if (jsw_aerase(map, (void*)&searchPair)) { \
             pair_free(pairPtr); \
-            success = TRUE; \
+            success = true; \
         } \
         success; \
      })
@@ -152,11 +152,11 @@
 #  define MAP_FREE(map)               jsw_avldelete(map)
 #  define MAP_CONTAINS(map, key) \
     ({ \
-        bool_t success = FALSE; \
+        bool_t success = false; \
         pair_t searchPair; \
         searchPair.firstPtr = (void*)key; \
         if (jsw_avlfind(map, (void*)&searchPair) != NULL) { \
-            success = TRUE; \
+            success = true; \
         } \
         success; \
      })
@@ -173,24 +173,24 @@
      })
 #  define MAP_INSERT(map, key, data) \
     ({ \
-        bool_t success = FALSE; \
+        bool_t success = false; \
         pair_t* insertPtr = pair_alloc((void*)(key), (void*)data); \
         if (insertPtr != NULL) { \
             if (jsw_avlinsert(map, (void*)insertPtr)) { \
-                success = TRUE; \
+                success = true; \
             } \
         } \
         success; \
      })
 #  define MAP_REMOVE(map, key) \
     ({ \
-        bool_t success = FALSE; \
+        bool_t success = false; \
         pair_t searchPair; \
         searchPair.firstPtr = (void*)(key); \
         pair_t* pairPtr = (pair_t*)jsw_avlfind(map, (void*)&searchPair); \
         if (jsw_avlerase(map, (void*)&searchPair)) { \
             pair_free(pairPtr); \
-            success = TRUE; \
+            success = true; \
         } \
         success; \
      })
@@ -199,24 +199,24 @@
 #  define PMAP_FREE(map)               Pjsw_avldelete(map)
 #  define PMAP_INSERT(map, key, data) \
     ({ \
-        bool_t success = FALSE; \
+        bool_t success = false; \
         pair_t* insertPtr = PPAIR_ALLOC((void*)(key), (void*)data); \
         if (insertPtr != NULL) { \
             if (Pjsw_avlinsert(map, (void*)insertPtr)) { \
-                success = TRUE; \
+                success = true; \
             } \
         } \
         success; \
      })
 #  define PMAP_REMOVE(map, key) \
     ({ \
-        bool_t success = FALSE; \
+        bool_t success = false; \
         pair_t searchPair; \
         searchPair.firstPtr = (void*)(key); \
         pair_t* pairPtr = (pair_t*)jsw_avlfind(map, (void*)&searchPair); \
         if (Pjsw_avlerase(map, (void*)&searchPair)) { \
             PPAIR_FREE(pairPtr); \
-            success = TRUE; \
+            success = true; \
         } \
         success; \
      })
@@ -254,11 +254,11 @@
 #  define MAP_FREE(map)               jsw_sdelete(map)
 #  define MAP_CONTAINS(map, key) \
     ({ \
-        bool_t success = FALSE; \
+        bool_t success = false; \
         pair_t searchPair; \
         searchPair.firstPtr = (void*)key; \
         if (jsw_sfind(map, (void*)&searchPair) != NULL) { \
-            success = TRUE; \
+            success = true; \
         } \
         success; \
      })
@@ -276,24 +276,24 @@
      })
 #  define MAP_INSERT(map, key, data) \
     ({ \
-        bool_t success = FALSE; \
+        bool_t success = false; \
         pair_t* insertPtr = pair_alloc((void*)(key), (void*)data); \
         if (insertPtr != NULL) { \
             if (jsw_sinsert(map, (void*)insertPtr)) { \
-                success = TRUE; \
+                success = true; \
             } \
         } \
         success; \
      })
 #  define MAP_REMOVE(map, key) \
     ({ \
-        bool_t success = FALSE; \
+        bool_t success = false; \
         pair_t searchPair; \
         searchPair.firstPtr = (void*)(key); \
         pairPtr = (pair_t*)jsw_sfind(map, (void*)&searchPair); \
         if (jsw_serase(map, (void*)&searchPair)) { \
             pair_free(pairPtr); \
-            success = TRUE; \
+            success = true; \
         } \
         success; \
      })

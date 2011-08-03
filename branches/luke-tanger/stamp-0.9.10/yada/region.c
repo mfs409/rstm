@@ -172,7 +172,7 @@ TMaddToBadVector (TM_ARGDECL  vector_t* badVectorPtr, element_t* badElementPtr)
 {
   bool_t status = PVECTOR_PUSHBACK(badVectorPtr, (void*)badElementPtr);
   assert(status);
-  TMELEMENT_SETISREFERENCED(badElementPtr, TRUE);
+  TMELEMENT_SETISREFERENCED(badElementPtr, true);
 }
 
 
@@ -283,10 +283,10 @@ TMgrowRegion (TM_ARGDECL
               mesh_t* meshPtr,
               MAP_T* edgeMapPtr)
 {
-  bool_t isBoundary = FALSE;
+  bool_t isBoundary = false;
 
   if (element_getNumEdge(centerElementPtr) == 1) {
-    isBoundary = TRUE;
+    isBoundary = true;
   }
 
   list_t* beforeListPtr = regionPtr->beforeListPtr;
@@ -374,7 +374,7 @@ TMregion_refine (TM_ARGDECL
                                       edgeMapPtr);
 
     if (encroachElementPtr) {
-      TMELEMENT_SETISREFERENCED(encroachElementPtr, TRUE);
+      TMELEMENT_SETISREFERENCED(encroachElementPtr, true);
       numDelta += TMregion_refine(TM_ARG
                                   regionPtr,
                                   encroachElementPtr,

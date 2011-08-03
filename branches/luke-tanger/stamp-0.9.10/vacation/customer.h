@@ -125,7 +125,7 @@ customer_free (TM_ARGDECL  customer_t* customerPtr);
 
 /* =============================================================================
  * customer_addReservationInfo
- * -- Returns TRUE if success, else FALSE
+ * -- Returns true if success, else false
  * =============================================================================
  */
 TM_CALLABLE
@@ -141,7 +141,7 @@ customer_addReservationInfo_seq (customer_t* customerPtr,
 
 /* =============================================================================
  * customer_removeReservationInfo
- * -- Returns TRUE if success, else FALSE
+ * -- Returns true if success, else false
  * =============================================================================
  */
 TM_CALLABLE

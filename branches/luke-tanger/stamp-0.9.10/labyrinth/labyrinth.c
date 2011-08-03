@@ -96,7 +96,7 @@ enum param_defaults {
     PARAM_DEFAULT_ZCOST    = 2,
 };
 
-bool_t global_doPrint = FALSE;
+bool_t global_doPrint = false;
 char* global_inputFile = NULL;
 long global_params[256]; /* 256 = ascii limit */
 
@@ -163,7 +163,7 @@ parseArgs (long argc, char* const argv[])
                 global_inputFile = optarg;
                 break;
             case 'p':
-                global_doPrint = TRUE;
+                global_doPrint = true;
                 break;
             case '?':
             default:
@@ -249,7 +249,7 @@ MAIN(argc, argv)
      */
     assert(numPathRouted <= numPathToRoute);
     bool_t status = maze_checkPaths(mazePtr, pathVectorListPtr, global_doPrint);
-    assert(status == TRUE);
+    assert(status == true);
     puts("Verification passed.");
     maze_free(mazePtr);
     router_free(routerPtr);

@@ -191,7 +191,7 @@ sequencer_alloc (long geneLength, long segmentLength, segments_t* segmentsPtr)
         (endInfoEntry_t*)SEQ_MALLOC(maxNumUniqueSegment * sizeof(endInfoEntry_t));
     for (i = 0; i < maxNumUniqueSegment; i++) {
         endInfoEntry_t* endInfoEntryPtr = &sequencerPtr->endInfoEntries[i];
-        endInfoEntryPtr->isEnd = TRUE;
+        endInfoEntryPtr->isEnd = true;
         endInfoEntryPtr->jumpToNext = 1;
     }
     sequencerPtr->startHashToConstructEntryTables =
@@ -216,7 +216,7 @@ sequencer_alloc (long geneLength, long segmentLength, segments_t* segmentsPtr)
     }
     for (i= 0; i < maxNumUniqueSegment; i++) {
         constructEntry_t* constructEntryPtr = &sequencerPtr->constructEntries[i];
-        constructEntryPtr->isStart = TRUE;
+        constructEntryPtr->isStart = true;
         constructEntryPtr->segment = NULL;
         constructEntryPtr->endHash = 0;
         constructEntryPtr->startPtr = constructEntryPtr;
@@ -490,13 +490,13 @@ sequencer_run (void* argPtr)
                              &endSegment[segmentLength - substringLength],
                              substringLength) == 0))
                 {
-                    TM_SHARED_WRITE_L(startConstructEntryPtr->isStart, FALSE);
+                    TM_SHARED_WRITE_L(startConstructEntryPtr->isStart, false);
 
                     constructEntry_t* startConstructEntry_endPtr;
                     constructEntry_t* endConstructEntry_startPtr;
 
                     /* Update endInfo (appended something so no longer end) */
-                    TM_LOCAL_WRITE_L(endInfoEntries[entryIndex].isEnd, FALSE);
+                    TM_LOCAL_WRITE_L(endInfoEntries[entryIndex].isEnd, false);
 
                     /* Update segment chain construct info */
                     startConstructEntry_endPtr =

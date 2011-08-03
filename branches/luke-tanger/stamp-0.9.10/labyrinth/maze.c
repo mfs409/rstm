@@ -222,7 +222,7 @@ maze_read (maze_t* mazePtr, char* inputFileName)
                 pair_t* coordinatePairPtr = pair_alloc(srcPtr, dstPtr);
                 assert(coordinatePairPtr);
                 bool_t status = list_insert(workListPtr, (void*)coordinatePairPtr);
-                assert(status == TRUE);
+                assert(status == true);
                 vector_pushBack(srcVectorPtr, (void*)srcPtr);
                 vector_pushBack(dstVectorPtr, (void*)dstPtr);
                 break;
@@ -330,7 +330,7 @@ maze_checkPaths (maze_t* mazePtr, list_t* pathVectorListPtr, bool_t doPrintPaths
             grid_getPointIndices(gridPtr, prevGridPointPtr, &x, &y, &z);
             if (grid_getPoint(testGridPtr, x, y, z) != 0) {
                 grid_free(testGridPtr);
-                return FALSE;
+                return false;
             }
             coordinate_t prevCoordinate;
             grid_getPointIndices(gridPtr,
@@ -350,7 +350,7 @@ maze_checkPaths (maze_t* mazePtr, list_t* pathVectorListPtr, bool_t doPrintPaths
                                      &currCoordinate.z);
                 if (!coordinate_areAdjacent(&currCoordinate, &prevCoordinate)) {
                     grid_free(testGridPtr);
-                    return FALSE;
+                    return false;
                 }
                 prevCoordinate = currCoordinate;
                 long x = currCoordinate.x;
@@ -358,7 +358,7 @@ maze_checkPaths (maze_t* mazePtr, list_t* pathVectorListPtr, bool_t doPrintPaths
                 long z = currCoordinate.z;
                 if (grid_getPoint(testGridPtr, x, y, z) != GRID_POINT_EMPTY) {
                     grid_free(testGridPtr);
-                    return FALSE;
+                    return false;
                 } else {
                     grid_setPoint(testGridPtr, x, y, z, id);
                 }
@@ -368,7 +368,7 @@ maze_checkPaths (maze_t* mazePtr, list_t* pathVectorListPtr, bool_t doPrintPaths
             grid_getPointIndices(gridPtr, lastGridPointPtr, &x, &y, &z);
             if (grid_getPoint(testGridPtr, x, y, z) != 0) {
                 grid_free(testGridPtr);
-                return FALSE;
+                return false;
             }
         } /* iteratate over pathVector */
     } /* iterate over pathVectorList */
@@ -380,7 +380,7 @@ maze_checkPaths (maze_t* mazePtr, list_t* pathVectorListPtr, bool_t doPrintPaths
 
     grid_free(testGridPtr);
 
-    return TRUE;
+    return true;
 }
 
 

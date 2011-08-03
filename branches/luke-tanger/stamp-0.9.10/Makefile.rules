@@ -1,4 +1,6 @@
 #-*- Makefile -*-
+SANDBOX          ?= trivial
+
 CXX               = g++
 LLVM              = /Users/luked/Work/sandboxing/local/llvm-2.9
 TANGERLLVM        = /Users/luked/Work/sandboxing/local/llvm-2.8
@@ -16,17 +18,24 @@ TANGEROPT         = $(TANGERLLVM)/bin/opt
 TANGERLLVM-AS     = $(TANGERLLVM)/bin/llvm-as
 TANGERBUILD       = $(shell $(TANGERLLVM-CONFIG) --build-mode)
 TANGERSRC         = /Users/luked/Work/sandboxing/externals/tanger_R3
-TANGERPASS        = $(TANGERSRC)/$(TANGERBUILD)/lib/libtanger.dylib
-SANDBOXPASS       = /Users/luked/Work/sandboxing/build/transform/$(TANGERBUILD)/lib/sandbox.dylib
+TANGERSO          = $(TANGERSRC)/$(TANGERBUILD)/lib/libtanger.dylib
+
+SANDBOXBUILD      = /Users/luked/Work/sandboxing/build/transform/$(TANGERBUILD)
+SANDBOXSO         = $(SANDBOXBUILD)/lib/sandbox.dylib
 
 CXXFLAGS += -O3 -I. -I../lib -I../../ -I../../include -I../../../../build/rstm/include -DTANGER
 CXXFLAGS += -fno-exceptions -fno-rtti
+
+SANDBOXPASS_trivial = -sandbox-trivial
+SANDBOXPASS_stas    = -sandbox-stats
+
+SANDBOXLIBS_trivial = $(SANDBOXBUILD)/lib/sandboxing_stats.bc
 
 ifndef VERBOSE
 QUIET:=@
 endif
 
-.PRECIOUS: %.merged.bc %.tanger.bc
+.PRECIOUS: %.merged.bc %.tanger.bc %.sandboxed.bc
 .PHONY: all clean
 
 %.bc: %.cpp
@@ -51,22 +60,23 @@ endif
 
 %.tanger.bc: %.merged.bc
 	@echo "$^ -> $@ [transactifying (Tanger)]"
-	$(QUIET)$(TANGEROPT) -load $(TANGERPASS) -tanger -tanger-whole-program \
+	$(QUIET)$(TANGEROPT) -load $(TANGERSO) -tanger -tanger-whole-program \
         -tanger-indirect-auto -tanger-resolve-nontxnal -O3 -o $@ $^ &> $*.log
 
 %.sandboxed.bc: %.tanger.bc
 	@echo "$^ -> $@ [sandboxing]"
-	$(QUIET)$(LLVM-OPT) -load $(SANDBOXPASS) -sandbox -stats \
+	$(QUIET)$(LLVM-OPT) -load $(SANDBOXSO) $(SANDBOXPASS_$(SANDBOX)) -stats \
         -o $@ $^ 2>> $*.log
 
 %.linked.bc: %.sandboxed.bc $(TANGERSRC)/$(TANGERBUILD)/lib/libtanger-stm.bc \
-                            $(TANGERSRC)/$(TANGERBUILD)/lib/stmsupport.bc
+                            $(TANGERSRC)/$(TANGERBUILD)/lib/stmsupport.bc \
+                            $(SANDBOXLIBS_$(SANDBOX))
 	@echo "$^ -> $@ [linking stm]"
 	$(QUIET)$(LLVM-LINK) -o $@ $^
 
 %.linked.o: %.linked.bc
-	@echo "$^ -> $@ [generating native code]"
-	$(QUIET)$(LLVMC) -O3 -native -o $@ -c $^ 
+	@echo "$^ -> $@ [generating native code (no optimization)]"
+	$(QUIET)$(LLVMC) -native -o $@ -c $^ 
 
 $(notdir $(CURDIR)): $(notdir $(CURDIR)).linked.o
 	@echo "$^ -> $@ [linking]"

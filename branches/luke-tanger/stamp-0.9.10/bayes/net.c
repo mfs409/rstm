@@ -385,11 +385,11 @@ net_hasEdge (net_t* netPtr, long fromId, long toId)
     while (list_iter_hasNext(&it, parentIdListPtr)) {
         long parentId = (long)list_iter_next(&it, parentIdListPtr);
         if (parentId == fromId) {
-            return TRUE;
+            return true;
         }
     }
 
-    return FALSE;
+    return false;
 }
 
 
@@ -409,11 +409,11 @@ TMnet_hasEdge (TM_ARGDECL  net_t* netPtr, long fromId, long toId)
     while (TMLIST_ITER_HASNEXT(&it, parentIdListPtr)) {
         long parentId = (long)TMLIST_ITER_NEXT(&it, parentIdListPtr);
         if (parentId == fromId) {
-            return TRUE;
+            return true;
         }
     }
 
-    return FALSE;
+    return false;
 }
 
 
@@ -443,7 +443,7 @@ net_isPath (net_t* netPtr,
         long id = (long)queue_pop(workQueuePtr);
         if (id == toId) {
             queue_clear(workQueuePtr);
-            return TRUE;
+            return true;
         }
         status = bitmap_set(visitedBitmapPtr, id);
         assert(status);
@@ -460,7 +460,7 @@ net_isPath (net_t* netPtr,
         }
     }
 
-    return FALSE;
+    return false;
 }
 
 
@@ -491,7 +491,7 @@ TMnet_isPath (TM_ARGDECL
         long id = (long)queue_pop(workQueuePtr);
         if (id == toId) {
             queue_clear(workQueuePtr);
-            return TRUE;
+            return true;
         }
         status = PBITMAP_SET(visitedBitmapPtr, id);
         assert(status);
@@ -508,7 +508,7 @@ TMnet_isPath (TM_ARGDECL
         }
     }
 
-    return FALSE;
+    return false;
 }
 
 
@@ -530,22 +530,22 @@ isCycle (vector_t* nodeVectorPtr, net_node_t* nodePtr)
                 net_node_t* childNodePtr =
                     (net_node_t*)vector_at(nodeVectorPtr, childId);
                 if (isCycle(nodeVectorPtr, childNodePtr)) {
-                    return TRUE;
+                    return true;
                 }
             }
             break;
         }
         case NET_NODE_MARK_TEST:
-            return TRUE;
+            return true;
         case NET_NODE_MARK_DONE:
-            return FALSE;
+            return false;
             break;
         default:
             assert(0);
     }
 
     nodePtr->mark = NET_NODE_MARK_DONE;
-    return FALSE;
+    return false;
 }
 
 
@@ -569,7 +569,7 @@ net_isCycle (net_t* netPtr)
         switch (nodePtr->mark) {
             case NET_NODE_MARK_INIT:
                 if (isCycle(nodeVectorPtr, nodePtr)) {
-                    return TRUE;
+                    return true;
                 }
                 break;
             case NET_NODE_MARK_DONE:
@@ -584,7 +584,7 @@ net_isCycle (net_t* netPtr)
         }
     }
 
-    return FALSE;
+    return false;
 }
 
 
@@ -654,7 +654,7 @@ net_findAncestors (net_t* netPtr,
         long parentId = (long)queue_pop(workQueuePtr);
         if (parentId == id) {
             queue_clear(workQueuePtr);
-            return FALSE;
+            return false;
         }
         net_node_t* nodePtr = (net_node_t*)vector_at(nodeVectorPtr, parentId);
         list_t* grandParentIdListPtr = nodePtr->parentIdListPtr;
@@ -671,7 +671,7 @@ net_findAncestors (net_t* netPtr,
         }
     }
 
-    return TRUE;
+    return true;
 }
 
 
@@ -714,7 +714,7 @@ TMnet_findAncestors (TM_ARGDECL
         long parentId = (long)PQUEUE_POP(workQueuePtr);
         if (parentId == id) {
             PQUEUE_CLEAR(workQueuePtr);
-            return FALSE;
+            return false;
         }
         net_node_t* nodePtr = (net_node_t*)vector_at(nodeVectorPtr, parentId);
         list_t* grandParentIdListPtr = nodePtr->parentIdListPtr;
@@ -731,7 +731,7 @@ TMnet_findAncestors (TM_ARGDECL
         }
     }
 
-    return TRUE;
+    return true;
 }
 
 
@@ -773,7 +773,7 @@ net_findDescendants (net_t* netPtr,
         long childId = (long)queue_pop(workQueuePtr);
         if (childId == id) {
             queue_clear(workQueuePtr);
-            return FALSE;
+            return false;
         }
         net_node_t* nodePtr = (net_node_t*)vector_at(nodeVectorPtr, childId);
         list_t* grandChildIdListPtr = nodePtr->childIdListPtr;
@@ -790,7 +790,7 @@ net_findDescendants (net_t* netPtr,
         }
     }
 
-    return TRUE;
+    return true;
 }
 
 
@@ -833,7 +833,7 @@ TMnet_findDescendants (TM_ARGDECL
         long childId = (long)PQUEUE_POP(workQueuePtr);
         if (childId == id) {
             queue_clear(workQueuePtr);
-            return FALSE;
+            return false;
         }
         net_node_t* nodePtr = (net_node_t*)vector_at(nodeVectorPtr, childId);
         list_t* grandChildIdListPtr = nodePtr->childIdListPtr;
@@ -850,7 +850,7 @@ TMnet_findDescendants (TM_ARGDECL
         }
     }
 
-    return TRUE;
+    return true;
 }
 
 

@@ -171,7 +171,7 @@ manager_free (manager_t* managerPtr)
  * -- If 'num' > 0 then add, if < 0 remove
  * -- Adding 0 seats is error if does not exist
  * -- If 'price' < 0, do not update price
- * -- Returns TRUE on success, else FALSE
+ * -- Returns true on success, else false
  * =============================================================================
  */
 bool_t
@@ -183,7 +183,7 @@ addReservation (TM_ARGDECL  MAP_T* tablePtr, long id, long num, long price)
     if (reservationPtr == NULL) {
         /* Create new reservation */
         if (num < 1 || price < 0) {
-            return FALSE;
+            return false;
         }
         reservationPtr = RESERVATION_ALLOC(id, num, price);
         assert(reservationPtr != NULL);
@@ -191,11 +191,11 @@ addReservation (TM_ARGDECL  MAP_T* tablePtr, long id, long num, long price)
     } else {
         /* Update existing reservation */
         if (!RESERVATION_ADD_TO_TOTAL(reservationPtr, num)) {
-            return FALSE;
+            return false;
         }
         if ((long)TM_SHARED_READ_L(reservationPtr->numTotal) == 0) {
             bool_t status = TMMAP_REMOVE(tablePtr, id);
-            if (status == FALSE) {
+            if (status == false) {
                 TM_RESTART();
             }
             RESERVATION_FREE(reservationPtr);
@@ -204,7 +204,7 @@ addReservation (TM_ARGDECL  MAP_T* tablePtr, long id, long num, long price)
         }
     }
 
-    return TRUE;
+    return true;
 }
 
 
@@ -218,7 +218,7 @@ addReservation_seq (MAP_T* tablePtr, long id, long num, long price)
     if (reservationPtr == NULL) {
         /* Create new reservation */
         if (num < 1 || price < 0) {
-            return FALSE;
+            return false;
         }
         reservationPtr = reservation_alloc_seq(id, num, price);
         assert(reservationPtr != NULL);
@@ -227,7 +227,7 @@ addReservation_seq (MAP_T* tablePtr, long id, long num, long price)
     } else {
         /* Update existing reservation */
         if (!reservation_addToTotal_seq(reservationPtr, num)) {
-            return FALSE;
+            return false;
         }
         if (reservationPtr->numTotal == 0) {
             status = MAP_REMOVE(tablePtr, id);
@@ -237,7 +237,7 @@ addReservation_seq (MAP_T* tablePtr, long id, long num, long price)
         }
     }
 
-    return TRUE;
+    return true;
 }
 
 
@@ -245,7 +245,7 @@ addReservation_seq (MAP_T* tablePtr, long id, long num, long price)
  * manager_addCar
  * -- Add cars to a city
  * -- Adding to an existing car overwrite the price if 'price' >= 0
- * -- Returns TRUE on success, else FALSE
+ * -- Returns true on success, else false
  * =============================================================================
  */
 bool_t
@@ -269,7 +269,7 @@ manager_addCar_seq (manager_t* managerPtr, long carId, long numCars, long price)
  * -- Decreases available car count (those not allocated to a customer)
  * -- Fails if would make available car count negative
  * -- If decresed to 0, deletes entire entry
- * -- Returns TRUE on success, else FALSE
+ * -- Returns true on success, else false
  * =============================================================================
  */
 bool_t
@@ -284,7 +284,7 @@ manager_deleteCar (TM_ARGDECL  manager_t* managerPtr, long carId, long numCar)
  * manager_addRoom
  * -- Add rooms to a city
  * -- Adding to an existing room overwrite the price if 'price' >= 0
- * -- Returns TRUE on success, else FALSE
+ * -- Returns true on success, else false
  * =============================================================================
  */
 bool_t
@@ -309,7 +309,7 @@ manager_addRoom_seq (manager_t* managerPtr, long roomId, long numRoom, long pric
  * -- Decreases available room count (those not allocated to a customer)
  * -- Fails if would make available room count negative
  * -- If decresed to 0, deletes entire entry
- * -- Returns TRUE on success, else FALSE
+ * -- Returns true on success, else false
  * =============================================================================
  */
 bool_t
@@ -324,7 +324,7 @@ manager_deleteRoom (TM_ARGDECL  manager_t* managerPtr, long roomId, long numRoom
  * manager_addFlight
  * -- Add seats to a flight
  * -- Adding to an existing flight overwrite the price if 'price' >= 0
- * -- Returns TRUE on success, FALSE on failure
+ * -- Returns true on success, false on failure
  * =============================================================================
  */
 bool_t
@@ -347,7 +347,7 @@ manager_addFlight_seq (manager_t* managerPtr, long flightId, long numSeat, long 
  * manager_deleteFlight
  * -- Delete an entire flight
  * -- Fails if customer has reservation on this flight
- * -- Returns TRUE on success, else FALSE
+ * -- Returns true on success, else false
  * =============================================================================
  */
 bool_t
@@ -357,11 +357,11 @@ manager_deleteFlight (TM_ARGDECL  manager_t* managerPtr, long flightId)
 
     reservationPtr = (reservation_t*)TMMAP_FIND(managerPtr->flightTablePtr, flightId);
     if (reservationPtr == NULL) {
-        return FALSE;
+        return false;
     }
 
     if ((long)TM_SHARED_READ_L(reservationPtr->numUsed) > 0) {
-        return FALSE; /* somebody has a reservation */
+        return false; /* somebody has a reservation */
     }
 
     return addReservation(TM_ARG
@@ -375,7 +375,7 @@ manager_deleteFlight (TM_ARGDECL  manager_t* managerPtr, long flightId)
 /* =============================================================================
  * manager_addCustomer
  * -- If customer already exists, returns failure
- * -- Returns TRUE on success, else FALSE
+ * -- Returns true on success, else false
  * =============================================================================
  */
 bool_t
@@ -385,17 +385,17 @@ manager_addCustomer (TM_ARGDECL  manager_t* managerPtr, long customerId)
     bool_t status;
 
     if (TMMAP_CONTAINS(managerPtr->customerTablePtr, customerId)) {
-        return FALSE;
+        return false;
     }
 
     customerPtr = CUSTOMER_ALLOC(customerId);
     assert(customerPtr != NULL);
     status = TMMAP_INSERT(managerPtr->customerTablePtr, customerId, customerPtr);
-    if (status == FALSE) {
+    if (status == false) {
         TM_RESTART();
     }
 
-    return TRUE;
+    return true;
 }
 
 
@@ -406,7 +406,7 @@ manager_addCustomer_seq (manager_t* managerPtr, long customerId)
     bool_t status;
 
     if (MAP_CONTAINS(managerPtr->customerTablePtr, customerId)) {
-        return FALSE;
+        return false;
     }
 
     customerPtr = customer_alloc_seq(customerId);
@@ -414,7 +414,7 @@ manager_addCustomer_seq (manager_t* managerPtr, long customerId)
     status = MAP_INSERT(managerPtr->customerTablePtr, customerId, customerPtr);
     assert(status);
 
-    return TRUE;
+    return true;
 }
 
 
@@ -422,7 +422,7 @@ manager_addCustomer_seq (manager_t* managerPtr, long customerId)
  * manager_deleteCustomer
  * -- Delete this customer and associated reservations
  * -- If customer does not exist, returns success
- * -- Returns TRUE on success, else FALSE
+ * -- Returns true on success, else false
  * =============================================================================
  */
 bool_t
@@ -436,7 +436,7 @@ manager_deleteCustomer (TM_ARGDECL  manager_t* managerPtr, long customerId)
 
     customerPtr = (customer_t*)TMMAP_FIND(managerPtr->customerTablePtr, customerId);
     if (customerPtr == NULL) {
-        return FALSE;
+        return false;
     }
 
     reservationTables[RESERVATION_CAR] = managerPtr->carTablePtr;
@@ -458,19 +458,19 @@ manager_deleteCustomer (TM_ARGDECL  manager_t* managerPtr, long customerId)
             TM_RESTART();
         }
         status = RESERVATION_CANCEL(reservationPtr);
-        if (status == FALSE) {
+        if (status == false) {
             TM_RESTART();
         }
         RESERVATION_INFO_FREE(reservationInfoPtr);
     }
 
     status = TMMAP_REMOVE(managerPtr->customerTablePtr, customerId);
-    if (status == FALSE) {
+    if (status == false) {
         TM_RESTART();
     }
     CUSTOMER_FREE(customerPtr);
 
-    return TRUE;
+    return true;
 }
 
 
@@ -629,7 +629,7 @@ manager_queryCustomerBill (TM_ARGDECL  manager_t* managerPtr, long customerId)
 /* =============================================================================
  * reserve
  * -- Customer is not allowed to reserve same (type, id) multiple times
- * -- Returns TRUE on success, else FALSE
+ * -- Returns true on success, else false
  * =============================================================================
  */
 static bool_t
@@ -642,16 +642,16 @@ reserve (TM_ARGDECL
 
     customerPtr = (customer_t*)TMMAP_FIND(customerTablePtr, customerId);
     if (customerPtr == NULL) {
-        return FALSE;
+        return false;
     }
 
     reservationPtr = (reservation_t*)TMMAP_FIND(tablePtr, id);
     if (reservationPtr == NULL) {
-        return FALSE;
+        return false;
     }
 
     if (!RESERVATION_MAKE(reservationPtr)) {
-        return FALSE;
+        return false;
     }
 
     if (!CUSTOMER_ADD_RESERVATION_INFO(
@@ -662,20 +662,20 @@ reserve (TM_ARGDECL
     {
         /* Undo previous successful reservation */
         bool_t status = RESERVATION_CANCEL(reservationPtr);
-        if (status == FALSE) {
+        if (status == false) {
             TM_RESTART();
         }
-        return FALSE;
+        return false;
     }
 
-    return TRUE;
+    return true;
 }
 
 
 /* =============================================================================
  * manager_reserveCar
  * -- Returns failure if the car or customer does not exist
- * -- Returns TRUE on success, else FALSE
+ * -- Returns true on success, else false
  * =============================================================================
  */
 bool_t
@@ -693,7 +693,7 @@ manager_reserveCar (TM_ARGDECL  manager_t* managerPtr, long customerId, long car
 /* =============================================================================
  * manager_reserveRoom
  * -- Returns failure if the room or customer does not exist
- * -- Returns TRUE on success, else FALSE
+ * -- Returns true on success, else false
  * =============================================================================
  */
 bool_t
@@ -711,7 +711,7 @@ manager_reserveRoom (TM_ARGDECL  manager_t* managerPtr, long customerId, long ro
 /* =============================================================================
  * manager_reserveFlight
  * -- Returns failure if the flight or customer does not exist
- * -- Returns TRUE on success, else FALSE
+ * -- Returns true on success, else false
  * =============================================================================
  */
 bool_t
@@ -730,7 +730,7 @@ manager_reserveFlight (TM_ARGDECL
 /* =============================================================================
  * cancel
  * -- Customer is not allowed to cancel multiple times
- * -- Returns TRUE on success, else FALSE
+ * -- Returns true on success, else false
  * =============================================================================
  */
 static TM_CALLABLE bool_t
@@ -743,35 +743,35 @@ cancel (TM_ARGDECL
 
     customerPtr = (customer_t*)TMMAP_FIND(customerTablePtr, customerId);
     if (customerPtr == NULL) {
-        return FALSE;
+        return false;
     }
 
     reservationPtr = (reservation_t*)TMMAP_FIND(tablePtr, id);
     if (reservationPtr == NULL) {
-        return FALSE;
+        return false;
     }
 
     if (!RESERVATION_CANCEL(reservationPtr)) {
-        return FALSE;
+        return false;
     }
 
     if (!CUSTOMER_REMOVE_RESERVATION_INFO(customerPtr, type, id)) {
         /* Undo previous successful cancellation */
         bool_t status = RESERVATION_MAKE(reservationPtr);
-        if (status == FALSE) {
+        if (status == false) {
             TM_RESTART();
         }
-        return FALSE;
+        return false;
     }
 
-    return TRUE;
+    return true;
 }
 
 
 /* =============================================================================
  * manager_cancelCar
  * -- Returns failure if the car, reservation, or customer does not exist
- * -- Returns TRUE on success, else FALSE
+ * -- Returns true on success, else false
  * =============================================================================
  */
 bool_t
@@ -789,7 +789,7 @@ manager_cancelCar (TM_ARGDECL  manager_t* managerPtr, long customerId, long carI
 /* =============================================================================
  * manager_cancelRoom
  * -- Returns failure if the room, reservation, or customer does not exist
- * -- Returns TRUE on success, else FALSE
+ * -- Returns true on success, else false
  * =============================================================================
  */
 bool_t
@@ -808,7 +808,7 @@ manager_cancelRoom (TM_ARGDECL  manager_t* managerPtr, long customerId, long roo
 /* =============================================================================
  * manager_cancelFlight
  * -- Returns failure if the flight, reservation, or customer does not exist
- * -- Returns TRUE on success, else FALSE
+ * -- Returns true on success, else false
  * =============================================================================
  */
 bool_t

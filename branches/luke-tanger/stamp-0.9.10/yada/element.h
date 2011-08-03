@@ -384,7 +384,7 @@ TMelement_getNewPoint (TM_ARGDECL element_t* elementPtr);
 /* =============================================================================
  * element_checkAngles
  *
- * Return FALSE if minimum angle constraint not met
+ * Return false if minimum angle constraint not met
  * =============================================================================
  */
 bool_t

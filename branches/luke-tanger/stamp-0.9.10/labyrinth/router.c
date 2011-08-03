@@ -187,13 +187,13 @@ PdoExpansion (router_t* routerPtr, grid_t* myGridPtr, queue_t* queuePtr,
   grid_setPoint(myGridPtr, dstPtr->x, dstPtr->y, dstPtr->z, GRID_POINT_EMPTY);
   long* dstGridPointPtr =
     grid_getPointRef(myGridPtr, dstPtr->x, dstPtr->y, dstPtr->z);
-  bool_t isPathFound = FALSE;
+  bool_t isPathFound = false;
 
   while (!PQUEUE_ISEMPTY(queuePtr)) {
 
     long* gridPointPtr = (long*)PQUEUE_POP(queuePtr);
     if (gridPointPtr == dstGridPointPtr) {
-      isPathFound = TRUE;
+      isPathFound = true;
       break;
     }
 
@@ -299,12 +299,12 @@ PdoTraceback (grid_t* gridPtr, grid_t* myGridPtr,
      *
      * Potential Optimization: Only need to check 5 of these
      */
-    traceToNeighbor(myGridPtr, &curr, &MOVE_POSX, TRUE, bendCost, &next);
-    traceToNeighbor(myGridPtr, &curr, &MOVE_POSY, TRUE, bendCost, &next);
-    traceToNeighbor(myGridPtr, &curr, &MOVE_POSZ, TRUE, bendCost, &next);
-    traceToNeighbor(myGridPtr, &curr, &MOVE_NEGX, TRUE, bendCost, &next);
-    traceToNeighbor(myGridPtr, &curr, &MOVE_NEGY, TRUE, bendCost, &next);
-    traceToNeighbor(myGridPtr, &curr, &MOVE_NEGZ, TRUE, bendCost, &next);
+    traceToNeighbor(myGridPtr, &curr, &MOVE_POSX, true, bendCost, &next);
+    traceToNeighbor(myGridPtr, &curr, &MOVE_POSY, true, bendCost, &next);
+    traceToNeighbor(myGridPtr, &curr, &MOVE_POSZ, true, bendCost, &next);
+    traceToNeighbor(myGridPtr, &curr, &MOVE_NEGX, true, bendCost, &next);
+    traceToNeighbor(myGridPtr, &curr, &MOVE_NEGY, true, bendCost, &next);
+    traceToNeighbor(myGridPtr, &curr, &MOVE_NEGZ, true, bendCost, &next);
 
 #if DEBUG
     printf("(%li, %li, %li)\n", next.x, next.y, next.z);
@@ -318,12 +318,12 @@ PdoTraceback (grid_t* gridPtr, grid_t* myGridPtr,
         (curr.z == next.z))
     {
       next.value = curr.value;
-      traceToNeighbor(myGridPtr, &curr, &MOVE_POSX, FALSE, bendCost, &next);
-      traceToNeighbor(myGridPtr, &curr, &MOVE_POSY, FALSE, bendCost, &next);
-      traceToNeighbor(myGridPtr, &curr, &MOVE_POSZ, FALSE, bendCost, &next);
-      traceToNeighbor(myGridPtr, &curr, &MOVE_NEGX, FALSE, bendCost, &next);
-      traceToNeighbor(myGridPtr, &curr, &MOVE_NEGY, FALSE, bendCost, &next);
-      traceToNeighbor(myGridPtr, &curr, &MOVE_NEGZ, FALSE, bendCost, &next);
+      traceToNeighbor(myGridPtr, &curr, &MOVE_POSX, false, bendCost, &next);
+      traceToNeighbor(myGridPtr, &curr, &MOVE_POSY, false, bendCost, &next);
+      traceToNeighbor(myGridPtr, &curr, &MOVE_POSZ, false, bendCost, &next);
+      traceToNeighbor(myGridPtr, &curr, &MOVE_NEGX, false, bendCost, &next);
+      traceToNeighbor(myGridPtr, &curr, &MOVE_NEGY, false, bendCost, &next);
+      traceToNeighbor(myGridPtr, &curr, &MOVE_NEGZ, false, bendCost, &next);
 
       if ((curr.x == next.x) &&
           (curr.y == next.y) &&
@@ -390,7 +390,7 @@ router_solve (void* argPtr)
     coordinate_t* srcPtr = (coordinate_t*)coordinatePairPtr->firstPtr;
     coordinate_t* dstPtr = (coordinate_t*)coordinatePairPtr->secondPtr;
 
-    bool_t success = FALSE;
+    bool_t success = false;
     vector_t* pointVectorPtr = NULL;
 
     TM_BEGIN();
@@ -405,7 +405,7 @@ router_solve (void* argPtr)
        */
       if (pointVectorPtr) {
         TMGRID_ADDPATH(gridPtr, pointVectorPtr);
-        TM_LOCAL_WRITE_L(success, TRUE);
+        TM_LOCAL_WRITE_L(success, true);
       }
     }
     TM_END();

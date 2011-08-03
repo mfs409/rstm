@@ -1404,7 +1404,7 @@ TMgetNode (TM_ARGDECL_ALONE)
 
 /* =============================================================================
  * rbtree_insert
- * -- Returns TRUE on success
+ * -- Returns true on success
  * =============================================================================
  */
 bool_t
@@ -1415,13 +1415,13 @@ rbtree_insert (rbtree_t* r, void* key, void* val)
     if (ex != NULL) {
         releaseNode(node);
     }
-    return ((ex == NULL) ? TRUE : FALSE);
+    return ((ex == NULL) ? true : false);
 }
 
 
 /* =============================================================================
  * TMrbtree_insert
- * -- Returns TRUE on success
+ * -- Returns true on success
  * =============================================================================
  */
 bool_t
@@ -1432,13 +1432,13 @@ TMrbtree_insert (TM_ARGDECL  rbtree_t* r, void* key, void* val)
     if (ex != NULL) {
         TMreleaseNode(TM_ARG  node);
     }
-    return ((ex == NULL) ? TRUE : FALSE);
+    return ((ex == NULL) ? true : false);
 }
 
 
 /* =============================================================================
  * rbtree_delete
- * -- Returns TRUE if key exists
+ * -- Returns true if key exists
  * =============================================================================
  */
 bool_t
@@ -1452,13 +1452,13 @@ rbtree_delete (rbtree_t* r, void* key)
     if (node != NULL) {
         releaseNode(node);
     }
-    return ((node != NULL) ? TRUE : FALSE);
+    return ((node != NULL) ? true : false);
 }
 
 
 /* =============================================================================
  * TMrbtree_delete
- * -- Returns TRUE if key exists
+ * -- Returns true if key exists
  * =============================================================================
  */
 bool_t
@@ -1472,13 +1472,13 @@ TMrbtree_delete (TM_ARGDECL  rbtree_t* r, void* key)
     if (node != NULL) {
         TMreleaseNode(TM_ARG  node);
     }
-    return ((node != NULL) ? TRUE : FALSE);
+    return ((node != NULL) ? true : false);
 }
 
 
 /* =============================================================================
  * rbtree_update
- * -- Return FALSE if had to insert node first
+ * -- Return false if had to insert node first
  * =============================================================================
  */
 bool_t
@@ -1489,15 +1489,15 @@ rbtree_update (rbtree_t* r, void* key, void* val)
     if (ex != NULL) {
         STF(ex, v, val);
         releaseNode(nn);
-        return TRUE;
+        return true;
     }
-    return FALSE;
+    return false;
 }
 
 
 /* =============================================================================
  * TMrbtree_update
- * -- Return FALSE if had to insert node first
+ * -- Return false if had to insert node first
  * =============================================================================
  */
 bool_t
@@ -1508,9 +1508,9 @@ TMrbtree_update (TM_ARGDECL  rbtree_t* r, void* key, void* val)
     if (ex != NULL) {
         TX_STF_P(ex, v, val);
         TMreleaseNode(TM_ARG  nn);
-        return TRUE;
+        return true;
     }
-    return FALSE;
+    return false;
 }
 
 

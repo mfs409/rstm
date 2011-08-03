@@ -1100,7 +1100,7 @@ TMfindBestReverseTask (TM_ARGDECL  findBestTaskArg_t* argPtr)
      */
 
     if (bestFromId != toId) {
-        bool_t isTaskValid = TRUE;
+        bool_t isTaskValid = true;
         TMNET_APPLYOPERATION(netPtr, OPERATION_REMOVE, bestFromId, toId);
         if (TMNET_ISPATH(netPtr,
                          bestFromId,
@@ -1108,7 +1108,7 @@ TMfindBestReverseTask (TM_ARGDECL  findBestTaskArg_t* argPtr)
                          visitedBitmapPtr,
                          workQueuePtr))
         {
-            isTaskValid = FALSE;
+            isTaskValid = false;
         }
         TMNET_APPLYOPERATION(netPtr, OPERATION_INSERT, bestFromId, toId);
         if (!isTaskValid) {
@@ -1222,7 +1222,7 @@ learnStructure (void* argPtr)
         /*
          * Check if task is still valid
          */
-        isTaskValid = TRUE;
+        isTaskValid = true;
         switch (op) {
             case OPERATION_INSERT: {
                 if (TMNET_HASEDGE(netPtr, fromId, toId) ||
@@ -1232,7 +1232,7 @@ learnStructure (void* argPtr)
                                  visitedBitmapPtr,
                                  workQueuePtr))
                 {
-                    isTaskValid = FALSE;
+                    isTaskValid = false;
                 }
                 break;
             }
@@ -1249,7 +1249,7 @@ learnStructure (void* argPtr)
                                  visitedBitmapPtr,
                                  workQueuePtr))
                 {
-                    isTaskValid = FALSE;
+                    isTaskValid = false;
                 }
                 TMNET_APPLYOPERATION(netPtr, OPERATION_INSERT, fromId, toId);
                 break;

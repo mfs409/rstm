@@ -296,10 +296,10 @@ main ()
 
     puts("Starting...");
 
-    tester(10, 4, 20, TRUE);
-    tester(20, 5, 1, TRUE);
-    tester(100, 10, 1000, FALSE);
-    tester(100, 10, 1, FALSE);
+    tester(10, 4, 20, true);
+    tester(20, 5, 1, true);
+    tester(100, 10, 1000, false);
+    tester(100, 10, 1, false);
 
     puts("All tests passed.");
 

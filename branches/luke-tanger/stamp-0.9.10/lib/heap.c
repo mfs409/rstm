@@ -208,7 +208,7 @@ TMsiftUp (TM_ARGDECL  heap_t* heapPtr, long startIndex)
 
 /* =============================================================================
  * heap_insert
- * -- Returns FALSE on failure
+ * -- Returns false on failure
  * =============================================================================
  */
 bool_t
@@ -221,7 +221,7 @@ heap_insert (heap_t* heapPtr, void* dataPtr)
         long newCapacity = capacity * 2;
         void** newElements = (void**)SEQ_MALLOC(newCapacity * sizeof(void*));
         if (newElements == NULL) {
-            return FALSE;
+            return false;
         }
         heapPtr->capacity = newCapacity;
         long i;
@@ -237,13 +237,13 @@ heap_insert (heap_t* heapPtr, void* dataPtr)
     heapPtr->elements[size] = dataPtr;
     siftUp(heapPtr, size);
 
-    return TRUE;
+    return true;
 }
 
 
 /* =============================================================================
  * TMheap_insert
- * -- Returns FALSE on failure
+ * -- Returns false on failure
  * =============================================================================
  */
 bool_t
@@ -255,7 +255,7 @@ TMheap_insert (TM_ARGDECL  heap_t* heapPtr, void* dataPtr)
         long newCapacity = capacity * 2;
         void** newElements = (void**)TM_MALLOC(newCapacity * sizeof(void*));
         if (newElements == NULL) {
-            return FALSE;
+            return false;
         }
         TM_SHARED_WRITE_L(heapPtr->capacity, newCapacity);
         long i;
@@ -273,7 +273,7 @@ TMheap_insert (TM_ARGDECL  heap_t* heapPtr, void* dataPtr)
     TM_SHARED_WRITE_P(elements[size], dataPtr);
     TMsiftUp(TM_ARG heapPtr, size);
 
-    return TRUE;
+    return true;
 }
 
 
@@ -435,11 +435,11 @@ heap_isValid (heap_t* heapPtr)
     long i;
     for (i = 1; i < size; i++) {
         if (compare(elements[i+1], elements[PARENT(i+1)]) > 0) {
-            return FALSE;
+            return false;
         }
     }
 
-    return TRUE;
+    return true;
 }
 
 

@@ -123,7 +123,7 @@ data_getRecord (data_t* dataPtr, long index);
 
 /* =============================================================================
  * data_copy
- * -- Returns FALSE on failure
+ * -- Returns false on failure
  * =============================================================================
  */
 bool_t

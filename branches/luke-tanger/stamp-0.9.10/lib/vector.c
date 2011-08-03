@@ -171,7 +171,7 @@ vector_at (vector_t* vectorPtr, long i)
 
 /* =============================================================================
  * vector_pushBack
- * -- Returns FALSE if fail, else TRUE
+ * -- Returns false if fail, else true
  * =============================================================================
  */
 bool_t
@@ -182,7 +182,7 @@ vector_pushBack (vector_t* vectorPtr, void* dataPtr)
         long newCapacity = vectorPtr->capacity * 2;
         void** newElements = (void**)SEQ_MALLOC(newCapacity * sizeof(void*));
         if (newElements == NULL) {
-            return FALSE;
+            return false;
         }
         vectorPtr->capacity = newCapacity;
         for (i = 0; i < vectorPtr->size; i++) {
@@ -194,13 +194,13 @@ vector_pushBack (vector_t* vectorPtr, void* dataPtr)
 
     vectorPtr->elements[vectorPtr->size++] = dataPtr;
 
-    return TRUE;
+    return true;
 }
 
 
 /* =============================================================================
  * Pvector_pushBack
- * -- Returns FALSE if fail, else TRUE
+ * -- Returns false if fail, else true
  * =============================================================================
  */
 bool_t
@@ -211,7 +211,7 @@ Pvector_pushBack (vector_t* vectorPtr, void* dataPtr)
         long newCapacity = vectorPtr->capacity * 2;
         void** newElements = (void**)P_MALLOC(newCapacity * sizeof(void*));
         if (newElements == NULL) {
-            return FALSE;
+            return false;
         }
         vectorPtr->capacity = newCapacity;
         for (i = 0; i < vectorPtr->size; i++) {
@@ -223,7 +223,7 @@ Pvector_pushBack (vector_t* vectorPtr, void* dataPtr)
 
     vectorPtr->elements[vectorPtr->size++] = dataPtr;
 
-    return TRUE;
+    return true;
 }
 
 
@@ -293,7 +293,7 @@ vector_copy (vector_t* dstVectorPtr, vector_t* srcVectorPtr)
         long srcCapacity = srcVectorPtr->capacity;
         void** elements = (void**)SEQ_MALLOC(srcCapacity * sizeof(void*));
         if (elements == NULL) {
-            return FALSE;
+            return false;
         }
         SEQ_FREE(dstVectorPtr->elements);
         dstVectorPtr->elements = elements;
@@ -305,7 +305,7 @@ vector_copy (vector_t* dstVectorPtr, vector_t* srcVectorPtr)
            (srcSize * sizeof(void*)));
     dstVectorPtr->size = srcSize;
 
-    return TRUE;
+    return true;
 }
 
 
@@ -322,7 +322,7 @@ Pvector_copy (vector_t* dstVectorPtr, vector_t* srcVectorPtr)
         long srcCapacity = srcVectorPtr->capacity;
         void** elements = (void**)P_MALLOC(srcCapacity * sizeof(void*));
         if (elements == NULL) {
-            return FALSE;
+            return false;
         }
         P_FREE(dstVectorPtr->elements);
         dstVectorPtr->elements = elements;
@@ -334,7 +334,7 @@ Pvector_copy (vector_t* dstVectorPtr, vector_t* srcVectorPtr)
            (srcSize * sizeof(void*)));
     dstVectorPtr->size = srcSize;
 
-    return TRUE;
+    return true;
 }
 
 

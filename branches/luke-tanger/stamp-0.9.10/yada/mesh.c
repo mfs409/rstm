@@ -283,7 +283,7 @@ TMmesh_remove (TM_ARGDECL  mesh_t* meshPtr, element_t* elementPtr)
         assert(status);
     }
 
-    TMELEMENT_SETISGARBAGE(elementPtr, TRUE);
+    TMELEMENT_SETISGARBAGE(elementPtr, true);
 
     if (!TMELEMENT_ISREFERENCED(elementPtr)) {
         TMELEMENT_FREE(elementPtr);
@@ -565,7 +565,7 @@ mesh_check (mesh_t* meshPtr, long expectedNumElement)
 
     return ((numBadTriangle > 0 ||
              numFalseNeighbor > 0 ||
-             numElement != expectedNumElement) ? FALSE : TRUE);
+             numElement != expectedNumElement) ? false : true);
 }
 
 

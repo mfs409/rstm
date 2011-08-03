@@ -194,7 +194,7 @@ client_run (void* argPtr)
                 }
                 // [RSTM] should isFound be declared inside of the
                 //        transaction, so that it is reset on abort?
-                bool_t isFound = FALSE;
+                bool_t isFound = false;
                 TM_BEGIN();
                 for (n = 0; n < numQuery; n++) {
                     long t = types[n];
@@ -222,7 +222,7 @@ client_run (void* argPtr)
                     if (price > maxPrices[t]) {
                         maxPrices[t] = price;
                         maxIds[t] = id;
-                        isFound = TRUE;
+                        isFound = true;
                     }
                 } /* for n */
                 if (isFound) {

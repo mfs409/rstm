@@ -134,7 +134,7 @@ vector_at (vector_t* vectorPtr, long i);
 
 /* =============================================================================
  * vector_pushBack
- * -- Returns FALSE if fail, else TRUE
+ * -- Returns false if fail, else true
  * =============================================================================
  */
 bool_t
@@ -143,7 +143,7 @@ vector_pushBack (vector_t* vectorPtr, void* dataPtr);
 
 /* =============================================================================
  * Pvector_pushBack
- * -- Returns FALSE if fail, else TRUE
+ * -- Returns false if fail, else true
  * =============================================================================
  */
 bool_t

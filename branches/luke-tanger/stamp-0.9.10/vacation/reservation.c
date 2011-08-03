@@ -228,7 +228,7 @@ reservation_alloc_seq (long id, long numTotal, long price)
 /* =============================================================================
  * reservation_addToTotal
  * -- Adds if 'num' > 0, removes if 'num' < 0;
- * -- Returns TRUE on success, else FALSE
+ * -- Returns true on success, else false
  * =============================================================================
  */
 bool_t
@@ -237,7 +237,7 @@ reservation_addToTotal (TM_ARGDECL  reservation_t* reservationPtr, long num)
     long numFree = (long)TM_SHARED_READ_L(reservationPtr->numFree);
 
     if (numFree + num < 0) {
-        return FALSE;
+        return false;
     }
 
     TM_SHARED_WRITE_L(reservationPtr->numFree, (numFree + num));
@@ -246,7 +246,7 @@ reservation_addToTotal (TM_ARGDECL  reservation_t* reservationPtr, long num)
 
     CHECK_RESERVATION(reservationPtr);
 
-    return TRUE;
+    return true;
 }
 
 
@@ -254,7 +254,7 @@ bool_t
 reservation_addToTotal_seq (reservation_t* reservationPtr, long num)
 {
     if (reservationPtr->numFree + num < 0) {
-        return FALSE;
+        return false;
     }
 
     reservationPtr->numFree += num;
@@ -262,13 +262,13 @@ reservation_addToTotal_seq (reservation_t* reservationPtr, long num)
 
     checkReservation_seq(reservationPtr);
 
-    return TRUE;
+    return true;
 }
 
 
 /* =============================================================================
  * reservation_make
- * -- Returns TRUE on success, else FALSE
+ * -- Returns true on success, else false
  * =============================================================================
  */
 bool_t
@@ -277,7 +277,7 @@ reservation_make (TM_ARGDECL  reservation_t* reservationPtr)
     long numFree = (long)TM_SHARED_READ_L(reservationPtr->numFree);
 
     if (numFree < 1) {
-        return FALSE;
+        return false;
     }
     TM_SHARED_WRITE_L(reservationPtr->numUsed,
                     ((long)TM_SHARED_READ_L(reservationPtr->numUsed) + 1));
@@ -285,7 +285,7 @@ reservation_make (TM_ARGDECL  reservation_t* reservationPtr)
 
     CHECK_RESERVATION(reservationPtr);
 
-    return TRUE;
+    return true;
 }
 
 
@@ -293,7 +293,7 @@ bool_t
 reservation_make_seq (reservation_t* reservationPtr)
 {
     if (reservationPtr->numFree < 1) {
-        return FALSE;
+        return false;
     }
 
     reservationPtr->numUsed++;
@@ -301,13 +301,13 @@ reservation_make_seq (reservation_t* reservationPtr)
 
     checkReservation_seq(reservationPtr);
 
-    return TRUE;
+    return true;
 }
 
 
 /* =============================================================================
  * reservation_cancel
- * -- Returns TRUE on success, else FALSE
+ * -- Returns true on success, else false
  * =============================================================================
  */
 bool_t
@@ -316,7 +316,7 @@ reservation_cancel (TM_ARGDECL  reservation_t* reservationPtr)
     long numUsed = (long)TM_SHARED_READ_L(reservationPtr->numUsed);
 
     if (numUsed < 1) {
-        return FALSE;
+        return false;
     }
 
     TM_SHARED_WRITE_L(reservationPtr->numUsed, (numUsed - 1));
@@ -325,7 +325,7 @@ reservation_cancel (TM_ARGDECL  reservation_t* reservationPtr)
 
     CHECK_RESERVATION(reservationPtr);
 
-    return TRUE;
+    return true;
 }
 
 
@@ -333,7 +333,7 @@ bool_t
 reservation_cancel_seq (reservation_t* reservationPtr)
 {
     if (reservationPtr->numUsed < 1) {
-        return FALSE;
+        return false;
     }
 
     reservationPtr->numUsed--;
@@ -341,28 +341,28 @@ reservation_cancel_seq (reservation_t* reservationPtr)
 
     checkReservation_seq(reservationPtr);
 
-    return TRUE;
+    return true;
 }
 
 
 /* =============================================================================
  * reservation_updatePrice
  * -- Failure if 'price' < 0
- * -- Returns TRUE on success, else FALSE
+ * -- Returns true on success, else false
  * =============================================================================
  */
 bool_t
 reservation_updatePrice (TM_ARGDECL  reservation_t* reservationPtr, long newPrice)
 {
     if (newPrice < 0) {
-        return FALSE;
+        return false;
     }
 
     TM_SHARED_WRITE_L(reservationPtr->price, newPrice);
 
     CHECK_RESERVATION(reservationPtr);
 
-    return TRUE;
+    return true;
 }
 
 
@@ -370,14 +370,14 @@ bool_t
 reservation_updatePrice_seq (reservation_t* reservationPtr, long newPrice)
 {
     if (newPrice < 0) {
-        return FALSE;
+        return false;
     }
 
     reservationPtr->price = newPrice;
 
     checkReservation_seq(reservationPtr);
 
-    return TRUE;
+    return true;
 }
 
 

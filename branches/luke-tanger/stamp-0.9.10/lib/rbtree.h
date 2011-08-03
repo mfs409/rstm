@@ -138,7 +138,7 @@ TMrbtree_free (TM_ARGDECL  rbtree_t* r);
 
 /* =============================================================================
  * rbtree_insert
- * -- Returns TRUE on success
+ * -- Returns true on success
  * =============================================================================
  */
 bool_t
@@ -147,7 +147,7 @@ rbtree_insert (rbtree_t* r, void* key, void* val);
 
 /* =============================================================================
  * TMrbtree_insert
- * -- Returns TRUE on success
+ * -- Returns true on success
  * =============================================================================
  */
 TM_CALLABLE
@@ -174,7 +174,7 @@ TMrbtree_delete (TM_ARGDECL  rbtree_t* r, void* key);
 
 /* =============================================================================
  * rbtree_update
- * -- Return FALSE if had to insert node first
+ * -- Return false if had to insert node first
  * =============================================================================
  */
 bool_t
@@ -183,7 +183,7 @@ rbtree_update (rbtree_t* r, void* key, void* val);
 
 /* =============================================================================
  * TMrbtree_update
- * -- Return FALSE if had to insert node first
+ * -- Return false if had to insert node first
  * =============================================================================
  */
 TM_CALLABLE

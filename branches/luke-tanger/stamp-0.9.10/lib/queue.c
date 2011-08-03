@@ -212,7 +212,7 @@ queue_isEmpty (queue_t* queuePtr)
     long push     = queuePtr->push;
     long capacity = queuePtr->capacity;
 
-    return (((pop + 1) % capacity == push) ? TRUE : FALSE);
+    return (((pop + 1) % capacity == push) ? true : false);
 }
 
 
@@ -246,7 +246,7 @@ TMqueue_isEmpty (TM_ARGDECL  queue_t* queuePtr)
     long push     = (long)TM_SHARED_READ_L(queuePtr->push);
     long capacity = (long)TM_SHARED_READ_L(queuePtr->capacity);
 
-    return (((pop + 1) % capacity == push) ? TRUE : FALSE);
+    return (((pop + 1) % capacity == push) ? true : false);
 }
 
 
@@ -303,7 +303,7 @@ queue_push (queue_t* queuePtr, void* dataPtr)
         long newCapacity = capacity * QUEUE_GROWTH_FACTOR;
         void** newElements = (void**)SEQ_MALLOC(newCapacity * sizeof(void*));
         if (newElements == NULL) {
-            return FALSE;
+            return false;
         }
 
         long dst = 0;
@@ -334,7 +334,7 @@ queue_push (queue_t* queuePtr, void* dataPtr)
     queuePtr->elements[push] = dataPtr;
     queuePtr->push = newPush;
 
-    return TRUE;
+    return true;
 }
 
 
@@ -358,7 +358,7 @@ Pqueue_push (queue_t* queuePtr, void* dataPtr)
         long newCapacity = capacity * QUEUE_GROWTH_FACTOR;
         void** newElements = (void**)P_MALLOC(newCapacity * sizeof(void*));
         if (newElements == NULL) {
-            return FALSE;
+            return false;
         }
 
         long dst = 0;
@@ -390,7 +390,7 @@ Pqueue_push (queue_t* queuePtr, void* dataPtr)
     queuePtr->elements[push] = dataPtr;
     queuePtr->push = newPush;
 
-    return TRUE;
+    return true;
 }
 
 
@@ -413,7 +413,7 @@ TMqueue_push (TM_ARGDECL  queue_t* queuePtr, void* dataPtr)
         long newCapacity = capacity * QUEUE_GROWTH_FACTOR;
         void** newElements = (void**)TM_MALLOC(newCapacity * sizeof(void*));
         if (newElements == NULL) {
-            return FALSE;
+            return false;
         }
 
         long dst = 0;
@@ -446,7 +446,7 @@ TMqueue_push (TM_ARGDECL  queue_t* queuePtr, void* dataPtr)
     TM_SHARED_WRITE_P(elements[push], dataPtr);
     TM_SHARED_WRITE_L(queuePtr->push, newPush);
 
-    return TRUE;
+    return true;
 }
 
 

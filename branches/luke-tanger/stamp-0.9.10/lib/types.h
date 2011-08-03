@@ -77,18 +77,18 @@
 extern "C" {
 #endif
 
-
-#ifdef SIMULATOR
-#  undef TRUE
-#  undef FALSE
-#  undef bool
-#endif
+#include <stdbool.h>
+/* #ifdef SIMULATOR */
+/* #  undef true */
+/* #  undef false */
+/* #  undef bool */
+/* #endif */
 
 
 typedef unsigned long ulong_t;
 
-#define FALSE 0L
-#define TRUE 1L
+/* #define false 0L */
+/* #define true 1L */
 
 #define bool_t long
 

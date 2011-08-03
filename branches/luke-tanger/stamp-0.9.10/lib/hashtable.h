@@ -305,7 +305,7 @@ TMhashtable_insert (TM_ARGDECL
 
 /* =============================================================================
  * hashtable_remove
- * -- Returns TRUE if successful, else FALSE
+ * -- Returns true if successful, else false
  * =============================================================================
  */
 bool_t
@@ -314,7 +314,7 @@ hashtable_remove (hashtable_t* hashtablePtr, void* keyPtr);
 
 /* =============================================================================
  * TMhashtable_remove
- * -- Returns TRUE if successful, else FALSE
+ * -- Returns true if successful, else false
  * =============================================================================
  */
 bool_t

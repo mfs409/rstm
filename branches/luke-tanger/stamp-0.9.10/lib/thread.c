@@ -82,7 +82,7 @@ static THREAD_ATTR_T     global_threadAttr;
 static THREAD_T*         global_threads         = NULL;
 static void            (*global_funcPtr)(void*) = NULL;
 static void*             global_argPtr          = NULL;
-static volatile bool_t   global_doShutdown      = FALSE;
+static volatile bool_t   global_doShutdown      = false;
 
 
 /* =============================================================================
@@ -123,7 +123,7 @@ thread_startup (long numThread)
     long i;
 
     global_numThread = numThread;
-    global_doShutdown = FALSE;
+    global_doShutdown = false;
 
     /* Set up barrier */
     assert(global_barrierPtr == NULL);
@@ -187,7 +187,7 @@ void
 thread_shutdown ()
 {
     /* Make secondary threads exit wait() */
-    global_doShutdown = TRUE;
+    global_doShutdown = true;
     THREAD_BARRIER(global_barrierPtr, 0);
 
     long numThread = global_numThread;

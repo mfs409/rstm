@@ -91,7 +91,7 @@ typedef struct memory memory_t;
 
 /* =============================================================================
  * memory_init
- * -- Returns FALSE on failure
+ * -- Returns false on failure
  * =============================================================================
  */
 bool_t

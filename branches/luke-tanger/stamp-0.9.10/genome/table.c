@@ -113,7 +113,7 @@ table_alloc (long numBucket, comparator_t* compare)
 
 /* =============================================================================
  * table_insert
- * -- Returns TRUE if successful, else FALSE
+ * -- Returns true if successful, else false
  * =============================================================================
  */
 bool_t
@@ -122,16 +122,16 @@ table_insert (table_t* tablePtr, ulong_t hash, void* dataPtr)
     long i = hash % tablePtr->numBucket;
 
     if (!list_insert(tablePtr->buckets[i], dataPtr)) {
-        return FALSE;
+        return false;
     }
 
-    return TRUE;
+    return true;
 }
 
 
 /* =============================================================================
  * TMtable_insert
- * -- Returns TRUE if successful, else FALSE
+ * -- Returns true if successful, else false
  * =============================================================================
  */
 bool_t
@@ -140,16 +140,16 @@ TMtable_insert (TM_ARGDECL  table_t* tablePtr, ulong_t hash, void* dataPtr)
     long i = hash % tablePtr->numBucket;
 
     if (!TMLIST_INSERT(tablePtr->buckets[i], dataPtr)) {
-        return FALSE;
+        return false;
     }
 
-    return TRUE;
+    return true;
 }
 
 
 /* =============================================================================
  * table_remove
- * -- Returns TRUE if successful, else FALSE
+ * -- Returns true if successful, else false
  * =============================================================================
  */
 bool_t
@@ -158,10 +158,10 @@ table_remove (table_t* tablePtr, ulong_t hash, void* dataPtr)
     long i = hash % tablePtr->numBucket;
 
     if (!list_remove(tablePtr->buckets[i], dataPtr)) {
-        return FALSE;
+        return false;
     }
 
-    return TRUE;
+    return true;
 }
 
 

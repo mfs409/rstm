@@ -119,10 +119,10 @@ coordinate_isEqual (coordinate_t* aPtr, coordinate_t* bPtr)
         (aPtr->y == bPtr->y) &&
         (aPtr->z == bPtr->z))
     {
-        return TRUE;
+        return true;
     }
 
-    return FALSE;
+    return false;
 }
 
 
@@ -181,7 +181,7 @@ coordinate_areAdjacent (coordinate_t* aPtr, coordinate_t* bPtr)
     long dy2 = dy * dy;
     long dz2 = dz * dz;
 
-    return (((dx2 + dy2 + dz2) == 1) ? TRUE : FALSE);
+    return (((dx2 + dy2 + dz2) == 1) ? true : false);
 }
 
 

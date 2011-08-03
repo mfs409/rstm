@@ -76,11 +76,11 @@
 #include "types.h"
 
 /* We want to use enum bool_t */
-#ifdef FALSE
-#  undef FALSE
+#ifdef false
+#  undef false
 #endif
-#ifdef TRUE
-#  undef TRUE
+#ifdef true
+#  undef true
 #endif
 
 
@@ -210,7 +210,7 @@ freePool (pool_t* poolPtr)
 
 /* =============================================================================
  * memory_init
- * -- Returns FALSE on failure
+ * -- Returns false on failure
  * =============================================================================
  */
 bool_t
@@ -222,24 +222,24 @@ memory_init (long numThread, size_t initBlockCapacity, long blockGrowthFactor)
 
     global_memoryPtr = (memory_t*)SEQ_MALLOC(sizeof(memory_t));
     if (global_memoryPtr == NULL) {
-        return FALSE;
+        return false;
     }
 
     global_memoryPtr->pools = (pool_t**)SEQ_MALLOC(numThread * sizeof(pool_t*));
     if (global_memoryPtr->pools == NULL) {
-        return FALSE;
+        return false;
     }
 
     for (i = 0; i < numThread; i++) {
         global_memoryPtr->pools[i] = allocPool(initBlockCapacity, blockGrowthFactor);
         if (global_memoryPtr->pools[i] == NULL) {
-            return FALSE;
+            return false;
         }
     }
 
     global_memoryPtr->numThread = numThread;
 
-    return TRUE;
+    return true;
 }
 
 

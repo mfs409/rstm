@@ -214,7 +214,7 @@ TMlist_free (TM_ARGDECL  list_t* listPtr);
 
 /* =============================================================================
  * list_isEmpty
- * -- Return TRUE if list is empty, else FALSE
+ * -- Return true if list is empty, else false
  * =============================================================================
  */
 bool_t
@@ -223,7 +223,7 @@ list_isEmpty (list_t* listPtr);
 
 /* =============================================================================
  * TMlist_isEmpty
- * -- Return TRUE if list is empty, else FALSE
+ * -- Return true if list is empty, else false
  * =============================================================================
  */
 TM_CALLABLE
@@ -271,7 +271,7 @@ TMlist_find (TM_ARGDECL  list_t* listPtr, void* dataPtr);
 
 /* =============================================================================
  * list_insert
- * -- Return TRUE on success, else FALSE
+ * -- Return true on success, else false
  * =============================================================================
  */
 bool_t
@@ -280,7 +280,7 @@ list_insert (list_t* listPtr, void* dataPtr);
 
 /* =============================================================================
  * Plist_insert
- * -- Return TRUE on success, else FALSE
+ * -- Return true on success, else false
  * =============================================================================
  */
 bool_t
@@ -289,7 +289,7 @@ Plist_insert (list_t* listPtr, void* dataPtr);
 
 /* =============================================================================
  * TMlist_insert
- * -- Return TRUE on success, else FALSE
+ * -- Return true on success, else false
  * =============================================================================
  */
 TM_CALLABLE
@@ -299,7 +299,7 @@ TMlist_insert (TM_ARGDECL  list_t* listPtr, void* dataPtr);
 
 /* =============================================================================
  * list_remove
- * -- Returns TRUE if successful, else FALSE
+ * -- Returns true if successful, else false
  * =============================================================================
  */
 bool_t
@@ -308,7 +308,7 @@ list_remove (list_t* listPtr, void* dataPtr);
 
 /* =============================================================================
  * Plist_remove
- * -- Returns TRUE if successful, else FALSE
+ * -- Returns true if successful, else false
  * =============================================================================
  */
 bool_t
@@ -317,7 +317,7 @@ Plist_remove (list_t* listPtr, void* dataPtr);
 
 /* =============================================================================
  * TMlist_remove
- * -- Returns TRUE if successful, else FALSE
+ * -- Returns true if successful, else false
  * =============================================================================
  */
 TM_CALLABLE

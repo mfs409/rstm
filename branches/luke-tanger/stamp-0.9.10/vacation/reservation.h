@@ -148,7 +148,7 @@ reservation_alloc_seq (long id, long price, long numTotal);
 /* =============================================================================
  * reservation_addToTotal
  * -- Adds if 'num' > 0, removes if 'num' < 0;
- * -- Returns TRUE on success, else FALSE
+ * -- Returns true on success, else false
  * =============================================================================
  */
 TM_CALLABLE
@@ -161,7 +161,7 @@ reservation_addToTotal_seq (reservation_t* reservationPtr, long num);
 
 /* =============================================================================
  * reservation_make
- * -- Returns TRUE on success, else FALSE
+ * -- Returns true on success, else false
  * =============================================================================
  */
 TM_CALLABLE
@@ -174,7 +174,7 @@ reservation_make_seq (reservation_t* reservationPtr);
 
 /* =============================================================================
  * reservation_cancel
- * -- Returns TRUE on success, else FALSE
+ * -- Returns true on success, else false
  * =============================================================================
  */
 TM_CALLABLE
@@ -188,7 +188,7 @@ reservation_cancel_seq (reservation_t* reservationPtr);
 /* =============================================================================
  * reservation_updatePrice
  * -- Failure if 'price' < 0
- * -- Returns TRUE on success, else FALSE
+ * -- Returns true on success, else false
  * =============================================================================
  */
 TM_CALLABLE

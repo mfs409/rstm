@@ -138,7 +138,7 @@ TMlist_iter_reset (TM_ARGDECL  list_iter_t* itPtr, list_t* listPtr)
 bool_t
 list_iter_hasNext (list_iter_t* itPtr, list_t* listPtr)
 {
-    return (((*itPtr)->nextPtr != NULL) ? TRUE : FALSE);
+    return (((*itPtr)->nextPtr != NULL) ? true : false);
 }
 
 
@@ -151,7 +151,7 @@ TMlist_iter_hasNext (TM_ARGDECL  list_iter_t* itPtr, list_t* listPtr)
 {
     list_iter_t next = (list_iter_t)TM_SHARED_READ_P((*itPtr)->nextPtr);
 
-    return ((next != NULL) ? TRUE : FALSE);
+    return ((next != NULL) ? true : false);
 }
 
 
@@ -434,7 +434,7 @@ TMlist_free (TM_ARGDECL  list_t* listPtr)
 
 /* =============================================================================
  * list_isEmpty
- * -- Return TRUE if list is empty, else FALSE
+ * -- Return true if list is empty, else false
  * =============================================================================
  */
 bool_t
@@ -446,14 +446,14 @@ list_isEmpty (list_t* listPtr)
 
 /* =============================================================================
  * TMlist_isEmpty
- * -- Return TRUE if list is empty, else FALSE
+ * -- Return true if list is empty, else false
  * =============================================================================
  */
 bool_t
 TMlist_isEmpty (TM_ARGDECL  list_t* listPtr)
 {
     return (((void*)TM_SHARED_READ_P(listPtr->head.nextPtr) == NULL) ?
-            TRUE : FALSE);
+            true : false);
 }
 
 
@@ -581,7 +581,7 @@ TMlist_find (TM_ARGDECL  list_t* listPtr, void* dataPtr)
 
 /* =============================================================================
  * list_insert
- * -- Return TRUE on success, else FALSE
+ * -- Return true on success, else false
  * =============================================================================
  */
 bool_t
@@ -597,26 +597,26 @@ list_insert (list_t* listPtr, void* dataPtr)
 #ifdef LIST_NO_DUPLICATES
     if ((currPtr != NULL) &&
         listPtr->comparator->compare_notm(currPtr->dataPtr, dataPtr) == 0) {
-        return FALSE;
+        return false;
     }
 #endif
 
     nodePtr = allocNode(dataPtr);
     if (nodePtr == NULL) {
-        return FALSE;
+        return false;
     }
 
     nodePtr->nextPtr = currPtr;
     prevPtr->nextPtr = nodePtr;
     listPtr->size++;
 
-    return TRUE;
+    return true;
 }
 
 
 /* =============================================================================
  * Plist_insert
- * -- Return TRUE on success, else FALSE
+ * -- Return true on success, else false
  * =============================================================================
  */
 bool_t
@@ -632,25 +632,25 @@ Plist_insert (list_t* listPtr, void* dataPtr)
 #ifdef LIST_NO_DUPLICATES
     if ((currPtr != NULL) &&
         listPtr->comparator->compare_notm(currPtr->dataPtr, dataPtr) == 0) {
-        return FALSE;
+        return false;
     }
 #endif
 
     nodePtr = PallocNode(dataPtr);
     if (nodePtr == NULL) {
-        return FALSE;
+        return false;
     }
 
     nodePtr->nextPtr = currPtr;
     prevPtr->nextPtr = nodePtr;
     listPtr->size++;
 
-    return TRUE;
+    return true;
 }
 
 /* =============================================================================
  * TMlist_insert
- * -- Return TRUE on success, else FALSE
+ * -- Return true on success, else false
  * =============================================================================
  */
 bool_t
@@ -666,26 +666,26 @@ TMlist_insert (TM_ARGDECL  list_t* listPtr, void* dataPtr)
 #ifdef LIST_NO_DUPLICATES
     if ((currPtr != NULL) &&
         listPtr->comparator->compare_tm(TM_ARG TM_SHARED_READ_P(currPtr->dataPtr), dataPtr) == 0) {
-        return FALSE;
+        return false;
     }
 #endif
 
     nodePtr = TMallocNode(TM_ARG  dataPtr);
     if (nodePtr == NULL) {
-        return FALSE;
+        return false;
     }
 
     TM_SHARED_WRITE_P(nodePtr->nextPtr, currPtr);
     TM_SHARED_WRITE_P(prevPtr->nextPtr, nodePtr);
     TM_SHARED_WRITE_L(listPtr->size, (TM_SHARED_READ_L(listPtr->size) + 1));
 
-    return TRUE;
+    return true;
 }
 
 
 /* =============================================================================
  * list_remove
- * -- Returns TRUE if successful, else FALSE
+ * -- Returns true if successful, else false
  * =============================================================================
  */
 bool_t
@@ -705,16 +705,16 @@ list_remove (list_t* listPtr, void* dataPtr)
         freeNode(nodePtr);
         listPtr->size--;
         assert(listPtr->size >= 0);
-        return TRUE;
+        return true;
     }
 
-    return FALSE;
+    return false;
 }
 
 
 /* =============================================================================
  * Plist_remove
- * -- Returns TRUE if successful, else FALSE
+ * -- Returns true if successful, else false
  * =============================================================================
  */
 bool_t
@@ -734,16 +734,16 @@ Plist_remove (list_t* listPtr, void* dataPtr)
         PfreeNode(nodePtr);
         listPtr->size--;
         assert(listPtr->size >= 0);
-        return TRUE;
+        return true;
     }
 
-    return FALSE;
+    return false;
 }
 
 
 /* =============================================================================
  * TMlist_remove
- * -- Returns TRUE if successful, else FALSE
+ * -- Returns true if successful, else false
  * =============================================================================
  */
 bool_t
@@ -764,10 +764,10 @@ TMlist_remove (TM_ARGDECL  list_t* listPtr, void* dataPtr)
         TM_SHARED_WRITE_L(listPtr->size, (TM_SHARED_READ_L(listPtr->size) - 1));
         assert(listPtr->size >= 0);
 
-        return TRUE;
+        return true;
     }
 
-    return FALSE;
+    return false;
 }
 
 

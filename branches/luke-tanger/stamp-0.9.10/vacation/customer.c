@@ -171,7 +171,7 @@ customer_free (TM_ARGDECL  customer_t* customerPtr)
 
 /* =============================================================================
  * customer_addReservationInfo
- * -- Returns TRUE if success, else FALSE
+ * -- Returns true if success, else false
  * =============================================================================
  */
 bool_t
@@ -193,7 +193,7 @@ customer_addReservationInfo (TM_ARGDECL
 
 /* =============================================================================
  * customer_removeReservationInfo
- * -- Returns TRUE if success, else FALSE
+ * -- Returns true if success, else false
  * =============================================================================
  */
 bool_t
@@ -215,18 +215,18 @@ customer_removeReservationInfo (TM_ARGDECL
                                          &findReservationInfo);
 
     if (reservationInfoPtr == NULL) {
-        return FALSE;
+        return false;
     }
 
     bool_t status = TMLIST_REMOVE(reservationInfoListPtr,
                                   (void*)&findReservationInfo);
-    if (status == FALSE) {
+    if (status == false) {
         TM_RESTART();
     }
 
     RESERVATION_INFO_FREE(reservationInfoPtr);
 
-    return TRUE;
+    return true;
 }
 
 

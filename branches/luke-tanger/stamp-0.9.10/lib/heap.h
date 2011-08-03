@@ -102,7 +102,7 @@ heap_free (heap_t* heapPtr);
 
 /* =============================================================================
  * heap_insert
- * -- Returns FALSE on failure
+ * -- Returns false on failure
  * =============================================================================
  */
 bool_t
@@ -111,7 +111,7 @@ heap_insert (heap_t* heapPtr, void* dataPtr);
 
 /* =============================================================================
  * TMheap_insert
- * -- Returns FALSE on failure
+ * -- Returns false on failure
  * =============================================================================
  */
 TM_CALLABLE
