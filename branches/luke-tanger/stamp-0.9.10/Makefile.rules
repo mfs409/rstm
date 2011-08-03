@@ -68,7 +68,8 @@ endif
 	$(QUIET)$(LLVM-OPT) -load $(SANDBOXSO) $(SANDBOXPASS_$(SANDBOX)) -stats \
         -o $@ $^ 2>> $*.log
 
-%.linked.bc: %.sandboxed.bc $(TANGERSRC)/$(TANGERBUILD)/lib/libtanger-stm.bc \
+#$(TANGERSRC)/$(TANGERBUILD)/lib/libtanger-stm.bc
+%.linked.bc: %.sandboxed.bc \
                             $(TANGERSRC)/$(TANGERBUILD)/lib/stmsupport.bc \
                             $(SANDBOXLIBS_$(SANDBOX))
 	@echo "$^ -> $@ [linking stm]"
