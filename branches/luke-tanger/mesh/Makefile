@@ -35,33 +35,39 @@ SANDBOXPASS_stats = -sandbox-stats
 SOURCES = dwyer.cpp edge.cpp edge_set.cpp mesh.cpp my_thread.cpp point.cpp \
           queues.cpp side.cpp worker.cpp
 
+.PRECIOUS: %.lto.bc %.tanger.bc %.sandboxed.bc
+.PHONY: all clean
+
 all: mesh
 
 %.bc: %.cpp
 	$(LLVM-GXX) $(CXXFLAGS) -emit-llvm -c $^ -o $@
 
-mesh.merged.bc: $(SOURCES:.cpp=.bc)
+%.merged.bc: $(SOURCES:.cpp=.bc)
 	$(LLVM-LINK) -o $@ $^
 
-%.tanger.bc: %.merged.bc
+%.lto.bc: %.merged.bc
+	$(LLVM-OPT) -O3 -o $@ $^
+
+%.tanger.bc: %.lto.bc
 	$(TANGEROPT) -load $(TANGERSO) -tanger -tanger-whole-program \
-    -tanger-indirect-auto -tanger-resolve-nontxnal -O3 -o $@ $^
+    -tanger-indirect-auto -tanger-resolve-nontxnal -o $@ $^
 
 %.sandboxed.bc: %.tanger.bc
 	$(LLVM-OPT) -load $(SANDBOXSO) $(SANDBOXPASS_$(SANDBOX)) -stats -debug-only=sandbox \
-       -o $@ $^ &> $@.info
-
-%.linked.bc: %.sandboxed.bc $(TANGERSRC)/$(TANGERBUILD)/lib/libtanger-stm.bc \
+       -o $@ $^ &> $*.log
+# $(TANGERSRC)/$(TANGERBUILD)/lib/libtanger-stm.bc 
+%.linked.bc: %.sandboxed.bc \
                             $(TANGERSRC)/$(TANGERBUILD)/lib/stmsupport.bc    \
                             $(SANDBOXLIBS_$(SANDBOX))
 	$(LLVM-LINK) -o $@ $^
 
 %.linked.o: %.linked.bc
-	$(LLVMC) -O3 -native -o $@ -c $^ 
+	$(LLVMC) -native -o $@ -c $^ 
 
 mesh: mesh.linked.o
 	$(CXX) $(LDFLAGS) -o $@ $^ -lpthread 
 
 clean:
-	rm -f *.bc *.ll *.o *.s
+	rm -f *.bc *.ll *.o *.s *.log
 	rm -f mesh
