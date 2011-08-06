@@ -23,8 +23,10 @@ TANGERSO          = $(TANGERSRC)/$(TANGERBUILD)/lib/libtanger.dylib
 SANDBOXBUILD      = /Users/luked/Work/sandboxing/build/transform/$(TANGERBUILD)
 SANDBOXSO         = $(SANDBOXBUILD)/lib/sandbox.dylib
 
-CXXFLAGS += -O3 -I. -I../lib -I../../ -I../../include -I../../../../build/rstm/include -DTANGER
-CXXFLAGS += -fno-exceptions -fno-rtti
+CXXFLAGS += -O3
+CXXFLAGS += -I. -I$(TORULES)/ -I$(TORULES)/include -I$(TORULES)/../../build/rstm/include
+CXXFLAGS += -DTANGER
+CXXFLAGS += -fno-exceptions
 
 SANDBOXPASS_trivial = -sandbox-trivial
 SANDBOXPASS_stas    = -sandbox-stats
@@ -35,8 +37,16 @@ ifndef VERBOSE
 QUIET:=@
 endif
 
-.PRECIOUS: %.merged.bc %.tanger.bc %.sandboxed.bc
-.PHONY: all clean
+.PRECIOUS: &.bc %.merged.bc %.lto.bc %.tanger.bc %.sandboxed.bc
+.PHONY: all clean test
+
+all: $(EXECS)
+
+test: $(TESTS)
+
+%.o: %.cpp
+	@echo "$^ -> $@ [generating native object]"
+	$(QUIET)$(CXX) $(CXXFLAGS) -c $^ -o $@
 
 %.bc: %.cpp
 	@echo "$^ -> $@ [generating bitcode]"
@@ -46,10 +56,12 @@ endif
 	@echo "$^ -> $@ [generating bitcode]"
 	$(QUIET)$(LLVM-GXX) $(CXXFLAGS) -emit-llvm -c $^ -o $@
 
+# stamp specific
 %.bc: ../lib/%.cpp
 	@echo "$^ -> $@ [generating bitcode]"
 	$(QUIET)$(LLVM-GXX) $(CXXFLAGS) -emit-llvm -c $^ -o $@
 
+# stamp specific
 %.bc: ../lib/%.c
 	@echo "$^ -> $@ [generating bitcode]"
 	$(QUIET)$(LLVM-GXX) $(CXXFLAGS) -emit-llvm -c $^ -o $@
@@ -58,7 +70,11 @@ endif
 	@echo "$^ -> $@ [linking bitcodes]"
 	$(QUIET)$(LLVM-LINK) -o $@ $^
 
-%.tanger.bc: %.merged.bc
+%.lto.bc: %.merged.bc
+	@echo "$^ -> $@ [optimizing full module]"
+	$(QUIET)$(LLVM-OPT) -O3 -o $@ $^
+
+%.tanger.bc: %.lto.bc
 	@echo "$^ -> $@ [transactifying (Tanger)]"
 	$(QUIET)$(TANGEROPT) -load $(TANGERSO) -tanger -tanger-whole-program \
         -tanger-indirect-auto -tanger-resolve-nontxnal -O3 -o $@ $^ &> $*.log
@@ -68,7 +84,6 @@ endif
 	$(QUIET)$(LLVM-OPT) -load $(SANDBOXSO) $(SANDBOXPASS_$(SANDBOX)) -stats \
         -o $@ $^ 2>> $*.log
 
-#$(TANGERSRC)/$(TANGERBUILD)/lib/libtanger-stm.bc
 %.linked.bc: %.sandboxed.bc \
                             $(TANGERSRC)/$(TANGERBUILD)/lib/stmsupport.bc \
                             $(SANDBOXLIBS_$(SANDBOX))
@@ -79,9 +94,9 @@ endif
 	@echo "$^ -> $@ [generating native code (no optimization)]"
 	$(QUIET)$(LLVMC) -native -o $@ -c $^ 
 
-$(notdir $(CURDIR)): $(notdir $(CURDIR)).linked.o
+$(EXECS): %: %.linked.o
 	@echo "$^ -> $@ [linking]"
 	$(QUIET)$(CXX) $(LDFLAGS) -o $@ $^ -lpthread
 
 clean:
-	@rm -f *.bc *.ll *.o *.s *.dot *.log $(notdir $(CURDIR))
+	@rm -f *.bc *.ll *.o *.s *.dot *.log $(EXECS)

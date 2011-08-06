@@ -1,8 +1,17 @@
+TORULES := ../..
+
 SOURCES := ../lib/bitmap.c ../lib/hash.c ../lib/hashtable.c ../lib/pair.c \
            ../lib/random.c ../lib/list.c ../lib/mt19937ar.c ../lib/thread.c \
            ../lib/vector.c \
            gene.c genome.c segments.c sequencer.c table.c
 
+CXXFLAGS += -I../lib
 CXXFLAGS += -DLIST_NO_DUPLICATES -DCHUNK_STEP1=12
 
--include ../Makefile.rules
+EXECS    := genome
+
+-include $(TORULES)/Makefile.rules
+
+test: genome
+	@echo "sandboxing test run: genome"
+	./genome -g16384 -s64 -n16777216
