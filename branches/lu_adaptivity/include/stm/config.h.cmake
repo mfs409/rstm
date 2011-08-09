@@ -61,4 +61,7 @@
 // Defined when we want to optimize for SSE execution
 #cmakedefine STM_USE_SSE
 
+// Allow use of PMU for adaptivity
+#cmakedefine STM_USE_PMU
+
 #endif // RSTM_STM_INCLUDE_CONFIG_H

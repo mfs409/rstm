@@ -76,7 +76,7 @@ namespace stm
         cm_ts(INT_MAX),
         cf((filter_t*)FILTER_ALLOC(sizeof(filter_t))),
         nanorecs(64), begin_wait(0), strong_HG(),
-        irrevocable(false)
+        irrevocable(false), pmu()
   {
       // prevent new txns from starting.
       while (true) {
@@ -131,6 +131,9 @@ namespace stm
       // set the epoch to default
       epochs[id-1].val = EPOCH_MAX;
 
+      // configure the pmu
+      pmu.onThreadInit();
+
       // NB: at this point, we could change the mode based on the thread
       //     count.  The best way to do so would be to install ProfileTM.  We
       //     would need to be very careful, though, in case another thread is
@@ -182,6 +185,13 @@ namespace stm
 
       // create a TxThread and save it in thread-local storage
       Self = new TxThread();
+  }
+
+  /*** shut down a thread */
+  void TxThread::thread_shutdown()
+  {
+      // for now, all we need to do is dump the PMU information
+      Self->pmu.onThreadShutdown();
   }
 
   /**
@@ -248,6 +258,10 @@ namespace stm
                     << ((100*app_profiles->timecounter)/nontxn_count) << ", "
                     << pct_ro << " #" << std::endl;
       }
+
+      // dump PMU information, if any
+      pmu_t::onSysShutdown();
+
       CFENCE;
       mtx = 0;
   }
@@ -374,7 +388,10 @@ namespace stm
           // now set the phase
           set_policy(cfg);
 
-          printf("STM library configured using config == %s\n", cfg);
+          // and configure the PMU interface
+          pmu_t::onSysInit();
+
+          printf("STM library configured using %s\n", cfg);
 
           mtx = 2;
       }

@@ -93,4 +93,9 @@ if (libstm_use_sse)
   set(STM_USE_SSE 1)
 endif ()
 
+# Configure PMU
+if (libstm_use_pmu)
+  set(STM_USE_PMU 1)
+endif()
+
 configure_file (config.h.cmake config.h)

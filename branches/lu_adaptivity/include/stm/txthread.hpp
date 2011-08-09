@@ -95,6 +95,7 @@ namespace stm
       /*** PER-THREAD FIELDS FOR ENABLING ADAPTIVITY POLICIES */
       uint64_t      end_txn_time;      // end of non-transactional work
       uint64_t      total_nontxn_time; // time on non-transactional work
+      pmu_t         pmu;               // for accessing the hardware PMU
 
       /*** POINTERS TO INSTRUMENTATION */
 
@@ -146,9 +147,9 @@ namespace stm
       static bool(*tmirrevoc)(TxThread*);
 
       /**
-       * for shutting down threads.  Currently a no-op.
+       *  For shutting down threads.
        */
-      static void thread_shutdown() { }
+      static void thread_shutdown();
 
       /**
        * the init factory.  Construction of TxThread objects is only possible
