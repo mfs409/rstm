@@ -171,7 +171,7 @@ namespace stm
 #elif defined(STM_WS_BYTELOG)
   typedef ByteLoggingWriteSetEntry WriteSetEntry;
 #else
-#   error WriteSet logging granularity configuration error.
+#   error WriteSet logging granularity configuration error
 #endif
 
   /**

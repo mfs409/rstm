@@ -75,9 +75,15 @@ namespace stm
   extern pad_word_t    last_complete;                  // last physical commit
   extern filter_t ring_wf[RING_ELEMENTS] TM_ALIGN(16); // ring of Bloom filters
   extern pad_word_t    prioTxCount;                    // # priority txns
+#ifdef STM_CC_SUN
+  extern rrec_t*       rrecs;                          // set of rrecs
+  extern bytelock_t*   bytelocks;                      // set of bytelocks
+  extern bitlock_t*    bitlocks;                       // set of bitlocks
+#else
   extern rrec_t        rrecs[RREC_COUNT];              // set of rrecs
   extern bytelock_t    bytelocks[NUM_STRIPES];         // set of bytelocks
   extern bitlock_t     bitlocks[NUM_STRIPES];          // set of bitlocks
+#endif
   extern pad_word_t    timestamp_max;                  // max value of timestamp
   extern mcs_qnode_t*  mcslock;                        // for MCS
   extern pad_word_t    epochs[MAX_THREADS];            // for coarse-grained CM

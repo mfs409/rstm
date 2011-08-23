@@ -1,0 +1,116 @@
+#
+#  Copyright (C) 2011
+#  University of Rochester Department of Computer Science
+#    and
+#  Lehigh University Department of Computer Science and Engineering
+# 
+# License: Modified BSD
+#          Please see the file LICENSE.RSTM for licensing information
+
+# Source folder names
+BDIR   = bench
+LDIR   = libstm
+LADIR  = $(LDIR)/algs/
+LPDIR  = $(LDIR)/policies/
+
+# Output folder names
+ODIR = ./obj.dir
+BODIR = $(ODIR)/$(BDIR).dir
+LODIR = $(ODIR)/$(LDIR).dir
+
+# Base names of files that we expect in each of the source folders
+BNAMES  = CounterBench DisjointBench DListBench ForestBench HashBench      \
+          ListBench MCASBench ReadNWrite1Bench ReadWriteNBench TreeBench   \
+          TreeOverwriteBench TypeTest WWPathologyBench
+LNAMES  = inst irrevocability profiling txthread types WBMMPolicy
+LANAMES = algs biteager biteagerredo bitlazy byear byeau byteeager         \
+          byteeagerredo bytelazy cgl ctoken ctokenturbo llt mcs nano norec \
+          norecprio oreau orecala oreceager oreceagerredo orecela orecfair \
+          oreclazy pipeline profileapp profiletm ringala ringsw serial     \
+          swiss ticket tli tml tmllazy
+LPNAMES = cbr policies static
+
+# Names of important tools.  These may be hard-coded for Lehigh for now
+CXX = /apps/suncc-s2-`uname -p`/bin/CC
+AR  = ar
+
+# Flags.  note that CXXTMFLAGS is only for the bench/ folder
+CXXFLAGS    = -mt +w -xMMD -xO5 -g0 -xarch=sse2
+CXXFLAGS   += -features=zla -template=no%extdef
+CXXFLAGS   += -m32 -I./ -I./include
+LDFLAGS    += -lrt -lpthread -m32 -lmtmalloc -L./$(LODIR) -lrstm
+CXXTMFLAGS  = -Qoption CC -tm_mode=stm 
+
+# Transformations of filenames into what Make cares about
+LSOURCES = $(patsubst %, $(LDIR)/%.cpp,  $(LNAMES))  \
+           $(patsubst %, $(LADIR)/%.cpp, $(LANAMES)) \
+           $(patsubst %, $(LPDIR)/%.cpp, $(LPNAMES))
+LOFILES  = $(patsubst %, $(LODIR)/%.o, $(LNAMES) $(LANAMES) $(LPNAMES))
+LDEPS    = $(patsubst %, $(LODIR)/%.d, $(LNAMES) $(LANAMES) $(LPNAMES))
+BSOURCES = $(patsubst %, $(BDIR)/%.cpp,  $(BNAMES))
+BOFILES  = $(patsubst %, $(BODIR)/%, $(BNAMES))
+BDEPS    = $(patsubst %, $(BODIR)/*.d, $(BNAMES))
+CONFIG   = stm/config.h
+LIB      = $(LODIR)/librstm.a
+
+# build rules
+.PHONY: all clean info
+
+all: info dirs $(CONFIG) $(LIB) $(BOFILES) 
+
+# to keep the build lines comprehensible, we hide the actual CXX invocations.
+# Printing this information first helps if we need to recreate the invocation
+# manually
+info:
+	@echo "Build Configuration:"
+	@echo "  CXXFLAGS   = ${CXXFLAGS}"
+	@echo "  CXXTMFLAGS = ${CXXTMFLAGS}"
+	@echo "  LDFLAGS    = ${LDFLAGS}"
+	@echo "  CXX        = ${CXX}"
+
+dirs: $(LODIR) stm $(BODIR)
+	@echo "Done Building Directories"
+
+$(CONFIG): stm
+	@echo "#define STM_BITS_32" > $@
+	@echo "#define STM_OPT_O3" >> $@
+	@echo "#define STM_OS_SOLARIS" >> $@
+	@echo "#define STM_CC_SUN" >> $@
+	@echo "#define STM_CPU_X86" >> $@
+	@echo "#define STM_WS_BYTELOG" >> $@
+	@echo "#define STM_PROFILETMTRIGGER_ALL" >> $@
+	@echo "#define SINGLE_SOURCE_BUILD" >> $@
+
+clean:
+	@rm -rf stm $(ODIR)
+	@echo "Finished building target $@"
+
+stm:
+	@mkdir -p $@
+
+%.dir:
+	@mkdir -p $@
+
+$(LODIR)/%.o: $(LDIR)/%.cpp
+	@echo [CXX] $< "-->" $@
+	@$(CXX) $(CXXFLAGS) -o $@ -c $<
+
+$(LODIR)/%.o: $(LADIR)/%.cpp
+	@echo [CXX] $< "-->" $@
+	@$(CXX) $(CXXFLAGS) -o $@ -c $<
+
+$(LODIR)/%.o: $(LPDIR)/%.cpp
+	@echo [CXX] $< "-->" $@
+	@$(CXX) $(CXXFLAGS) -o $@ -c $<
+
+$(LIB): $(LOFILES)
+	@echo "Invoking ar"
+	@$(AR) cru $@ $^
+	@echo "$@ Complete"
+
+$(BODIR)/%: $(BDIR)/%.cpp
+	@echo [CXX] $< "-->" $@
+	@$(CXX) $(CXXFLAGS) -o $@ $< $(LDFLAGS)
+
+-include $(LDEPS)
+-include $(BDEPS)

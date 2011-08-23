@@ -42,6 +42,7 @@ namespace stm
   pad_word_t last_init     = {0};
   filter_t   ring_wf[RING_ELEMENTS] TM_ALIGN(16);
 
+#ifndef STM_CC_SUN
   /*** priority stuff */
   pad_word_t prioTxCount       = {0};
   rrec_t     rrecs[RREC_COUNT] = {{{0}}};
@@ -51,6 +52,17 @@ namespace stm
 
   /*** the table of bitlocks */
   bitlock_t bitlocks[NUM_STRIPES] = {{0}};
+#else
+  /*** priority stuff */
+  pad_word_t prioTxCount       = {0};
+  rrec_t*    rrecs = NULL;
+
+  /*** the table of bytelocks */
+  bytelock_t* bytelocks = NULL;
+
+  /*** the table of bitlocks */
+  bitlock_t* bitlocks = NULL;
+#endif
 
   /*** the array of epochs */
   pad_word_t epochs[MAX_THREADS] = {{0}};
