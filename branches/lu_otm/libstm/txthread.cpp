@@ -371,6 +371,16 @@ namespace stm
           if (conflict_abort_handler)
               TxThread::tmabort = conflict_abort_handler;
 
+#ifdef STM_CC_SUN
+          // init the rrec, bitlock, and bytelock arrays
+          rrecs = (rrec_t*)malloc(RREC_COUNT * sizeof(rrec_t));
+          bitlocks = (bitlock_t*)malloc(NUM_STRIPES * sizeof(bitlock_t));
+          bytelocks = (bytelock_t*)malloc(NUM_STRIPES * sizeof(bytelock_t));
+          memset(rrecs, 0, RREC_COUNT * sizeof(rrec_t));
+          memset(bitlocks, 0, NUM_STRIPES * sizeof(bitlock_t));
+          memset(bytelocks, 0, NUM_STRIPES * sizeof(bytelock_t));
+#endif
+
           // now set the phase
           set_policy(cfg);
 

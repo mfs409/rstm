@@ -290,15 +290,15 @@ namespace
 
   // validate a transaction's write set
   //
-  // for committing transactions, there is a backup plan wh read-lock
+  // for committing transactions, there is a backup plan when read-lock
   // validation fails
   void Swiss::validate_commit(TxThread* tx)
   {
       foreach (OrecList, i, tx->r_orecs) {
           if ((*i)->p > tx->start_time) {
               if ((*i)->v.all != tx->my_lock.all) {
-                  foreach (NanorecList, i, tx->nanorecs) {
-                      i->o->p = i->v;
+                  foreach (NanorecList, r, tx->nanorecs) {
+                      r->o->p = r->v;
                   }
                   tx->tmabort(tx);
               }

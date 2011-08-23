@@ -195,15 +195,20 @@ run(uintptr_t id)
  *      _ITM_initializeProcess ordering problem if there's a transaction
  *      lexically scoped inside of main.
  */
-NOINLINE
-void*
-run_wrapper(void* i)
+extern "C"
 {
-    run((uintptr_t)i);
-    TM_THREAD_SHUTDOWN();
-    return NULL;
+    NOINLINE
+    void*
+    run_wrapper(void* i)
+    {
+        run((uintptr_t)i);
+        TM_THREAD_SHUTDOWN();
+        return NULL;
+    }
 }
-}
+
+} // namespace
+
 
 /**
  *  Main routine: parse args, set up the TM system, prep the benchmark, run

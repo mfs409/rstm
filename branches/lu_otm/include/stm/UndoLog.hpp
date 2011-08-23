@@ -97,32 +97,32 @@ namespace stm
       }
 
       /*** write the masked bytes of an aligned word */
-      inline static void DoMaskedWrite(void** addr, void* val, uintptr_t mask)
+      inline static void DoMaskedWrite(void** _addr, void* _val, uintptr_t _mask)
       {
           // common case is word access
-          if (mask == ~(uintptr_t)0x0) {
-              *addr = val;
+          if (_mask == ~(uintptr_t)0x0) {
+              *_addr = _val;
               return;
           }
 
           // simple check for null mask, which might result from a filter call
-          if (mask == 0x0)
+          if (_mask == 0x0)
               return;
 
           union {
               void**   word;
               uint8_t* bytes;
-          } uaddr = { addr };
+          } uaddr = { _addr };
 
           union {
               void*   word;
               uint8_t bytes[sizeof(void*)];
-          } uval = { val };
+          } uval = { _val };
 
           union {
               uintptr_t word;
               uint8_t   bytes[sizeof(uintptr_t)];
-          } umask = { mask };
+          } umask = { _mask };
 
           // We're just going to write out individual bytes, which turns all
           // subword accesses into byte accesses. This might be inefficient but
