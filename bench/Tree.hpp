@@ -69,6 +69,7 @@ class RBTree
 };
 
 // binary search for the node that has v as its value
+TM_CALLABLE
 bool RBTree::lookup(int v TM_ARG) const
 {
     // find v
@@ -83,6 +84,7 @@ bool RBTree::lookup(int v TM_ARG) const
     return false;
 }
 
+TM_CALLABLE
 void RBTree::modify(int v TM_ARG)
 {
     if (lookup(v TM_PARAM))
@@ -92,6 +94,7 @@ void RBTree::modify(int v TM_ARG)
 }
 
 // insert a node with v as its value if no such node exists in the tree
+TM_CALLABLE
 void RBTree::insert(int v TM_ARG)
 {
     // find insertion point
@@ -211,6 +214,7 @@ void RBTree::insert(int v TM_ARG)
 }
 
 // remove the node with v as its value if it exists in the tree
+TM_CALLABLE
 void RBTree::remove(int v TM_ARG)
 {
     // find v
