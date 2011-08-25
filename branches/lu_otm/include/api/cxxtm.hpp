@@ -57,8 +57,9 @@ namespace stm
   const char* get_algname();
 }
 
-#if defined(ITM) || defined(ITM2STM)
 #include <common/platform.hpp> // nop()
+
+#if defined(ITM) || defined(ITM2STM)
 
 #define  TM_SYS_INIT                   _ITM_initializeProcess
 #define  TM_THREAD_INIT                _ITM_initializeThread
@@ -75,6 +76,19 @@ namespace stm
 #endif
 #define  TM_BEGIN_FAST_INITIALIZATION  nop
 #define  TM_END_FAST_INITIALIZATION    nop
+#elif defined(STM_CC_SUN)
+
+#define  TM_SYS_INIT                   nop
+#define  TM_THREAD_INIT                nop
+#define  TM_THREAD_SHUTDOWN            nop
+#define  TM_SYS_SHUTDOWN               nop
+#define  TM_ALLOC                      malloc
+#define  TM_FREE                       free
+#define  TM_SET_POLICY(P)
+#define  TM_GET_ALGNAME()              "SunCC builtin libSkySTMLib.a"
+#define  TM_BEGIN_FAST_INITIALIZATION  nop
+#define  TM_END_FAST_INITIALIZATION    nop
+
 #else
 #error "We're not prepared for your implementation of the C++ TM spec."
 #endif
