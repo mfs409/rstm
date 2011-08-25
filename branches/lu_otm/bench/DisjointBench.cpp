@@ -50,6 +50,7 @@
  *  out
  */
 
+TM_CALLABLE
 bool Disjoint::ro_transaction(uint32_t id, uint32_t startpoint TM_ARG)
 {
     PaddedBuffer& rBuffer =
@@ -94,10 +95,12 @@ void bench_init()
 void bench_test(uintptr_t id, uint32_t* seed)
 {
    uint32_t act = rand_r_32(seed) % 100;
-    // NB: volatile needed because using a non-volatile local in conjunction
-    //     with a setjmp-longjmp control transfer is undefined, and gcc won't
-    //     allow it with -Wall -Werror.
-    volatile uint32_t start = rand_r_32(seed) % Disjoint::DJBUFFER_SIZE;
+   // NB: volatile needed because using a non-volatile local in conjunction
+   //     with a setjmp-longjmp control transfer is undefined, and gcc won't
+   //     allow it with -Wall -Werror.
+
+   // volatile
+   uint32_t start = rand_r_32(seed) % Disjoint::DJBUFFER_SIZE;
 
     TM_BEGIN(atomic) {
         // RO or RW transaction?
