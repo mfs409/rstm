@@ -70,7 +70,7 @@
 #include <thread.h>
 #include <assert.h>
 #include <sys/resource.h>
-#include "../config.h"
+#include <stm/config.h>
 
 /**
  *  In order to interface with the Oracle Transactional Compiler, we require
