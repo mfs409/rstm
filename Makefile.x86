@@ -12,9 +12,10 @@ BENCHSRCDIR  = bench
 LIBSRCDIR    = libstm
 LIBALGSRCDIR = $(LIBSRCDIR)/algs
 LIBPOLSRCDIR = $(LIBSRCDIR)/policies
+SHIMDIR      = libotm2stm
 
 # Output folder names
-ODIR = ./obj.dir
+ODIR = ./obj
 CONFDIR = $(ODIR)/stm
 
 # Base names of files that we expect in each of the source folders
@@ -28,6 +29,7 @@ LIBALGFILES = algs biteager biteagerredo bitlazy byear byeau byteeager       \
               orecfair oreclazy pipeline profileapp profiletm ringala ringsw \
               serial swiss ticket tli tml tmllazy
 LIBPOLNAMES = cbr policies static
+SHIMFILES   = otm2stm
 
 # Names of important tools.  These may be hard-coded for Lehigh for now
 CXX = /apps/suncc-s2-`uname -p`/bin/CC
@@ -45,6 +47,10 @@ LDFLAGS_LIBAPI += -L./$(ODIR) -lrstm
 # Custom flags for CXXTM API builds
 CXXFLAGS_CXXTM  = -Qoption CC -tm_mode=stm -DSTM_API_CXXTM -DNO_IROPT_INLINING
 
+# Custom flags for shim builds
+CXXFLAGS_SHIM   = -Qoption CC -tm_mode=stm -DSTM_API_CXXTM -DNO_IROPT_INLINING -DOTM2STM
+LDFLAGS_SHIM    = -L./$(ODIR) -lotm2stm
+
 # Transformations of filenames into build targets
 # We build the library once, and only one way
 LIB        = $(ODIR)/librstm.a
@@ -52,6 +58,10 @@ LIBOFILES  = $(patsubst %, $(ODIR)/%.o, $(LIBFILES) $(LIBALGFILES) \
                                         $(LIBPOLNAMES))
 LDEPS      = $(patsubst %, $(ODIR)/%.d, $(LIBFILES) $(LIBALGFILES) \
                                         $(LIBPOLNAMES))
+# Shim
+SHIM       = $(ODIR)/libotm2stm.a
+SHIMOFILES = $(patsubst %, $(ODIR)/%.o, $(SHIMFILES))
+
 # We build one configuration file
 CONFIG   = $(CONFDIR)/config.h
 
@@ -63,26 +73,34 @@ LIBAPIEXECDEPS = $(patsubst %, $(ODIR)/libapiexec_%.d, $(BENCHFILES))
 LIBSKYEXECS    = $(patsubst %, $(ODIR)/libskyexec_%, $(BENCHFILES))
 LIBSKYEXECDEPS = $(patsubst %, $(ODIR)/libskyexec_%.d, $(BENCHFILES))
 
+# Rules for building executables that use the otm2stm
+LIBSHIMEXECS    = $(patsubst %, $(ODIR)/libshimexec_%, $(BENCHFILES))
+LIBSHIMEXECDEPS = $(patsubst %, $(ODIR)/libshimexec_%.d, $(BENCHFILES))
+
 # build rules
-.PHONY: all clean info skybench libapibench
-.PRECIOUS: $(CONFDIR) $(ODIR) $(LIBSKYEXECS)
-all: info $(CONFIG) $(LIB) libapibench skybench
+.PHONY: all clean info skybench libapibench shimbench
+.PRECIOUS: $(CONFDIR) $(ODIR) $(LIBSKYEXECS) $(LIBSHIMEXECS)
+all: info $(CONFIG) $(LIB) libapibench skybench shimbench
 	@echo "Build complete"
 
 skybench: $(LIBSKYEXECS)
 
 libapibench: $(LIBAPIEXECS)
 
+shimbench: $(LIBSHIMEXECS)
+
 # to keep the build lines comprehensible, we hide the actual CXX invocations.
 # Printing this information first helps if we need to recreate the invocation
 # manually
 info:
 	@echo "Build Configuration:"
-	@echo "  CXXFLAGS   = ${CXXFLAGS}"
-	@echo "  LDFLAGS    = ${LDFLAGS}"
-	@echo "  CXX        = ${CXX}"
+	@echo "  CXXFLAGS       = ${CXXFLAGS}"
+	@echo "  LDFLAGS        = ${LDFLAGS}"
+	@echo "  CXX            = ${CXX}"
 	@echo "  CXXFLAGS_CXXTM = ${CXXFLAGS_CXXTM}"
-	@echo "  LDFLAGS_LIBAPI    = ${LDFLAGS_LIBAPI}"
+	@echo "  LDFLAGS_LIBAPI = ${LDFLAGS_LIBAPI}"
+	@echo "  CXXFLAGS_SHIM  = ${CXXFLAGS_SHIM}"
+	@echo "  LDFLAGS_SHIM   = ${LDFLAGS_SHIM}"
 
 # RSTM does out-of-source builds, and expects cmake to produce a config.h in
 # the out-of-source include/stm folder.  We avoid having to write to source
@@ -105,7 +123,7 @@ clean:
 	@echo "Finished building target $@"
 
 # rule for making directories for output files
-%.dir:
+$(ODIR):
 	@mkdir -p $@
 
 # since there are 3 folders with library source files, we need 3 rules to
@@ -125,6 +143,16 @@ $(LIB): $(LIBOFILES)
 	@echo "[ar] $(ODIR)*.o --> $@"
 	@$(AR) cru $@ $^
 
+# rule to build the shim ofiles
+$(ODIR)/%.o: $(SHIMDIR)/%.cpp $(ODIR) $(CONFIG)
+	@echo [CXX] $< "-->" $@
+	$(CXX) $(CXXFLAGS) -o $@ -c $<
+
+# Rule to build the shim .a from the shim .o files
+$(SHIM): $(SHIMOFILES)
+	@echo "[ar] $(ODIR)*.o --> $@"
+	@$(AR) cru $@ $^
+
 # Rule for building executables that use the Library API
 $(ODIR)/libapiexec_%: $(BENCHSRCDIR)/%.cpp $(ODIR) $(CONFIG) $(LIB)
 	@echo [CXX] $< "-->" $@
@@ -134,5 +162,14 @@ $(ODIR)/libapiexec_%: $(BENCHSRCDIR)/%.cpp $(ODIR) $(CONFIG) $(LIB)
 $(ODIR)/libskyexec_%: $(BENCHSRCDIR)/%.cpp $(ODIR) $(CONFIG)
 	@echo [CXX] $< "-->" $@
 	$(CXX) $(CXXFLAGS) $(CXXFLAGS_CXXTM) -o $@ $< $(LDFLAGS) 
+
+# Rule for building executables that use the SkySTM API
+$(ODIR)/libshimexec_%: $(BENCHSRCDIR)/%.cpp $(ODIR) $(CONFIG) $(SHIM)
+	@echo [CXX] $< "-->" $@
+	$(CXX) $(CXXFLAGS) $(CXXFLAGS_SHIM) -o $@ $< $(LDFLAGS) $(LDFLAGS_SHIM)
+
+
+dump:
+	@echo $(SHIMOFILES)
 
 -include $(LDEPS) $(LIBAPIEXECDEPS) $(LIBSKYEXECDEPS)

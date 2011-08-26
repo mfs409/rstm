@@ -84,8 +84,13 @@ namespace stm
 #define  TM_SYS_SHUTDOWN               nop
 #define  TM_ALLOC                      malloc
 #define  TM_FREE                       free
+#if defined(OTM2STM)
+#define  TM_SET_POLICY(P)              stm::set_policy(P)
+#define  TM_GET_ALGNAME()              stm::get_algname()
+#else
 #define  TM_SET_POLICY(P)
 #define  TM_GET_ALGNAME()              "SunCC builtin libSkySTMLib.a"
+#endif
 #define  TM_BEGIN_FAST_INITIALIZATION  nop
 #define  TM_END_FAST_INITIALIZATION    nop
 
