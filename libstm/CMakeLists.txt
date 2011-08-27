@@ -20,6 +20,7 @@ set(sources
   profiling.cpp
   WBMMPolicy.cpp
   irrevocability.cpp
+  hooks.cpp
   algs/algs.cpp
   algs/biteager.cpp
   algs/biteagerredo.cpp
