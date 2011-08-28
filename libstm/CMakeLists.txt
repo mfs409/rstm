@@ -20,7 +20,6 @@ set(sources
   profiling.cpp
   WBMMPolicy.cpp
   irrevocability.cpp
-  hooks.cpp
   algs/algs.cpp
   algs/biteager.cpp
   algs/biteagerredo.cpp
@@ -62,13 +61,13 @@ set(sources
   )
 
 foreach (arch ${rstm_archs})
-  add_library(stm${arch}s SHARED ${sources})
-  append_property(TARGET stm${arch}s COMPILE_FLAGS -m${arch})
+  add_library(hooks SHARED hooks.cpp)
+  append_property(TARGET hooks COMPILE_FLAGS -m${arch})
   if (CMAKE_SYSTEM_NAME MATCHES "Linux")
-    target_link_libraries(stm${arch}s -lrt)
+    target_link_libraries(hooks -lrt)
   endif ()
   if (CMAKE_SYSTEM_NAME MATCHES "SunOS")
-    target_link_libraries(stm${arch}s -lmtmalloc)
+    target_link_libraries(hooks -lmtmalloc)
   endif ()
 endforeach ()
 
