@@ -95,7 +95,7 @@ $(CONFIG):
 	@echo "#define STM_OPT_O3" >> $@
 	@echo "#define STM_OS_SOLARIS" >> $@
 	@echo "#define STM_CC_SUN" >> $@
-	@echo "#define STM_CPU_X86" >> $@
+	@echo "#define STM_CPU_SPARC" >> $@
 	@echo "#define STM_WS_BYTELOG" >> $@
 	@echo "#define STM_PROFILETMTRIGGER_ALL" >> $@
 	@echo "#define SINGLE_SOURCE_BUILD" >> $@
@@ -135,6 +135,6 @@ $(ODIR)/libapiexec_%: $(BENCHSRCDIR)/%.cpp $(ODIR) $(CONFIG) $(LIB)
 # Rule for building executables that use the SkySTM API
 $(ODIR)/libskyexec_%: $(BENCHSRCDIR)/%.cpp $(ODIR) $(CONFIG)
 	@echo [CXX] $< "-->" $@
-	$(CXX) $(CXXFLAGS) $(CXXFLAGS_CXXTM) -o $@ $< $(LDFLAGS) 
+	$(CXX) $(CXXFLAGS) $(CXXFLAGS_CXXTM) -o $@ $< $(LDFLAGS) -xipo=0
 
 -include $(LDEPS) $(LIBAPIEXECDEPS) $(LIBSKYEXECDEPS)
