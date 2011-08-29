@@ -60,17 +60,18 @@ set(sources
   policies/static.cpp
   )
 
+set(mmapwrapsources hooks.cpp)
+  
+# build 32 and/or 64 bit libraries for intercepting munmap, so that we can
+# avoid a problem when nontransactional code munmaps privatized memory that
+# is still being accessed by doomed transactions
 foreach (arch ${rstm_archs})
-  add_library(hooks SHARED hooks.cpp)
-  append_property(TARGET hooks COMPILE_FLAGS -m${arch})
-  if (CMAKE_SYSTEM_NAME MATCHES "Linux")
-    target_link_libraries(hooks -lrt)
-  endif ()
-  if (CMAKE_SYSTEM_NAME MATCHES "SunOS")
-    target_link_libraries(hooks -lmtmalloc)
-  endif ()
+  add_library(mmapwrapper${arch} SHARED ${mmapwrapsources})
+  append_property(TARGET mmapwrapper${arch} COMPILE_FLAGS -m${arch})
+  append_property(TARGET mmapwrapper${arch} LINK_FLAGS -m${arch})
 endforeach ()
 
+#  Build the RSTM library
 foreach (arch ${rstm_archs})
   add_library(stm${arch} STATIC ${sources})
   append_property(TARGET stm${arch} COMPILE_FLAGS -m${arch})
