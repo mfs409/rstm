@@ -36,7 +36,7 @@ CXX = /apps/suncc-s2-`uname -p`/bin/CC
 AR  = ar
 
 # Standard flags
-CXXFLAGS    = -mt +w -xMMD -xO5 -g0 -xarch=sse2
+CXXFLAGS    = -mt +w -xMMD -xO5 -g0 -xarch=sse2 -xchip=nehalem -xtarget=nehalem
 CXXFLAGS   += -features=zla -template=no%extdef
 CXXFLAGS   += -m32 -I./$(ODIR) -I./include -I.
 LDFLAGS    += -lrt -lpthread -m32 -lmtmalloc
@@ -64,6 +64,8 @@ SHIMOFILES = $(patsubst %, $(ODIR)/%.o, $(SHIMFILES))
 
 # We build one configuration file
 CONFIG   = $(CONFDIR)/config.h
+
+HARNESS = $(ODIR)/bmharness.o
 
 # Rules for building executables that use the Library API
 LIBAPIEXECS    = $(patsubst %, $(ODIR)/libapiexec_%, $(BENCHFILES))
@@ -114,7 +116,6 @@ $(CONFIG):
 	@echo "#define STM_CPU_X86" >> $@
 	@echo "#define STM_WS_BYTELOG" >> $@
 	@echo "#define STM_PROFILETMTRIGGER_ALL" >> $@
-	@echo "#define SINGLE_SOURCE_BUILD" >> $@
 	@echo "$@ Complete"
 
 # We'll be lazy and clean by colbbering the entire build folder
@@ -156,14 +157,18 @@ $(SHIM): $(SHIMOFILES)
 # Rule for building executables that use the Library API
 $(ODIR)/libapiexec_%: $(BENCHSRCDIR)/%.cpp $(ODIR) $(CONFIG) $(LIB)
 	@echo [CXX] $< "-->" $@
-	@$(CXX) $(CXXFLAGS) -o $@ $< $(LDFLAGS) $(LDFLAGS_LIBAPI)
+	@$(CXX) $(CXXFLAGS) -o $@ $< $(LDFLAGS) $(LDFLAGS_LIBAPI) -DSINGLE_SOURCE_BUILD
 
-# Rule for building executables that use the SkySTM API
-$(ODIR)/libskyexec_%: $(BENCHSRCDIR)/%.cpp $(ODIR) $(CONFIG)
+$(HARNESS): bench/bmharness.cpp
 	@echo [CXX] $< "-->" $@
-	$(CXX) $(CXXFLAGS) $(CXXFLAGS_CXXTM) -o $@ $< $(LDFLAGS) 
+	$(CXX) $(CXXFLAGS) $(CXXFLAGS_CXXTM) -o $@ -c $<
 
-# Rule for building executables that use the SkySTM API
+# Rules for building executables that use the SkySTM API
+$(ODIR)/libskyexec_%: $(BENCHSRCDIR)/%.cpp $(ODIR) $(CONFIG) $(HARNESS)
+	@echo [CXX] $< "-->" $@
+	$(CXX) $(CXXFLAGS) $(CXXFLAGS_CXXTM) -o $@ $< $(LDFLAGS) $(HARNESS)
+
+# Rule for building executables that use the SHIM API
 $(ODIR)/libshimexec_%: $(BENCHSRCDIR)/%.cpp $(ODIR) $(CONFIG) $(SHIM)
 	@echo [CXX] $< "-->" $@
 	$(CXX) $(CXXFLAGS) $(CXXFLAGS_SHIM) -o $@ $< $(LDFLAGS) $(LDFLAGS_SHIM)
