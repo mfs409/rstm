@@ -40,8 +40,9 @@ namespace stm
       BitLazy, LLT, TLI, ByteEager, MCS, Serial, BitEager, ByteLazy,
       ByEAR, OrecEagerRedo, ByteEagerRedo, BitEagerRedo,
       RingALA, Nano, Swiss,
-      ByEAU, ByEAUFCM, ByEAUHA, ByEAUHour,
-      OrEAU, OrEAUFCM, OrEAUHA, OrEAUHour,
+
+      ByEAUBackoff, ByEAUFCM, ByEAUNoBackoff, ByEAUHour,
+      OrEAUBackoff, OrEAUFCM, OrEAUNoBackoff, OrEAUHour,
       OrecEager, OrecEagerHour, OrecEagerBackoff, OrecEagerHB,
       OrecLazy,  OrecLazyHour,  OrecLazyBackoff,  OrecLazyHB,
       NOrec,     NOrecHour,     NOrecBackoff,     NOrecHB,
