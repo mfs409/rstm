@@ -426,9 +426,9 @@ namespace {
 // Register ByEAU initializer functions. Do this as declaratively as
 // possible. Remember that they need to be in the stm:: namespace.
 #define FOREACH_OREAU(MACRO)                    \
-    MACRO(OrEAU, BackoffCM)                     \
+    MACRO(OrEAUBackoff, BackoffCM)                     \
     MACRO(OrEAUFCM, FCM)                        \
-    MACRO(OrEAUHA, HyperAggressiveCM)           \
+    MACRO(OrEAUNoBackoff, HyperAggressiveCM)           \
     MACRO(OrEAUHour, HourglassCM)
 
 #define INIT_OREAU(ID, CM)                      \
