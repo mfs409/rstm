@@ -169,10 +169,12 @@ $(ODIR)/libskyexec_%: $(BENCHSRCDIR)/%.cpp $(ODIR) $(CONFIG) $(HARNESS)
 	$(CXX) $(CXXFLAGS) $(CXXFLAGS_CXXTM) -o $@ $< $(LDFLAGS) $(HARNESS)
 
 # Rule for building executables that use the SHIM API
+#
+# NB: right now, the harness is a dummy onelock harness.  When that changes,
+#     we will need to also include $(LDFLAGS_LIBAPI) on the build line
 $(ODIR)/libshimexec_%: $(BENCHSRCDIR)/%.cpp $(ODIR) $(CONFIG) $(SHIM)
 	@echo [CXX] $< "-->" $@
-	$(CXX) $(CXXFLAGS) $(CXXFLAGS_SHIM) -o $@ $< $(LDFLAGS) $(LDFLAGS_SHIM)
-
+	$(CXX) $(CXXFLAGS) $(CXXFLAGS_SHIM) -o $@ $< $(LDFLAGS) $(LDFLAGS_SHIM) -DSINGLE_SOURCE_BUILD
 
 dump:
 	@echo $(SHIMOFILES)
