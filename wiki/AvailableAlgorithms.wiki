@@ -47,7 +47,7 @@ Ownership records, or "orecs", are used to detect conflicting accesses to memory
     ** OrecLazy Variants: OrecLazy, OrecLazyHour, OrecLazyBackoff, OrecLazyHB
 
   * OrEAU: These are OrecEager variants extended to support remote abort of conflicting transactions.  
-    ** OrEAU Variant: OrEAU (backoff on abort), OrEAUFCM (a timestamp mechanism to manage aborts), OrEAUHA (always abort other on conflict), OrEAUHour (use Hourglass protocol on abort)
+    ** OrEAU Variants: OrEAUBackoff (backoff on abort), OrEAUFCM (a timestamp mechanism to manage aborts), OrEAUNoBackoff (always abort other on conflict), OrEAUHour (use Hourglass protocol on abort)
 
   * OrecFair:  This is like OrecLazy, extended to support priority.  Transactions can gain priority, and then be guaranteed to win conflicts, while remaining lazy.  The algorithm most closely resembles one from (Spear PPoPP 2009).
 
@@ -80,7 +80,7 @@ These algorithms use bytelocks, as proposed in (Dice Transact 2009) and (Dice SP
   * ByteEagerRedo: Like ByteEager, but uses in-place update with redo logs.
 
   * ByEAU: Adds remote-abort support to ByteEager, so that conflicts can be resolved without timeout.  Note that this does not usually improve performance.
-    ** ByEAU Variants: ByEAU (backoff on abort), ByEAUFCM (timestamps for managing aborts), ByEAUHA (immediate restart on abort), ByEAUHour (Hourglass protocol on abort)
+    ** ByEAU Variants: ByEAUBackoff (backoff on abort), ByEAUFCM (timestamps for managing aborts), ByEAUNoBackoff (immediate restart on abort), ByEAUHour (Hourglass protocol on abort)
 
   * ByEAR: Adds remote-abort support to ByteEagerRedo.
 
