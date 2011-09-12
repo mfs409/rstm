@@ -66,6 +66,9 @@ namespace stm
    *
    *    (a) avoid overhead under subsumption nesting and
    *    (b) avoid code duplication or MACRO nastiness
+   *
+   *  WARNING: do not modify this code without ensuring consistency with
+   *           otm2stm.cpp and libitm-5.7.cpp
    */
   TM_INLINE
   inline void begin(TxThread* tx, scope_t* s, uint32_t /*abort_flags*/)

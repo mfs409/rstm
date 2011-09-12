@@ -30,9 +30,10 @@ LIBALGFILES = algs biteager biteagerredo bitlazy byear byeau byteeager       \
               serial swiss ticket tli tml tmllazy
 LIBPOLNAMES = cbr policies static
 SHIMFILES   = otm2stm
+LOCKFILES   = onelock
 
-# Names of important tools.  These may be hard-coded for Lehigh for now
-CXX = /apps/suncc-s2-`uname -p`/bin/CC
+# Names of important tools.  These are hard-coded for Lehigh for now
+CXX = /apps/suncc-s2-`uname -p`/bin/CC -Qpath /proj/spear1/suncc/intel-S2/
 AR  = ar
 
 # Standard flags
@@ -48,8 +49,12 @@ LDFLAGS_LIBAPI += -L./$(ODIR) -lrstm
 CXXFLAGS_CXXTM  = -Qoption CC -tm_mode=stm -DSTM_API_CXXTM -DNO_IROPT_INLINING
 
 # Custom flags for shim builds
-CXXFLAGS_SHIM   = -Qoption CC -tm_mode=stm -DSTM_API_CXXTM -DNO_IROPT_INLINING -DOTM2STM
-LDFLAGS_SHIM    = -L./$(ODIR) -lotm2stm
+CXXFLAGS_SHIM   = -Qoption CC -tm_mode=stm -DSTM_API_CXXTM -DNO_IROPT_INLINING -DOTM2STM -xnolib
+LDFLAGS_SHIM    = -L./$(ODIR) -lotm2stm -lc -lm -lCrun -lCstd
+
+# Custom flags for onelock builds
+CXXFLAGS_LOCK   = -Qoption CC -tm_mode=stm -DSTM_API_CXXTM -DNO_IROPT_INLINING -DOTM2STM -xnolib
+LDFLAGS_LOCK    = -L./$(ODIR) -lonelock -lc -lm -lCrun -lCstd
 
 # Transformations of filenames into build targets
 # We build the library once, and only one way
@@ -62,9 +67,14 @@ LDEPS      = $(patsubst %, $(ODIR)/%.d, $(LIBFILES) $(LIBALGFILES) \
 SHIM       = $(ODIR)/libotm2stm.a
 SHIMOFILES = $(patsubst %, $(ODIR)/%.o, $(SHIMFILES))
 
+# Lock
+LOCK       = $(ODIR)/libonelock.a
+LOCKOFILES = $(patsubst %, $(ODIR)/%.o, $(LOCKFILES))
+
 # We build one configuration file
 CONFIG   = $(CONFDIR)/config.h
 
+# For building the benchmark harness separate from the data structures
 HARNESS = $(ODIR)/bmharness.o
 
 # Rules for building executables that use the Library API
@@ -79,10 +89,14 @@ LIBSKYEXECDEPS = $(patsubst %, $(ODIR)/libskyexec_%.d, $(BENCHFILES))
 LIBSHIMEXECS    = $(patsubst %, $(ODIR)/libshimexec_%, $(BENCHFILES))
 LIBSHIMEXECDEPS = $(patsubst %, $(ODIR)/libshimexec_%.d, $(BENCHFILES))
 
+# Rules for building executables that use onelock
+LIBONELOCKEXECS    = $(patsubst %, $(ODIR)/libonelockexec_%, $(BENCHFILES))
+LIBONELOCKEXECDEPS = $(patsubst %, $(ODIR)/libonelockexec_%.d, $(BENCHFILES))
+
 # build rules
 .PHONY: all clean info skybench libapibench shimbench
-.PRECIOUS: $(CONFDIR) $(ODIR) $(LIBSKYEXECS) $(LIBSHIMEXECS)
-all: info $(CONFIG) $(LIB) libapibench skybench shimbench
+.PRECIOUS: $(CONFDIR) $(ODIR) $(LIBSKYEXECS) $(LIBSHIMEXECS) $(LIBONELOCKEXECS) $(LIBAPIEXECS)
+all: info $(CONFIG) $(LIB) libapibench skybench shimbench lockbench
 	@echo "Build complete"
 
 skybench: $(LIBSKYEXECS)
@@ -90,6 +104,8 @@ skybench: $(LIBSKYEXECS)
 libapibench: $(LIBAPIEXECS)
 
 shimbench: $(LIBSHIMEXECS)
+
+lockbench: $(LIBONELOCKEXECS)
 
 # to keep the build lines comprehensible, we hide the actual CXX invocations.
 # Printing this information first helps if we need to recreate the invocation
@@ -103,6 +119,8 @@ info:
 	@echo "  LDFLAGS_LIBAPI = ${LDFLAGS_LIBAPI}"
 	@echo "  CXXFLAGS_SHIM  = ${CXXFLAGS_SHIM}"
 	@echo "  LDFLAGS_SHIM   = ${LDFLAGS_SHIM}"
+	@echo "  CXXFLAGS_LOCK  = ${CXXFLAGS_LOCK}"
+	@echo "  LDFLAGS_LOCK   = ${LDFLAGS_LOCK}"
 
 # RSTM does out-of-source builds, and expects cmake to produce a config.h in
 # the out-of-source include/stm folder.  We avoid having to write to source
@@ -154,11 +172,17 @@ $(SHIM): $(SHIMOFILES)
 	@echo "[ar] $(ODIR)*.o --> $@"
 	@$(AR) cru $@ $^
 
+# Rule to build libonelock.a
+$(LOCK): $(LOCKOFILES)
+	@echo "[ar] $(ODIR)*.o --> $@"
+	@$(AR) cru $@ $^
+
 # Rule for building executables that use the Library API
 $(ODIR)/libapiexec_%: $(BENCHSRCDIR)/%.cpp $(ODIR) $(CONFIG) $(LIB)
 	@echo [CXX] $< "-->" $@
 	@$(CXX) $(CXXFLAGS) -o $@ $< $(LDFLAGS) $(LDFLAGS_LIBAPI) -DSINGLE_SOURCE_BUILD
 
+# Build the harness
 $(HARNESS): bench/bmharness.cpp
 	@echo [CXX] $< "-->" $@
 	$(CXX) $(CXXFLAGS) $(CXXFLAGS_CXXTM) -o $@ -c $<
@@ -172,9 +196,17 @@ $(ODIR)/libskyexec_%: $(BENCHSRCDIR)/%.cpp $(ODIR) $(CONFIG) $(HARNESS)
 #
 # NB: right now, the harness is a dummy onelock harness.  When that changes,
 #     we will need to also include $(LDFLAGS_LIBAPI) on the build line
-$(ODIR)/libshimexec_%: $(BENCHSRCDIR)/%.cpp $(ODIR) $(CONFIG) $(SHIM)
+$(ODIR)/libshimexec_%: $(BENCHSRCDIR)/%.cpp $(ODIR) $(CONFIG) $(SHIM) $(LIB)
 	@echo [CXX] $< "-->" $@
-	$(CXX) $(CXXFLAGS) $(CXXFLAGS_SHIM) -o $@ $< $(LDFLAGS) $(LDFLAGS_SHIM) -DSINGLE_SOURCE_BUILD
+	$(CXX) $(CXXFLAGS) $(CXXFLAGS_SHIM) -o $@ $< $(LDFLAGS) $(LDFLAGS_SHIM) -DSINGLE_SOURCE_BUILD $(LDFLAGS_LIBAPI)
+
+# Rule for building executables that use the SHIM API
+#
+# NB: right now, the harness is a dummy onelock harness.  When that changes,
+#     we will need to also include $(LDFLAGS_LIBAPI) on the build line
+$(ODIR)/libonelockexec_%: $(BENCHSRCDIR)/%.cpp $(ODIR) $(CONFIG) $(LOCK)
+	@echo [CXX] $< "-->" $@
+	$(CXX) $(CXXFLAGS) $(CXXFLAGS_SHIM) -o $@ $< $(LDFLAGS) $(LDFLAGS_LOCK) -DSINGLE_SOURCE_BUILD
 
 dump:
 	@echo $(SHIMOFILES)

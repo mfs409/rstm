@@ -167,3 +167,11 @@ extern "C"
     }
 
 } // extern "C"
+
+namespace stm
+{
+  typedef void scope_t;
+}
+
+void OTM_PREBEGIN(stm::scope_t* s)  { }
+
