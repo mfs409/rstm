@@ -32,39 +32,6 @@
 // this include is needed to make 'nop()' visible
 #include <common/platform.hpp>
 
-
-// The prototype icc stm compiler version 4.0 doesn't understand transactional
-// malloc and free without some help. The ifdef guard could be more intelligent.
-#if defined(__ICC)
-extern "C" {
-    [[transaction_safe]] void* malloc(size_t) __THROW;
-    [[transaction_safe]] void free(void*) __THROW;
-}
-#endif
-
-// marker for a function that can be called from a transaction
-#define TM_CALLABLE         [[transaction_safe]]
-
-// markers for the beginning and end of a transaction
-#define TM_BEGIN(TYPE)      __transaction [[TYPE]] {
-#define TM_END              }
-
-// marker for a nontransactional region within a transaction
-#define TM_WAIVER           __transaction [[waiver]]
-
-// all descriptor-management stuff is meaningless when there is a compiler
-// transforming the code
-#define TM_GET_THREAD()
-#define TM_ARG
-#define TM_ARG_ALONE
-#define TM_PARAM
-#define TM_PARAM_ALONE
-
-// reads and writes just transform to naked reads and writes, since the
-// compiler will transform them after the macro preprocessor step
-#define TM_READ(x) (x)
-#define TM_WRITE(x, y) (x) = (y)
-
 namespace stm
 {
   /**
@@ -78,12 +45,45 @@ namespace stm
 }
 
 /**
- *  The translation of the remaining macros to SHIM/Library functions is
- *  dependent on what compiler is being used.  The following applies to ICC,
- *  in both the case where we are doing an ITM2STM shim build, and the case
- *  where we are using Intel's TM library directly.
+ *  The translation of API macros to SHIM/Library functions is dependent on
+ *  what compiler is being used.  The following applies to ICC, in both the
+ *  case where we are doing an ITM2STM shim build, and the case where we are
+ *  using Intel's TM library directly.
  */
 #if defined(ITM) || defined(ITM2STM)
+
+  // The prototype icc stm compiler version 4.0 doesn't understand transactional
+  // malloc and free without some help. The ifdef guard could be more intelligent.
+  #if defined(__ICC)
+  extern "C" {
+    [[transaction_safe]] void* malloc(size_t) __THROW;
+    [[transaction_safe]] void free(void*) __THROW;
+  }
+  #endif
+
+  // marker for a function that can be called from a transaction
+  #define TM_CALLABLE         [[transaction_safe]]
+
+  // markers for the beginning and end of a transaction
+  #define TM_BEGIN(TYPE)      __transaction [[TYPE]] {
+  #define TM_END              }
+
+  // marker for a nontransactional region within a transaction
+  #define TM_WAIVER           __transaction [[waiver]]
+
+  // all descriptor-management stuff is meaningless when there is a compiler
+  // transforming the code
+  #define TM_GET_THREAD()
+  #define TM_ARG
+  #define TM_ARG_ALONE
+  #define TM_PARAM
+  #define TM_PARAM_ALONE
+
+  // reads and writes just transform to naked reads and writes, since the
+  // compiler will transform them after the macro preprocessor step
+  #define TM_READ(x) (x)
+  #define TM_WRITE(x, y) (x) = (y)
+
   // initialization and shutdown routines
   #define  TM_SYS_INIT                   _ITM_initializeProcess
   #define  TM_THREAD_INIT                _ITM_initializeThread
@@ -123,6 +123,55 @@ namespace stm
  *  Definitions for use with the Oracle TM compiler
  */
 #elif defined(STM_CC_SUN)
+
+  // needed for jmp_buf and setjmp
+  #include <setjmp.h>
+
+  // needed for scope_t
+  namespace stm { typedef void scope_t; }
+
+  // marker for a function that can be called from a transaction
+  #define TM_CALLABLE         [[transaction_safe]]
+
+  #if defined(OTM2STM)
+
+    // prototype for the special function we use to push the buffer into the
+    // descriptor
+    void OTM_PREBEGIN(stm::scope_t*);
+
+    // markers for the beginning and end of a transaction when using RSTM
+    #define TM_BEGIN(TYPE)                            \
+      {                                               \
+          jmp_buf _jmpbuf;                            \
+          setjmp(_jmpbuf);                            \
+          OTM_PREBEGIN((stm::scope_t*)&_jmpbuf);      \
+          __transaction [[TYPE]] {
+
+    #define TM_END                                    \
+                                 }                    \
+      }
+  #else // [mfs] should this be an elif
+    // markers for the beginning and end of a trnasaction when using SkySTM
+    #define TM_BEGIN(TYPE)         __transaction [[TYPE]] {
+    #define TM_END                 }
+  #endif
+
+  // marker for a nontransactional region within a transaction
+  #define TM_WAIVER           __transaction [[waiver]]
+
+  // all descriptor-management stuff is meaningless when there is a compiler
+  // transforming the code
+  #define TM_GET_THREAD()
+  #define TM_ARG
+  #define TM_ARG_ALONE
+  #define TM_PARAM
+  #define TM_PARAM_ALONE
+
+  // reads and writes just transform to naked reads and writes, since the
+  // compiler will transform them after the macro preprocessor step
+  #define TM_READ(x) (x)
+  #define TM_WRITE(x, y) (x) = (y)
+
   // initialization and shutdown routines have no meaning
   #define  TM_SYS_INIT                   nop
   #define  TM_THREAD_INIT                nop

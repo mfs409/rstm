@@ -17,40 +17,64 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <setjmp.h>
+#include <common/platform.hpp>
+#include <stm/txthread.hpp>
 #include "alt-license/OracleSkyStuff.hpp"
 #include "common/locks.hpp"
+#include "stm/metadata.hpp"
+#include "stm/txthread.hpp"
 
 /**
  *  Switch for turning on/off debug messages
  */
 
-// #define DEBUG(...) printf(__VA_ARGS__)
+//#define DEBUG(...) printf(__VA_ARGS__)
 #define DEBUG(...)
-
-/**
- *  Every thread needs a descriptor.  We don't actually use one in this fake
- *  STM, so all we do is have a null pointer that we set to non-null when
- *  needed.
- */
-__thread void* myDescriptor = NULL;
-
-/**
- *  A single global lock for protecting all transactions
- */
-volatile uint32_t LOCK = 0;
 
 namespace stm
 {
-  /**
-   *  The API expects to be able to query the library to find out the name of
-   *  the current algorithm.  The value is never used, only printed, so we
-   *  can use whatever value suffices to indicate that this is a nonstandard
-   *  STM implementation.
-   */
-  const char* get_algname()
-  {
-      return "CUSTOM_CGL";
-  }
+  void sys_init(void (*abort_handler)(TxThread*) = NULL);
+}
+
+/**
+ *  In OTM, the compiler adds instrumentation to manually unwinde the
+ *  transaction, one stack frame at a time.  This makes sense (especially
+ *  on SPARC), but it's bad for RSTM, because RSTM assumes setjmp/longjmp
+ *  unwinding (or its equivalent).  We don't want to rewrite all our
+ *  algorithms to support dual mechanisms for unwind, so instead we use a
+ *  macro and this code at begin time.
+ *
+ *  The macro (TM_BEGIN, in cxxtm.hpp) performs a setjmp, calls this, and
+ *  then invokes the __transaction construct.  In this way, we checkpoint
+ *  the current stack, and then before actually starting the transaction,
+ *  this code will determine if the jump buffer needs to be saved (and
+ *  write-read ordering enforced), and if so, it will do that work, which
+ *  is essentially half of the begin method from library.hpp
+ */
+void OTM_PREBEGIN(stm::scope_t* s)
+{
+    // get the descriptor
+    stm::TxThread* tx = (stm::TxThread*)stm::Self;
+    if (!tx) {
+        stm::sys_init(NULL);
+        stm::TxThread::thread_init();
+        tx = (stm::TxThread*)stm::Self;
+    }
+    // if we are already in a transaction, just return
+    if (++tx->nesting_depth > 1)
+        return;
+
+    // we must ensure that the write of the transaction's scope occurs
+    // *before* the read of the begin function pointer.  On modern x86, a
+    // CAS is faster than using WBR or xchg to achieve the ordering.  On
+    // SPARC, WBR is best.
+#ifdef STM_CPU_SPARC
+    tx->scope = s; WBR;
+#else
+    // NB: this CAS fails on a transaction restart... is that too expensive?
+    casptr((volatile uintptr_t*)&tx->scope, (uintptr_t)0, (uintptr_t)s);
+#endif
 }
 
 extern "C"
@@ -65,23 +89,31 @@ extern "C"
      */
     void* STM_GetMyTransId()
     {
-        void* ret = (void*)&myDescriptor;
-        DEBUG("Call to STM_GetMyTransID returning 0x%p\n", ret);
-        if (myDescriptor == NULL) {
-            getStackInfo();
-            myDescriptor = (void*)1;
-        }
-        return ret;
+        return (stm::TxThread*)stm::Self;
     }
 
     /**
      *  Simple begin method: spin until the lock is acquired.  Note that this
      *  does not support nesting.
+     *
+     *  [mfs] comment bitrot warning
      */
     BOOL  STM_BeginTransaction(void* theTransId)
     {
         DEBUG("Call to STM_BeginTransaction by 0x%p\n", theTransId);
-        while (!bcas32(&LOCK, 0, 1)) { }
+        stm::TxThread* tx = (stm::TxThread*)theTransId;
+
+        // copied from library.hpp.  Be careful about bit-rot
+
+        // some adaptivity mechanisms need to know nontransactional and
+        // transactional time.  This code suffices, because it gets the time
+        // between transactions.  If we need the time for a single transaction,
+        // we can run ProfileTM
+        if (tx->end_txn_time)
+            tx->total_nontxn_time += (tick() - tx->end_txn_time);
+
+        // now call the per-algorithm begin function
+        stm::TxThread::tmbegin(tx);
         return 1;
     }
 
@@ -101,13 +133,31 @@ extern "C"
      *  For now, commit just means releasing the lock and returning that the
      *  operation succeeded.  However, we will ultimately be using longjmp to
      *  indicate failure.
+     *
+     *  [mfs] beware bitrot relative to library.hpp.  Note bitrot in comment
+     *        above
      */
     CommitStatus  STM_CommitTransaction(void* theTransId)
     {
+        stm::TxThread* tx = (stm::TxThread*) theTransId;
+        // [mfs] I don't know how the SunCC nesting interface works.  It's
+        //       possible that we should be returning something other than
+        //       CommittedNoRetry, but we won't worry about it for now.
+        if (--tx->nesting_depth)
+            return CommittedNoRetry;
+        tx->tmcommit(tx);
+        CFENCE;
+        tx->scope = NULL;
+        tx->end_txn_time = tick();
+
+
         DEBUG("Call to STM_CommitTransaction by 0x%p\n", theTransId);
-        LOCK = 0;
         return CommittedNoRetry;
     }
+
+    /**
+     *  [mfs] The rest of this file is not correct, but will work for CGL
+     */
 
     /**
      *  The Oracle API works very hard to separate the acquisition of
@@ -167,3 +217,48 @@ extern "C"
     }
 
 } // extern "C"
+
+/*
+
+  look at 5-12 for barriers
+  5-16 has logging stuff
+  5-7 has begin
+  5-9 has commit
+
+    void  STM_SelfAbortTransaction(void* theTransId);
+    BOOL  STM_CurrentlyUsingDecoratedPath(void* theTransId);
+
+    WrHandle* STM_AcquireReadWritePermission
+    (void* theTransId, void* theAddr, BOOL theValid);
+
+    UINT8  STM_TranRead8
+    (void* theTransId, RdHandle* theRdHandle, UINT8 * theAddr, BOOL theValid);
+    UINT16 STM_TranRead16
+    (void* theTransId, RdHandle* theRdHandle, UINT16* theAddr, BOOL theValid);
+
+    UINT64 STM_TranRead64
+    (void* theTransId, RdHandle* theRdHandle, UINT64* theAddr, BOOL theValid);
+    float  STM_TranReadFloat32
+    (void* theTransId, RdHandle* theRdHandle, float * theAddr, BOOL theValid);
+    double STM_TranReadFloat64
+
+    (void* theTransId, RdHandle* theRdHandle, double* theAddr, BOOL theValid);
+    BOOL  STM_TranWrite8
+    (void* theTransId, WrHandle* theWrHandle, UINT8 * theAddr,  UINT8 theVal, BOOL theValid);
+    BOOL  STM_TranWrite16
+    (void* theTransId, WrHandle* theWrHandle, UINT16* theAddr, UINT16 theVal, BOOL theValid);
+
+    BOOL  STM_TranWrite64
+    (void* theTransId, WrHandle* theWrHandle, UINT64* theAddr, UINT64 theVal, BOOL theValid);
+    BOOL  STM_TranWriteFloat32
+    (void* theTransId, WrHandle* theWrHandle, float * theAddr,  float theVal, BOOL theValid);
+    BOOL  STM_TranWriteFloat64
+    (void* theTransId, WrHandle* theWrHandle, double* theAddr, double theVal, BOOL theValid);
+
+    void* STM_TranCalloc(void* theTransId, size_t theNElem, size_t theSize);
+    void* STM_TranMemAlign(void* theTransId, size_t theAlignment, size_t theSize);
+    void* STM_TranValloc(void* theTransId, size_t theSize);
+    void  STM_TranMemCpy(void* theTransId, void* theFromAddr, void* theToAddr,
+                         unsigned long theSizeInBytes, UINT32 theAlignment);
+
+ */
