@@ -66,6 +66,7 @@
 #ifndef ORACLESKYSTUFF_HPP__
 #define ORACLESKYSTUFF_HPP__
 
+#include <stdio.h>
 #include <stddef.h>
 #include <thread.h>
 #include <assert.h>
