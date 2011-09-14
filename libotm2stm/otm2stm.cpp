@@ -23,7 +23,6 @@
 #include "alt-license/OracleSkyStuff.hpp"
 #include "common/locks.hpp"
 #include "stm/metadata.hpp"
-#include "stm/txthread.hpp"
 
 /**
  *  Switch for turning on/off debug messages
@@ -98,7 +97,7 @@ extern "C"
      *
      *  [mfs] comment bitrot warning
      */
-    BOOL  STM_BeginTransaction(void* theTransId)
+    BOOL STM_BeginTransaction(void* theTransId)
     {
         DEBUG("Call to STM_BeginTransaction by 0x%p\n", theTransId);
         stm::TxThread* tx = (stm::TxThread*)theTransId;
@@ -123,7 +122,7 @@ extern "C"
      *  code will have no meaning, because we will be using setjmp/longjmp to
      *  interface to manage rollback.
      */
-    BOOL  STM_ValidateTransaction(void* theTransId)
+    BOOL STM_ValidateTransaction(void* theTransId)
     {
         DEBUG("Call to STM_ValidateTransaction by 0x%p\n", theTransId);
         return 1;
@@ -137,7 +136,7 @@ extern "C"
      *  [mfs] beware bitrot relative to library.hpp.  Note bitrot in comment
      *        above
      */
-    CommitStatus  STM_CommitTransaction(void* theTransId)
+    CommitStatus STM_CommitTransaction(void* theTransId)
     {
         stm::TxThread* tx = (stm::TxThread*) theTransId;
         // [mfs] I don't know how the SunCC nesting interface works.  It's
@@ -156,109 +155,84 @@ extern "C"
     }
 
     /**
+     *  The Oracle API works very hard to separate the acquisition of
+     *  locations from the access of those locations.  Since we want RSTM to
+     *  be fully general to any/all compilers, we make these mechanisms do
+     *  nothing, and keep the acquisition logic in the same place as the
+     *  access logic.
+     */
+    RdHandle* STM_AcquireReadPermission (void*, void*, BOOL)
+    {
+        return NULL;
+    }
+
+    /***  See above: This function has no meaning in our shim. */
+    WrHandle* STM_AcquireWritePermission(void*, void*, BOOL)
+    {
+        return NULL;
+    }
+
+    /***  See above: This function has no meaning in our shim. */
+    WrHandle* STM_AcquireReadWritePermission(void*, void*, BOOL)
+    {
+        return NULL;
+    }
+
+    /**
      *  [mfs] The rest of this file is not correct, but will work for CGL
      */
 
-    /**
-     *  The Oracle API works very hard to separate the acquisition of
-     *  locations from the access of those locations.  The mechanism doesn't
-     *  apply to postvalidate-only STMs, like RingSTM and NOrec.  For
-     *  consistency, we'll make this a no-op, and then do all the work of
-     *  acquisition and access from the TranRead function.
-     */
-    RdHandle* STM_AcquireReadPermission (void* theTransId, void* theAddr, BOOL theValid)
-    {
-        DEBUG("Call to STM_AcquireReadPermission by 0x%p\n", theTransId);
-        return NULL;
-    }
-
-    /**
-     *  See above: This function has no meaning in our shim.
-     */
-    WrHandle* STM_AcquireWritePermission (void* theTransId, void* theAddr, BOOL theValid)
-    {
-        DEBUG("Call to STM_AcquireWritePermission by 0x%p\n", theTransId);
-        return NULL;
-    }
-
-    /**
-     *  Simple read.  In CGL, we just dereference the address and we're good.
-     */
-    UINT32 STM_TranRead32 (void* theTransId, RdHandle* theRdHandle, UINT32* theAddr, BOOL theValid)
-    {
-        DEBUG("Call to STM_TranRead32 by 0x%p\n", theTransId);
-        return *theAddr;
-    }
-
-    /**
-     *  Simple write.  In CGL, we just update the address.
-     */
-    BOOL  STM_TranWrite32 (void* theTransId, WrHandle* theWrHandle, UINT32* theAddr, UINT32 theVal, BOOL theValid)
-    {
-        DEBUG("Call to STM_TranWrite32 by 0x%p\n", theTransId);
-        *theAddr = theVal;
-        return true;
-    }
 
     /**
      *  Eventually, this will need to call a transactional malloc function.
      */
-    void* STM_TranMalloc(void* theTransId, size_t theSize)
+    void* STM_TranMalloc(void* txid, size_t size)
     {
-        return malloc(theSize);
+        return stm::Self->allocator.txAlloc(size);
+        // return malloc(size);
     }
 
     /**
      *  Eventually, this will need to call a transactional free function.
      */
-    void  STM_TranMFree(void* theTransId, void *theMemBlock)
+    void STM_TranMFree(void* txid, void* p)
     {
-        free(theMemBlock);
+        stm::Self->allocator.txFree(p);
+        // free(p);
+    }
+
+    /**
+     *  Determine if the thread is in a transaction or not, as we only
+     *  support STM.  If we had PhTM or HyTM support, then this would need
+     *  more complexity to deal with being in a transaction but using HTM
+     *  (undecorated) code.
+     */
+    BOOL STM_CurrentlyUsingDecoratedPath(void* theTransId)
+    {
+        // if we don't have a descriptor, we can't be in a transaction
+        if (theTransId == NULL)
+            return 0;
+        // if we're not at nesting level 0, we're in a transaction
+        stm::TxThread* tx = (stm::TxThread*) theTransId;
+        return tx->nesting_depth != 0;
     }
 
 } // extern "C"
 
-/*
 
-  look at 5-12 for barriers
-  5-16 has logging stuff
-  5-7 has begin
-  5-9 has commit
 
-    void  STM_SelfAbortTransaction(void* theTransId);
-    BOOL  STM_CurrentlyUsingDecoratedPath(void* theTransId);
+// libitm2stm 5-12 provides an implementation of read/write interposition functions
 
-    WrHandle* STM_AcquireReadWritePermission
-    (void* theTransId, void* theAddr, BOOL theValid);
+// libitm2stm 5-16 provides for logging stack accesses
 
-    UINT8  STM_TranRead8
-    (void* theTransId, RdHandle* theRdHandle, UINT8 * theAddr, BOOL theValid);
-    UINT16 STM_TranRead16
-    (void* theTransId, RdHandle* theRdHandle, UINT16* theAddr, BOOL theValid);
+// we probably need to implement the following method at some point
+//
+// void  STM_SelfAbortTransaction(void* theTransId);
 
-    UINT64 STM_TranRead64
-    (void* theTransId, RdHandle* theRdHandle, UINT64* theAddr, BOOL theValid);
-    float  STM_TranReadFloat32
-    (void* theTransId, RdHandle* theRdHandle, float * theAddr, BOOL theValid);
-    double STM_TranReadFloat64
-
-    (void* theTransId, RdHandle* theRdHandle, double* theAddr, BOOL theValid);
-    BOOL  STM_TranWrite8
-    (void* theTransId, WrHandle* theWrHandle, UINT8 * theAddr,  UINT8 theVal, BOOL theValid);
-    BOOL  STM_TranWrite16
-    (void* theTransId, WrHandle* theWrHandle, UINT16* theAddr, UINT16 theVal, BOOL theValid);
-
-    BOOL  STM_TranWrite64
-    (void* theTransId, WrHandle* theWrHandle, UINT64* theAddr, UINT64 theVal, BOOL theValid);
-    BOOL  STM_TranWriteFloat32
-    (void* theTransId, WrHandle* theWrHandle, float * theAddr,  float theVal, BOOL theValid);
-    BOOL  STM_TranWriteFloat64
-    (void* theTransId, WrHandle* theWrHandle, double* theAddr, double theVal, BOOL theValid);
-
-    void* STM_TranCalloc(void* theTransId, size_t theNElem, size_t theSize);
-    void* STM_TranMemAlign(void* theTransId, size_t theAlignment, size_t theSize);
-    void* STM_TranValloc(void* theTransId, size_t theSize);
-    void  STM_TranMemCpy(void* theTransId, void* theFromAddr, void* theToAddr,
-                         unsigned long theSizeInBytes, UINT32 theAlignment);
-
- */
+// we probably need to implement the following memory management functions
+// at some point:
+//
+// void* STM_TranCalloc(void* theTransId, size_t theNElem, size_t theSize);
+// void* STM_TranMemAlign(void* theTransId, size_t theAlignment, size_t theSize);
+// void* STM_TranValloc(void* theTransId, size_t theSize);
+// void  STM_TranMemCpy(void* theTransId, void* theFromAddr, void* theToAddr, unsigned long theSizeInBytes, UINT32 theAlignment);

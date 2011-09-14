@@ -29,7 +29,7 @@ LIBALGFILES = algs biteager biteagerredo bitlazy byear byeau byteeager       \
               orecfair oreclazy pipeline profileapp profiletm ringala ringsw \
               serial swiss ticket tli tml tmllazy
 LIBPOLNAMES = cbr policies static
-SHIMFILES   = otm2stm
+SHIMFILES   = otm2stm barriers alloc 
 LOCKFILES   = onelock
 
 # Names of important tools.  These are hard-coded for Lehigh for now
@@ -50,7 +50,7 @@ CXXFLAGS_CXXTM  = -Qoption CC -tm_mode=stm -DSTM_API_CXXTM -DNO_IROPT_INLINING
 
 # Custom flags for shim builds
 CXXFLAGS_SHIM   = -Qoption CC -tm_mode=stm -DSTM_API_CXXTM -DNO_IROPT_INLINING -DOTM2STM -xnolib
-LDFLAGS_SHIM    = -L./$(ODIR) -lotm2stm -lc -lm -lCrun -lCstd
+LDFLAGS_SHIM    = -L./$(ODIR) -lotm2stm -lc -lm -lCrun -lCstd -laio -lmd -lumem -lsched -lthread
 
 # Custom flags for onelock builds
 CXXFLAGS_LOCK   = -Qoption CC -tm_mode=stm -DSTM_API_CXXTM -DNO_IROPT_INLINING -DOTM2STM -xnolib
@@ -147,13 +147,13 @@ $(ODIR):
 
 # since there are 3 folders with library source files, we need 3 rules to
 # build all the .o files
-$(ODIR)/%.o: $(LIBSRCDIR)/%.cpp $(ODIR) $(CONFIG)
+$(ODIR)/%.o: $(LIBSRCDIR)/%.cpp $(CONFIG)
 	@echo [CXX] $< "-->" $@
 	@$(CXX) $(CXXFLAGS) -o $@ -c $<
-$(ODIR)/%.o: $(LIBALGSRCDIR)/%.cpp $(ODIR) $(CONFIG)
+$(ODIR)/%.o: $(LIBALGSRCDIR)/%.cpp  $(CONFIG)
 	@echo [CXX] $< "-->" $@
 	@$(CXX) $(CXXFLAGS) -o $@ -c $<
-$(ODIR)/%.o: $(LIBPOLSRCDIR)/%.cpp $(ODIR) $(CONFIG)
+$(ODIR)/%.o: $(LIBPOLSRCDIR)/%.cpp $(CONFIG)
 	@echo [CXX] $< "-->" $@
 	@$(CXX) $(CXXFLAGS) -o $@ -c $<
 
@@ -162,10 +162,13 @@ $(LIB): $(LIBOFILES)
 	@echo "[ar] $(ODIR)*.o --> $@"
 	@$(AR) cru $@ $^
 
-# rule to build the shim ofiles
-$(ODIR)/%.o: $(SHIMDIR)/%.cpp $(ODIR) $(CONFIG)
+# rule to build the shim ofiles.  Note that we need a special rule for alloc
+$(ODIR)/%.o: $(SHIMDIR)/%.cpp $(CONFIG)
 	@echo [CXX] $< "-->" $@
-	$(CXX) $(CXXFLAGS) -o $@ -c $<
+	@$(CXX) $(CXXFLAGS) -o $@ -c $<
+$(ODIR)/alloc.o: $(SHIMDIR)/alloc.cpp $(CONFIG)
+	@echo [CXX] $< "-->" $@
+	@$(CXX) $(CXXFLAGS) -o $@ -c $< $(CXXFLAGS_CXXTM) -xnolib
 
 # Rule to build the shim .a from the shim .o files
 $(SHIM): $(SHIMOFILES)
@@ -178,35 +181,35 @@ $(LOCK): $(LOCKOFILES)
 	@$(AR) cru $@ $^
 
 # Rule for building executables that use the Library API
-$(ODIR)/libapiexec_%: $(BENCHSRCDIR)/%.cpp $(ODIR) $(CONFIG) $(LIB)
+$(ODIR)/libapiexec_%: $(BENCHSRCDIR)/%.cpp $(CONFIG) $(LIB)
 	@echo [CXX] $< "-->" $@
 	@$(CXX) $(CXXFLAGS) -o $@ $< $(LDFLAGS) $(LDFLAGS_LIBAPI) -DSINGLE_SOURCE_BUILD
 
 # Build the harness
 $(HARNESS): bench/bmharness.cpp
 	@echo [CXX] $< "-->" $@
-	$(CXX) $(CXXFLAGS) $(CXXFLAGS_CXXTM) -o $@ -c $<
+	@$(CXX) $(CXXFLAGS) $(CXXFLAGS_CXXTM) -o $@ -c $<
 
 # Rules for building executables that use the SkySTM API
-$(ODIR)/libskyexec_%: $(BENCHSRCDIR)/%.cpp $(ODIR) $(CONFIG) $(HARNESS)
+$(ODIR)/libskyexec_%: $(BENCHSRCDIR)/%.cpp $(CONFIG) $(HARNESS)
 	@echo [CXX] $< "-->" $@
-	$(CXX) $(CXXFLAGS) $(CXXFLAGS_CXXTM) -o $@ $< $(LDFLAGS) $(HARNESS)
+	@$(CXX) $(CXXFLAGS) $(CXXFLAGS_CXXTM) -o $@ $< $(LDFLAGS) $(HARNESS)
 
 # Rule for building executables that use the SHIM API
 #
 # NB: right now, the harness is a dummy onelock harness.  When that changes,
 #     we will need to also include $(LDFLAGS_LIBAPI) on the build line
-$(ODIR)/libshimexec_%: $(BENCHSRCDIR)/%.cpp $(ODIR) $(CONFIG) $(SHIM) $(LIB)
+$(ODIR)/libshimexec_%: $(BENCHSRCDIR)/%.cpp $(CONFIG) $(SHIM) $(LIB)
 	@echo [CXX] $< "-->" $@
-	$(CXX) $(CXXFLAGS) $(CXXFLAGS_SHIM) -o $@ $< $(LDFLAGS) $(LDFLAGS_SHIM) -DSINGLE_SOURCE_BUILD $(LDFLAGS_LIBAPI)
+	@$(CXX) $(CXXFLAGS) $(CXXFLAGS_SHIM) -o $@ $< $(LDFLAGS) $(LDFLAGS_SHIM) -DSINGLE_SOURCE_BUILD $(LDFLAGS_LIBAPI) \
 
 # Rule for building executables that use the SHIM API
 #
 # NB: right now, the harness is a dummy onelock harness.  When that changes,
 #     we will need to also include $(LDFLAGS_LIBAPI) on the build line
-$(ODIR)/libonelockexec_%: $(BENCHSRCDIR)/%.cpp $(ODIR) $(CONFIG) $(LOCK)
+$(ODIR)/libonelockexec_%: $(BENCHSRCDIR)/%.cpp $(CONFIG) $(LOCK)
 	@echo [CXX] $< "-->" $@
-	$(CXX) $(CXXFLAGS) $(CXXFLAGS_SHIM) -o $@ $< $(LDFLAGS) $(LDFLAGS_LOCK) -DSINGLE_SOURCE_BUILD
+	@$(CXX) $(CXXFLAGS) $(CXXFLAGS_SHIM) -o $@ $< $(LDFLAGS) $(LDFLAGS_LOCK) -DSINGLE_SOURCE_BUILD
 
 dump:
 	@echo $(SHIMOFILES)
