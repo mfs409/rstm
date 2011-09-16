@@ -103,8 +103,8 @@ Scope::Scope(_ITM_transaction& owner)
 std::pair<void**, size_t>&
 Scope::rollback() {
     // 1) Undo all of the logged words.
-    for (UndoList::iterator i = undo_on_rollback_.begin(),
-                            e = undo_on_rollback_.end(); i != e; ++i)
+    for (UndoList::iterator i = undo_on_rollback_.end() - 1,
+                            e = undo_on_rollback_.begin(); i >= e; --i)
         i->undo(thrown_);
 
     // 2) Perform the user's registered onAbort callbacks, in FIFO order
