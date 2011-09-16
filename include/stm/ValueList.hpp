@@ -59,7 +59,8 @@ namespace stm {
        *  wasn't inside the protected stack region. We assume that the stack is
        *  at least word-aligned.
        */
-      bool isValidFiltered(void** stack_low, void** stack_high) const {
+      bool isValidFiltered(void** stack_low, void** stack_high) const
+      {
           // can't be invalid on a transaction-local stack location.
           if (addr >= stack_low && addr < stack_high)
               return true;
@@ -119,7 +120,8 @@ namespace stm {
        *  want to validate the value in case we performed an in-place write to
        *  it.
        */
-      bool isValidFiltered(void** stack_low, void** stack_high) const {
+      bool isValidFiltered(void** stack_low, void** stack_high) const
+      {
           // can't be invalid on a transaction-local stack location.
           if (addr >= stack_low && addr < stack_high)
               return true;
