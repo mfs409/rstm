@@ -61,7 +61,7 @@ namespace stm
         allocator(),
         num_commits(0), num_aborts(0), num_restarts(0),
         num_ro(0), scope(NULL),
-#ifdef STM_STACK_PROTECT
+#ifdef STM_PROTECT_STACK
         stack_high(NULL),
         stack_low(~0x0),
 #endif
