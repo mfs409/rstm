@@ -8,10 +8,15 @@
  *          Please see the file LICENSE.RSTM for licensing information
  */
 
+/**
+ *  Note: this is largely the same as libitm2stm/libitm2stm-5.12.cpp
+ */
+
 #include "TypeAlignments.hpp"
 #include "Utilities.hpp"
 #include "stm/txthread.hpp"
 #include <alt-license/OracleSkyStuff.hpp>
+
 namespace {
 /// We use the compiler to automatically generate all of the barriers that we
 /// will call, using standard metaprogramming techniques. This declares the
@@ -19,7 +24,7 @@ namespace {
 /// types.
 ///
 /// The first parameter is the actual type that we want to instrument, and is
-/// instantiated with the types coming from from the ITM ABI.
+/// instantiated with the types coming from from the Oracle TM ABI.
 ///
 /// The second parameter is nominally the number of words that are needed to
 /// store the type on the host architecture. For subword types this is 0, word
@@ -34,28 +39,28 @@ namespace {
 /// support unaligned types, so the INST<T, N, false> implementations won't be
 /// compiled.
 ///
-/// The ITM ABI is implemented using these default template parameters, using a
-/// simple macro-expansion for each ABI type---this occurs at the end of the
-/// file.
+/// The Oracle TM ABI is implemented using these default template parameters,
+/// using simple wrapper functions---this occurs at the end of the file.  We
+/// assume the compiler will inline nicely, but we have not verified.
 template <typename T,
           size_t N = (sizeof(T) / sizeof(void*)),
           bool A = Aligned<T>::value> // Aligned<T> in arch/<*>/TypeAlignment.h
-struct INST {
-};
+struct INST { };
 
 /// Potentially unaligned N-word accesses. The ReadUnalgned and WriteUnaligned
 /// are completely generic given T... we exploit this to use them manually for
 /// subword unaligned accesses, where the access overflows into a second
 /// word. In that case, we manually pass thr subword T, and N=1.
 template <typename T, size_t N>
-struct INST<T, N, false> {
-
-    /// This read method is completely generic, given that N is set correctly to
-    /// be 1 for subword accesses, and sizeof(T) / sizeof(void*) for
-    /// word/multiword accesses. We exploit this to handle an unaligned subword
-    /// access.
-    inline static T
-    ReadUnaligned(stm::TxThread* tx, const T* addr, uintptr_t offset) {
+struct INST<T, N, false>
+{
+    /// This read method is completely generic, given that N is set correctly
+    /// to be 1 for subword accesses, and sizeof(T) / sizeof(void*) for
+    /// word/multiword accesses. We exploit this to handle an unaligned
+    /// subword access.
+    inline static T ReadUnaligned(stm::TxThread* tx, const T* addr,
+                                  uintptr_t offset)
+    {
         union {
             void* from[N + 1];
             uint8_t to[sizeof(void*[N+1])];
@@ -84,8 +89,9 @@ struct INST<T, N, false> {
     /// This write method is completely generic, given that N is set correctly
     /// to be 1 for subword accesses, and sizeof(T) / sizeof(void*) for
     /// word/multiword accesses.
-    inline static void
-    WriteUnaligned(stm::TxThread* tx, T* addr, const T value, uintptr_t offset) {
+    inline static void WriteUnaligned(stm::TxThread* tx, T* addr,
+                                      const T value, uintptr_t offset)
+    {
         union {
             void* to[N + 1];
             uint8_t from[sizeof(void* [N + 1])];
@@ -110,7 +116,10 @@ struct INST<T, N, false> {
         tx->tmwrite(tx, base + N, cast.to[N], mask);
     }
 
-    inline static T Read(stm::TxThread* tx, const T* addr) {
+    /// Call this read method, and it will dispatch to the right code based
+    /// on alignment
+    inline static T Read(stm::TxThread* tx, const T* addr)
+    {
         // check the alignment, and use the aligned option if it is safe
         const uintptr_t offset = offset_of(addr);
         if (offset == 0)
@@ -119,7 +128,10 @@ struct INST<T, N, false> {
             return INST<T, N, false>::ReadUnaligned(tx, addr, offset);
     }
 
-    inline static void Write(stm::TxThread* tx, T* addr, const T value) {
+    /// Call this write method, and it will dispatch to the right code based
+    /// on alignment
+    inline static void Write(stm::TxThread* tx, T* addr, const T value)
+    {
         // check the alignment and use the aligned options if it is safe
         const uintptr_t offset = offset_of(addr);
         if (offset == 0)
@@ -131,12 +143,14 @@ struct INST<T, N, false> {
 
 /// Aligned N-word accesses (where N can be 1).
 template <typename T, size_t N>
-struct INST<T, N, true> {
+struct INST<T, N, true>
+{
     /// Aligned N-word read implemented as a loop. I expect that the compiler
     /// will aggressively optimize this since N is a compile-time constant, and
     /// that at least N=1 won't have a loop (it might even unroll the loop for
     /// other sizes).
-    inline static T Read(stm::TxThread* tx, const T* addr) {
+    inline static T Read(stm::TxThread* tx, const T* addr)
+    {
         // the T* is aligned on a word boundary, so we can just use a "T"
         // directly as the second half of this union.
         union {
@@ -159,7 +173,8 @@ struct INST<T, N, true> {
     /// will aggressively optimize this since N is a compile-time constant, and
     /// that at least N=1 won't have a loop (it might even unroll the loop for
     /// other sizes).
-    inline static void Write(stm::TxThread* tx, T* addr, const T value) {
+    inline static void Write(stm::TxThread* tx, T* addr, const T value)
+    {
         // The T* is aligned on a word boundary, so we can just use a T as the
         // first half of this union, and then store it as void* chunks.
         union {
@@ -180,8 +195,10 @@ struct INST<T, N, true> {
 /// Potentially overflowing subword accesses---an unaligned access could
 /// overflow into the next word, which we need to check for.
 template <typename T>
-struct INST<T, 0u, false> {
-    inline static T Read(stm::TxThread* tx, const T* addr) {
+struct INST<T, 0u, false>
+{
+    inline static T Read(stm::TxThread* tx, const T* addr)
+    {
         // if we don't overflow a boundary, then we use the aligned version
         // (which also handles unalgned accesses that don't
         // overflow). Otherwise, we can use the generic unaligned version,
@@ -194,7 +211,8 @@ struct INST<T, 0u, false> {
             return INST<T, 1u, false>::ReadUnaligned(tx, addr, offset);
     }
 
-    inline static void Write(stm::TxThread* tx, T* addr, const T value) {
+    inline static void Write(stm::TxThread* tx, T* addr, const T value)
+    {
         // if we don't overflow a boundary, then use the aligned version,
         // otherwise use the generic N-unaligned one, but for N to be 1---an
         // overflowing subword is indestinguishable from an unaligned word.
@@ -209,8 +227,10 @@ struct INST<T, 0u, false> {
 /// Non-overflowing subword accesses---these aren't necessarily aligned, but
 /// they only require a single tmread to satisfy.
 template <typename T>
-struct INST<T, 0u, true> {
-    inline static T Read(stm::TxThread* tx, const T* addr) {
+struct INST<T, 0u, true>
+{
+    inline static T Read(stm::TxThread* tx, const T* addr)
+    {
         // Get the offset for this address.
         const uintptr_t offset = offset_of(addr);
 
@@ -228,7 +248,8 @@ struct INST<T, 0u, true> {
         return *reinterpret_cast<T*>(cast.to + offset);
     }
 
-    inline static void Write(stm::TxThread* tx, T* addr, const T value) {
+    inline static void Write(stm::TxThread* tx, T* addr, const T value)
+    {
         // Get the offset for this address.
         const uintptr_t offset = offset_of(addr);
 
@@ -253,22 +274,26 @@ struct INST<T, 0u, true> {
 /// instrumented and sometimes not be instrumented. *In order to support
 /// redo-logging code we must not log these writes using tmwrite!*
 ///
-/// If we are in a nested context, and the write is to an outer context, we
-/// need to _ITM_Log it so that we can undo it if the user calls cancel.
-///
-/// NB: We're assuming that, if we get an address in the protected region, the
+/// NB: We're assuming that if we get an address in the protected region, the
 ///     range [address, (char*)address + sizeof(T)) falls entirely within our
 ///     protected stack region, and that there isn't any possible overlap
 ///     across nested transaction boundaries. I think that this is a legitimate
 ///     assumption, but a user could always do something with casting or array
 ///     overflow that might invalidate it.
-///
-/// NB: This may make more sense as a _ITM_transaction member, but we can't do
-///     that because of the way that the _ITM_ ABI declares _ITM_transaction.
 template <typename T>
 inline bool is_stack_write(stm::TxThread* const tx, const T* address)
 {
+    // [mfs] I think we are going to need three cases, for one stack but not
+    //       in scope, on stack and in scope, and not on stack.  The first
+    //       case requires a call to StackLogger::log_for_undo (NB: do we
+    //       need to get StackLogger into TxThread?).  The first and second
+    //       cases return true.  These cases more or less match ITM, but it's
+    //       easier since we don't care about closed nesting.
+
     return false;
+
+    // [mfs] Here is the original ITM code, which will provide a basis for
+    //       actually implmenting stack protection.
     /*
     // common case is a non-stack write.
     const void* begin = static_cast<const void*>(address);
@@ -289,44 +314,50 @@ inline bool is_stack_write(stm::TxThread* const tx, const T* address)
 }
 } // namespace
 
+/**
+ *  Here are the actual publicly visible parts of the shim API that the
+ *  compiler expects to be able to call.
+ *
+ *  NB: we don't use a lot of what SkySTM makes available.  The parts we
+ *  ignore are represented as unnamed variables.
+ *
+ *  [mfs] Could we inline these?  Should we?
+ */
 extern "C"
 {
+    /***  Read functions of various sizes */
     UINT8 STM_TranRead8(void* txid, RdHandle*, UINT8* addr, BOOL)
     {
         stm::TxThread* tx = (stm::TxThread*) txid;
         return INST<UINT8>::Read(tx, addr);
     }
-
     UINT16 STM_TranRead16(void* txid, RdHandle*, UINT16* addr, BOOL)
     {
         stm::TxThread* tx = (stm::TxThread*) txid;
         return INST<UINT16>::Read(tx, addr);
     }
-
     UINT32 STM_TranRead32(void* txid, RdHandle*, UINT32* addr, BOOL)
     {
         stm::TxThread* tx = (stm::TxThread*) txid;
         return INST<UINT32>::Read(tx, addr);
     }
-
     UINT64 STM_TranRead64(void* txid, RdHandle*, UINT64* addr, BOOL)
     {
         stm::TxThread* tx = (stm::TxThread*) txid;
         return INST<UINT64>::Read(tx, addr);
     }
-
     float STM_TranReadFloat32(void* txid, RdHandle*, float*  addr, BOOL)
     {
         stm::TxThread* tx = (stm::TxThread*) txid;
         return INST<float>::Read(tx, addr);
     }
-
     double STM_TranReadFloat64(void* txid, RdHandle*, double* addr, BOOL)
     {
         stm::TxThread* tx = (stm::TxThread*) txid;
         return INST<double>::Read(tx, addr);
     }
 
+    /***  Write functions of various sizes */
     BOOL STM_TranWrite8(void* txid, WrHandle*, UINT8* addr,  UINT8 val, BOOL)
     {
         stm::TxThread* tx = (stm::TxThread*) txid;
@@ -363,7 +394,8 @@ extern "C"
             INST<UINT64>::Write(tx, addr, val);
         return 1;
     }
-    BOOL STM_TranWriteFloat32(void* txid, WrHandle*, float* addr,  float val, BOOL)
+    BOOL STM_TranWriteFloat32(void* txid, WrHandle*, float* addr, float val,
+                              BOOL)
     {
         stm::TxThread* tx = (stm::TxThread*) txid;
         if (is_stack_write(tx, addr))
@@ -372,7 +404,8 @@ extern "C"
             INST<float>::Write(tx, addr, val);
         return 1;
     }
-    BOOL STM_TranWriteFloat64(void* txid, WrHandle*, double* addr, double val, BOOL)
+    BOOL STM_TranWriteFloat64(void* txid, WrHandle*, double* addr, double val,
+                              BOOL)
     {
         stm::TxThread* tx = (stm::TxThread*) txid;
         if (is_stack_write(tx, addr))
