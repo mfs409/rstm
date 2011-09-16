@@ -11,8 +11,12 @@ EXECS    := vacation
 
 -include $(TORULES)/Makefile.rules
 
-test: vacation
-	@echo "sandboxing test run: vacation-low"
-	./vacation -n2 -q90 -u98 -r1048576 -t4194304
+vacation-high: vacation
 	@echo "sandboxing test run: vacation-high"
 	./vacation -n4 -q60 -u90 -r1048576 -t4194304
+
+vacation-low: vacation
+	@echo "sandboxing test run: vacation-low"
+	./vacation -n2 -q90 -u98 -r1048576 -t4194304
+
+test: vacation-high vacation-low
