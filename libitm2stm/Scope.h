@@ -230,7 +230,7 @@ class Scope : public Checkpoint /* asm needs this as first superclass */
         static void log(Scope* const scope, const T* addr) {
             void** address = reinterpret_cast<void**>(const_cast<T*>(addr));
             for (size_t i = 0; i < W; ++i)
-                scope->log(address, *address, sizeof(void*));
+                scope->log(address + i, *(address + i), sizeof(void*));
         }
     };
 
