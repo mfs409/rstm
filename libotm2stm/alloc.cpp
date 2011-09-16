@@ -16,7 +16,7 @@
  *  This will do it, but I'm not sure if it really works yet.
  */
 [[transaction_safe]]
-void* operator new(size_t size)  throw()
+void* operator new(size_t size) throw()
 {
     // [mfs] Do we need to initialize the library before calling malloc?
     //       Does this call become a STM_TranMalloc?  STM_TranMalloc thinks
@@ -36,6 +36,7 @@ void* operator new(size_t size)  throw()
 void operator delete(void* ptr) throw()
 {
     // [mfs] see the comments in operator new... we probably need to
-    // initialize a thread here
+    // initialize the thread here, unless we can be sure that the thread is
+    // already initialized
     free(ptr);
 }

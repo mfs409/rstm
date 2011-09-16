@@ -9,10 +9,8 @@
  */
 
 /**
- *  Note: this is an example that we do not build, but that may be helpful
- *  when debugging and testing.  The example provides a very simple,
- *  lightweight "CGL" stm implementation, without support for nesting or any
- *  other nice features.
+ *  Extremely lightweight "shim" for translating Oracle TM instrumentation
+ *  into RSTM instrumentation.
  */
 
 #include <stdio.h>
@@ -23,13 +21,7 @@
 #include "alt-license/OracleSkyStuff.hpp"
 #include "common/locks.hpp"
 #include "stm/metadata.hpp"
-
-/**
- *  Switch for turning on/off debug messages
- */
-
-//#define DEBUG(...) printf(__VA_ARGS__)
-#define DEBUG(...)
+#include "StackLogger.hpp"
 
 namespace stm
 {
@@ -38,11 +30,12 @@ namespace stm
 
 /**
  *  In OTM, the compiler adds instrumentation to manually unwinde the
- *  transaction, one stack frame at a time.  This makes sense (especially
- *  on SPARC), but it's bad for RSTM, because RSTM assumes setjmp/longjmp
- *  unwinding (or its equivalent).  We don't want to rewrite all our
- *  algorithms to support dual mechanisms for unwind, so instead we use a
- *  macro and this code at begin time.
+ *  transaction, one stack frame at a time.  This makes sense (especially on
+ *  SPARC or for transactions with no function calls and few accesses), but
+ *  it's bad for RSTM, because RSTM assumes setjmp/longjmp unwinding (or its
+ *  equivalent).  We don't want to rewrite all our algorithms to support dual
+ *  mechanisms for unwind, so instead we use a macro and this code at begin
+ *  time.
  *
  *  The macro (TM_BEGIN, in cxxtm.hpp) performs a setjmp, calls this, and
  *  then invokes the __transaction construct.  In this way, we checkpoint
@@ -50,10 +43,13 @@ namespace stm
  *  this code will determine if the jump buffer needs to be saved (and
  *  write-read ordering enforced), and if so, it will do that work, which
  *  is essentially half of the begin method from library.hpp
+ *
+ *  BITROT WARNING: this can easily fall out of sync with library.hpp.  We
+ *                  should come up with away to address the redundancy
  */
 void OTM_PREBEGIN(stm::scope_t* s)
 {
-    // get the descriptor
+    // get the descriptor, and if null, initialize it
     stm::TxThread* tx = (stm::TxThread*)stm::Self;
     if (!tx) {
         stm::sys_init(NULL);
@@ -80,29 +76,27 @@ extern "C"
 {
     /**
      *  The compiler API expects to be able to get a pointer to the
-     *  transaction's descriptor.  We don't really have descriptors in this
-     *  phony STM, so instead we have this dummy routine.  Note that it
-     *  actually returns a pointer to the pointer to the descriptor, because
-     *  we're just using the pointer itself as a flag for tracking the first
-     *  call to this function.
+     *  transaction's descriptor.  Since RSTM already maintains the pointer,
+     *  we just forward to RSTM
+     *
+     *  [mfs] Need to inline this eventually.
      */
-    void* STM_GetMyTransId()
-    {
-        return (stm::TxThread*)stm::Self;
-    }
+    void* STM_GetMyTransId() { return (stm::TxThread*)stm::Self; }
 
     /**
-     *  Simple begin method: spin until the lock is acquired.  Note that this
-     *  does not support nesting.
+     *  To begin a transaction, we use a macro that does half of the work of
+     *  RSTM's begin transaction.  Then the compiler calls this code, which
+     *  is where we put the "other half" of the begin function.  This is just
+     *  a call to the begin function pointer.
      *
-     *  [mfs] comment bitrot warning
+     *  BITROT WARNING: this can easily fall out of sync with library.hpp.
+     *                  We should come up with away to address the redundancy
+     *
+     *  [mfs] Need to inline this eventually.
      */
     BOOL STM_BeginTransaction(void* theTransId)
     {
-        DEBUG("Call to STM_BeginTransaction by 0x%p\n", theTransId);
         stm::TxThread* tx = (stm::TxThread*)theTransId;
-
-        // copied from library.hpp.  Be careful about bit-rot
 
         // some adaptivity mechanisms need to know nontransactional and
         // transactional time.  This code suffices, because it gets the time
@@ -113,28 +107,35 @@ extern "C"
 
         // now call the per-algorithm begin function
         stm::TxThread::tmbegin(tx);
+        // since we use setjmp/longjmp, this function always returns, and can
+        // return 1 safely
+        //
+        // [mfs] we will need to revisit this claim if we are to support
+        //       CANCEL
         return 1;
     }
 
     /**
-     *  validation has no meaning in our code, because transactions never
-     *  abort.  However, it is also the case that in the final shim, this
-     *  code will have no meaning, because we will be using setjmp/longjmp to
-     *  interface to manage rollback.
-     */
-    BOOL STM_ValidateTransaction(void* theTransId)
-    {
-        DEBUG("Call to STM_ValidateTransaction by 0x%p\n", theTransId);
-        return 1;
-    }
-
-    /**
-     *  For now, commit just means releasing the lock and returning that the
-     *  operation succeeded.  However, we will ultimately be using longjmp to
-     *  indicate failure.
+     *  In OracleTM, a read or write may detect a conflict and mark a
+     *  transaction as dead, but the method will return, and it will be the
+     *  responsibility of the compiler instrumentation to call this function
+     *  to see if the stack needs to be unwound and the transaction undone.
+     *  In our shim, we use setjmp/longjmp, so this method is unnecessary.
+     *  We just return 1 for now.
      *
-     *  [mfs] beware bitrot relative to library.hpp.  Note bitrot in comment
-     *        above
+     *  [mfs] Need to inline this eventually.
+     */
+    BOOL STM_ValidateTransaction(void* theTransId) { return 1; }
+
+    /**
+     *  The commit logic has two parts.  First, we handle nesting, then we
+     *  actually call the per-algorithm commit function.  In RSTM, the first
+     *  part is inlined, but in this shim, for now, we use this function.
+     *
+     *  BITROT WARNING: this can easily fall out of sync with library.hpp.
+     *                  We should come up with away to address the redundancy
+     *
+     *  [mfs] Need to inline this eventually.
      */
     CommitStatus STM_CommitTransaction(void* theTransId)
     {
@@ -149,8 +150,6 @@ extern "C"
         tx->scope = NULL;
         tx->end_txn_time = tick();
 
-
-        DEBUG("Call to STM_CommitTransaction by 0x%p\n", theTransId);
         return CommittedNoRetry;
     }
 
@@ -160,52 +159,58 @@ extern "C"
      *  be fully general to any/all compilers, we make these mechanisms do
      *  nothing, and keep the acquisition logic in the same place as the
      *  access logic.
+     *
+     *  [mfs] Need to inline this eventually.
      */
-    RdHandle* STM_AcquireReadPermission (void*, void*, BOOL)
-    {
-        return NULL;
-    }
+    RdHandle* STM_AcquireReadPermission (void*, void*, BOOL) { return NULL; }
 
-    /***  See above: This function has no meaning in our shim. */
-    WrHandle* STM_AcquireWritePermission(void*, void*, BOOL)
-    {
-        return NULL;
-    }
+    /**
+     *  See above: This function has no meaning in our shim.
+     *
+     *  [mfs] Need to inline this eventually.
+     */
+    WrHandle* STM_AcquireWritePermission(void*, void*, BOOL) { return NULL; }
 
-    /***  See above: This function has no meaning in our shim. */
+    /**
+     *  See above: This function has no meaning in our shim.
+     *
+     *  [mfs] Need to inline this eventually.
+     */
     WrHandle* STM_AcquireReadWritePermission(void*, void*, BOOL)
     {
         return NULL;
     }
 
     /**
-     *  [mfs] The rest of this file is not correct, but will work for CGL
-     */
-
-
-    /**
-     *  Eventually, this will need to call a transactional malloc function.
+     *  RSTM already does a pretty good job of handling allocations via a
+     *  single call that works inside and outside of transactions.  The
+     *  Oracle API expects a function that does the same, so we can just
+     *  forward to the RSTM code.
      */
     void* STM_TranMalloc(void* txid, size_t size)
     {
         return stm::Self->allocator.txAlloc(size);
-        // return malloc(size);
     }
 
     /**
-     *  Eventually, this will need to call a transactional free function.
+     *  See STM_TranMalloc: we just forward to RSTM's free code
      */
     void STM_TranMFree(void* txid, void* p)
     {
         stm::Self->allocator.txFree(p);
-        // free(p);
     }
 
     /**
-     *  Determine if the thread is in a transaction or not, as we only
-     *  support STM.  If we had PhTM or HyTM support, then this would need
-     *  more complexity to deal with being in a transaction but using HTM
-     *  (undecorated) code.
+     *  The compiler needs to know what version of a transaction body to
+     *  call: the version with instrumentation or the version without it.  In
+     *  our case, we use "with" if we are transactional, and "without"
+     *  otherwise.  Hardware TM would necessitate more cleverness.
+     *
+     *  [mfs] If we were more nuanced, we'd be able to track if we were using
+     *        CGL or not, and generate two different paths through the code,
+     *        one with instrumentation and the other without.  That, of
+     *        course, doesn't quite work with CANCEL, which we don't support
+     *        yet anyway.  Some day...
      */
     BOOL STM_CurrentlyUsingDecoratedPath(void* theTransId)
     {
@@ -219,18 +224,9 @@ extern "C"
 
 } // extern "C"
 
-
-
-// libitm2stm 5-12 provides an implementation of read/write interposition functions
-
-// libitm2stm 5-16 provides for logging stack accesses
-
-// we probably need to implement the following method at some point
+// [mfs] we probably need to implement the following method at some point
 //
 // void  STM_SelfAbortTransaction(void* theTransId);
-
-// we probably need to implement the following memory management functions
-// at some point:
 //
 // void* STM_TranCalloc(void* theTransId, size_t theNElem, size_t theSize);
 // void* STM_TranMemAlign(void* theTransId, size_t theAlignment, size_t theSize);
