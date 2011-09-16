@@ -54,7 +54,7 @@ namespace stm
       uint32_t       num_aborts;    // stats counter: aborts
       uint32_t       num_restarts;  // stats counter: restart()s
       uint32_t       num_ro;        // stats counter: read-only commits
-      scope_t* volatile scope;      // used to roll back; also flag for isTxnl
+      scope_t* volatile scope;      // used to roll back
 #ifdef STM_PROTECT_STACK
       void**         stack_high;    // the stack pointer at begin_tx time
       void**         stack_low;     // norec stack low-water mark
