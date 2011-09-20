@@ -180,6 +180,7 @@ extern "C"
  *  the main thread or a pthread.
  */
 
+#ifndef RSTM_INLINE_HEADER
 //
 // Allocate transaction, picking a slot at random in TransTable and
 // searching linearly from there until an unallocated slot is found.
@@ -232,5 +233,6 @@ inline void getStackInfo(void*& lo, void*& hi)
 
     // printf("Stack Information: LOW=0x%p, HIGH=0x%p\n", lo, hi);
 }
+#endif // RSTM_INLINE_HEADER
 
 #endif // ORACLESKYSTUFF_HPP__

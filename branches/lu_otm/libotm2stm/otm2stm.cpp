@@ -23,6 +23,8 @@
 #include "stm/metadata.hpp"
 #include "stm/StackLogger.hpp"
 
+#include "OTM_Inliner.i"
+
 namespace stm
 {
   void sys_init(void (*abort_handler)(TxThread*) = NULL);
@@ -116,18 +118,6 @@ extern "C"
     }
 
     /**
-     *  In OracleTM, a read or write may detect a conflict and mark a
-     *  transaction as dead, but the method will return, and it will be the
-     *  responsibility of the compiler instrumentation to call this function
-     *  to see if the stack needs to be unwound and the transaction undone.
-     *  In our shim, we use setjmp/longjmp, so this method is unnecessary.
-     *  We just return 1 for now.
-     *
-     *  [mfs] Need to inline this eventually.
-     */
-    BOOL STM_ValidateTransaction(void* theTransId) { return 1; }
-
-    /**
      *  The commit logic has two parts.  First, we handle nesting, then we
      *  actually call the per-algorithm commit function.  In RSTM, the first
      *  part is inlined, but in this shim, for now, we use this function.
@@ -151,34 +141,6 @@ extern "C"
         tx->end_txn_time = tick();
 
         return CommittedNoRetry;
-    }
-
-    /**
-     *  The Oracle API works very hard to separate the acquisition of
-     *  locations from the access of those locations.  Since we want RSTM to
-     *  be fully general to any/all compilers, we make these mechanisms do
-     *  nothing, and keep the acquisition logic in the same place as the
-     *  access logic.
-     *
-     *  [mfs] Need to inline this eventually.
-     */
-    RdHandle* STM_AcquireReadPermission (void*, void*, BOOL) { return NULL; }
-
-    /**
-     *  See above: This function has no meaning in our shim.
-     *
-     *  [mfs] Need to inline this eventually.
-     */
-    WrHandle* STM_AcquireWritePermission(void*, void*, BOOL) { return NULL; }
-
-    /**
-     *  See above: This function has no meaning in our shim.
-     *
-     *  [mfs] Need to inline this eventually.
-     */
-    WrHandle* STM_AcquireReadWritePermission(void*, void*, BOOL)
-    {
-        return NULL;
     }
 
     /**
