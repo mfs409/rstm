@@ -22,18 +22,18 @@ ODIR = ./obj.sparc
 #     pre-release iropt.  The Qpath flag gets us the newer iropt, which is
 #     necessary to get things to build correctly
 #######################################################
+
 CXX = /apps/suncc-s2-sparc/bin/CC -Qpath /proj/spear1/suncc/sparc-S2/
 
 #######################################################
 # Platform-specific build flags
 #######################################################
 
-CXXFLAGS    = -mt +w -xMMD -xO5 -xchip=ultraT2 -xtarget=ultraT2 -xalias_level=any
+CXXFLAGS    = -mt +w -xMMD -fast -xchip=ultraT2 -xtarget=ultraT2 -xalias_level=any
 CXXFLAGS   += -features=zla -template=no%extdef
 CXXFLAGS   += -m32 -I./$(ODIR) -I./include -I.
 CXXFLAGS   += -DSINGLE_SOURCE_BUILD
 LDFLAGS    += -lrt -lpthread -m32 -lmtmalloc
-#CXXFLAGS   += -xarch=native -xcode=pic32 -Qoption cg -Qiselect-movxtod=0,-Qiselect-movitof=0,-Qiselect-unfused_muladd=0,-Qiselect-sqrt1x=0,-Qiselect-fused_muladd=0
 
 #######################################################
 # Pull in standard stuff

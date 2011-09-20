@@ -91,8 +91,8 @@ LIBLOCKEXECDEPS = $(patsubst %, $(ODIR)/libonelockexec_%.d, $(BENCHFILES))
 # [mfs] right now, IROPT is forced off.  We want it on eventually
 #######################################################
 LDFLAGS_LIBAPI  += -L./$(ODIR) -lrstm
-CXXFLAGS_CXXTM  = -Qoption CC -tm_mode=stm -DSTM_API_CXXTM -DNO_IROPT_INLINING
-CXXFLAGS_SHIM   = -Qoption CC -tm_mode=stm -DSTM_API_CXXTM -DNO_IROPT_INLINING -DOTM2STM -xnolib
+CXXFLAGS_CXXTM  = -Qoption CC -tm_mode=stm -DSTM_API_CXXTM
+CXXFLAGS_SHIM   = -Qoption CC -tm_mode=stm -DSTM_API_CXXTM -DOTM2STM -xnolib
 LDFLAGS_SHIM    = -L./$(ODIR) -lotm2stm -lc -lm -lCrun -lCstd -laio -lmd -lumem -lsched -lthread
 CXXFLAGS_LOCK   = -Qoption CC -tm_mode=stm -DSTM_API_CXXTM -DNO_IROPT_INLINING -DOTM2STM -xnolib
 LDFLAGS_LOCK    = -L./$(ODIR) -lonelock -lc -lm -lCrun -lCstd

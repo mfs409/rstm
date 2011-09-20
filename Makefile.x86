@@ -29,7 +29,8 @@ CXX = /apps/suncc-s2-i386/bin/CC -Qpath /proj/spear1/suncc/intel-S2/
 # Platform-specific build flags
 #######################################################
 
-CXXFLAGS    = -mt +w -xMMD -fast -xarch=sse2 -xchip=nehalem -xtarget=nehalem -xvector=simd -xalias_level=any
+CXXFLAGS    = -mt +w -xMMD -fast -xarch=sse2 -xchip=nehalem -xtarget=nehalem
+CXXFLAGS   += -xvector=simd -xalias_level=any
 CXXFLAGS   += -features=zla -template=no%extdef
 CXXFLAGS   += -m32 -I./$(ODIR) -I./include -I.
 CXXFLAGS   += -DSINGLE_SOURCE_BUILD

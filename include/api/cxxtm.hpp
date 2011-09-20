@@ -127,6 +127,11 @@ namespace stm
   // needed for jmp_buf and setjmp
   #include <setjmp.h>
 
+  #if defined(OTM2STM)
+  // for getting inlining to work
+  #include "libotm2stm/OTM_Inliner.i"
+  #endif
+
   // needed for scope_t and sys_shutdown
   namespace stm
   {
