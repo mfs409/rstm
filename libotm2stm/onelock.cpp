@@ -68,7 +68,9 @@ extern "C"
         void* ret = (void*)&myDescriptor;
         DEBUG("Call to STM_GetMyTransID returning 0x%p\n", ret);
         if (myDescriptor == NULL) {
-            getStackInfo();
+            void* hi;
+            void* lo;
+            getStackInfo(lo, hi);
             myDescriptor = (void*)1;
         }
         return ret;

@@ -8,11 +8,12 @@
  *          Please see the file LICENSE.RSTM for licensing information
  */
 
-#ifndef OTM2STM_STACKLOGGER_HPP__
-#define OTM2STM_STACKLOGGER_HPP__
+#ifndef STACKLOGGER_HPP__
+#define STACKLOGGER_HPP__
 
 #include <string.h> // for memcpy
 #include "stm/MiniVector.hpp"
+#include <stdio.h>
 
 namespace stm
 {
@@ -67,7 +68,7 @@ namespace stm
            *  write back the bytes.  This isn't going to be fast, but it
            *  isn't on the critical path.
            */
-          void undo() { memcpy(addr_, &val, count); }
+          void undo() { memcpy(addr, &val, count); }
       };
 
       /***  Convenience typedef */
@@ -93,7 +94,7 @@ namespace stm
       template <typename T, size_t W = sizeof(T) / sizeof(void*)>
       struct LOGGER
       {
-          static void log(Scope* scope, T* addr)
+          static void log(StackLogger* scope, T* addr)
           {
               void** address = reinterpret_cast<void**>(addr);
               for (size_t i = 0; i < W; ++i)
@@ -111,7 +112,7 @@ namespace stm
       template <typename T>
       struct LOGGER<T, 0u>
       {
-          static void log(Scope* const scope, const T* addr)
+          static void log(StackLogger* const scope, const T* addr)
           {
               void** address = reinterpret_cast<void**>(const_cast<T*>(addr));
               union {
@@ -133,7 +134,16 @@ namespace stm
     public:
 
       /***  Constructor just creates an undo list with 16 entries */
-      StackLogger() : undolist(16) { }
+      StackLogger() : undolist(16)
+      {
+          static volatile unsigned int mtx = 0;
+          if (bcas32(&mtx, 0, 1)) {
+              printf("Warning: Stack Logging not yet verified\n");
+#ifdef STM_CPU_SPARC
+              printf("Warning: Stack Logging Endianness Errors likely for SPARC\n");
+#endif
+          }
+      }
 
       /**
        *  When a transaction aborts or restarts, we call this to undo any
@@ -158,11 +168,11 @@ namespace stm
        *  dispatch, through LOGGER, to log()
        */
       template <typename T>
-      void log_for_undo(const T* address)
+      void log_for_undo(T* address)
       {
           LOGGER<T>::log(this, address);
       }
   };
 } // namespace stm
 
-#endif // OTM2STM_STACKLOGGER_HPP__
+#endif // STACKLOGGER_HPP__
