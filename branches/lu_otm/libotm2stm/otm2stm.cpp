@@ -21,7 +21,7 @@
 #include "alt-license/OracleSkyStuff.hpp"
 #include "common/locks.hpp"
 #include "stm/metadata.hpp"
-#include "StackLogger.hpp"
+#include "stm/StackLogger.hpp"
 
 namespace stm
 {

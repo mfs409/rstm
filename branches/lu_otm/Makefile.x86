@@ -7,124 +7,46 @@
 # License: Modified BSD
 #          Please see the file LICENSE.RSTM for licensing information
 
-# Source folder names
-BENCHSRCDIR  = bench
-LIBSRCDIR    = libstm
-LIBALGSRCDIR = $(LIBSRCDIR)/algs
-LIBPOLSRCDIR = $(LIBSRCDIR)/policies
-SHIMDIR      = libotm2stm
+#######################################################
+# Output folder name
+#######################################################
 
-# Output folder names
-ODIR = ./obj
-CONFDIR = $(ODIR)/stm
+ODIR = ./obj.x86
 
-# Base names of files that we expect in each of the source folders
-BENCHFILES  = CounterBench DisjointBench DListBench ForestBench HashBench    \
-              ListBench MCASBench ReadNWrite1Bench ReadWriteNBench TreeBench \
-              TreeOverwriteBench TypeTest WWPathologyBench
-LIBFILES    = inst irrevocability profiling txthread types WBMMPolicy
-LIBALGFILES = algs biteager biteagerredo bitlazy byear byeau byteeager       \
-              byteeagerredo bytelazy cgl ctoken ctokenturbo llt mcs nano     \
-              norec norecprio oreau orecala oreceager oreceagerredo orecela  \
-              orecfair oreclazy pipeline profileapp profiletm ringala ringsw \
-              serial swiss ticket tli tml tmllazy
-LIBPOLNAMES = cbr policies static
-SHIMFILES   = otm2stm barriers alloc 
-LOCKFILES   = onelock
+#######################################################
+# Names of important tools.
+#
+# NB: These are hard-coded for Lehigh for now
+#
+# NB: We have both the pre-release Oracle compiler, and the special revised
+#     pre-release iropt.  The Qpath flag gets us the newer iropt, which is
+#     necessary to get things to build correctly
+#######################################################
 
-# Names of important tools.  These are hard-coded for Lehigh for now
-CXX = /apps/suncc-s2-`uname -p`/bin/CC -Qpath /proj/spear1/suncc/intel-S2/
-AR  = ar
+CXX = /apps/suncc-s2-i386/bin/CC -Qpath /proj/spear1/suncc/intel-S2/
 
-# Standard flags
-CXXFLAGS    = -mt +w -xMMD -xO5 -g0 -xarch=sse2 -xchip=nehalem -xtarget=nehalem
+#######################################################
+# Platform-specific build flags
+#######################################################
+
+CXXFLAGS    = -mt +w -xMMD -fast -xarch=sse2 -xchip=nehalem -xtarget=nehalem -xvector=simd -xalias_level=any
 CXXFLAGS   += -features=zla -template=no%extdef
 CXXFLAGS   += -m32 -I./$(ODIR) -I./include -I.
+CXXFLAGS   += -DSINGLE_SOURCE_BUILD
 LDFLAGS    += -lrt -lpthread -m32 -lmtmalloc
 
-# Custom flags for library API builds
-LDFLAGS_LIBAPI += -L./$(ODIR) -lrstm
+#######################################################
+# Pull in standard stuff
+#######################################################
 
-# Custom flags for CXXTM API builds
-CXXFLAGS_CXXTM  = -Qoption CC -tm_mode=stm -DSTM_API_CXXTM -DNO_IROPT_INLINING
+include Makefile.common
 
-# Custom flags for shim builds
-CXXFLAGS_SHIM   = -Qoption CC -tm_mode=stm -DSTM_API_CXXTM -DNO_IROPT_INLINING -DOTM2STM -xnolib
-LDFLAGS_SHIM    = -L./$(ODIR) -lotm2stm -lc -lm -lCrun -lCstd -laio -lmd -lumem -lsched -lthread
+#######################################################
+# with cmake, RSTM does out-of-source builds, and expects cmake to produce a
+# config.h in the out-of-source include/stm folder.  We avoid having to write
+# to source folders by using this hack instead
+#######################################################
 
-# Custom flags for onelock builds
-CXXFLAGS_LOCK   = -Qoption CC -tm_mode=stm -DSTM_API_CXXTM -DNO_IROPT_INLINING -DOTM2STM -xnolib
-LDFLAGS_LOCK    = -L./$(ODIR) -lonelock -lc -lm -lCrun -lCstd
-
-# Transformations of filenames into build targets
-# We build the library once, and only one way
-LIB        = $(ODIR)/librstm.a
-LIBOFILES  = $(patsubst %, $(ODIR)/%.o, $(LIBFILES) $(LIBALGFILES) \
-                                        $(LIBPOLNAMES))
-LDEPS      = $(patsubst %, $(ODIR)/%.d, $(LIBFILES) $(LIBALGFILES) \
-                                        $(LIBPOLNAMES))
-# Shim
-SHIM       = $(ODIR)/libotm2stm.a
-SHIMOFILES = $(patsubst %, $(ODIR)/%.o, $(SHIMFILES))
-
-# Lock
-LOCK       = $(ODIR)/libonelock.a
-LOCKOFILES = $(patsubst %, $(ODIR)/%.o, $(LOCKFILES))
-
-# We build one configuration file
-CONFIG   = $(CONFDIR)/config.h
-
-# For building the benchmark harness separate from the data structures
-HARNESS = $(ODIR)/bmharness.o
-
-# Rules for building executables that use the Library API
-LIBAPIEXECS    = $(patsubst %, $(ODIR)/libapiexec_%, $(BENCHFILES))
-LIBAPIEXECDEPS = $(patsubst %, $(ODIR)/libapiexec_%.d, $(BENCHFILES))
-
-# Rules for building executables that use SkySTM
-LIBSKYEXECS    = $(patsubst %, $(ODIR)/libskyexec_%, $(BENCHFILES))
-LIBSKYEXECDEPS = $(patsubst %, $(ODIR)/libskyexec_%.d, $(BENCHFILES))
-
-# Rules for building executables that use the otm2stm
-LIBSHIMEXECS    = $(patsubst %, $(ODIR)/libshimexec_%, $(BENCHFILES))
-LIBSHIMEXECDEPS = $(patsubst %, $(ODIR)/libshimexec_%.d, $(BENCHFILES))
-
-# Rules for building executables that use onelock
-LIBONELOCKEXECS    = $(patsubst %, $(ODIR)/libonelockexec_%, $(BENCHFILES))
-LIBONELOCKEXECDEPS = $(patsubst %, $(ODIR)/libonelockexec_%.d, $(BENCHFILES))
-
-# build rules
-.PHONY: all clean info skybench libapibench shimbench
-.PRECIOUS: $(CONFDIR) $(ODIR) $(LIBSKYEXECS) $(LIBSHIMEXECS) $(LIBONELOCKEXECS) $(LIBAPIEXECS)
-all: info $(CONFIG) $(LIB) libapibench skybench shimbench lockbench
-	@echo "Build complete"
-
-skybench: $(LIBSKYEXECS)
-
-libapibench: $(LIBAPIEXECS)
-
-shimbench: $(LIBSHIMEXECS)
-
-lockbench: $(LIBONELOCKEXECS)
-
-# to keep the build lines comprehensible, we hide the actual CXX invocations.
-# Printing this information first helps if we need to recreate the invocation
-# manually
-info:
-	@echo "Build Configuration:"
-	@echo "  CXXFLAGS       = ${CXXFLAGS}"
-	@echo "  LDFLAGS        = ${LDFLAGS}"
-	@echo "  CXX            = ${CXX}"
-	@echo "  CXXFLAGS_CXXTM = ${CXXFLAGS_CXXTM}"
-	@echo "  LDFLAGS_LIBAPI = ${LDFLAGS_LIBAPI}"
-	@echo "  CXXFLAGS_SHIM  = ${CXXFLAGS_SHIM}"
-	@echo "  LDFLAGS_SHIM   = ${LDFLAGS_SHIM}"
-	@echo "  CXXFLAGS_LOCK  = ${CXXFLAGS_LOCK}"
-	@echo "  LDFLAGS_LOCK   = ${LDFLAGS_LOCK}"
-
-# RSTM does out-of-source builds, and expects cmake to produce a config.h in
-# the out-of-source include/stm folder.  We avoid having to write to source
-# folders by using this hack instead
 $(CONFIG):
 	@mkdir -p $(CONFDIR)
 	@echo "#define STM_BITS_32" > $@
@@ -133,86 +55,6 @@ $(CONFIG):
 	@echo "#define STM_CC_SUN" >> $@
 	@echo "#define STM_CPU_X86" >> $@
 	@echo "#define STM_WS_BYTELOG" >> $@
-	@echo "#define STM_PROTECT_STACK" >> $@
+	@echo "#define STM_OTM_STACKPROTECT" >> $@
 	@echo "#define STM_PROFILETMTRIGGER_ALL" >> $@
 	@echo "$@ Complete"
-
-# We'll be lazy and clean by colbbering the entire build folder
-clean:
-	@rm -rf $(ODIR)
-	@echo "Finished building target $@"
-
-# rule for making directories for output files
-$(ODIR):
-	@mkdir -p $@
-
-# since there are 3 folders with library source files, we need 3 rules to
-# build all the .o files
-$(ODIR)/%.o: $(LIBSRCDIR)/%.cpp $(CONFIG)
-	@echo [CXX] $< "-->" $@
-	@$(CXX) $(CXXFLAGS) -o $@ -c $<
-$(ODIR)/%.o: $(LIBALGSRCDIR)/%.cpp  $(CONFIG)
-	@echo [CXX] $< "-->" $@
-	@$(CXX) $(CXXFLAGS) -o $@ -c $<
-$(ODIR)/%.o: $(LIBPOLSRCDIR)/%.cpp $(CONFIG)
-	@echo [CXX] $< "-->" $@
-	@$(CXX) $(CXXFLAGS) -o $@ -c $<
-
-# Rule to build the .a from the library .o files
-$(LIB): $(LIBOFILES)
-	@echo "[ar] $(ODIR)*.o --> $@"
-	@$(AR) cru $@ $^
-
-# rule to build the shim ofiles.  Note that we need a special rule for alloc
-$(ODIR)/%.o: $(SHIMDIR)/%.cpp $(CONFIG)
-	@echo [CXX] $< "-->" $@
-	@$(CXX) $(CXXFLAGS) -o $@ -c $<
-$(ODIR)/alloc.o: $(SHIMDIR)/alloc.cpp $(CONFIG)
-	@echo [CXX] $< "-->" $@
-	@$(CXX) $(CXXFLAGS) -o $@ -c $< $(CXXFLAGS_CXXTM) -xnolib
-
-# Rule to build the shim .a from the shim .o files
-$(SHIM): $(SHIMOFILES)
-	@echo "[ar] $(ODIR)*.o --> $@"
-	@$(AR) cru $@ $^
-
-# Rule to build libonelock.a
-$(LOCK): $(LOCKOFILES)
-	@echo "[ar] $(ODIR)*.o --> $@"
-	@$(AR) cru $@ $^
-
-# Rule for building executables that use the Library API
-$(ODIR)/libapiexec_%: $(BENCHSRCDIR)/%.cpp $(CONFIG) $(LIB)
-	@echo [CXX] $< "-->" $@
-	@$(CXX) $(CXXFLAGS) -o $@ $< $(LDFLAGS) $(LDFLAGS_LIBAPI) -DSINGLE_SOURCE_BUILD
-
-# Build the harness
-$(HARNESS): bench/bmharness.cpp
-	@echo [CXX] $< "-->" $@
-	@$(CXX) $(CXXFLAGS) $(CXXFLAGS_CXXTM) -o $@ -c $<
-
-# Rules for building executables that use the SkySTM API
-$(ODIR)/libskyexec_%: $(BENCHSRCDIR)/%.cpp $(CONFIG) $(HARNESS)
-	@echo [CXX] $< "-->" $@
-	@$(CXX) $(CXXFLAGS) $(CXXFLAGS_CXXTM) -o $@ $< $(LDFLAGS) $(HARNESS)
-
-# Rule for building executables that use the SHIM API
-#
-# NB: right now, the harness is a dummy onelock harness.  When that changes,
-#     we will need to also include $(LDFLAGS_LIBAPI) on the build line
-$(ODIR)/libshimexec_%: $(BENCHSRCDIR)/%.cpp $(CONFIG) $(SHIM) $(LIB)
-	@echo [CXX] $< "-->" $@
-	@$(CXX) $(CXXFLAGS) $(CXXFLAGS_SHIM) -o $@ $< $(LDFLAGS) $(LDFLAGS_SHIM) -DSINGLE_SOURCE_BUILD $(LDFLAGS_LIBAPI) \
-
-# Rule for building executables that use the SHIM API
-#
-# NB: right now, the harness is a dummy onelock harness.  When that changes,
-#     we will need to also include $(LDFLAGS_LIBAPI) on the build line
-$(ODIR)/libonelockexec_%: $(BENCHSRCDIR)/%.cpp $(CONFIG) $(LOCK)
-	@echo [CXX] $< "-->" $@
-	@$(CXX) $(CXXFLAGS) $(CXXFLAGS_SHIM) -o $@ $< $(LDFLAGS) $(LDFLAGS_LOCK) -DSINGLE_SOURCE_BUILD
-
-dump:
-	@echo $(SHIMOFILES)
-
--include $(LDEPS) $(LIBAPIEXECDEPS) $(LIBSKYEXECDEPS)

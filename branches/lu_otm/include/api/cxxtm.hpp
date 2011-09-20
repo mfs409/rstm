@@ -127,8 +127,12 @@ namespace stm
   // needed for jmp_buf and setjmp
   #include <setjmp.h>
 
-  // needed for scope_t
-  namespace stm { typedef void scope_t; }
+  // needed for scope_t and sys_shutdown
+  namespace stm
+  {
+    typedef void scope_t;
+    void sys_shutdown();
+  }
 
   // marker for a function that can be called from a transaction
   #define TM_CALLABLE         [[transaction_safe]]
@@ -176,7 +180,6 @@ namespace stm
   #define  TM_SYS_INIT                   nop
   #define  TM_THREAD_INIT                nop
   #define  TM_THREAD_SHUTDOWN            nop
-  #define  TM_SYS_SHUTDOWN               nop
 
   // memory management
   #define  TM_ALLOC                      malloc
@@ -190,10 +193,12 @@ namespace stm
     // we're using RSTM, so interface with the library
     #define  TM_SET_POLICY(P)              stm::set_policy(P)
     #define  TM_GET_ALGNAME()              stm::get_algname()
+    #define  TM_SYS_SHUTDOWN               stm::sys_shutdown
   #else // [mfs] should this be an elif as above?
     // we're not using RSTM, so return the fact that SkySTM is in use
     #define  TM_SET_POLICY(P)
     #define  TM_GET_ALGNAME()              "SunCC builtin libSkySTMLib.a"
+    #define  TM_SYS_SHUTDOWN               nop
   #endif
 
   // the library API has some hacks for nontransactional initialization.  They

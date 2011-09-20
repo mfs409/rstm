@@ -1,0 +1,218 @@
+#
+#  Copyright (C) 2011
+#  University of Rochester Department of Computer Science
+#    and
+#  Lehigh University Department of Computer Science and Engineering
+# 
+# License: Modified BSD
+#          Please see the file LICENSE.RSTM for licensing information
+
+#######################################################
+# names of important tools that are not platform-specific
+#######################################################
+AR  = ar
+
+#######################################################
+# Source folder names.  Note that since there are three folders holding
+# libstm sources, we need three vars here
+#######################################################
+BENCHSRCDIR  = bench
+LIBSRCDIR    = libstm
+LIBALGSRCDIR = $(LIBSRCDIR)/algs
+LIBPOLSRCDIR = $(LIBSRCDIR)/policies
+SHIMDIR      = libotm2stm
+
+#######################################################
+# gross hack: we aren't using cmake, but we need an includable "stm/config.h"
+#             file.  We're going to build it in ODIR and then squeeze it onto
+#             the build path via -I
+#######################################################
+CONFDIR = $(ODIR)/stm
+CONFIG  = $(CONFDIR)/config.h
+
+#######################################################
+# Base names of files that we expect in each of the source folders
+#######################################################
+BENCHFILES  = CounterBench DisjointBench DListBench ForestBench HashBench    \
+              ListBench MCASBench ReadNWrite1Bench ReadWriteNBench TreeBench \
+              TreeOverwriteBench TypeTest WWPathologyBench
+LIBFILES    = inst irrevocability profiling txthread types WBMMPolicy
+LIBALGFILES = algs biteager biteagerredo bitlazy byear byeau byteeager       \
+              byteeagerredo bytelazy cgl ctoken ctokenturbo llt mcs nano     \
+              norec norecprio oreau orecala oreceager oreceagerredo orecela  \
+              orecfair oreclazy pipeline profileapp profiletm ringala ringsw \
+              serial swiss ticket tli tml tmllazy
+LIBPOLNAMES = cbr policies static
+SHIMFILES   = otm2stm barriers alloc 
+LOCKFILES   = onelock
+
+#######################################################
+# Transformations of filenames into build targets
+#######################################################
+
+# Library and shim .a files
+LIB            = $(ODIR)/librstm.a
+SHIM           = $(ODIR)/libotm2stm.a
+LOCK           = $(ODIR)/libonelock.a
+
+# Library and shim .o files
+LIBOFILES      = $(patsubst %, $(ODIR)/%.o, $(LIBFILES) $(LIBALGFILES) $(LIBPOLNAMES))
+SHIMOFILES     = $(patsubst %, $(ODIR)/%.o, $(SHIMFILES))
+LOCKOFILES     = $(patsubst %, $(ODIR)/%.o, $(LOCKFILES))
+
+# Executables
+LIBAPIEXECS    = $(patsubst %, $(ODIR)/libapiexec_%, $(BENCHFILES))
+LIBSKYEXECS    = $(patsubst %, $(ODIR)/libskyexec_%, $(BENCHFILES))
+LIBSHIMEXECS   = $(patsubst %, $(ODIR)/libshimexec_%, $(BENCHFILES))
+LIBLOCKEXECS   = $(patsubst %, $(ODIR)/libonelockexec_%, $(BENCHFILES))
+
+#######################################################
+# Transformations of filenames into dependencies
+#######################################################
+LDEPS           = $(patsubst %, $(ODIR)/%.d, $(LIBFILES) $(LIBALGFILES) $(LIBPOLNAMES))
+SHIMDEPS        = $(patsubst %, $(ODIR)/%.d, $(SHIMFILES))
+LOCKDEPS        = $(patsubst %, $(ODIR)/%.d, $(LOCKFILES))
+LIBAPIEXECDEPS  = $(patsubst %, $(ODIR)/libapiexec_%.d, $(BENCHFILES))
+LIBSKYEXECDEPS  = $(patsubst %, $(ODIR)/libskyexec_%.d, $(BENCHFILES))
+LIBSHIMEXECDEPS = $(patsubst %, $(ODIR)/libshimexec_%.d, $(BENCHFILES))
+LIBLOCKEXECDEPS = $(patsubst %, $(ODIR)/libonelockexec_%.d, $(BENCHFILES))
+
+#######################################################
+# Custom build flags that are platform-neutral
+#
+# NB: platform-specific flags go in appropriate platform makefile for now
+#
+# NB: when we use the shim or onelock, we have compiler TM support on.  This
+#     cause a problem, because whenever compiler TM support is on, the
+#     compiler will force libSkySTMLib into the libs, and its constructor
+#     gets very, very cranky (e.g., infinte recursion) when it calls our
+#     STM_GetMyTransId() code.
+#
+# [mfs] right now, IROPT is forced off.  We want it on eventually
+#######################################################
+LDFLAGS_LIBAPI  += -L./$(ODIR) -lrstm
+CXXFLAGS_CXXTM  = -Qoption CC -tm_mode=stm -DSTM_API_CXXTM -DNO_IROPT_INLINING
+CXXFLAGS_SHIM   = -Qoption CC -tm_mode=stm -DSTM_API_CXXTM -DNO_IROPT_INLINING -DOTM2STM -xnolib
+LDFLAGS_SHIM    = -L./$(ODIR) -lotm2stm -lc -lm -lCrun -lCstd -laio -lmd -lumem -lsched -lthread
+CXXFLAGS_LOCK   = -Qoption CC -tm_mode=stm -DSTM_API_CXXTM -DNO_IROPT_INLINING -DOTM2STM -xnolib
+LDFLAGS_LOCK    = -L./$(ODIR) -lonelock -lc -lm -lCrun -lCstd
+
+#######################################################
+# useful (but phony) targets
+#######################################################
+.PHONY: all clean info skybench libapibench shimbench lockbench
+
+all: info $(CONFIG) $(LIB) libapibench skybench shimbench lockbench
+	@echo "Build complete"
+
+skybench: info $(LIBSKYEXECS)
+
+libapibench: info $(LIBAPIEXECS)
+
+shimbench: info $(LIBSHIMEXECS)
+
+lockbench: info $(LIBLOCKEXECS)
+
+# We'll be lazy and clean by colbbering the entire build folder
+clean:
+	@rm -rf $(ODIR)
+	@echo "Finished building target $@"
+
+# to keep the build lines comprehensible, we hide the actual CXX invocations.
+# Printing this information first helps if we need to recreate the invocation
+# manually
+info:
+	@echo "Build Configuration:"
+	@echo "  OUTPUT FOLDER  = $(ODIR)"
+	@echo "  CXX            = ${CXX}"
+	@echo "  CXXFLAGS       = ${CXXFLAGS}"
+	@echo "  LDFLAGS        = ${LDFLAGS}"
+	@echo "  CXXFLAGS_CXXTM = ${CXXFLAGS_CXXTM}"
+	@echo "  LDFLAGS_LIBAPI = ${LDFLAGS_LIBAPI}"
+	@echo "  CXXFLAGS_SHIM  = ${CXXFLAGS_SHIM}"
+	@echo "  LDFLAGS_SHIM   = ${LDFLAGS_SHIM}"
+	@echo "  CXXFLAGS_LOCK  = ${CXXFLAGS_LOCK}"
+	@echo "  LDFLAGS_LOCK   = ${LDFLAGS_LOCK}"
+
+#######################################################
+# targets to make directories
+#######################################################
+
+$(ODIR):
+	@mkdir -p $@
+
+#######################################################
+# Targets to make .o files
+#######################################################
+
+# librstm o files.  since there are 3 folders with library source files, we
+# need 3 rules
+$(ODIR)/%.o: $(LIBSRCDIR)/%.cpp $(CONFIG)
+	@echo [CXX] $< "-->" $@
+	@$(CXX) $(CXXFLAGS) -o $@ -c $<
+$(ODIR)/%.o: $(LIBALGSRCDIR)/%.cpp  $(CONFIG)
+	@echo [CXX] $< "-->" $@
+	@$(CXX) $(CXXFLAGS) -o $@ -c $<
+$(ODIR)/%.o: $(LIBPOLSRCDIR)/%.cpp $(CONFIG)
+	@echo [CXX] $< "-->" $@
+	@$(CXX) $(CXXFLAGS) -o $@ -c $<
+
+# shim ofiles.  Note that we need a special rule for alloc since the
+# allocation functions need TM annotations.  Note too that the first rule
+# "automagically" also builds the libonelock .o files, since they are in the
+# shim folder
+$(ODIR)/%.o: $(SHIMDIR)/%.cpp $(CONFIG)
+	@echo [CXX] $< "-->" $@
+	@$(CXX) $(CXXFLAGS) -o $@ -c $<
+$(ODIR)/alloc.o: $(SHIMDIR)/alloc.cpp $(CONFIG)
+	@echo [CXX] $< "-->" $@
+	@$(CXX) $(CXXFLAGS) -o $@ -c $< $(CXXFLAGS_CXXTM) -xnolib
+
+#######################################################
+# Targets to build .a files
+#######################################################
+
+# librstm.a
+$(LIB): $(LIBOFILES)
+	@echo "[ar] producing $@"
+	@$(AR) cru $@ $^
+
+# libotm2stm.a
+$(SHIM): $(SHIMOFILES)
+	@echo "[ar] producing $@"
+	@$(AR) cru $@ $^
+
+# libonelock.a
+$(LOCK): $(LOCKOFILES)
+	@echo "[ar] producing $@"
+	@$(AR) cru $@ $^
+
+#######################################################
+# Targets to build executables
+#######################################################
+
+# exes that use the library API
+$(ODIR)/libapiexec_%: $(BENCHSRCDIR)/%.cpp $(CONFIG) $(LIB)
+	@echo [CXX] $< "-->" $@
+	@$(CXX) $(CXXFLAGS) -o $@ $< $(LDFLAGS) $(LDFLAGS_LIBAPI) $(CXXFLAGS_LIBAPI)
+
+# exes that use the SkySTM API
+$(ODIR)/libskyexec_%: $(BENCHSRCDIR)/%.cpp $(CONFIG)
+	@echo [CXX] $< "-->" $@
+	@$(CXX) $(CXXFLAGS) $(CXXFLAGS_CXXTM) -o $@ $< $(LDFLAGS)
+
+# exes that use the SHIM API
+$(ODIR)/libshimexec_%: $(BENCHSRCDIR)/%.cpp $(CONFIG) $(SHIM) $(LIB)
+	@echo [CXX] $< "-->" $@
+	@$(CXX) $(CXXFLAGS) $(CXXFLAGS_SHIM) -o $@ $< $(LDFLAGS) $(LDFLAGS_SHIM) $(LDFLAGS_LIBAPI)
+
+# exes that use the onelock API
+$(ODIR)/libonelockexec_%: $(BENCHSRCDIR)/%.cpp $(CONFIG) $(LOCK)
+	@echo [CXX] $< "-->" $@
+	@$(CXX) $(CXXFLAGS) $(CXXFLAGS_SHIM) -o $@ $< $(LDFLAGS) $(LDFLAGS_LOCK)
+
+#######################################################
+# pull in all dependencies
+#######################################################
+
+-include $(LDEPS) $(LIBAPIEXECDEPS) $(LIBSKYEXECDEPS) $(SHIMDEPS) $(LOCKDEPS)

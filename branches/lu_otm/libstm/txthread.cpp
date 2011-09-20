@@ -17,6 +17,10 @@
 #include "algs/algs.hpp"
 #include "inst.hpp"
 
+#ifdef STM_OTM_STACKPROTECT
+#include <alt-license/OracleSkyStuff.hpp>
+#endif
+
 using namespace stm;
 
 namespace
@@ -61,7 +65,7 @@ namespace stm
         allocator(),
         num_commits(0), num_aborts(0), num_restarts(0),
         num_ro(0), scope(NULL),
-#ifdef STM_STACK_PROTECT
+#ifdef STM_PROTECT_STACK
         stack_high(NULL),
         stack_low(~0x0),
 #endif
@@ -77,6 +81,9 @@ namespace stm
         cf((filter_t*)FILTER_ALLOC(sizeof(filter_t))),
         nanorecs(64), begin_wait(0), strong_HG(),
         irrevocable(false)
+#ifdef STM_OTM_STACKPROTECT
+      , stacklogger(), solaris_stack_lo(NULL), solaris_stack_hi(NULL)
+#endif
   {
       // prevent new txns from starting.
       while (true) {
@@ -150,6 +157,11 @@ namespace stm
       // now we can let threads progress again
       CFENCE;
       tmbegin = stms[curr_policy.ALG_ID].begin;
+
+      // get stack info?
+#ifdef STM_OTM_STACKPROTECT
+      getStackInfo(solaris_stack_lo, solaris_stack_hi);
+#endif
   }
 
   /*** print a message and die */

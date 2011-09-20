@@ -188,7 +188,7 @@ extern "C"
 // for that slot (if necessary), initialize its stack-limit members
 // and return it.
 //
-inline void getStackInfo()
+inline void getStackInfo(void*& lo, void*& hi)
 {
     // Update transaction object with thread stack information.
     //
@@ -227,11 +227,10 @@ inline void getStackInfo()
         ss.ss_size = adjusted_size;
     }
 
-    void* high_address = ss.ss_sp;
-    void* low_address = (void*)((size_t)high_address - ss.ss_size);
+    hi = ss.ss_sp;
+    lo = (void*)((size_t)hi - ss.ss_size);
 
-    printf("Stack Information: LOW=0x%p, HIGH=0x%p\n",
-           low_address, high_address);
+    // printf("Stack Information: LOW=0x%p, HIGH=0x%p\n", lo, hi);
 }
 
 #endif // ORACLESKYSTUFF_HPP__

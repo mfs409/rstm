@@ -281,36 +281,30 @@ struct INST<T, 0u, true>
 ///     assumption, but a user could always do something with casting or array
 ///     overflow that might invalidate it.
 template <typename T>
-inline bool is_stack_write(stm::TxThread* const tx, const T* address)
+inline bool is_stack_write(stm::TxThread* const tx, T* address)
 {
-    // [mfs] I think we are going to need three cases, for one stack but not
-    //       in scope, on stack and in scope, and not on stack.  The first
-    //       case requires a call to StackLogger::log_for_undo (NB: do we
-    //       need to get StackLogger into TxThread?).  The first and second
-    //       cases return true.  These cases more or less match ITM, but it's
-    //       easier since we don't care about closed nesting.
-
-    return false;
-
-    // [mfs] Here is the original ITM code, which will provide a basis for
-    //       actually implmenting stack protection.
-    /*
-    // common case is a non-stack write.
+    // get the address as a void*
     const void* begin = static_cast<const void*>(address);
 
-    if (begin < __builtin_frame_address(0))
+    // case 1: not on stack.
+    //
+    // NB: We assume that any shared parts of the stack are not accessed
+    //     transactionally.
+    if ((begin > tx->solaris_stack_hi) || (begin < tx->solaris_stack_lo))
         return false;
-    if (begin > tx->outer()->stackHigh())
-        return false;
-    if (begin < tx->inner()->stackHigh())
+
+    // case 2: on stack but transaction local.
+    //
+    // NB: The trick here is that we have a jump buffer that is on the stack
+    //     of the outermost transaction, and tx->scope stores a pointer to
+    //     it.  So if the address is smaller than tx->scope, but bigger than
+    //     stack_lo, then it's tx-local
+    if ((begin > tx->solaris_stack_lo) && (begin < tx->scope))
         return true;
 
-    // We have an instrumented write to a stack location between the inner and
-    // outer scope. If the user issues an explicit cancel_inner we'll need to
-    // restore the value, so we need to log it.
-    tx->inner()->log(address);
+    // case 3: on stack and not transaction local
+    tx->stacklogger.log_for_undo(address);
     return true;
-    */
 }
 } // namespace
 

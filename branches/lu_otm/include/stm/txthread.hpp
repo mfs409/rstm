@@ -28,6 +28,10 @@
 #include "stm/ValueList.hpp"
 #include "WBMMPolicy.hpp"
 
+#ifdef STM_OTM_STACKPROTECT
+#include "StackLogger.hpp"
+#endif
+
 namespace stm
 {
   /**
@@ -95,6 +99,13 @@ namespace stm
       /*** PER-THREAD FIELDS FOR ENABLING ADAPTIVITY POLICIES */
       uint64_t      end_txn_time;      // end of non-transactional work
       uint64_t      total_nontxn_time; // time on non-transactional work
+
+      /*** Solaris-specific stack logging stuff for use w/ sunstudio */
+#ifdef STM_OTM_STACKPROTECT
+      StackLogger   stacklogger;         // undo log of stack accesses
+      void*         solaris_stack_lo;    // maximum "top" of stack (low addr)
+      void*         solaris_stack_hi;    // bottom of stack (high addr)
+#endif
 
       /*** POINTERS TO INSTRUMENTATION */
 

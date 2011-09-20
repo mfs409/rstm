@@ -7,88 +7,46 @@
 # License: Modified BSD
 #          Please see the file LICENSE.RSTM for licensing information
 
-# Source folder names
-BENCHSRCDIR  = bench
-LIBSRCDIR    = libstm
-LIBALGSRCDIR = $(LIBSRCDIR)/algs
-LIBPOLSRCDIR = $(LIBSRCDIR)/policies
+#######################################################
+# Output folder name
+#######################################################
 
-# Output folder names
-ODIR = ./obj.dir
-CONFDIR = $(ODIR)/stm
+ODIR = ./obj.sparc
 
-# Base names of files that we expect in each of the source folders
-BENCHFILES  = CounterBench DisjointBench DListBench ForestBench HashBench    \
-              ListBench MCASBench ReadNWrite1Bench ReadWriteNBench TreeBench \
-              TreeOverwriteBench TypeTest WWPathologyBench
-LIBFILES    = inst irrevocability profiling txthread types WBMMPolicy
-LIBALGFILES = algs biteager biteagerredo bitlazy byear byeau byteeager       \
-              byteeagerredo bytelazy cgl ctoken ctokenturbo llt mcs nano     \
-              norec norecprio oreau orecala oreceager oreceagerredo orecela  \
-              orecfair oreclazy pipeline profileapp profiletm ringala ringsw \
-              serial swiss ticket tli tml tmllazy
-LIBPOLNAMES = cbr policies static
+#######################################################
+# Names of important tools.
+#
+# NB: These are hard-coded for Lehigh for now
+#
+# NB: We have both the pre-release Oracle compiler, and the special revised
+#     pre-release iropt.  The Qpath flag gets us the newer iropt, which is
+#     necessary to get things to build correctly
+#######################################################
+CXX = /apps/suncc-s2-sparc/bin/CC -Qpath /proj/spear1/suncc/sparc-S2/
 
-# Names of important tools.  These may be hard-coded for Lehigh for now
-CXX = /apps/suncc-s2-`uname -p`/bin/CC
-AR  = ar
+#######################################################
+# Platform-specific build flags
+#######################################################
 
-# Standard flags
-CXXFLAGS    = -mt +w -xMMD -xO5 -g0
+CXXFLAGS    = -mt +w -xMMD -xO5 -xchip=ultraT2 -xtarget=ultraT2 -xalias_level=any
 CXXFLAGS   += -features=zla -template=no%extdef
 CXXFLAGS   += -m32 -I./$(ODIR) -I./include -I.
+CXXFLAGS   += -DSINGLE_SOURCE_BUILD
 LDFLAGS    += -lrt -lpthread -m32 -lmtmalloc
-CXXFLAGS   += -xarch=native -xcode=pic32 -Qoption cg -Qiselect-movxtod=0,-Qiselect-movitof=0,-Qiselect-unfused_muladd=0,-Qiselect-sqrt1x=0,-Qiselect-fused_muladd=0
+#CXXFLAGS   += -xarch=native -xcode=pic32 -Qoption cg -Qiselect-movxtod=0,-Qiselect-movitof=0,-Qiselect-unfused_muladd=0,-Qiselect-sqrt1x=0,-Qiselect-fused_muladd=0
 
+#######################################################
+# Pull in standard stuff
+#######################################################
 
-# Custom flags for library API builds
-LDFLAGS_LIBAPI += -L./$(ODIR) -lrstm
+include Makefile.common
 
-# Custom flags for CXXTM API builds
-CXXFLAGS_CXXTM  = -Qoption CC -tm_mode=stm -DSTM_API_CXXTM -DNO_IROPT_INLINING
+#######################################################
+# with cmake, RSTM does out-of-source builds, and expects cmake to produce a
+# config.h in the out-of-source include/stm folder.  We avoid having to write
+# to source folders by using this hack instead
+#######################################################
 
-# Transformations of filenames into build targets
-# We build the library once, and only one way
-LIB        = $(ODIR)/librstm.a
-LIBOFILES  = $(patsubst %, $(ODIR)/%.o, $(LIBFILES) $(LIBALGFILES) \
-                                        $(LIBPOLNAMES))
-LDEPS      = $(patsubst %, $(ODIR)/%.d, $(LIBFILES) $(LIBALGFILES) \
-                                        $(LIBPOLNAMES))
-# We build one configuration file
-CONFIG   = $(CONFDIR)/config.h
-
-# Rules for building executables that use the Library API
-LIBAPIEXECS    = $(patsubst %, $(ODIR)/libapiexec_%, $(BENCHFILES))
-LIBAPIEXECDEPS = $(patsubst %, $(ODIR)/libapiexec_%.d, $(BENCHFILES))
-
-# Rules for building executables that use SkySTM
-LIBSKYEXECS    = $(patsubst %, $(ODIR)/libskyexec_%, $(BENCHFILES))
-LIBSKYEXECDEPS = $(patsubst %, $(ODIR)/libskyexec_%.d, $(BENCHFILES))
-
-# build rules
-.PHONY: all clean info skybench libapibench
-.PRECIOUS: $(CONFDIR) $(ODIR) $(LIBSKYEXECS)
-all: info $(CONFIG) $(LIB) libapibench skybench
-	@echo "Build complete"
-
-skybench: $(LIBSKYEXECS)
-
-libapibench: $(LIBAPIEXECS)
-
-# to keep the build lines comprehensible, we hide the actual CXX invocations.
-# Printing this information first helps if we need to recreate the invocation
-# manually
-info:
-	@echo "Build Configuration:"
-	@echo "  CXXFLAGS   = ${CXXFLAGS}"
-	@echo "  LDFLAGS    = ${LDFLAGS}"
-	@echo "  CXX        = ${CXX}"
-	@echo "  CXXFLAGS_CXXTM = ${CXXFLAGS_CXXTM}"
-	@echo "  LDFLAGS_LIBAPI    = ${LDFLAGS_LIBAPI}"
-
-# RSTM does out-of-source builds, and expects cmake to produce a config.h in
-# the out-of-source include/stm folder.  We avoid having to write to source
-# folders by using this hack instead
 $(CONFIG):
 	@mkdir -p $(CONFDIR)
 	@echo "#define STM_BITS_32" > $@
@@ -97,44 +55,6 @@ $(CONFIG):
 	@echo "#define STM_CC_SUN" >> $@
 	@echo "#define STM_CPU_SPARC" >> $@
 	@echo "#define STM_WS_BYTELOG" >> $@
+	@echo "#define STM_OTM_STACKPROTECT" >> $@
 	@echo "#define STM_PROFILETMTRIGGER_ALL" >> $@
-	@echo "#define SINGLE_SOURCE_BUILD" >> $@
 	@echo "$@ Complete"
-
-# We'll be lazy and clean by colbbering the entire build folder
-clean:
-	@rm -rf $(ODIR)
-	@echo "Finished building target $@"
-
-# rule for making directories for output files
-%.dir:
-	@mkdir -p $@
-
-# since there are 3 folders with library source files, we need 3 rules to
-# build all the .o files
-$(ODIR)/%.o: $(LIBSRCDIR)/%.cpp $(ODIR) $(CONFIG)
-	@echo [CXX] $< "-->" $@
-	@$(CXX) $(CXXFLAGS) -o $@ -c $<
-$(ODIR)/%.o: $(LIBALGSRCDIR)/%.cpp $(ODIR) $(CONFIG)
-	@echo [CXX] $< "-->" $@
-	@$(CXX) $(CXXFLAGS) -o $@ -c $<
-$(ODIR)/%.o: $(LIBPOLSRCDIR)/%.cpp $(ODIR) $(CONFIG)
-	@echo [CXX] $< "-->" $@
-	@$(CXX) $(CXXFLAGS) -o $@ -c $<
-
-# Rule to build the .a from the library .o files
-$(LIB): $(LIBOFILES)
-	@echo "[ar] $(ODIR)*.o --> $@"
-	@$(AR) cru $@ $^
-
-# Rule for building executables that use the Library API
-$(ODIR)/libapiexec_%: $(BENCHSRCDIR)/%.cpp $(ODIR) $(CONFIG) $(LIB)
-	@echo [CXX] $< "-->" $@
-	@$(CXX) $(CXXFLAGS) -o $@ $< $(LDFLAGS) $(LDFLAGS_LIBAPI)
-
-# Rule for building executables that use the SkySTM API
-$(ODIR)/libskyexec_%: $(BENCHSRCDIR)/%.cpp $(ODIR) $(CONFIG)
-	@echo [CXX] $< "-->" $@
-	$(CXX) $(CXXFLAGS) $(CXXFLAGS_CXXTM) -o $@ $< $(LDFLAGS) -xipo=0
-
--include $(LDEPS) $(LIBAPIEXECDEPS) $(LIBSKYEXECDEPS)
