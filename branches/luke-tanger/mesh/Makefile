@@ -1,9 +1,9 @@
-TORULES := ..
-
-SOURCES := dwyer.cpp edge.cpp edge_set.cpp mesh.cpp my_thread.cpp point.cpp \
-           queues.cpp side.cpp worker.cpp
-
-EXECS   := mesh
+TORULES  := ../..
+SOURCES  := dwyer.cpp edge.cpp edge_set.cpp mesh.cpp my_thread.cpp point.cpp \
+            queues.cpp side.cpp worker.cpp
+CXXFLAGS += -I.. -I../include -I$(TORULES)/../build/rstm/include
+CXXFLAGS += -fno-exceptions
+EXECS    := mesh
 
 -include $(TORULES)/Makefile.rules
 

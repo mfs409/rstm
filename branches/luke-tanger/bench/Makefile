@@ -1,10 +1,12 @@
-TORULES = ..
+TORULES  := ../..
 
-CXXFLAGS += -DSTM_API_TANGER
+CXXFLAGS += -I.. -I../include -I$(TORULES)/../build/rstm/include
+CXXFLAGS += -DSTM_API_TANGER 
+CXXFLAGS += -fno-exceptions
 
-EXECS := CounterBench TreeBench DListBench DisjointBench ForestBench \
-         HashBench ListBench MCASBench ReadNWrite1Bench ReadWriteNBench \
-         TreeOverwriteBench WWPathologyBench
+EXECS    := CounterBench TreeBench DListBench DisjointBench ForestBench \
+	    HashBench ListBench MCASBench ReadNWrite1Bench ReadWriteNBench \
+            TreeOverwriteBench WWPathologyBench
 
 -include $(TORULES)/Makefile.rules
 

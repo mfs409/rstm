@@ -1,9 +1,10 @@
-TORULES := ../..
+TORULES := ../../..
 
 SOURCES := ../lib/mt19937ar.c ../lib/random.c ../lib/thread.c \
            cluster.c common.c kmeans.c normal.c
 
-CXXFLAGS += -I../lib
+CXXFLAGS += -I../lib -I../.. -I../../include -I$(TORULES)/../build/rstm/include
+CXXFLAGS += -fno-exceptions
 
 EXECS    := kmeans
 

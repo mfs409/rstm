@@ -12,5 +12,8 @@ clean: $(BENCHMARKS)
 test: TARGET := test
 test: $(BENCHMARKS)
 
+check: TARGET := check
+check:
+
 $(BENCHMARKS):
 	$(MAKE) --directory=$@ $(TARGET)
