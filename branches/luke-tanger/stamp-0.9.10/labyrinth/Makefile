@@ -1,13 +1,10 @@
 TORULES  := ../../..
-
 SOURCES  := ../lib/list.c ../lib/mt19937ar.c ../lib/pair.c ../lib/queue.c \
             ../lib/random.c ../lib/thread.c ../lib/vector.c \
             coordinate.c grid.c labyrinth.c maze.c router.c
-
-CXXFLAGS += -I../lib -I../.. -I../../include -I$(TORULES)/../build/rstm/include
-CXXFLAGS += -DUSE_EARLY_RELEASE
-CXXFLAGS += -fno-exceptions
-
+CFLAGS   += -I../lib -I../.. -I../../include -I$(TORULES)/../build/rstm/include
+CFLAGS   += -DUSE_EARLY_RELEASE
+LLVM-GCC := llvm-g++
 EXECS    := labyrinth
 
 -include $(TORULES)/Makefile.rules

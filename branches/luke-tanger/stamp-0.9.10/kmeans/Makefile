@@ -1,11 +1,8 @@
-TORULES := ../../..
-
-SOURCES := ../lib/mt19937ar.c ../lib/random.c ../lib/thread.c \
-           cluster.c common.c kmeans.c normal.c
-
-CXXFLAGS += -I../lib -I../.. -I../../include -I$(TORULES)/../build/rstm/include
-CXXFLAGS += -fno-exceptions
-
+TORULES  := ../../..
+SOURCES  := ../lib/mt19937ar.c ../lib/random.c ../lib/thread.c \
+            cluster.c common.c kmeans.c normal.c
+CFLAGS   += -I../lib -I../.. -I../../include -I$(TORULES)/../build/rstm/include
+LLVM-GCC := llvm-g++
 EXECS    := kmeans
 
 -include $(TORULES)/Makefile.rules

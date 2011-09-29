@@ -386,7 +386,7 @@ inline void sleep_ms(uint32_t ms) { usleep(ms*1000); }
  */
 #if defined(STM_OS_LINUX)
 #include <stdio.h>
-#include <cstring>
+#include <string.h>
 #include <assert.h>
 #include <pthread.h>
 #include <time.h>
