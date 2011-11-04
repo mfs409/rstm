@@ -58,8 +58,8 @@ inline uintptr_t
 make_mask(size_t i, size_t j) {
     // assert(0 <= i && i < j && j <= sizeof(void*) && "range is incorrect")
     uintptr_t mask = ~(uintptr_t)0;
-    mask = mask >> (8 * (sizeof(void*) - j)); // shift 0s to the top
-    mask = mask << (8 * i);                   // shift 0s into the bottom
+    mask = mask >> (8 * (sizeof(void*) - j - i)); // shift 0s to the top
+    mask = mask << (8 * i);                       // shift 0s into the bottom
     return mask;
 }
 }
