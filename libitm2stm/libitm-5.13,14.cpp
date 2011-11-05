@@ -72,6 +72,42 @@ memcpy(void* to, const void* from, size_t len, R reader, W writer) {
 }
 
 // ----------------------------------------------------------------------------
+// The basic memmove loop. A real memmove only needs two branches and simply
+// selects between memcpy from source with ++ or memcpy from source + len with
+// --. We don't have that functionality yet.
+// ----------------------------------------------------------------------------
+template <typename R, typename W>
+inline void
+memmove(void* to, const void* from, size_t len, R reader, W writer)
+{
+    uint8_t* target = static_cast<uint8_t*>(to);
+    const uint8_t* source = static_cast<const uint8_t*>(from);
+
+    // target, target + len, source, source + len
+    // target, source, target + len, source + len
+    //
+    // if the target is less than the source address, then we always read the
+    // source bytes before we overwrite them and we can use our basic memcpy
+    if (target < source)
+        memcpy(to, from, len, reader, writer);
+
+    // source, source + len, target, target + len
+    //
+    // if the target doesn't overlap the source then we won't ever write on top
+    // of the source and we're ok
+    else if (source + len <= target)
+        memcpy(to, from, len, reader, writer);
+
+    // source, target, source + len, target + len
+    //
+    // here we have to writer from source + len to target + len backwards, but
+    // our memcpy can't yet handle that.
+    else
+        assert(false && "memmove not yet implemented for overlapping regions.");
+}
+
+
+// ----------------------------------------------------------------------------
 // Our memcpy loop needs a slightly different interface than the libc memcpy
 // provides. It needs the function to return the number of bytes actually read
 // (because our transactional versions might refuse to write some bytes due to
@@ -80,18 +116,6 @@ memcpy(void* to, const void* from, size_t len, R reader, W writer) {
 inline size_t
 builtin_memcpy_wrapper(void* to, const void* from, size_t n) {
     __builtin_memcpy(to, from, n);
-    return n;
-}
-
-// ----------------------------------------------------------------------------
-// Our memmove loop needs a slightly different interface than the libc memmove
-// provides. It needs the function to return the number of bytes actually read
-// (because our transactional versions might refuse to write some bytes due to
-// alignment issues).
-// ----------------------------------------------------------------------------
-inline size_t
-builtin_memmove_wrapper(void* to, const void* from, size_t n) {
-    __builtin_memmove(to, from, n);
     return n;
 }
 }
@@ -123,8 +147,8 @@ _ITM_memcpyRnWtaW(_ITM_transaction* td, void* to, const void* from, size_t n)
 void
 _ITM_memcpyRtWn(_ITM_transaction* td, void* to, const void* from, size_t n)
 {
-    BlockWriter writer(td->handle());
-    memcpy(to, from, n, builtin_memcpy_wrapper, writer);
+    BlockReader reader(td->handle());
+    memcpy(to, from, n, reader, builtin_memcpy_wrapper);
 }
 
 void
@@ -220,68 +244,29 @@ void
 _ITM_memmoveRnWt(_ITM_transaction* td, void* to, const void* from, size_t n)
 {
     BlockWriter writer(td->handle());
-
-    uint8_t* target = static_cast<uint8_t*>(to);
-    uint8_t* target_end = target + n;
-
-    const uint8_t* source = static_cast<const uint8_t*>(from);
-    const uint8_t* source_end = source + n;
-
-    if (source_end <= target || target_end <= source)
-        memcpy(to, from, n, builtin_memcpy_wrapper, writer);
-
-    assert(false && "memmove not yet implemented for overlapping regions.");
+    memmove(to, from, n, builtin_memcpy_wrapper, writer);
 }
 
 void
 _ITM_memmoveRnWtaR(_ITM_transaction* td, void* to, const void* from, size_t n)
 {
     BlockWriter writer(td->handle());
-
-    uint8_t* target = static_cast<uint8_t*>(to);
-    uint8_t* target_end = target + n;
-
-    const uint8_t* source = static_cast<const uint8_t*>(from);
-    const uint8_t* source_end = source + n;
-
-    if (source_end <= target || target_end <= source)
-        memcpy(to, from, n, builtin_memcpy_wrapper, writer);
-
-    assert(false && "memmove not yet implemented for overlapping regions.");
+    memmove(to, from, n, builtin_memcpy_wrapper, writer);
 }
 
 void
 _ITM_memmoveRnWtaW(_ITM_transaction* td, void* to, const void* from, size_t n)
 {
     BlockWriter writer(td->handle());
-
-    uint8_t* target = static_cast<uint8_t*>(to);
-    uint8_t* target_end = target + n;
-
-    const uint8_t* source = static_cast<const uint8_t*>(from);
-    const uint8_t* source_end = source + n;
-
-    if (source_end <= target || target_end <= source)
-        memcpy(to, from, n, builtin_memcpy_wrapper, writer);
-
-    assert(false && "memmove not yet implemented for overlapping regions.");
+    memmove(to, from, n, builtin_memcpy_wrapper, writer);
 }
+
 
 void
 _ITM_memmoveRtWn(_ITM_transaction* td, void* to, const void* from, size_t n)
 {
     BlockReader reader(td->handle());
-
-    uint8_t* target = static_cast<uint8_t*>(to);
-    uint8_t* target_end = target + n;
-
-    const uint8_t* source = static_cast<const uint8_t*>(from);
-    const uint8_t* source_end = source + n;
-
-    if (source_end <= target || target_end <= source)
-        memcpy(to, from, n, reader, builtin_memcpy_wrapper);
-
-    assert(false && "memmove not yet implemented for overlapping regions.");
+    memmove(to, from, n, reader, builtin_memcpy_wrapper);
 }
 
 void
@@ -289,17 +274,7 @@ _ITM_memmoveRtWt(_ITM_transaction* td, void* to, const void* from, size_t n)
 {
     BlockReader reader(td->handle());
     BlockWriter writer(td->handle());
-
-    uint8_t* target = static_cast<uint8_t*>(to);
-    uint8_t* target_end = target + n;
-
-    const uint8_t* source = static_cast<const uint8_t*>(from);
-    const uint8_t* source_end = source + n;
-
-    if (source_end <= target || target_end <= source)
-        memcpy(to, from, n, reader, writer);
-
-    assert(false && "memmove not yet implemented for overlapping regions.");
+    memmove(to, from, n, reader, writer);
 }
 
 void
@@ -307,17 +282,7 @@ _ITM_memmoveRtWtaR(_ITM_transaction* td, void* to, const void* from, size_t n)
 {
     BlockReader reader(td->handle());
     BlockWriter writer(td->handle());
-
-    uint8_t* target = static_cast<uint8_t*>(to);
-    uint8_t* target_end = target + n;
-
-    const uint8_t* source = static_cast<const uint8_t*>(from);
-    const uint8_t* source_end = source + n;
-
-    if (source_end <= target || target_end <= source)
-        memcpy(to, from, n, reader, writer);
-
-    assert(false && "memmove not yet implemented for overlapping regions.");
+    memmove(to, from, n, reader, writer);
 }
 
 void
@@ -325,34 +290,14 @@ _ITM_memmoveRtWtaW(_ITM_transaction* td, void* to, const void* from, size_t n)
 {
     BlockReader reader(td->handle());
     BlockWriter writer(td->handle());
-
-    uint8_t* target = static_cast<uint8_t*>(to);
-    uint8_t* target_end = target + n;
-
-    const uint8_t* source = static_cast<const uint8_t*>(from);
-    const uint8_t* source_end = source + n;
-
-    if (source_end <= target || target_end <= source)
-        memcpy(to, from, n, reader, writer);
-
-    assert(false && "memmove not yet implemented for overlapping regions.");
+    memmove(to, from, n, reader, writer);
 }
 
 void
 _ITM_memmoveRtaRWn(_ITM_transaction* td, void* to, const void* from, size_t n)
 {
     BlockReader reader(td->handle());
-
-    uint8_t* target = static_cast<uint8_t*>(to);
-    uint8_t* target_end = target + n;
-
-    const uint8_t* source = static_cast<const uint8_t*>(from);
-    const uint8_t* source_end = source + n;
-
-    if (source_end <= target || target_end <= source)
-        memcpy(to, from, n, reader, builtin_memcpy_wrapper);
-
-    assert(false && "memmove not yet implemented for overlapping regions.");
+    memmove(to, from, n, reader, builtin_memcpy_wrapper);
 }
 
 void
@@ -360,17 +305,7 @@ _ITM_memmoveRtaRWt(_ITM_transaction* td, void* to, const void* from, size_t n)
 {
     BlockReader reader(td->handle());
     BlockWriter writer(td->handle());
-
-    uint8_t* target = static_cast<uint8_t*>(to);
-    uint8_t* target_end = target + n;
-
-    const uint8_t* source = static_cast<const uint8_t*>(from);
-    const uint8_t* source_end = source + n;
-
-    if (source_end <= target || target_end <= source)
-        memcpy(to, from, n, reader, writer);
-
-    assert(false && "memmove not yet implemented for overlapping regions.");
+    memmove(to, from, n, reader, writer);
 }
 
 void
@@ -378,17 +313,7 @@ _ITM_memmoveRtaRWtaR(_ITM_transaction* td, void* to, const void* from, size_t n)
 {
     BlockReader reader(td->handle());
     BlockWriter writer(td->handle());
-
-    uint8_t* target = static_cast<uint8_t*>(to);
-    uint8_t* target_end = target + n;
-
-    const uint8_t* source = static_cast<const uint8_t*>(from);
-    const uint8_t* source_end = source + n;
-
-    if (source_end <= target || target_end <= source)
-        memcpy(to, from, n, reader, writer);
-
-    assert(false && "memmove not yet implemented for overlapping regions.");
+    memmove(to, from, n, reader, writer);
 }
 
 void
@@ -396,34 +321,14 @@ _ITM_memmoveRtaRWtaW(_ITM_transaction* td, void* to, const void* from, size_t n)
 {
     BlockReader reader(td->handle());
     BlockWriter writer(td->handle());
-
-    uint8_t* target = static_cast<uint8_t*>(to);
-    uint8_t* target_end = target + n;
-
-    const uint8_t* source = static_cast<const uint8_t*>(from);
-    const uint8_t* source_end = source + n;
-
-    if (source_end <= target || target_end <= source)
-        memcpy(to, from, n, reader, writer);
-
-    assert(false && "memmove not yet implemented for overlapping regions.");
+    memmove(to, from, n, reader, writer);
 }
 
 void
 _ITM_memmoveRtaWWn(_ITM_transaction* td, void* to, const void* from, size_t n)
 {
     BlockReader reader(td->handle());
-
-    uint8_t* target = static_cast<uint8_t*>(to);
-    uint8_t* target_end = target + n;
-
-    const uint8_t* source = static_cast<const uint8_t*>(from);
-    const uint8_t* source_end = source + n;
-
-    if (source_end <= target || target_end <= source)
-        memcpy(to, from, n, reader, builtin_memcpy_wrapper);
-
-    assert(false && "memmove not yet implemented for overlapping regions.");
+    memmove(to, from, n, reader, builtin_memcpy_wrapper);
 }
 
 void
@@ -431,17 +336,7 @@ _ITM_memmoveRtaWWt(_ITM_transaction* td, void* to, const void* from, size_t n)
 {
     BlockReader reader(td->handle());
     BlockWriter writer(td->handle());
-
-    uint8_t* target = static_cast<uint8_t*>(to);
-    uint8_t* target_end = target + n;
-
-    const uint8_t* source = static_cast<const uint8_t*>(from);
-    const uint8_t* source_end = source + n;
-
-    if (source_end <= target || target_end <= source)
-        memcpy(to, from, n, reader, writer);
-
-    assert(false && "memmove not yet implemented for overlapping regions.");
+    memmove(to, from, n, reader, writer);
 }
 
 void
@@ -449,17 +344,7 @@ _ITM_memmoveRtaWWtaR(_ITM_transaction* td, void* to, const void* from, size_t n)
 {
     BlockReader reader(td->handle());
     BlockWriter writer(td->handle());
-
-    uint8_t* target = static_cast<uint8_t*>(to);
-    uint8_t* target_end = target + n;
-
-    const uint8_t* source = static_cast<const uint8_t*>(from);
-    const uint8_t* source_end = source + n;
-
-    if (source_end <= target || target_end <= source)
-        memcpy(to, from, n, reader, writer);
-
-    assert(false && "memmove not yet implemented for overlapping regions.");
+    memmove(to, from, n, reader, writer);
 }
 
 void
@@ -467,15 +352,5 @@ _ITM_memmoveRtaWWtaW(_ITM_transaction* td, void* to, const void* from, size_t n)
 {
     BlockReader reader(td->handle());
     BlockWriter writer(td->handle());
-
-    uint8_t* target = static_cast<uint8_t*>(to);
-    uint8_t* target_end = target + n;
-
-    const uint8_t* source = static_cast<const uint8_t*>(from);
-    const uint8_t* source_end = source + n;
-
-    if (source_end <= target || target_end <= source)
-        memcpy(to, from, n, reader, writer);
-
-    assert(false && "memmove not yet implemented for overlapping regions.");
+    memmove(to, from, n, reader, writer);
 }
