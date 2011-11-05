@@ -227,7 +227,7 @@ _ITM_memmoveRnWt(_ITM_transaction* td, void* to, const void* from, size_t n)
     const uint8_t* source = static_cast<const uint8_t*>(from);
     const uint8_t* source_end = source + n;
 
-    if (source_end < target && target_end < source)
+    if (source_end <= target || target_end <= source)
         memcpy(to, from, n, builtin_memcpy_wrapper, writer);
 
     assert(false && "memmove not yet implemented for overlapping regions.");
@@ -244,7 +244,7 @@ _ITM_memmoveRnWtaR(_ITM_transaction* td, void* to, const void* from, size_t n)
     const uint8_t* source = static_cast<const uint8_t*>(from);
     const uint8_t* source_end = source + n;
 
-    if (source_end < target && target_end < source)
+    if (source_end <= target || target_end <= source)
         memcpy(to, from, n, builtin_memcpy_wrapper, writer);
 
     assert(false && "memmove not yet implemented for overlapping regions.");
@@ -261,7 +261,7 @@ _ITM_memmoveRnWtaW(_ITM_transaction* td, void* to, const void* from, size_t n)
     const uint8_t* source = static_cast<const uint8_t*>(from);
     const uint8_t* source_end = source + n;
 
-    if (source_end < target && target_end < source)
+    if (source_end <= target || target_end <= source)
         memcpy(to, from, n, builtin_memcpy_wrapper, writer);
 
     assert(false && "memmove not yet implemented for overlapping regions.");
@@ -278,7 +278,7 @@ _ITM_memmoveRtWn(_ITM_transaction* td, void* to, const void* from, size_t n)
     const uint8_t* source = static_cast<const uint8_t*>(from);
     const uint8_t* source_end = source + n;
 
-    if (source_end < target && target_end < source)
+    if (source_end <= target || target_end <= source)
         memcpy(to, from, n, reader, builtin_memcpy_wrapper);
 
     assert(false && "memmove not yet implemented for overlapping regions.");
@@ -296,7 +296,7 @@ _ITM_memmoveRtWt(_ITM_transaction* td, void* to, const void* from, size_t n)
     const uint8_t* source = static_cast<const uint8_t*>(from);
     const uint8_t* source_end = source + n;
 
-    if (source_end < target && target_end < source)
+    if (source_end <= target || target_end <= source)
         memcpy(to, from, n, reader, writer);
 
     assert(false && "memmove not yet implemented for overlapping regions.");
@@ -314,7 +314,7 @@ _ITM_memmoveRtWtaR(_ITM_transaction* td, void* to, const void* from, size_t n)
     const uint8_t* source = static_cast<const uint8_t*>(from);
     const uint8_t* source_end = source + n;
 
-    if (source_end < target && target_end < source)
+    if (source_end <= target || target_end <= source)
         memcpy(to, from, n, reader, writer);
 
     assert(false && "memmove not yet implemented for overlapping regions.");
@@ -332,7 +332,7 @@ _ITM_memmoveRtWtaW(_ITM_transaction* td, void* to, const void* from, size_t n)
     const uint8_t* source = static_cast<const uint8_t*>(from);
     const uint8_t* source_end = source + n;
 
-    if (source_end < target && target_end < source)
+    if (source_end <= target || target_end <= source)
         memcpy(to, from, n, reader, writer);
 
     assert(false && "memmove not yet implemented for overlapping regions.");
@@ -349,7 +349,7 @@ _ITM_memmoveRtaRWn(_ITM_transaction* td, void* to, const void* from, size_t n)
     const uint8_t* source = static_cast<const uint8_t*>(from);
     const uint8_t* source_end = source + n;
 
-    if (source_end < target && target_end < source)
+    if (source_end <= target || target_end <= source)
         memcpy(to, from, n, reader, builtin_memcpy_wrapper);
 
     assert(false && "memmove not yet implemented for overlapping regions.");
@@ -367,7 +367,7 @@ _ITM_memmoveRtaRWt(_ITM_transaction* td, void* to, const void* from, size_t n)
     const uint8_t* source = static_cast<const uint8_t*>(from);
     const uint8_t* source_end = source + n;
 
-    if (source_end < target && target_end < source)
+    if (source_end <= target || target_end <= source)
         memcpy(to, from, n, reader, writer);
 
     assert(false && "memmove not yet implemented for overlapping regions.");
@@ -385,7 +385,7 @@ _ITM_memmoveRtaRWtaR(_ITM_transaction* td, void* to, const void* from, size_t n)
     const uint8_t* source = static_cast<const uint8_t*>(from);
     const uint8_t* source_end = source + n;
 
-    if (source_end < target && target_end < source)
+    if (source_end <= target || target_end <= source)
         memcpy(to, from, n, reader, writer);
 
     assert(false && "memmove not yet implemented for overlapping regions.");
@@ -403,7 +403,7 @@ _ITM_memmoveRtaRWtaW(_ITM_transaction* td, void* to, const void* from, size_t n)
     const uint8_t* source = static_cast<const uint8_t*>(from);
     const uint8_t* source_end = source + n;
 
-    if (source_end < target && target_end < source)
+    if (source_end <= target || target_end <= source)
         memcpy(to, from, n, reader, writer);
 
     assert(false && "memmove not yet implemented for overlapping regions.");
@@ -420,7 +420,7 @@ _ITM_memmoveRtaWWn(_ITM_transaction* td, void* to, const void* from, size_t n)
     const uint8_t* source = static_cast<const uint8_t*>(from);
     const uint8_t* source_end = source + n;
 
-    if (source_end < target && target_end < source)
+    if (source_end <= target || target_end <= source)
         memcpy(to, from, n, reader, builtin_memcpy_wrapper);
 
     assert(false && "memmove not yet implemented for overlapping regions.");
@@ -438,7 +438,7 @@ _ITM_memmoveRtaWWt(_ITM_transaction* td, void* to, const void* from, size_t n)
     const uint8_t* source = static_cast<const uint8_t*>(from);
     const uint8_t* source_end = source + n;
 
-    if (source_end < target && target_end < source)
+    if (source_end <= target || target_end <= source)
         memcpy(to, from, n, reader, writer);
 
     assert(false && "memmove not yet implemented for overlapping regions.");
@@ -456,7 +456,7 @@ _ITM_memmoveRtaWWtaR(_ITM_transaction* td, void* to, const void* from, size_t n)
     const uint8_t* source = static_cast<const uint8_t*>(from);
     const uint8_t* source_end = source + n;
 
-    if (source_end < target && target_end < source)
+    if (source_end <= target || target_end <= source)
         memcpy(to, from, n, reader, writer);
 
     assert(false && "memmove not yet implemented for overlapping regions.");
@@ -474,7 +474,7 @@ _ITM_memmoveRtaWWtaW(_ITM_transaction* td, void* to, const void* from, size_t n)
     const uint8_t* source = static_cast<const uint8_t*>(from);
     const uint8_t* source_end = source + n;
 
-    if (source_end < target && target_end < source)
+    if (source_end <= target || target_end <= source)
         memcpy(to, from, n, reader, writer);
 
     assert(false && "memmove not yet implemented for overlapping regions.");
