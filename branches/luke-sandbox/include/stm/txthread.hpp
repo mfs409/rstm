@@ -26,6 +26,7 @@
 #include "stm/WriteSet.hpp"
 #include "stm/UndoLog.hpp"
 #include "stm/ValueList.hpp"
+#include "stm/ReadLog.hpp"
 #include "WBMMPolicy.hpp"
 
 namespace stm
@@ -66,7 +67,7 @@ namespace stm
       UndoLog        undo_log;      // etee undo log
       ValueList      vlist;         // NOrec read log
       WriteSet       writes;        // write set
-      OrecList       r_orecs;       // read set for orec STMs
+      ReadLog        r_orecs;       // read set for orec STMs
       OrecList       locks;         // list of all locks held by tx
       id_version_t   my_lock;       // lock word for orec STMs
       filter_t*      wf;            // write filter
