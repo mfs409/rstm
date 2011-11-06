@@ -8,8 +8,11 @@
  *          Please see the file LICENSE.RSTM for licensing information
  */
 
+#include <vector>
 #include "../sandboxing.hpp"
+#include "handlers.hpp"
 using stm::TxThread;
+using std::vector;
 
 /**
  *  Opaque TMs are always valid when this gets called.
@@ -20,12 +23,36 @@ stm::default_validate_handler(TxThread*)
     return true;
 }
 
+namespace {
+  // these are the synchronous signals that we validate.
+  const int N_SYNCHRONOUS = 2;
+  const int synchronous[N_SYNCHRONOUS] = {
+      SIGSEGV,
+      SIGBUS
+  };
+}
+
+/**
+ *  Installs the signal handlers that sandboxing requires.
+ */
 void
 stm::install_sandboxing_signal_handlers()
 {
+    sigaction_t sa;
+    sa.sa_sigaction = validate_synchronous_signal;
+    sa.sa_flags = 0;
+    sigemptyset(&sa.sa_mask);
+    for (int i = 0; i < N_SYNCHRONOUS; ++i)
+        libstm_internal_sigaction(synchronous[i], &sa);
 }
 
 void
 stm::uninstall_sandboxing_signal_handlers()
 {
+    sigaction_t sa;
+    sa.sa_handler = SIG_DFL;
+    sa.sa_flags = 0;
+    sigemptyset(&sa.sa_mask);
+    for (int i = 0; i < N_SYNCHRONOUS; ++i)
+        libstm_internal_sigaction(synchronous[i], &sa);
 }
