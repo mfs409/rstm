@@ -9,6 +9,7 @@
  */
 
 #include <vector>
+#include "common/utils.hpp"     // length_of
 #include "../sandboxing.hpp"
 #include "handlers.hpp"
 using stm::TxThread;
@@ -25,8 +26,7 @@ stm::default_validate_handler(TxThread*)
 
 namespace {
   // these are the synchronous signals that we validate.
-  const int N_SYNCHRONOUS = 2;
-  const int synchronous[N_SYNCHRONOUS] = {
+  const int synchronous[] = {
       SIGSEGV,
       SIGBUS
   };
@@ -42,7 +42,7 @@ stm::install_sandboxing_signal_handlers()
     sa.sa_sigaction = validate_synchronous_signal;
     sa.sa_flags = 0;
     sigemptyset(&sa.sa_mask);
-    for (int i = 0; i < N_SYNCHRONOUS; ++i)
+    for (int i = 0, e = length_of(synchronous); i < e; ++i)
         libstm_internal_sigaction(synchronous[i], &sa);
 }
 
@@ -53,6 +53,6 @@ stm::uninstall_sandboxing_signal_handlers()
     sa.sa_handler = SIG_DFL;
     sa.sa_flags = 0;
     sigemptyset(&sa.sa_mask);
-    for (int i = 0; i < N_SYNCHRONOUS; ++i)
+    for (int i = 0, e = length_of(synchronous); i < e; ++i)
         libstm_internal_sigaction(synchronous[i], &sa);
 }

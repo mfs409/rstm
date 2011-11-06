@@ -9,10 +9,19 @@
  */
 
 /**
- *  A simple vector-like templated collection object.  The main difference
- *  from the STL vector is that we can force uncommon code (such as resize)
- *  to be a function call by putting instantiations of the expand() method
- *  into their own .o file.
+ *  A simple vector-like templated collection object.
+ *
+ *  The main difference from the STL vector is that the MiniVector treats all
+ *  of its storage as Value-typed and copyable. This means that we don't call
+ *  constructors when we allocate (we use malloc) and we don't call destructors
+ *  when we reset the vector size.
+ *
+ *  This pays of in our STM logging code where we can clear a MiniVector
+ *  extremely quickly.
+ *
+ *  Some of the less performace-critical parts of the code are outlined into
+ *  libstm source code files. Because this is a template this requiresan
+ *  explicit instatiation of the outlined files somewhere.
  */
 
 #ifndef MINIVECTOR_HPP__
@@ -21,7 +30,8 @@
 #include <cassert>
 #include <cstdlib>
 #include <string.h>
-#include <common/platform.hpp>
+#include "common/platform.hpp"
+#include "common/utils.hpp"
 
 namespace stm
 {
@@ -29,31 +39,36 @@ namespace stm
   template <class T>
   class MiniVector
   {
+    protected:
       unsigned long m_cap;            // current vector capacity
       unsigned long m_size;           // current number of used elements
       T* m_elements;                  // the actual elements in the vector
 
-      /*** double the size of the minivector */
+      /**
+       *  double the size of the minivector---this is outlined and explicitly
+       *  instatiated as necessary
+       */
       void expand();
 
     public:
 
       /*** Construct a minivector with a default size */
       MiniVector(const unsigned long capacity)
-          : m_cap(capacity), m_size(0),
-            m_elements(static_cast<T*>(malloc(sizeof(T)*m_cap)))
-      {
+          : m_cap(capacity), m_size(0), m_elements(typed_malloc<T>(m_cap)) {
           assert(m_elements);
       }
 
-      ~MiniVector() { free(m_elements); }
+      ~MiniVector() {
+          free(m_elements);
+      }
 
       /*** Reset the vector without destroying the elements it holds */
-      TM_INLINE void reset() { m_size = 0; }
+      TM_INLINE void reset() {
+          m_size = 0;
+      }
 
       /*** Insert an element into the minivector */
-      TM_INLINE void insert(T data)
-      {
+      TM_INLINE void insert(T data) {
           // NB: There is a tradeoff here.  If we put the element into the list
           // first, we are going to have to copy one more object any time we
           // double the list.  However, by doing things in this order we avoid
@@ -64,26 +79,33 @@ namespace stm
           // Push data onto the end of the array and increment the size
           m_elements[m_size++] = data;
 
+          // We're done if there is space for the next insert.
+          if (m_size != m_cap)
+              return;
+
           // If the list is full, double the list size, allocate a new array
           // of elements, bitcopy the old array into the new array, and free
           // the old array. No destructors are called.
-          if (m_size != m_cap)
-              return;
           expand();
       }
 
       /*** Simple getter to determine the array size */
-      TM_INLINE unsigned long size() const { return m_size; }
+      TM_INLINE unsigned long size() const {
+          return m_size;
+      }
 
       /*** iterator interface, just use a basic pointer */
       typedef T* iterator;
 
       /*** iterator to the start of the array */
-      TM_INLINE iterator begin() const { return m_elements; }
+      TM_INLINE iterator begin() const {
+          return m_elements;
+      }
 
       /*** iterator to the end of the array */
-      TM_INLINE iterator end() const { return m_elements + m_size; }
-
+      TM_INLINE iterator end() const {
+          return m_elements + m_size;
+      }
   }; // class MiniVector
 
   /*** double the size of a minivector */
@@ -92,9 +114,9 @@ namespace stm
   {
       T* temp = m_elements;
       m_cap *= 2;
-      m_elements = static_cast<T*>(malloc(sizeof(T) * m_cap));
+      m_elements = typed_malloc<T>(m_cap);
       assert(m_elements);
-      memcpy(m_elements, temp, sizeof(T)*m_size);
+      memcpy(m_elements, temp, sizeof(T) * m_size);
       free(temp);
   }
 } // stm

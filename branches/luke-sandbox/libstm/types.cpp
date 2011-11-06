@@ -16,24 +16,13 @@
  *  compilation unit.
  */
 
+#include "common/utils.hpp"     // typed_malloc
 #include "stm/metadata.hpp"
 #include "stm/MiniVector.hpp"
 #include "stm/WriteSet.hpp"
 #include "stm/UndoLog.hpp"
 #include "stm/ValueList.hpp"
 #include "policies/policies.hpp"
-
-namespace
-{
-  /**
-   * We use malloc a couple of times here, and this makes it a bit easier
-   */
-  template <typename T>
-  inline T* typed_malloc(size_t N)
-  {
-      return static_cast<T*>(malloc(sizeof(T) * N));
-  }
-}
 
 namespace stm
 {

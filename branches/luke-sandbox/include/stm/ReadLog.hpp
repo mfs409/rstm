@@ -60,8 +60,25 @@ namespace stm
 
   class ReadLog : public OrecList {
     public:
-      ReadLog(const unsigned long capacity) : OrecList(capacity) {
-      }
+      ReadLog(const unsigned long capacity);
+
+      // Override reset to also reset our cursor. This will forward to
+      // OrecList::reset internally.
+      void reset();
+
+      // Orec-based sandboxed implementations can put off hashing until they
+      // need to valiate. This function scans through the [cursor_, m_size)
+      // sequence and treats all of the addresses there as plain addresses
+      // hashing them and updating their Read-log entry.
+      //
+      // This returns true if any modifications were made, and false if nothing
+      // needed to be done.
+      bool doLazyHashes();
+
+    private:
+      // The cursor keeps track of the next unhashed address in the read log,
+      // when we're using lazy hashing with a sandboxed orec TM.
+      size_t cursor_;
   };
 }
 
