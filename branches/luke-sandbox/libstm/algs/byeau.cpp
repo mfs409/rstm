@@ -248,15 +248,16 @@ namespace {
       // abort current owner, wait for release, then acquire
       while (true) {
           // abort the owner if there is one
-          if (uint32_t owner = lock->owner)
+          if (uint32_t owner = lock->owner) {
               // must get permission from CM, else abort self to prevent deadlock
               if (CM::mayKill(tx, owner - 1))
                   threads[owner-1]->alive = TX_ABORTED;
               else
                   tx->tmabort(tx);
           // try to get ownership
-          else if (bcas32(&(lock->owner), 0u, tx->id))
+          } else if (bcas32(&(lock->owner), 0u, tx->id)) {
               break;
+          }
           // liveness check
           if (tx->alive == TX_ABORTED)
               tx->tmabort(tx);
@@ -301,15 +302,16 @@ namespace {
           // abort current owner, wait for release, then acquire
           while (true) {
               // abort the owner if there is one
-              if (uint32_t owner = lock->owner)
+              if (uint32_t owner = lock->owner) {
                   // need CM permission
                   if (CM::mayKill(tx, owner-1))
                       threads[owner-1]->alive = TX_ABORTED;
                   else
                       tx->tmabort(tx);
               // try to get ownership
-              else if (bcas32(&(lock->owner), 0u, tx->id))
+              } else if (bcas32(&(lock->owner), 0u, tx->id)) {
                   break;
+              }
               // liveness check
               if (tx->alive == TX_ABORTED)
                   tx->tmabort(tx);

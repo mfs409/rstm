@@ -16,6 +16,7 @@
 #include "algs/tml_inline.hpp"
 #include "algs/algs.hpp"
 #include "inst.hpp"
+#include "sandboxing.hpp"
 
 using namespace stm;
 
@@ -170,11 +171,12 @@ namespace stm
   bool TM_FASTCALL (*volatile TxThread::tmbegin)(TxThread*) = begin_CGL;
 
   /**
-   *  The tmrollback, tmabort, and tmirrevoc pointers
+   *  The tmrollback, tmabort, tmirrevoc, and tmvalidate pointers
    */
   scope_t* (*TxThread::tmrollback)(STM_ROLLBACK_SIG(,,));
   NORETURN void (*TxThread::tmabort)(TxThread*) = default_abort_handler;
   bool (*TxThread::tmirrevoc)(TxThread*) = NULL;
+  bool (*TxThread::tmvalidate)(TxThread*) = default_validate_handler;
 
   /*** the init factory */
   void TxThread::thread_init()

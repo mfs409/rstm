@@ -164,8 +164,8 @@ namespace stm
    *  In order to avoid a circular dependency, we need to declare some
    *  WriteSet support here.
    */
-  class WordLoggingWriteSetEntry;
-  class ByteLoggingWriteSetEntry;
+  struct WordLoggingWriteSetEntry;
+  struct ByteLoggingWriteSetEntry;
 #if defined(STM_WS_WORDLOG)
   typedef WordLoggingWriteSetEntry WriteSetEntry;
 #elif defined(STM_WS_BYTELOG)

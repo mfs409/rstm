@@ -19,7 +19,7 @@
 namespace stm
 {
   /*** forward declare to avoid extra dependencies */
-  class TxThread;
+  struct TxThread;
 
   /*** actually make all threads use the new algorithm */
   void install_algorithm(int new_alg, TxThread* tx);

@@ -58,6 +58,7 @@ set(sources
   policies/cbr.cpp
   policies/policies.cpp
   policies/static.cpp
+  sandboxing/sandboxing.cpp
   )
 
 set(mmapwrapsources hooks.cpp)
