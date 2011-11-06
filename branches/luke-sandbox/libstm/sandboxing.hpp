@@ -30,8 +30,8 @@ namespace stm
    *  can't execute concurrently), which we'd to by installing handlers that
    *  dispatch to thread-specific routines.
    */
-  void install_sandboxing_signals();
-  void uninstall_sandboxing_signals();
+  void install_sandboxing_signal_handlers();
+  void uninstall_sandboxing_signal_handlers();
 }
 
 #endif // LIBSTM_SANDBOXING_HPP

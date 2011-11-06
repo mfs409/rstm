@@ -23,6 +23,7 @@ set(rstm_init_cxx_flags_Sun_sparc -xarch=native -xcode=pic32 -Qoption cg -Qisele
 set(rstm_init_cxx_flags_Sun_RELWITHDEB_INFO -O5 -g0)
 set(rstm_init_cxx_flags_GNU_x86 -msse2 -mfpmath=sse -march=core2 -mtune=core2)
 set(rstm_init_cxx_flags_GNU_sparc -mcpu=v9)
+set(rstm_init_cxx_flags_GNU_DEBUG -g3)
 set(rstm_init_cxx_flags_GNU_RELWITHDEBINFO -O3 -g)
 # the below warnings aren't helpful, and omitting the frame pointer will break
 # stack protection for redo-log tms.

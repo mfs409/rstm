@@ -21,11 +21,11 @@ stm::default_validate_handler(TxThread*)
 }
 
 void
-stm::install_sandboxing_signals()
+stm::install_sandboxing_signal_handlers()
 {
 }
 
 void
-stm::uninstall_sandboxing_signals()
+stm::uninstall_sandboxing_signal_handlers()
 {
 }

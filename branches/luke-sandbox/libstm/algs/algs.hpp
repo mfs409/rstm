@@ -117,7 +117,10 @@ namespace stm
       scope_t* (* rollback)(STM_ROLLBACK_SIG(,,));
 
       /*** the restart, retry, and irrevoc methods to use */
-      bool  (* irrevoc)(TxThread*);
+      bool (* irrevoc)(TxThread*);
+
+      /*** the code to force a validation */
+      bool (* validate)(TxThread*);
 
       /*** the code to run when switching to this alg */
       void  (* switcher) ();
@@ -130,8 +133,25 @@ namespace stm
        */
       bool privatization_safe;
 
+      /**
+       *  bool flag to indicate if an algorithm needs signal sandboxing, this
+       *  is used in install_algorithm to do sigactioning.
+       */
+      bool sandbox_signals;
+
       /*** simple ctor, because a NULL name is a bad thing */
-      alg_t() : name("") { }
+      alg_t() : name(""),
+                begin(NULL),
+                commit(NULL),
+                read(NULL),
+                write(NULL),
+                rollback(NULL),
+                irrevoc(NULL),
+                validate(NULL),
+                switcher(NULL),
+                privatization_safe(false),
+                sandbox_signals(false)
+      { }
   };
 
   /**

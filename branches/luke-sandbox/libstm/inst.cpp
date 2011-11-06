@@ -14,6 +14,7 @@
 
 #include <sys/mman.h>
 #include "inst.hpp"
+#include "sandboxing.hpp"
 #include "policies/policies.hpp"
 #include "algs/algs.hpp"
 
@@ -54,9 +55,15 @@ namespace stm
           printf("Warning: Algorithm %s is not privatization-safe!\n",
                  stms[new_alg].name);
 
+      // set up sandboxing if necessary
+      if (stms[new_alg].sandbox_signals)
+          install_sandboxing_signal_handlers();
+      else
+          uninstall_sandboxing_signal_handlers();
+
       // we need to make sure the metadata remains healthy
       //
-      // we do this by invoking the new alg's onSwitchTo_ method, which
+      // we do this by invoking the new alg's onSwitchTo method, which
       // is responsible for ensuring the invariants that are required of shared
       // and per-thread metadata while the alg is in use.
       stms[new_alg].switcher();
@@ -72,6 +79,7 @@ namespace stm
 
       TxThread::tmrollback = stms[new_alg].rollback;
       TxThread::tmirrevoc  = stms[new_alg].irrevoc;
+      TxThread::tmvalidate = stms[new_alg].validate;
       curr_policy.ALG_ID   = new_alg;
       CFENCE;
       TxThread::tmbegin    = stms[new_alg].begin;

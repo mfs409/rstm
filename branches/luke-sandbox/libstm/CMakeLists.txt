@@ -59,6 +59,7 @@ set(sources
   policies/policies.cpp
   policies/static.cpp
   sandboxing/sandboxing.cpp
+  sandboxing/interposition.cpp
   )
 
 set(mmapwrapsources hooks.cpp)
