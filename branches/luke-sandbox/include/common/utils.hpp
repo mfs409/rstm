@@ -33,10 +33,19 @@ namespace stm
    *  sized array. This code appears in a lot of places on the web.
    */
   template <typename T, size_t N>
-  inline size_t
-  length_of(T(&)[N])
+  inline size_t length_of(T(&)[N])
   {
       return N;
+  }
+
+  template <typename T>
+  inline bool minimum(T lhs, T rhs) {
+      return (lhs < rhs) ? lhs : rhs;
+  }
+
+  template <typename T>
+  inline bool maximum(T lhs, T rhs) {
+      return (lhs > rhs) ? lhs : rhs;
   }
 }
 

@@ -71,6 +71,8 @@ namespace stm
         stack_low((void**)~0x0),
 #endif
         start_time(0),
+        end_time(0),
+        ts_cache(0),
         tmlHasLock(false),
         undo_log(64),
         vlist(64),
@@ -83,18 +85,27 @@ namespace stm
         consec_aborts(0),
         seed((unsigned long)&id),
         myRRecs(64),
-        order(-1), alive(1),
+        order(-1),
+        alive(1),
         r_bytelocks(64),
         w_bytelocks(64),
         r_bitlocks(64),
         w_bitlocks(64),
         my_mcslock(new mcs_qnode_t()),
+        valid_ts(0),
         cm_ts(INT_MAX),
         cf((filter_t*)FILTER_ALLOC(sizeof(filter_t))),
         nanorecs(64),
+        consec_commits(0),
+        abort_hist(),
         begin_wait(0),
         strong_HG(),
-        irrevocable(false)
+        irrevocable(false),
+        end_txn_time(0),
+        total_nontxn_time(0),
+        tmcommit(NULL),
+        tmread(NULL),
+        tmwrite(NULL)
   {
       // prevent new txns from starting.
       while (true) {

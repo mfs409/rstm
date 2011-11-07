@@ -23,11 +23,15 @@ ReadLog::doLazyHashes()
     if (cursor_ == m_size)
         return false;
 
-    // cache-friendly back-to-front scan of the read log
-    for (size_t i = m_size - 1; i >= cursor_; --i)
-        m_elements[i] = get_orec(m_elements[i]);
+    for (; cursor_ < m_size; ++cursor_)
+        m_elements[cursor_] = get_orec(m_elements[cursor_]);
+
+    // // cache-friendly back-to-front scan of the read log
+    // for (size_t i = m_size - 1; i >= cursor_; --i)
+    //     m_elements[i] = get_orec(m_elements[i]);
 
     // update the cursor
-    cursor_ = m_size;
+    // cursor_ = m_size;
+    assert(cursor_ == m_size);
     return true;
 }

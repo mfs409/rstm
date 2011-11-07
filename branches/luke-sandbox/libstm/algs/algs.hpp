@@ -48,6 +48,8 @@ namespace stm
       NOrec,     NOrecHour,     NOrecBackoff,     NOrecHB,
       // ProfileTM support.  These are not true STMs
       ProfileTM, ProfileAppAvg, ProfileAppMax, ProfileAppAll,
+      // Sandbox implementations
+      OrecSandbox,
       // end with a distinct value
       ALG_MAX };
 
