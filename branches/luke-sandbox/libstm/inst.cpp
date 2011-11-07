@@ -14,7 +14,6 @@
 
 #include <sys/mman.h>
 #include "inst.hpp"
-#include "sandboxing.hpp"
 #include "policies/policies.hpp"
 #include "algs/algs.hpp"
 
@@ -54,12 +53,6 @@ namespace stm
       if (!stms[new_alg].privatization_safe)
           printf("Warning: Algorithm %s is not privatization-safe!\n",
                  stms[new_alg].name);
-
-      // set up sandboxing if necessary
-      if (stms[new_alg].sandbox_signals)
-          install_sandboxing_signal_handlers();
-      else
-          uninstall_sandboxing_signal_handlers();
 
       // we need to make sure the metadata remains healthy
       //

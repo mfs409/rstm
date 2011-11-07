@@ -45,7 +45,6 @@ set(CMAKE_THREAD_PREFER_PTHREAD 1)
 find_package(Threads)
 find_package(OpenMP)
 
-
 # The threads package is sort of wonky in that it doesn't set any compile
 # flags, just a link flag.
 #

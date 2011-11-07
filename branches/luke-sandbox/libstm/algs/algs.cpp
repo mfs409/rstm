@@ -10,7 +10,19 @@
 
 #include "algs.hpp"
 #include "../cm.hpp"
-#include "../sandboxing.hpp" // default_validate_handler
+
+
+/**
+ *  Our TMs are generally opaque, which means that they are always valid when
+ *  returning from tmread. These TMs use this default tmvalidate handler so
+ *  that that can be adapted into an otherwise sandboxed setting.
+ */
+static bool
+default_validate_handler(stm::TxThread* tx)
+{
+    return true;
+}
+
 
 namespace stm
 {

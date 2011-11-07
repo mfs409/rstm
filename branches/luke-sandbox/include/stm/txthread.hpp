@@ -56,10 +56,10 @@ namespace stm
       uint32_t       num_restarts;  // stats counter: restart()s
       uint32_t       num_ro;        // stats counter: read-only commits
       scope_t* volatile scope;      // used to roll back; also flag for isTxnl
-#ifdef STM_PROTECT_STACK
+      // ----------------------------------------------------------------------
       void**         stack_high;    // the stack pointer at begin_tx time
       void**         stack_low;     // norec stack low-water mark
-#endif
+      // ----------------------------------------------------------------------
       uintptr_t      start_time;    // start time of transaction
       uintptr_t      end_time;      // end time of transaction
       uintptr_t      ts_cache;      // last validation time
@@ -175,7 +175,6 @@ namespace stm
 
   /*** GLOBAL VARIABLES RELATED TO THREAD MANAGEMENT */
   extern THREAD_LOCAL_DECL_TYPE(TxThread*) Self; // this thread's TxThread
-
 } // namespace stm
 
 #endif // TXTHREAD_HPP__
