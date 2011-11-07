@@ -19,19 +19,15 @@
 
 namespace stm
 {
-  /**
-   *  We use malloc a couple of times here, and this makes it a bit easier.
-   */
+  /// We use malloc a couple of times here, and this makes it a bit easier.
   template <typename T>
   inline T* typed_malloc(size_t N)
   {
       return static_cast<T*>(malloc(sizeof(T) * N));
   }
 
-  /**
-   *  Convince the compiler to tell us how many elements are in a statically
-   *  sized array. This code appears in a lot of places on the web.
-   */
+  /// Convince the compiler to tell us how many elements are in a statically
+  /// sized array. This code appears in a lot of places on the web.
   template <typename T, size_t N>
   inline size_t length_of(T(&)[N])
   {

@@ -141,19 +141,7 @@ namespace stm
        */
       bool sandbox_signals;
 
-      /*** simple ctor, because a NULL name is a bad thing */
-      alg_t() : name(""),
-                begin(NULL),
-                commit(NULL),
-                read(NULL),
-                write(NULL),
-                rollback(NULL),
-                irrevoc(NULL),
-                validate(NULL),
-                switcher(NULL),
-                privatization_safe(false),
-                sandbox_signals(false)
-      { }
+      alg_t();
   };
 
   /**

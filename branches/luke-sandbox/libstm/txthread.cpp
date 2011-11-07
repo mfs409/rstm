@@ -43,7 +43,7 @@ namespace
 #endif
                                                );
       // need to null out the scope
-      longjmp(*scope, 1);
+      siglongjmp(*scope, 1);
   }
 } // (anonymous namespace)
 

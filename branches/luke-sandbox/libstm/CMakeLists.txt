@@ -16,11 +16,12 @@ endif ()
 set(sources
   txthread.cpp
   inst.cpp
-  types.cpp
   profiling.cpp
   WBMMPolicy.cpp
   irrevocability.cpp
   ReadLog.cpp
+  WriteSet.cpp
+  UndoLog.cpp
   algs/algs.cpp
   algs/biteager.cpp
   algs/biteagerredo.cpp

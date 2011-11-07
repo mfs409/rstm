@@ -18,6 +18,7 @@
 #ifndef STM_READLOG_HPP
 #define STM_READLOG_HPP
 
+#include <csignal>
 #include <stm/config.h>
 #include "stm/metadata.hpp"
 
@@ -62,23 +63,31 @@ namespace stm
     public:
       ReadLog(const unsigned long capacity);
 
-      // Override reset to also reset our cursor. This will forward to
-      // OrecList::reset internally.
+      /// Override reset to also reset our cursor. This will forward to
+      /// OrecList::reset internally.
       void reset();
 
-      // Orec-based sandboxed implementations can put off hashing until they
-      // need to valiate. This function scans through the [cursor_, m_size)
-      // sequence and treats all of the addresses there as plain addresses
-      // hashing them and updating their Read-log entry.
-      //
-      // This returns true if any modifications were made, and false if nothing
-      // needed to be done.
+      /// Orec-based sandboxed implementations can put off hashing until they
+      /// need to valiate. This function scans through the [cursor_, m_size)
+      /// sequence and treats all of the addresses there as plain addresses
+      /// hashing them and updating their Read-log entry.
+      ///
+      /// This returns true if any modifications were made, and false if nothing
+      /// needed to be done.
       bool doLazyHashes();
 
     private:
-      // The cursor keeps track of the next unhashed address in the read log,
-      // when we're using lazy hashing with a sandboxed orec TM.
+      /// The cursor keeps track of the next unhashed address in the read log,
+      /// when we're using lazy hashing with a sandboxed orec TM.
       size_t cursor_;
+
+      /// For debugging purposes, to verify that doLazyHashes is being used
+      /// correctly. This is never touched for sandboxed STMs.
+      volatile std::sig_atomic_t hashing_;
+
+      /// Extends the expand functionality to only expand if the calling thread
+      /// can be validated.
+      void expand();
   };
 }
 

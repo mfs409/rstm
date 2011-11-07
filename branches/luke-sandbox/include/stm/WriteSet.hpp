@@ -17,7 +17,8 @@
 #ifndef WRITESET_HPP__
 #define WRITESET_HPP__
 
-#include <stm/config.h>
+#include "stm/config.h"
+#include "common/platform.hpp"
 
 #ifdef STM_CC_SUN
 #include <string.h>
@@ -188,19 +189,13 @@ namespace stm
        */
       void writeback() const
       {
-          if (__builtin_expect(mask == (uintptr_t)~0x0, true)) {
+          // common case for word write
+          if (mask == (uintptr_t)~0x0)
               *addr = val;
-              return;
-          }
-
-          // mask could be empty if we filtered out all of the bytes
-          if (mask == 0x0)
-              return;
-
-          // write each byte if its mask is set
-          for (unsigned i = 0; i < sizeof(val); ++i)
-              if (byte_mask[i] == 0xff)
-                  byte_addr[i] = byte_val[i];
+          else
+              for (unsigned i = 0; i < sizeof(val); ++i)
+                  if (byte_mask[i] == 0xff)
+                      byte_addr[i] = byte_val[i];
       }
 
       /**
@@ -210,21 +205,18 @@ namespace stm
        */
       void rollback(void** lower, void** upper)
       {
-          // two simple cases first, no intersection or complete intersection.
-          if (addr + 1 < lower || addr >= upper)
-              return;
-
-          if (addr >= lower && addr + 1 <= upper) {
-              writeback();
-              return;
-          }
-
-          // odd intersection
+          // simple loop because we don't care about rollback performance.
           for (unsigned i = 0; i < sizeof(void*); ++i) {
-              if ((byte_mask[i] == 0xff) &&
-                  (byte_addr + i >= (uint8_t*)lower ||
-                   byte_addr + i < (uint8_t*)upper))
-                  byte_addr[i] = byte_val[i];
+              if (byte_mask[i] != 0xff)
+                  continue;
+
+              if (byte_addr + i < (uint8_t*)lower)
+                  continue;
+
+              if (byte_addr + i >= (uint8_t*)upper)
+                  return; // short circuit
+
+              byte_addr[i] = byte_val[i];
           }
       }
   };
@@ -309,45 +301,23 @@ namespace stm
       bool find(WriteSetEntry& log) const
       {
           size_t h = hash(log.addr);
-
           while (index[h].version == version) {
               if (index[h].address != log.addr) {
                   // continue probing
                   h = (h + 1) % ilength;
                   continue;
               }
-#if defined(STM_WS_WORDLOG)
-              log.val = list[index[h].index].val;
-              return true;
-#elif defined(STM_WS_BYTELOG)
-              // Need to intersect the mask to see if we really have a match. We
-              // may have a full intersection, in which case we can return the
-              // logged value. We can have no intersection, in which case we can
-              // return false. We can also have an awkward intersection, where
-              // we've written part of what we're trying to read. In that case,
-              // the "correct" thing to do is to read the word from memory, log
-              // it, and merge the returned value with the partially logged
-              // bytes.
-              WriteSetEntry& entry = list[index[h].index];
-              if (__builtin_expect((log.mask & entry.mask) == 0, false)) {
-                  log.mask = 0;
-                  return false;
-              }
 
-              // The update to the mask transmits the information the caller
-              // needs to know in order to distinguish between a complete and a
-              // partial intersection.
-              log.val = entry.val;
-              log.mask = entry.mask;
-              return true;
-#else
-#error "Preprocessor configuration error."
+              bool found = true;
+              WriteSetEntry& entry = list[index[h].index];
+#if defined(STM_WS_BYTELOG)
+              found = log.mask & entry.mask;    // may have missed mask
+              log.mask = entry.mask;            // return the bytes we've logged
 #endif
+              log.val = entry.val;              // return the value we've logged
+              return found;
           }
 
-#if defined(STM_WS_BYTELOG)
-          log.mask = 0x0; // report that there were no intersecting bytes
-#endif
           return false;
       }
 
@@ -436,6 +406,7 @@ namespace stm
           // check overflow
           if (version != 0)
               return;
+
           reset_internal();
       }
 

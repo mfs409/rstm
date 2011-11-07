@@ -247,8 +247,8 @@ namespace stm
 #define TM_BEGIN(TYPE)                                      \
     {                                                       \
     stm::TxThread* tx = (stm::TxThread*)stm::Self;          \
-    jmp_buf _jmpbuf;                                        \
-    uint32_t abort_flags = setjmp(_jmpbuf);                 \
+    sigjmp_buf _jmpbuf;                                     \
+    uint32_t abort_flags = sigsetjmp(_jmpbuf, 1);           \
     stm::begin(tx, &_jmpbuf, abort_flags);                  \
     CFENCE;                                                 \
     {

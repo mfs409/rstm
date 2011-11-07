@@ -10,6 +10,7 @@
 
 #include "algs.hpp"
 #include "../cm.hpp"
+#include "../sandboxing.hpp" // default_validate_handler
 
 namespace stm
 {
@@ -86,4 +87,18 @@ namespace stm
       return -1;
   }
 
+  /** algorithm initialization doesn't need to be inline */
+  alg_t::alg_t()
+      : name(""),
+        begin(NULL),
+        commit(NULL),
+        read(NULL),
+        write(NULL),
+        rollback(NULL),
+        irrevoc(NULL),
+        validate(default_validate_handler),
+        switcher(NULL),
+        privatization_safe(false),
+        sandbox_signals(false)
+  { }
 } // namespace stm

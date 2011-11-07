@@ -47,8 +47,22 @@ namespace stm
       /**
        *  double the size of the minivector---this is outlined and explicitly
        *  instatiated as necessary
+       *
+       *  [ld] Updated to use a virtual expander. This is the most expedient
+       *       way for me to put in logic to prevent the read-set, which
+       *       inherits from MiniVector, from expanding if we're invalid. This
+       *       should terminate infinite loops that contain a read in them.
+       *
+       *       The overhead is a vtable pointer in each MiniVector (no big
+       *       deal) and a virtual dispatch to expand, also no big deal because
+       *       that code path only happens when we fail the branch in the
+       *       insert.
+       *
+       *       I don't want to /always/ validate during expansion because
+       *       Minivectors are used for lots of things that are unrelate to
+       *       read barriers.
        */
-      void expand();
+      virtual void expand();
 
     public:
 
