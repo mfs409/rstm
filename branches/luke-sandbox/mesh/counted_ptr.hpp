@@ -39,7 +39,7 @@ cp_cas(volatile unsigned long long* addr,
     old_cp.p.ptr = expected_ptr;  old_cp.p.sn = expected_sn;
     counted_ptr new_cp;
     new_cp.p.ptr = new_ptr;  new_cp.p.sn = new_sn;;
-    return __sync_bool_compare_and_swap(addr, old_cp.all, new_cp.all);
+    return stm::sync_bcas(addr, old_cp.all, new_cp.all);
 }
 
 #endif // COUNTED_PTR_HPP__

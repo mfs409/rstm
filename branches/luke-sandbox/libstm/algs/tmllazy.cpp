@@ -25,6 +25,7 @@
 using stm::TxThread;
 using stm::timestamp;
 using stm::WriteSetEntry;
+using stm::sync_bcas;
 
 /**
  *  Declare the functions that we're going to implement, so that we can avoid
@@ -35,13 +36,13 @@ using stm::WriteSetEntry;
  */
 namespace {
   struct TMLLazy {
-      static TM_FASTCALL bool begin(TxThread*);
+      static TM_FASTCALL bool  begin(TxThread*);
       static TM_FASTCALL void* read_ro(STM_READ_SIG(,,));
       static TM_FASTCALL void* read_rw(STM_READ_SIG(,,));
-      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void commit_ro(TxThread*);
-      static TM_FASTCALL void commit_rw(TxThread*);
+      static TM_FASTCALL void  write_ro(STM_WRITE_SIG(,,,));
+      static TM_FASTCALL void  write_rw(STM_WRITE_SIG(,,,));
+      static TM_FASTCALL void  commit_ro(TxThread*);
+      static TM_FASTCALL void  commit_rw(TxThread*);
 
       static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
@@ -80,7 +81,7 @@ namespace {
   TMLLazy::commit_rw(TxThread* tx)
   {
       // we have writes... if we can't get the lock, abort
-      if (!bcasptr(&timestamp.val, tx->start_time, tx->start_time + 1))
+      if (!sync_bcas(&timestamp.val, tx->start_time, tx->start_time + 1))
           tx->tmabort(tx);
 
       // we're committed... run the redo log
@@ -174,7 +175,7 @@ namespace {
   {
       // we are running in isolation by the time this code is run.  Make sure
       // we are valid.
-      if (!bcasptr(&timestamp.val, tx->start_time, tx->start_time + 1))
+      if (!sync_bcas(&timestamp.val, tx->start_time, tx->start_time + 1))
           return false;
 
       // push all writes back to memory and clear writeset

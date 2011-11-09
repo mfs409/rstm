@@ -161,8 +161,8 @@ namespace stm
       //  thread is running the 'wait for everyone' code that immediately
       //  follows this CAS.  Since we can't distinguish the three cases,
       //  we'll just abort all the time.  The impact should be minimal.
-      if (!bcasptr(&TxThread::tmbegin, stms[curr_policy.ALG_ID].begin,
-                   &begin_blocker))
+      if (!sync_bcas(&TxThread::tmbegin, stms[curr_policy.ALG_ID].begin,
+                     &begin_blocker))
           tx->tmabort(tx);
 
       // wait for everyone to be out of a transaction (scope == NULL)
@@ -238,7 +238,7 @@ namespace stm
 #ifdef STM_CPU_SPARC
           tx->scope = b; WBR;
 #else
-          casptr((volatile uintptr_t*)&tx->scope, (uintptr_t)0, (uintptr_t)b);
+          sync_cas((volatile uintptr_t*)&tx->scope, (uintptr_t)0, (uintptr_t)b);
 #endif
           // read the begin function pointer AFTER setting the scope
           bool TM_FASTCALL (*beginner)(TxThread*) = TxThread::tmbegin;

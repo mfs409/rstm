@@ -1,3 +1,13 @@
+/**
+ *  Copyright (C) 2011
+ *  University of Rochester Department of Computer Science
+ *    and
+ *  Lehigh University Department of Computer Science and Engineering
+ *
+ * License: Modified BSD
+ *          Please see the file LICENSE.RSTM for licensing information
+ */
+
 #include <cstddef>
 #include <cassert>
 #include <csignal>
@@ -10,7 +20,7 @@ using stm::TxThread;
 using stm::Self;
 using stm::UNRECOVERABLE;
 
-static const int N_HANDLERS = 32;
+static const int N_HANDLERS = 32;       // we don't handle real-time signals
 
 typedef struct sigaction sigaction_t;
 
@@ -19,7 +29,7 @@ typedef struct sigaction sigaction_t;
 extern "C" sighandler_t __real_signal(int, sighandler_t);
 extern "C" int __real_sigaction(int, const sigaction_t*, sigaction_t*);
 
-static volatile int registering = 2;
+static volatile int registering = 2;    //
 static sigaction_t handlers[N_HANDLERS] = {{{0}}};
 static bool libstm_handles[N_HANDLERS] = {0};
 
@@ -27,7 +37,7 @@ static void
 check(int result)
 {
     if (result)
-        UNRECOVERABLE("Failed to install a signal handler");
+        UNRECOVERABLE("Failed to install a signal handler.");
 }
 
 extern "C" sighandler_t
@@ -64,8 +74,9 @@ __wrap_sigaction(int sig, const sigaction_t* handler, sigaction_t* old_out)
 static void
 start_registration()
 {
-    int r = __sync_fetch_and_sub(&registering, 1);
-    assert(r == 2);
+    int r = stm::sync_faa(&registering, -1);
+    if (r != 2)
+        UNRECOVERABLE("Initialization race.");
 
     // record existing handlers
     for (int i = 1, e = length_of(handlers); i < e; ++i)

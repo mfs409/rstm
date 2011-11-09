@@ -81,7 +81,7 @@ namespace stm
       tx->scope = s; WBR;
 #else
       // NB: this CAS fails on a transaction restart... is that too expensive?
-      casptr((volatile uintptr_t*)&tx->scope, (uintptr_t)0, (uintptr_t)s);
+      stm::sync_cas(&(tx->scope), (scope_t*)0, s);
 #endif
 
       // some adaptivity mechanisms need to know nontransactional and

@@ -30,7 +30,9 @@ using stm::id_version_t;
 using stm::nanorec_t;
 using stm::NanorecList;
 using stm::OrecList;
-
+using stm::sync_bcas;
+using stm::sync_fai;
+using stm::maximum;
 
 /**
  *  This is a good-faith implementation of SwissTM.
@@ -104,7 +106,7 @@ namespace
       orec_t* o = get_orec(addr);
 
       // do I own the orec?
-      if (o->v.all == tx->my_lock.all) {
+      if (o->v.all == tx->my_lock) {
           CFENCE; // order orec check before possible read of *addr
           // if this address is in my writeset, return looked-up value, else
           // do a direct read from memory
@@ -159,7 +161,7 @@ namespace
       orec_t* o = get_orec(addr);
 
       // if I'm already the lock holder, we're done!
-      if (o->v.all == tx->my_lock.all)
+      if (o->v.all == tx->my_lock)
           return;
 
       while (true) {
@@ -177,7 +179,7 @@ namespace
           }
 
           // if I can't lock it, start over
-          if (!bcasptr(&o->v.all, ivt.all, tx->my_lock.all)) {
+          if (!sync_bcas(&o->v.all, ivt.all, tx->my_lock)) {
               // check liveness before continuing
               if (tx->alive == ABORTED)
                   tx->tmabort(tx);
@@ -225,7 +227,7 @@ namespace
       }
 
       // increment the global timestamp, and maybe validate
-      tx->end_time = 1 + faiptr(&timestamp.val);
+      tx->end_time = 1 + sync_fai(&timestamp.val);
       if (tx->end_time > (tx->start_time + 1))
           validate_commit(tx);
 
@@ -296,7 +298,7 @@ namespace
   {
       foreach (OrecList, i, tx->r_orecs) {
           if ((*i)->p > tx->start_time) {
-              if ((*i)->v.all != tx->my_lock.all) {
+              if ((*i)->v.all != tx->my_lock) {
                   foreach (NanorecList, i, tx->nanorecs) {
                       i->o->p = i->v;
                   }
@@ -316,7 +318,7 @@ namespace
   void Swiss::cm_on_write(TxThread* tx)
   {
       if ((tx->cm_ts == UINT_MAX) && (tx->writes.size() == SWISS_PHASE2))
-          tx->cm_ts = 1 + faiptr(&greedy_ts.val);
+          tx->cm_ts = 1 + sync_fai(&greedy_ts.val);
   }
 
   bool Swiss::cm_should_abort(TxThread* tx, uintptr_t owner_id)
@@ -346,7 +348,7 @@ namespace
   /***  Keep SwissTM metadata healthy */
   void Swiss::onSwitchTo()
   {
-      timestamp.val = MAXIMUM(timestamp.val, timestamp_max.val);
+      timestamp.val = maximum(timestamp.val, timestamp_max.val);
   }
 }
 

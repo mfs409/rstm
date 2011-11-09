@@ -69,7 +69,7 @@ namespace stm
       WriteSet       writes;        // write set
       ReadLog        r_orecs;       // read set for orec STMs
       OrecList       locks;         // list of all locks held by tx
-      id_version_t   my_lock;       // lock word for orec STMs
+      uintptr_t      my_lock;       // lock word for orec STMs
       filter_t*      wf;            // write filter
       filter_t*      rf;            // read filter
       volatile uint32_t prio;       // for priority

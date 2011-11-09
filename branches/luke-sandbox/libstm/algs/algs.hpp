@@ -395,7 +395,7 @@ namespace stm
 #if defined(STM_CPU_SPARC)
       reader[id] = 1;   WBR;
 #else
-      atomicswap8(&reader[id], 1u);
+      sync_swap(&reader[id], (unsigned char)1);
 #endif
   }
 
@@ -408,7 +408,7 @@ namespace stm
       if (oldval & mask)
           return;
       while (true) {
-          if (bcasptr(&bits[bucket], oldval, (oldval | mask)))
+          if (sync_bcas(&bits[bucket], oldval, (oldval | mask)))
               return;
           oldval = bits[bucket];
       }
@@ -432,16 +432,8 @@ namespace stm
       uintptr_t oldval = bits[bucket];
       if (!(oldval & mask))
           return;
-      // NB:  this GCC-specific code
-#if defined(STM_CPU_X86) && defined(STM_CC_GCC)
-      __sync_fetch_and_and(&bits[bucket], unmask);
-#else
-      while (true) {
-          if (bcasptr(&bits[bucket], oldval, (oldval & unmask)))
-              return;
-          oldval = bits[bucket];
-      }
-#endif
+
+      sync_faand(&bits[bucket], unmask);
   }
 
   /*** combine test and set */
@@ -452,18 +444,9 @@ namespace stm
       uintptr_t oldval = bits[bucket];
       if (oldval & mask)
           return false;
-      // NB: We don't have suncc fetch_and_or, so there is an ifdef here that
-      //     falls back to a costly CAS-based atomic or
-#if defined(STM_CPU_X86) && defined(STM_CC_GCC) /* little endian */
-      __sync_fetch_and_or(&bits[bucket], mask);
+
+      sync_faor(&bits[bucket], mask);
       return true;
-#else
-      while (true) {
-          if (bcasptr(&bits[bucket], oldval, oldval | mask))
-              return true;
-          oldval = bits[bucket];
-      }
-#endif
   }
 
   /*** bitwise or */

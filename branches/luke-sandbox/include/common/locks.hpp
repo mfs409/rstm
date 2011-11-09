@@ -33,14 +33,16 @@
 #endif
 
 /***  Issue 64 nops to provide a little busy waiting */
-inline void spin64()
+inline void
+spin64()
 {
     for (int i = 0; i < 64; i++)
         nop();
 }
 
 /***  exponential backoff for TATAS locks */
-inline void backoff(int *b)
+inline void
+backoff(int *b)
 {
     for (int i = *b; i; i--)
         nop();
@@ -52,27 +54,30 @@ inline void backoff(int *b)
 typedef volatile uintptr_t tatas_lock_t;
 
 /***  Slowpath TATAS acquire.  This performs exponential backoff */
-inline int tatas_acquire_slowpath(tatas_lock_t* lock)
+inline int
+tatas_acquire_slowpath(tatas_lock_t* lock)
 {
     int b = 64;
     do {
         backoff(&b);
-    } while (tas(lock));
+    } while (stm::sync_tas(lock));
     return b;
 }
 
 /**
  *  Fastpath TATAS acquire.  The return value is how long we spent spinning
  */
-inline int tatas_acquire(tatas_lock_t* lock)
+inline int
+tatas_acquire(tatas_lock_t* lock)
 {
-    if (!tas(lock))
+    if (!stm::sync_tas(lock))
         return 0;
     return tatas_acquire_slowpath(lock);
 }
 
 /***  TATAS release: ordering is safe for SPARC, x86 */
-inline void tatas_release(tatas_lock_t* lock)
+inline void
+tatas_release(tatas_lock_t* lock)
 {
     CFENCE;
     *lock = 0;
@@ -93,17 +98,19 @@ struct ticket_lock_t
  *  counter to measure how long we spend spinning, in case that information
  *  is useful to adaptive STM mechanisms.
  */
-inline int ticket_acquire(ticket_lock_t* lock)
+inline int
+ticket_acquire(ticket_lock_t* lock)
 {
     int ret = 0;
-    uintptr_t my_ticket = faiptr(&lock->next_ticket);
+    uintptr_t my_ticket = stm::sync_fai(&lock->next_ticket);
     while (lock->now_serving != my_ticket)
         ret++;
     return ret;
 }
 
 /***  Release the ticket lock */
-inline void ticket_release(ticket_lock_t* lock)
+inline void
+ticket_release(ticket_lock_t* lock)
 {
     lock->now_serving += 1;
 }
@@ -119,11 +126,12 @@ struct mcs_qnode_t
  *  MCS acquire.  We count how long we spin, in order to detect very long
  *  delays
  */
-inline int mcs_acquire(mcs_qnode_t** lock, mcs_qnode_t* mine)
+inline int
+mcs_acquire(mcs_qnode_t** lock, mcs_qnode_t* mine)
 {
     // init my qnode, then swap it into the root pointer
     mine->next = 0;
-    mcs_qnode_t* pred = (mcs_qnode_t*)atomicswapptr(lock, mine);
+    mcs_qnode_t* pred = (mcs_qnode_t*)stm::sync_swap(lock, mine);
 
     // now set my flag, point pred to me, and wait for my flag to be unset
     int ret = 0;
@@ -136,12 +144,13 @@ inline int mcs_acquire(mcs_qnode_t** lock, mcs_qnode_t* mine)
 }
 
 /***  MCS release */
-inline void mcs_release(mcs_qnode_t** lock, mcs_qnode_t* mine)
+inline void
+mcs_release(mcs_qnode_t** lock, mcs_qnode_t* mine)
 {
     // if my node is the only one, then if I can zero the lock, do so and I'm
     // done
     if (mine->next == 0) {
-        if (bcasptr(lock, mine, static_cast<mcs_qnode_t*>(NULL)))
+        if (stm::sync_bcas(lock, mine, (mcs_qnode_t*)NULL))
             return;
         // uh-oh, someone arrived while I was zeroing... wait for arriver to
         // initialize, fall out to other case

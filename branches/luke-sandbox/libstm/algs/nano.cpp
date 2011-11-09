@@ -35,7 +35,7 @@ using stm::NanorecList;
 using stm::nanorec_t;
 using stm::get_nanorec;
 using stm::id_version_t;
-
+using stm::sync_bcas;
 
 /**
  *  Declare the functions that we're going to implement, so that we can avoid
@@ -95,9 +95,9 @@ namespace {
           ivt.all = o->v.all;
 
           // if unlocked and we can lock it, do so
-          if (ivt.all != tx->my_lock.all) {
+          if (ivt.all != tx->my_lock) {
               if (!ivt.fields.lock) {
-                  if (!bcasptr(&o->v.all, ivt.all, tx->my_lock.all))
+                  if (!sync_bcas(&o->v.all, ivt.all, tx->my_lock))
                       tx->tmabort(tx);
                   // save old version to o->p, remember that we hold the lock
                   o->p = ivt.all;
@@ -114,7 +114,7 @@ namespace {
           uintptr_t ivt = i->o->v.all;
           // if orec does not match val, then it must be locked by me, with its
           // old val equalling my expected val
-          if ((ivt != i->v) && ((ivt != tx->my_lock.all) || (i->v != i->o->p)))
+          if ((ivt != i->v) && ((ivt != tx->my_lock) || (i->v != i->o->p)))
               tx->tmabort(tx);
       }
 

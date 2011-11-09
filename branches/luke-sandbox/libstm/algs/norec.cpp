@@ -27,7 +27,7 @@ using stm::timestamp;
 using stm::WriteSetEntry;
 using stm::ValueList;
 using stm::ValueListEntry;
-
+using stm::sync_bcas;
 
 namespace {
 
@@ -81,7 +81,7 @@ namespace {
   bool
   irrevoc(TxThread* tx)
   {
-      while (!bcasptr(&timestamp.val, tx->start_time, tx->start_time + 1))
+      while (!sync_bcas(&timestamp.val, tx->start_time, tx->start_time + 1))
           if ((tx->start_time = validate(tx)) == VALIDATION_FAILED)
               return false;
 
@@ -160,7 +160,7 @@ namespace {
       }
 
       // get the lock and validate (use RingSTM obstruction-free technique)
-      while (!bcasptr(&timestamp.val, tx->start_time, tx->start_time + 1))
+      while (!sync_bcas(&timestamp.val, tx->start_time, tx->start_time + 1))
           if ((tx->start_time = validate(tx)) == VALIDATION_FAILED)
               tx->tmabort(tx);
 
@@ -194,7 +194,7 @@ namespace {
       // writeback and increments the seqlock again
 
       // get the lock and validate (use RingSTM obstruction-free technique)
-      while (!bcasptr(&timestamp.val, tx->start_time, tx->start_time + 1))
+      while (!sync_bcas(&timestamp.val, tx->start_time, tx->start_time + 1))
           if ((tx->start_time = validate(tx)) == VALIDATION_FAILED)
               tx->tmabort(tx);
 

@@ -37,7 +37,7 @@ using stm::WriteSetEntry;
 
 /*** to distinguish between the two variants of this code */
 #define __AVERAGE 1
-#define __MAXIMUM 0
+#define __maximum 0
 
 /**
  *  Declare the functions that we're going to implement, so that we can avoid
@@ -116,7 +116,7 @@ namespace {
       // NB: statically optimized version of RW code for RO case
       unsigned long long runtime = tick() - profiles[0].txn_time;
 
-      if (COUNTMODE == __MAXIMUM) {
+      if (COUNTMODE == __maximum) {
           // update max values: only ro_reads and runtime change in RO transactions
           UPDATE_MAX(profiles[0].read_ro, app_profiles->read_ro);
           UPDATE_MAX(runtime,           app_profiles->txn_time);
@@ -153,7 +153,7 @@ namespace {
       profiles[0].write_nonwaw = x;
       profiles[0].write_waw -= x;
 
-      if (COUNTMODE == __MAXIMUM) {
+      if (COUNTMODE == __maximum) {
           // update max values
           UPDATE_MAX(profiles[0].read_ro,        app_profiles->read_ro);
           UPDATE_MAX(profiles[0].read_rw_nonraw, app_profiles->read_rw_nonraw);
@@ -292,7 +292,7 @@ namespace {
 // possible. Remember that they need to be in the stm:: namespace.
 #define FOREACH_PROFILEAPP(MACRO)        \
     MACRO(ProfileAppAvg, __AVERAGE)      \
-    MACRO(ProfileAppMax, __MAXIMUM)      \
+    MACRO(ProfileAppMax, __maximum)      \
     MACRO(ProfileAppAll, __AVERAGE)
 
 #define INIT_PROFILEAPP(ID, MODE)                \

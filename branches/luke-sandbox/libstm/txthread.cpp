@@ -39,7 +39,8 @@ const char* stm::get_algname()
  *
  *  This is ugly because rollback has a configuration-dependent signature.
  */
-static NORETURN void
+static void default_abort_handler(TxThread* tx) NORETURN;
+void
 default_abort_handler(TxThread* tx)
 {
     jmp_buf* scope = (jmp_buf*)TxThread::tmrollback(tx
@@ -128,7 +129,7 @@ TxThread::TxThread()
     // prevent new txns from starting.
     while (true) {
         int i = curr_policy.ALG_ID;
-        if (__sync_bool_compare_and_swap(&tmbegin, stms[i].begin, &begin_blocker))
+        if (sync_bcas(&tmbegin, stms[i].begin, &begin_blocker))
             break;
         spin64();
     }
@@ -162,8 +163,10 @@ TxThread::TxThread()
     allocator.setID(id-1);
 
     // set up my lock word
-    my_lock.fields.lock = 1;
-    my_lock.fields.id = id;
+    id_version_t lock;
+    lock.fields.lock = 1;
+    lock.fields.id = id;
+    my_lock = lock.all;
 
     // clear filters
     wf->clear();
@@ -257,8 +260,8 @@ stm::restart()
 void
 stm::sys_shutdown()
 {
-    static volatile unsigned int lock = 0;
-    while (!__sync_bool_compare_and_swap(&lock, 0, 1))
+    static volatile int lock = 0;
+    while (!sync_bcas(&lock, 0, 1))
         ;
 
     uint64_t nontxn_count = 0;                // time outside of txns
@@ -328,7 +331,7 @@ stm::set_policy(const char* phasename)
         int i = curr_policy.ALG_ID;
         if (i == ProfileTM)
             continue;
-        if (bcasptr(&TxThread::tmbegin, stms[i].begin, &begin_blocker))
+        if (sync_bcas(&TxThread::tmbegin, stms[i].begin, &begin_blocker))
             break;
         spin64();
     }
@@ -368,7 +371,7 @@ stm::sys_init(AbortHandler conflict_abort_handler)
     static volatile uint32_t lock = 0;
 
     // only one thread should get through... everyone else just waits.
-    if (!__sync_bool_compare_and_swap(&lock, 0u, 1u)) {
+    if (!sync_bcas(&lock, 0u, 1u)) {
         while (lock != 2)
             ;
         return;

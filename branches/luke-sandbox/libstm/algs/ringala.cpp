@@ -29,7 +29,7 @@ using stm::last_init;
 using stm::ring_wf;
 using stm::RING_ELEMENTS;
 using stm::WriteSetEntry;
-
+using stm::sync_bcas;
 
 /**
  *  Declare the functions that we're going to implement, so that we can avoid
@@ -38,13 +38,13 @@ using stm::WriteSetEntry;
 namespace {
   struct RingALA
   {
-      static TM_FASTCALL bool begin(TxThread*);
+      static TM_FASTCALL bool  begin(TxThread*);
       static TM_FASTCALL void* read_ro(STM_READ_SIG(,,));
       static TM_FASTCALL void* read_rw(STM_READ_SIG(,,));
-      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void commit_ro(TxThread*);
-      static TM_FASTCALL void commit_rw(TxThread*);
+      static TM_FASTCALL void  write_ro(STM_WRITE_SIG(,,,));
+      static TM_FASTCALL void  write_rw(STM_WRITE_SIG(,,,));
+      static TM_FASTCALL void  commit_ro(TxThread*);
+      static TM_FASTCALL void  commit_rw(TxThread*);
 
       static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
@@ -116,7 +116,7 @@ namespace {
               // ensure this tx doesn't look at this entry again
               tx->start_time = commit_time;
           }
-      } while (!bcasptr(&timestamp.val, commit_time, commit_time + 1));
+      } while (!sync_bcas(&timestamp.val, commit_time, commit_time + 1));
 
       // copy the bits over (use SSE)
       ring_wf[(commit_time + 1) % RING_ELEMENTS].fastcopy(tx->wf);

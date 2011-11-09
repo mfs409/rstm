@@ -83,8 +83,8 @@ namespace stm
           const uint32_t block  = index / WORD_SIZE;
           const uint32_t offset = index % WORD_SIZE;
 #if defined(STM_CPU_X86)
-          atomicswapptr(&word_filter[block],
-                        word_filter[block] | (1u << offset));
+          stm::sync_swap(&word_filter[block],
+                         word_filter[block] | (1u << offset));
 #else
           word_filter[block] |= (1u << offset);
           WBR;

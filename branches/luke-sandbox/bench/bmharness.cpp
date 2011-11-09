@@ -134,7 +134,7 @@ barrier(uint32_t which)
 {
     static volatile uint32_t barriers[16] = {0};
     CFENCE;
-    fai32(&barriers[which]);
+    stm::sync_fai(&barriers[which]);
     while (barriers[which] != CFG.threads) { }
     CFENCE;
 }
@@ -184,7 +184,7 @@ run(uintptr_t id)
         CFG.time = getElapsedTime() - CFG.time;
 
     // add this thread's count to an accumulator
-    faa32(&CFG.txcount, count);
+    stm::sync_faa(&CFG.txcount, count);
 }
 
 /**

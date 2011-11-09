@@ -26,7 +26,7 @@ using stm::TxThread;
 using stm::timestamp;
 using stm::timestamp_max;
 using stm::UNRECOVERABLE;
-
+using stm::maximum;
 
 /**
  *  Declare the functions that we're going to implement, so that we can avoid
@@ -38,80 +38,80 @@ namespace
   {
       // begin_CGL is external
       static TM_FASTCALL void* read(STM_READ_SIG(,,));
-      static TM_FASTCALL void write(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void commit(TxThread*);
+      static TM_FASTCALL void  write(STM_WRITE_SIG(,,,));
+      static TM_FASTCALL void  commit(TxThread*);
 
       static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
       static void onSwitchTo();
   };
+}
 
-  /**
-   *  CGL commit
-   */
-  void
-  CGL::commit(TxThread* tx)
-  {
-      // release the lock, finalize mm ops, and log the commit
-      tatas_release(&timestamp.val);
-      OnCGLCommit(tx);
-  }
+/**
+ *  CGL commit
+ */
+void
+CGL::commit(TxThread* tx)
+{
+    // release the lock, finalize mm ops, and log the commit
+    tatas_release(&timestamp.val);
+    OnCGLCommit(tx);
+}
 
-  /**
-   *  CGL read
-   */
-  void*
-  CGL::read(STM_READ_SIG(,addr,))
-  {
-      return *addr;
-  }
+/**
+ *  CGL read
+ */
+void*
+CGL::read(STM_READ_SIG(,addr,))
+{
+    return *addr;
+}
 
-  /**
-   *  CGL write
-   */
-  void
-  CGL::write(STM_WRITE_SIG(,addr,val,mask))
-  {
-      STM_DO_MASKED_WRITE(addr, val, mask);
-  }
+/**
+ *  CGL write
+ */
+void
+CGL::write(STM_WRITE_SIG(,addr,val,mask))
+{
+    STM_DO_MASKED_WRITE(addr, val, mask);
+}
 
-  /**
-   *  CGL unwinder:
-   *
-   *    In CGL, aborts are never valid
-   */
-  stm::scope_t*
-  CGL::rollback(STM_ROLLBACK_SIG(,,))
-  {
-      UNRECOVERABLE("ATTEMPTING TO ABORT AN IRREVOCABLE CGL TRANSACTION");
-      return NULL;
-  }
+/**
+ *  CGL unwinder:
+ *
+ *    In CGL, aborts are never valid
+ */
+stm::scope_t*
+CGL::rollback(STM_ROLLBACK_SIG(,,))
+{
+    UNRECOVERABLE("ATTEMPTING TO ABORT AN IRREVOCABLE CGL TRANSACTION");
+    return NULL;
+}
 
-  /**
-   *  CGL in-flight irrevocability:
-   *
-   *    Since we're already irrevocable, this code should never get called.
-   *    Instead, the become_irrevoc() call should just return true.
-   */
-  bool
-  CGL::irrevoc(TxThread*)
-  {
-      UNRECOVERABLE("CGL::IRREVOC SHOULD NEVER BE CALLED");
-      return false;
-  }
+/**
+ *  CGL in-flight irrevocability:
+ *
+ *    Since we're already irrevocable, this code should never get called.
+ *    Instead, the become_irrevoc() call should just return true.
+ */
+bool
+CGL::irrevoc(TxThread*)
+{
+    UNRECOVERABLE("CGL::IRREVOC SHOULD NEVER BE CALLED");
+    return false;
+}
 
-  /**
-   *  Switch to CGL:
-   *
-   *    We need a zero timestamp, so we need to save its max value to support
-   *    algorithms that do not expect the timestamp to ever decrease
-   */
-  void
-  CGL::onSwitchTo()
-  {
-      timestamp_max.val = MAXIMUM(timestamp.val, timestamp_max.val);
-      timestamp.val = 0;
-  }
+/**
+ *  Switch to CGL:
+ *
+ *    We need a zero timestamp, so we need to save its max value to support
+ *    algorithms that do not expect the timestamp to ever decrease
+ */
+void
+CGL::onSwitchTo()
+{
+    timestamp_max.val = maximum(timestamp.val, timestamp_max.val);
+    timestamp.val = 0;
 }
 
 namespace stm {

@@ -24,6 +24,7 @@ using stm::timestamp;
 using stm::timestamp_max;
 using stm::UndoLogEntry;
 using stm::UNRECOVERABLE;
+using stm::maximum;
 
 /**
  *  Declare the functions that we're going to implement, so that we can avoid
@@ -32,120 +33,120 @@ using stm::UNRECOVERABLE;
 namespace {
   struct Serial
   {
-      static TM_FASTCALL bool begin(TxThread*);
+      static TM_FASTCALL bool  begin(TxThread*);
       static TM_FASTCALL void* read(STM_READ_SIG(,,));
-      static TM_FASTCALL void write(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void commit(TxThread*);
+      static TM_FASTCALL void  write(STM_WRITE_SIG(,,,));
+      static TM_FASTCALL void  commit(TxThread*);
 
       static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
       static void onSwitchTo();
   };
+}
 
-  /**
-   *  Serial begin:
-   */
-  bool
-  Serial::begin(TxThread* tx)
-  {
-      // get the lock and notify the allocator
-      tx->begin_wait = tatas_acquire(&timestamp.val);
-      tx->allocator.onTxBegin();
-      return false;
-  }
+/**
+ *  Serial begin:
+ */
+bool
+Serial::begin(TxThread* tx)
+{
+    // get the lock and notify the allocator
+    tx->begin_wait = tatas_acquire(&timestamp.val);
+    tx->allocator.onTxBegin();
+    return false;
+}
 
-  /**
-   *  Serial commit
-   */
-  void Serial::commit(TxThread* tx)
-  {
-      // release the lock, finalize mm ops, and log the commit
-      tatas_release(&timestamp.val);
-      int x = tx->undo_log.size();
-      tx->undo_log.reset();
-      if (x)
-          OnCGLCommit(tx);
-      else
-          OnReadOnlyCGLCommit(tx);
-  }
+/**
+ *  Serial commit
+ */
+void Serial::commit(TxThread* tx)
+{
+    // release the lock, finalize mm ops, and log the commit
+    tatas_release(&timestamp.val);
+    int x = tx->undo_log.size();
+    tx->undo_log.reset();
+    if (x)
+        OnCGLCommit(tx);
+    else
+        OnReadOnlyCGLCommit(tx);
+}
 
-  /**
-   *  Serial read
-   */
-  void*
-  Serial::read(STM_READ_SIG(,addr,))
-  {
-      return *addr;
-  }
+/**
+ *  Serial read
+ */
+void*
+Serial::read(STM_READ_SIG(,addr,))
+{
+    return *addr;
+}
 
-  /**
-   *  Serial write
-   */
-  void
-  Serial::write(STM_WRITE_SIG(tx,addr,val,mask))
-  {
-      // add to undo log, do an in-place update
-      tx->undo_log.insert(UndoLogEntry(STM_UNDO_LOG_ENTRY(addr, *addr, mask)));
-      STM_DO_MASKED_WRITE(addr, val, mask);
-  }
+/**
+ *  Serial write
+ */
+void
+Serial::write(STM_WRITE_SIG(tx,addr,val,mask))
+{
+    // add to undo log, do an in-place update
+    tx->undo_log.insert(UndoLogEntry(STM_UNDO_LOG_ENTRY(addr, *addr, mask)));
+    STM_DO_MASKED_WRITE(addr, val, mask);
+}
 
-  /**
-   *  Serial unwinder:
-   */
-  stm::scope_t*
-  Serial::rollback(STM_ROLLBACK_SIG(tx, except, len))
-  {
-      PreRollback(tx);
+/**
+ *  Serial unwinder:
+ */
+stm::scope_t*
+Serial::rollback(STM_ROLLBACK_SIG(tx, except, len))
+{
+    PreRollback(tx);
 
-      // undo all writes
-      STM_UNDO(tx->undo_log, except, len);
+    // undo all writes
+    STM_UNDO(tx->undo_log, except, len);
 
-      // release the lock
-      tatas_release(&timestamp.val);
+    // release the lock
+    tatas_release(&timestamp.val);
 
-      // reset lists
-      tx->undo_log.reset();
+    // reset lists
+    tx->undo_log.reset();
 
-      return PostRollback(tx);
-  }
+    return PostRollback(tx);
+}
 
-  /**
-   *  Serial in-flight irrevocability:
-   *
-   *    NB: Since serial is protected by a single lock, we have to be really
-   *        careful here.  Every transaction performs writes in-place,
-   *        without per-access concurrency control.  Transactions undo-log
-   *        writes to handle self-abort.  If a transaction calls
-   *        'become_irrevoc', then there is an expectation that it won't
-   *        self-abort, which means that we can dump its undo log.
-   *
-   *        The tricky part is that we can't just use the standard irrevoc
-   *        framework to do this.  If T1 wants to become irrevocable
-   *        in-flight, it can't wait for everyone else to finish, because
-   *        they are waiting on T1.
-   *
-   *        The hack, for now, is to have a custom override so that on
-   *        become_irrevoc, a Serial transaction clears its undo log but does
-   *        no global coordination.
-   */
-  bool
-  Serial::irrevoc(TxThread* tx)
-  {
-      UNRECOVERABLE("Serial::irrevoc should not be called!");
-      return false;
-  }
+/**
+ *  Serial in-flight irrevocability:
+ *
+ *    NB: Since serial is protected by a single lock, we have to be really
+ *        careful here.  Every transaction performs writes in-place,
+ *        without per-access concurrency control.  Transactions undo-log
+ *        writes to handle self-abort.  If a transaction calls
+ *        'become_irrevoc', then there is an expectation that it won't
+ *        self-abort, which means that we can dump its undo log.
+ *
+ *        The tricky part is that we can't just use the standard irrevoc
+ *        framework to do this.  If T1 wants to become irrevocable
+ *        in-flight, it can't wait for everyone else to finish, because
+ *        they are waiting on T1.
+ *
+ *        The hack, for now, is to have a custom override so that on
+ *        become_irrevoc, a Serial transaction clears its undo log but does
+ *        no global coordination.
+ */
+bool
+Serial::irrevoc(TxThread* tx)
+{
+    UNRECOVERABLE("Serial::irrevoc should not be called!");
+    return false;
+}
 
-  /**
-   *  Switch to Serial:
-   *
-   *    We need a zero timestamp, so we need to save its max value
-   */
-  void
-  Serial::onSwitchTo()
-  {
-      timestamp_max.val = MAXIMUM(timestamp.val, timestamp_max.val);
-      timestamp.val = 0;
-  }
+/**
+ *  Switch to Serial:
+ *
+ *    We need a zero timestamp, so we need to save its max value
+ */
+void
+Serial::onSwitchTo()
+{
+    timestamp_max.val = maximum(timestamp.val, timestamp_max.val);
+    timestamp.val = 0;
 }
 
 namespace stm

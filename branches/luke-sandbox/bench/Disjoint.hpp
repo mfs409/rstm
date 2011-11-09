@@ -100,7 +100,7 @@ struct Disjoint
               // set should_write based on /i/:
               // on odd, do a read/write if there are writes left to do
               // on even, do a read if there are reads left to do
-              if (i && 0x1)
+              if (i % 2)
                   should_write = (writes < writes_per_ten);
               else
                   should_write = !(reads < reads_per_ten);

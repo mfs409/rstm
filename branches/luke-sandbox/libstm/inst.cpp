@@ -13,9 +13,12 @@
  */
 
 #include <sys/mman.h>
+#include <iostream>
 #include "inst.hpp"
 #include "policies/policies.hpp"
 #include "algs/algs.hpp"
+
+using std::cout;
 
 namespace stm
 {
@@ -48,11 +51,13 @@ namespace stm
   {
       // diagnostic message
       if (tx)
-          printf("[%u] switching from %s to %s\n", tx->id,
-                 stms[curr_policy.ALG_ID].name, stms[new_alg].name);
+          cout << "[" << tx->id << "] switching from "
+               << stms[curr_policy.ALG_ID].name << " to "
+               << stms[new_alg].name << "\n";
+
       if (!stms[new_alg].privatization_safe)
-          printf("Warning: Algorithm %s is not privatization-safe!\n",
-                 stms[new_alg].name);
+          cout << "Warning: Algorithm " << stms[new_alg].name
+               << " is not privatization-safe!\n";
 
       // we need to make sure the metadata remains healthy
       //

@@ -52,7 +52,10 @@ using stm::orec_t;
 using stm::get_orec;
 using stm::id_version_t;
 using stm::UndoLogEntry;
-
+using stm::sync_bcas;
+using stm::sync_cas;;
+using stm::sync_fai;
+using stm::maximum;
 
 /**
  *  Declare the functions that we're going to implement, so that we can avoid
@@ -72,91 +75,77 @@ namespace {
       static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
   };
 
-  TM_FASTCALL void* read(STM_READ_SIG(,,));
-  TM_FASTCALL void write(STM_WRITE_SIG(,,,));
-  bool irrevoc(TxThread*);
-  NOINLINE void validate(TxThread*);
-  void onSwitchTo();
-
-  // -----------------------------------------------------------------------------
-  // OrecEager implementation
-  // -----------------------------------------------------------------------------
-  template <class CM>
-  void
-  OrecEager_Generic<CM>::initialize(int id, const char* name)
-  {
-      // set the name
-      stm::stms[id].name      = name;
-
-      // set the pointers
-      stm::stms[id].begin     = OrecEager_Generic<CM>::begin;
-      stm::stms[id].commit    = OrecEager_Generic<CM>::commit;
-      stm::stms[id].rollback  = OrecEager_Generic<CM>::rollback;
-
-      stm::stms[id].read      = read;
-      stm::stms[id].write     = write;
-      stm::stms[id].irrevoc   = irrevoc;
-      stm::stms[id].switcher  = onSwitchTo;
-      stm::stms[id].privatization_safe = false;
-  }
-
-  template <class CM>
-  bool
-  OrecEager_Generic<CM>::begin(TxThread* tx)
-  {
-      // sample the timestamp and prepare local structures
-      tx->allocator.onTxBegin();
-      tx->start_time = timestamp.val;
-      CM::onBegin(tx);
-      return false;
-  }
-
   /**
-   *  OrecEager commit:
+   *  OrecEager in-flight irrevocability:
    *
-   *    read-only transactions do no work
+   *    Either commit the transaction or return false.  Note that we're already
+   *    serial by the time this code runs.
    *
-   *    writers must increment the timestamp, maybe validate, and then release
-   *    locks
+   *    NB: This doesn't Undo anything, so there's no need to protect the
+   *        stack.
    */
-  template <class CM>
-  void
-  OrecEager_Generic<CM>::commit(TxThread* tx)
+  bool
+  irrevoc(TxThread* tx)
   {
-      // use the lockset size to identify if tx is read-only
-      if (!tx->locks.size()) {
-          CM::onCommit(tx);
-          tx->r_orecs.reset();
-          OnReadOnlyCommit(tx);
-          return;
-      }
+      // NB: This code is probably more expensive than it needs to be...
 
-      // increment the global timestamp
-      uintptr_t end_time = 1 + faiptr(&timestamp.val);
+      // assume we're a writer, and increment the global timestamp
+      uintptr_t end_time = 1 + sync_fai(&timestamp.val);
 
-      // skip validation if nobody else committed since my last validation
+      // skip validation only if nobody else committed
       if (end_time != (tx->start_time + 1)) {
           foreach (OrecList, i, tx->r_orecs) {
-              // abort unless orec older than start or owned by me
+              // read this orec
               uintptr_t ivt = (*i)->v.all;
-              if ((ivt > tx->start_time) && (ivt != tx->my_lock.all))
-                  tx->tmabort(tx);
+              // if unlocked and newer than start time, abort
+              if ((ivt > tx->start_time) && (ivt != tx->my_lock))
+                  return false;
           }
       }
 
       // release locks
-      foreach (OrecList, i, tx->locks)
+      foreach (OrecList, i, tx->locks) {
           (*i)->v.all = end_time;
+      }
 
-      // notify CM
-      CM::onCommit(tx);
-
-      // reset lock list and undo log
-      tx->locks.reset();
-      tx->undo_log.reset();
-      // reset read list, do common cleanup
+      // clean up
       tx->r_orecs.reset();
-      OnReadWriteCommit(tx);
+      tx->undo_log.reset();
+      tx->locks.reset();
+      return true;
+  }
+
+  /**
+   *  OrecEager validation:
+   *
+   *    Make sure that all orecs that we've read have timestamps older than our
+   *    start time, unless we locked those orecs.  If we locked the orec, we
+   *    did so when the time was smaller than our start time, so we're sure to
+   *    be OK.
+   */
+  void
+  validate(TxThread* tx)
+  {
+      foreach (OrecList, i, tx->r_orecs) {
+          // read this orec
+          uintptr_t ivt = (*i)->v.all;
+          // if unlocked and newer than start time, abort
+          if ((ivt > tx->start_time) && (ivt != tx->my_lock))
+              tx->tmabort(tx);
+      }
+  }
+
+  /**
+   *  Switch to OrecEager:
+   *
+   *    The timestamp must be >= the maximum value of any orec.  Some algs use
+   *    timestamp as a zero-one mutex.  If they do, then they back up the
+   *    timestamp first, in timestamp_max.
+   */
+  void
+  onSwitchTo()
+  {
+      timestamp.val = maximum(timestamp.val, stm::timestamp_max.val);
   }
 
   /**
@@ -164,7 +153,7 @@ namespace {
    *
    *    Must check orec twice, and may need to validate
    */
-  void*
+  TM_FASTCALL void*
   read(STM_READ_SIG(tx,addr,))
   {
       // get the orec addr, then start loop to read a consistent value
@@ -179,7 +168,7 @@ namespace {
           void* tmp = *addr;
 
           // best case: I locked it already
-          if (ivt.all == tx->my_lock.all)
+          if (ivt.all == tx->my_lock)
               return tmp;
 
           // re-read orec AFTER reading value
@@ -208,7 +197,7 @@ namespace {
    *
    *    Lock the orec, log the old value, do the write
    */
-  void
+  TM_FASTCALL void
   write(STM_WRITE_SIG(tx,addr,val,mask))
   {
       // get the orec addr, then enter loop to get lock from a consistent state
@@ -220,7 +209,7 @@ namespace {
 
           // common case: uncontended location... try to lock it, abort on fail
           if (ivt.all <= tx->start_time) {
-              if (!bcasptr(&o->v.all, ivt.all, tx->my_lock.all))
+              if (!sync_bcas(&o->v.all, ivt.all, tx->my_lock))
                   tx->tmabort(tx);
 
               // save old value, log lock, do the write, and return
@@ -234,7 +223,7 @@ namespace {
           // next best: I already have the lock... must log old value, because
           // many locations hash to the same orec.  The lock does not mean I
           // have undo logged *this* location
-          if (ivt.all == tx->my_lock.all) {
+          if (ivt.all == tx->my_lock) {
               tx->undo_log.insert(UndoLogEntry(STM_UNDO_LOG_ENTRY(addr, *addr, mask)));
               STM_DO_MASKED_WRITE(addr, val, mask);
               return;
@@ -250,121 +239,131 @@ namespace {
           tx->start_time = newts;
       }
   }
-
-  /**
-   *  OrecEager rollback:
-   *
-   *    Run the redo log, possibly bump timestamp
-   */
-  template <class CM>
-  stm::scope_t*
-  OrecEager_Generic<CM>::rollback(STM_ROLLBACK_SIG(tx, except, len))
-  {
-      // common rollback code
-      PreRollback(tx);
-
-      // run the undo log
-      STM_UNDO(tx->undo_log, except, len);
-
-      // release the locks and bump version numbers by one... track the highest
-      // version number we write, in case it is greater than timestamp.val
-      uintptr_t max = 0;
-      foreach (OrecList, j, tx->locks) {
-          uintptr_t newver = (*j)->p + 1;
-          (*j)->v.all = newver;
-          max = (newver > max) ? newver : max;
-      }
-      // if we bumped a version number to higher than the timestamp, we need to
-      // increment the timestamp to preserve the invariant that the timestamp
-      // val is >= all orecs' values when unlocked
-      uintptr_t ts = timestamp.val;
-      if (max > ts)
-          casptr(&timestamp.val, ts, (ts+1)); // assumes no transient failures
-
-      // reset all lists
-      tx->r_orecs.reset();
-      tx->undo_log.reset();
-      tx->locks.reset();
-
-      // notify CM
-      CM::onAbort(tx);
-
-      // common unwind code when no pointer switching
-      return PostRollback(tx);
-  }
-
-  /**
-   *  OrecEager in-flight irrevocability:
-   *
-   *    Either commit the transaction or return false.  Note that we're already
-   *    serial by the time this code runs.
-   *
-   *    NB: This doesn't Undo anything, so there's no need to protect the
-   *        stack.
-   */
-  bool
-  irrevoc(TxThread* tx)
-  {
-      // NB: This code is probably more expensive than it needs to be...
-
-      // assume we're a writer, and increment the global timestamp
-      uintptr_t end_time = 1 + faiptr(&timestamp.val);
-
-      // skip validation only if nobody else committed
-      if (end_time != (tx->start_time + 1)) {
-          foreach (OrecList, i, tx->r_orecs) {
-              // read this orec
-              uintptr_t ivt = (*i)->v.all;
-              // if unlocked and newer than start time, abort
-              if ((ivt > tx->start_time) && (ivt != tx->my_lock.all))
-                  return false;
-          }
-      }
-
-      // release locks
-      foreach (OrecList, i, tx->locks)
-          (*i)->v.all = end_time;
-
-      // clean up
-      tx->r_orecs.reset();
-      tx->undo_log.reset();
-      tx->locks.reset();
-      return true;
-  }
-
-  /**
-   *  OrecEager validation:
-   *
-   *    Make sure that all orecs that we've read have timestamps older than our
-   *    start time, unless we locked those orecs.  If we locked the orec, we
-   *    did so when the time was smaller than our start time, so we're sure to
-   *    be OK.
-   */
-  void
-  validate(TxThread* tx)
-  {
-      foreach (OrecList, i, tx->r_orecs) {
-          // read this orec
-          uintptr_t ivt = (*i)->v.all;
-          // if unlocked and newer than start time, abort
-          if ((ivt > tx->start_time) && (ivt != tx->my_lock.all))
-              tx->tmabort(tx);
-      }
-  }
-
-  /**
-   *  Switch to OrecEager:
-   *
-   *    The timestamp must be >= the maximum value of any orec.  Some algs use
-   *    timestamp as a zero-one mutex.  If they do, then they back up the
-   *    timestamp first, in timestamp_max.
-   */
-  void
-  onSwitchTo()
-  {
-      timestamp.val = MAXIMUM(timestamp.val, stm::timestamp_max.val);
-  }
 } // (anonymous namespace)
+
+// -----------------------------------------------------------------------------
+// OrecEager implementation
+// -----------------------------------------------------------------------------
+template <class CM>
+void
+OrecEager_Generic<CM>::initialize(int id, const char* name)
+{
+    // set the name
+    stm::stms[id].name      = name;
+
+    // set the pointers
+    stm::stms[id].begin     = OrecEager_Generic<CM>::begin;
+    stm::stms[id].commit    = OrecEager_Generic<CM>::commit;
+    stm::stms[id].rollback  = OrecEager_Generic<CM>::rollback;
+
+    stm::stms[id].read      = read;
+    stm::stms[id].write     = write;
+    stm::stms[id].irrevoc   = irrevoc;
+    stm::stms[id].switcher  = onSwitchTo;
+    stm::stms[id].privatization_safe = false;
+}
+
+template <class CM>
+bool
+OrecEager_Generic<CM>::begin(TxThread* tx)
+{
+    // sample the timestamp and prepare local structures
+    tx->allocator.onTxBegin();
+    tx->start_time = timestamp.val;
+    CM::onBegin(tx);
+    return false;
+}
+
+/**
+ *  OrecEager commit:
+ *
+ *    read-only transactions do no work
+ *
+ *    writers must increment the timestamp, maybe validate, and then release
+ *    locks
+ */
+template <class CM>
+void
+OrecEager_Generic<CM>::commit(TxThread* tx)
+{
+    // use the lockset size to identify if tx is read-only
+    if (!tx->locks.size()) {
+        CM::onCommit(tx);
+        tx->r_orecs.reset();
+        OnReadOnlyCommit(tx);
+        return;
+    }
+
+    // increment the global timestamp
+    uintptr_t end_time = 1 + sync_fai(&timestamp.val);
+
+    // skip validation if nobody else committed since my last validation
+    if (end_time != (tx->start_time + 1)) {
+        foreach (OrecList, i, tx->r_orecs) {
+            // abort unless orec older than start or owned by me
+            uintptr_t ivt = (*i)->v.all;
+            if ((ivt > tx->start_time) && (ivt != tx->my_lock))
+                tx->tmabort(tx);
+        }
+    }
+
+    // release locks
+    foreach (OrecList, i, tx->locks) {
+        (*i)->v.all = end_time;
+    }
+
+    // notify CM
+    CM::onCommit(tx);
+
+    // reset lock list and undo log
+    tx->locks.reset();
+    tx->undo_log.reset();
+    // reset read list, do common cleanup
+    tx->r_orecs.reset();
+    OnReadWriteCommit(tx);
+}
+
+/**
+ *  OrecEager rollback:
+ *
+ *    Run the redo log, possibly bump timestamp
+ */
+template <class CM>
+stm::scope_t*
+OrecEager_Generic<CM>::rollback(STM_ROLLBACK_SIG(tx, except, len))
+{
+    // common rollback code
+    PreRollback(tx);
+
+    // run the undo log
+    STM_UNDO(tx->undo_log, except, len);
+
+    // release the locks and bump version numbers by one... track the highest
+    // version number we write, in case it is greater than timestamp.val
+    uintptr_t max = 0;
+    foreach (OrecList, j, tx->locks) {
+        uintptr_t newver = (*j)->p + 1;
+        (*j)->v.all = newver;
+        max = (newver > max) ? newver : max;
+    }
+    // if we bumped a version number to higher than the timestamp, we need to
+    // increment the timestamp to preserve the invariant that the timestamp
+    // val is >= all orecs' values when unlocked
+    uintptr_t ts = timestamp.val;
+    if (max > ts)
+        sync_cas(&timestamp.val, ts, (ts+1)); // assumes no transient failures
+
+    // reset all lists
+    tx->r_orecs.reset();
+    tx->undo_log.reset();
+    tx->locks.reset();
+
+    // notify CM
+    CM::onAbort(tx);
+
+    // common unwind code when no pointer switching
+    return PostRollback(tx);
+}
 
 // -----------------------------------------------------------------------------
 // Register initialization as declaratively as possible.
@@ -375,9 +374,9 @@ namespace {
     MACRO(OrecEagerBackoff, BackoffCM)          \
     MACRO(OrecEagerHB, HourglassBackoffCM)
 
-#define INIT_ORECEAGER(ID, CM)                          \
-    template <>                                         \
-    void initTM<ID>() {                                 \
+#define INIT_ORECEAGER(ID, CM)                              \
+    template <>                                             \
+    void initTM<ID>() {                                     \
         OrecEager_Generic<stm::CM>::initialize(ID, #ID);    \
     }
 

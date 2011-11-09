@@ -73,7 +73,7 @@ namespace stm
       static void onBegin(TxThread* tx)
       {
           // acquire timestamp when transaction begins
-          epochs[tx->id-1].val = faiptr(&fcm_timestamp.val);
+          epochs[tx->id-1].val = sync_fai(&fcm_timestamp.val);
           // could use (INT32_MAX & tick())
       }
 
@@ -122,7 +122,7 @@ namespace stm
           // acquire a timestamp if consecutive aborts exceed a threshold
           if (tx->consec_aborts > ABORT_THRESHOLD) {
               while (true) {
-                  if (bcasptr(&fcm_timestamp.val, 0ul, 1ul)) {
+                  if (sync_bcas(&fcm_timestamp.val, 0ul, 1ul)) {
                       tx->strong_HG = true;
                       return;
                   }
@@ -183,7 +183,7 @@ namespace stm
 
           // acquire a timestamp if consecutive aborts exceed a threshold
           if (tx->consec_aborts > ABORT_THRESHOLD)
-              if (bcasptr(&fcm_timestamp.val, 0ul, 1ul))
+              if (sync_bcas(&fcm_timestamp.val, 0ul, 1ul))
                   tx->strong_HG = true;
           // NB: as before, some counting opportunities here
       }
@@ -237,7 +237,7 @@ namespace stm
 
           // acquire a timestamp if consecutive aborts exceed a threshold
           if (tx->consec_aborts > ABORT_THRESHOLD) {
-              if (bcasptr(&fcm_timestamp.val, 0ul, 1ul))
+              if (sync_bcas(&fcm_timestamp.val, 0ul, 1ul))
                   tx->strong_HG = true;
           }
           else {

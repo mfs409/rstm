@@ -54,8 +54,8 @@ namespace
   void collect_profiles(TxThread* tx)
   {
       // prevent new txns from starting
-      if (!bcasptr(&TxThread::tmbegin, stms[curr_policy.ALG_ID].begin,
-                   &begin_blocker))
+      if (!sync_bcas(&TxThread::tmbegin, stms[curr_policy.ALG_ID].begin,
+                     &begin_blocker))
           return;
 
       // wait for everyone to be out of a transaction (scope == NULL)
@@ -82,8 +82,8 @@ namespace
       //     optimization
 
       // prevent new txns from starting
-      if (!bcasptr(&TxThread::tmbegin, stms[curr_policy.ALG_ID].begin,
-                   &begin_blocker))
+      if (!sync_bcas(&TxThread::tmbegin, stms[curr_policy.ALG_ID].begin,
+                     &begin_blocker))
           return;
 
       // wait for everyone to be out of a transaction (scope == NULL)
@@ -124,8 +124,8 @@ namespace stm
       //     to commit/abort.  But we do need this, in case tmbegin is
       //     /already/ begin_blocker on account of a call to set_policy or
       //     TxThread()
-      while (!bcasptr(&TxThread::tmbegin, stms[curr_policy.ALG_ID].begin,
-                      &begin_blocker))
+      while (!sync_bcas(&TxThread::tmbegin, stms[curr_policy.ALG_ID].begin,
+                        &begin_blocker))
       {
           spin64();
       }

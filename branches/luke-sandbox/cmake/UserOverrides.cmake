@@ -25,6 +25,10 @@ set(rstm_init_cxx_flags_GNU_x86 -msse2 -mfpmath=sse -march=core2 -mtune=core2)
 set(rstm_init_cxx_flags_GNU_sparc -mcpu=v9)
 set(rstm_init_cxx_flags_GNU_DEBUG -g3)
 set(rstm_init_cxx_flags_GNU_RELWITHDEBINFO -O3 -g)
+set(rstm_init_cxx_flags_Clang_x86 -msse2 -mfpmath=sse -march=core2 -mtune=core2)
+set(rstm_init_cxx_flags_Clang_DEBUG -g3)
+set(rstm_init_cxx_flags_Clang_RELEASE -O4 -DNDEBUG)
+set(rstm_init_cxx_flags_Clang_RELWITHDEBINFO -O4 -g3)
 # the below warnings aren't helpful, and omitting the frame pointer will break
 # stack protection for redo-log tms.
 set(rstm_init_cxx_flags_Intel -wd981,1599 -vec_report0 -fno-omit-frame-pointer)

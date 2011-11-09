@@ -15,32 +15,39 @@
 #ifndef COMMON_UTILS_HPP
 #define COMMON_UTILS_HPP
 
+#include <cstddef>
 #include <cstdlib>
 
 namespace stm
 {
   /// We use malloc a couple of times here, and this makes it a bit easier.
   template <typename T>
-  inline T* typed_malloc(size_t N)
+  inline T*
+  typed_malloc(std::size_t numTs)
   {
-      return static_cast<T*>(malloc(sizeof(T) * N));
+      return static_cast<T*>(malloc(sizeof(T) * numTs));
   }
 
   /// Convince the compiler to tell us how many elements are in a statically
   /// sized array. This code appears in a lot of places on the web.
-  template <typename T, size_t N>
-  inline size_t length_of(T(&)[N])
+  template <typename T, std::size_t NELEMENTS>
+  inline std::size_t
+  length_of(T(&)[NELEMENTS])
   {
-      return N;
+      return NELEMENTS;
   }
 
   template <typename T>
-  inline bool minimum(T lhs, T rhs) {
+  inline bool
+  minimum(T lhs, T rhs)
+  {
       return (lhs < rhs) ? lhs : rhs;
   }
 
   template <typename T>
-  inline bool maximum(T lhs, T rhs) {
+  inline bool
+  maximum(T lhs, T rhs)
+  {
       return (lhs > rhs) ? lhs : rhs;
   }
 }

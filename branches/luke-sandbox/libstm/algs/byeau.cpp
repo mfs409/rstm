@@ -39,7 +39,7 @@ using stm::bytelock_t;
 using stm::get_bytelock;
 using stm::threads;
 using stm::UndoLogEntry;
-
+using stm::sync_bcas;
 
 /**
  *  Supporting #defines for tracking thread liveness/deadness
@@ -255,7 +255,7 @@ namespace {
               else
                   tx->tmabort(tx);
           // try to get ownership
-          } else if (bcas32(&(lock->owner), 0u, tx->id)) {
+          } else if (sync_bcas(&(lock->owner), 0u, tx->id)) {
               break;
           }
           // liveness check
@@ -309,7 +309,7 @@ namespace {
                   else
                       tx->tmabort(tx);
               // try to get ownership
-              } else if (bcas32(&(lock->owner), 0u, tx->id)) {
+              } else if (sync_bcas(&(lock->owner), 0u, tx->id)) {
                   break;
               }
               // liveness check

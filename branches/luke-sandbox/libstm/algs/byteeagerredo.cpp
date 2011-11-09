@@ -25,7 +25,7 @@ using stm::ByteLockList;
 using stm::bytelock_t;
 using stm::get_bytelock;
 using stm::WriteSetEntry;
-
+using stm::sync_bcas;
 
 /**
  *  Declare the functions that we're going to implement, so that we can avoid
@@ -195,7 +195,7 @@ namespace {
       bytelock_t* lock = get_bytelock(addr);
 
       // get the write lock, with timeout
-      while (!bcas32(&(lock->owner), 0u, tx->id))
+      while (!sync_bcas(&(lock->owner), 0u, tx->id))
           if (++tries > ACQUIRE_TIMEOUT)
               tx->tmabort(tx);
 
@@ -235,7 +235,7 @@ namespace {
       }
 
       // get the write lock, with timeout
-      while (!bcas32(&(lock->owner), 0u, tx->id))
+      while (!sync_bcas(&(lock->owner), 0u, tx->id))
           if (++tries > ACQUIRE_TIMEOUT)
               tx->tmabort(tx);
 
