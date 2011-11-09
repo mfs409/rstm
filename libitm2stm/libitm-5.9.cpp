@@ -85,18 +85,21 @@ _ITM_transaction::commitToId(_ITM_transactionId_t id) {
 }
 
 void
-_ITM_commitTransaction(_ITM_transaction* td, const _ITM_srcLocation*) {
+_ITM_commitTransaction(_ITM_TD_PARAMS const _ITM_srcLocation*) {
+    _ITM_TD_GET;
     td->commit();
 }
 
 bool
-_ITM_tryCommitTransaction(_ITM_transaction* td, const _ITM_srcLocation*) {
+_ITM_tryCommitTransaction(_ITM_TD_PARAMS const _ITM_srcLocation*) {
+    _ITM_TD_GET;
     return td->tryCommit();
 }
 
 void
-_ITM_commitTransactionToId(_ITM_transaction* td, const _ITM_transactionId_t id,
+_ITM_commitTransactionToId(_ITM_TD_PARAMS const _ITM_transactionId_t id,
                            const _ITM_srcLocation*) {
+    _ITM_TD_GET;
     td->commitToId(id);
 }
 

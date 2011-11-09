@@ -124,114 +124,129 @@ builtin_memcpy_wrapper(void* to, const void* from, size_t n) {
 // 5.13  Transactional memory copies ------------------------------------------
 // ----------------------------------------------------------------------------
 void
-_ITM_memcpyRnWt(_ITM_transaction* td, void* to, const void* from, size_t n)
+_ITM_memcpyRnWt(_ITM_TD_PARAMS void* to, const void* from, size_t n)
 {
+    _ITM_TD_GET;
     BlockWriter writer(td->handle());
     memcpy(to, from, n, builtin_memcpy_wrapper, writer);
 }
 
 void
-_ITM_memcpyRnWtaR(_ITM_transaction* td, void* to, const void* from, size_t n)
+_ITM_memcpyRnWtaR(_ITM_TD_PARAMS void* to, const void* from, size_t n)
 {
+    _ITM_TD_GET;
     BlockWriter writer(td->handle());
     memcpy(to, from, n, builtin_memcpy_wrapper, writer);
 }
 
 void
-_ITM_memcpyRnWtaW(_ITM_transaction* td, void* to, const void* from, size_t n)
+_ITM_memcpyRnWtaW(_ITM_TD_PARAMS void* to, const void* from, size_t n)
 {
+    _ITM_TD_GET;
     BlockWriter writer(td->handle());
     memcpy(to, from, n, builtin_memcpy_wrapper, writer);
 }
 
 void
-_ITM_memcpyRtWn(_ITM_transaction* td, void* to, const void* from, size_t n)
+_ITM_memcpyRtWn(_ITM_TD_PARAMS void* to, const void* from, size_t n)
 {
+    _ITM_TD_GET;
     BlockReader reader(td->handle());
     memcpy(to, from, n, reader, builtin_memcpy_wrapper);
 }
 
 void
-_ITM_memcpyRtWt(_ITM_transaction* td, void* to, const void* from, size_t n)
+_ITM_memcpyRtWt(_ITM_TD_PARAMS void* to, const void* from, size_t n)
 {
+    _ITM_TD_GET;
     BlockReader reader(td->handle());
     BlockWriter writer(td->handle());
     memcpy(to, from, n, reader, writer);
 }
 
 void
-_ITM_memcpyRtWtaR(_ITM_transaction* td, void* to, const void* from, size_t n)
+_ITM_memcpyRtWtaR(_ITM_TD_PARAMS void* to, const void* from, size_t n)
 {
+    _ITM_TD_GET;
     BlockReader reader(td->handle());
     BlockWriter writer(td->handle());
     memcpy(to, from, n, reader, writer);
 }
 
 void
-_ITM_memcpyRtWtaW(_ITM_transaction* td, void* to, const void* from, size_t n)
+_ITM_memcpyRtWtaW(_ITM_TD_PARAMS void* to, const void* from, size_t n)
 {
+    _ITM_TD_GET;
     BlockReader reader(td->handle());
     BlockWriter writer(td->handle());
     memcpy(to, from, n, reader, writer);
 }
 
 void
-_ITM_memcpyRtaRWn(_ITM_transaction* td, void* to, const void* from, size_t n)
+_ITM_memcpyRtaRWn(_ITM_TD_PARAMS void* to, const void* from, size_t n)
 {
+    _ITM_TD_GET;
     BlockReader reader(td->handle());
     memcpy(to, from, n, reader, builtin_memcpy_wrapper);
 }
 
 void
-_ITM_memcpyRtaRWt(_ITM_transaction* td, void* to, const void* from, size_t n)
+_ITM_memcpyRtaRWt(_ITM_TD_PARAMS void* to, const void* from, size_t n)
 {
+    _ITM_TD_GET;
     BlockReader reader(td->handle());
     BlockWriter writer(td->handle());
     memcpy(to, from, n, reader, writer);
 }
 
 void
-_ITM_memcpyRtaRWtaR(_ITM_transaction* td, void* to, const void* from, size_t n)
+_ITM_memcpyRtaRWtaR(_ITM_TD_PARAMS void* to, const void* from, size_t n)
 {
+    _ITM_TD_GET;
     BlockReader reader(td->handle());
     BlockWriter writer(td->handle());
     memcpy(to, from, n, reader, writer);
 }
 
 void
-_ITM_memcpyRtaRWtaW(_ITM_transaction* td, void* to, const void* from, size_t n)
+_ITM_memcpyRtaRWtaW(_ITM_TD_PARAMS void* to, const void* from, size_t n)
 {
+    _ITM_TD_GET;
     BlockReader reader(td->handle());
     BlockWriter writer(td->handle());
     memcpy(to, from, n, reader, writer);
 }
 
 void
-_ITM_memcpyRtaWWn(_ITM_transaction* td, void* to, const void* from, size_t n)
+_ITM_memcpyRtaWWn(_ITM_TD_PARAMS void* to, const void* from, size_t n)
 {
+    _ITM_TD_GET;
     BlockReader reader(td->handle());
     memcpy(to, from, n, reader, builtin_memcpy_wrapper);
 }
 
 void
-_ITM_memcpyRtaWWt(_ITM_transaction* td, void* to, const void* from, size_t n)
+_ITM_memcpyRtaWWt(_ITM_TD_PARAMS void* to, const void* from, size_t n)
 {
+    _ITM_TD_GET;
     BlockReader reader(td->handle());
     BlockWriter writer(td->handle());
     memcpy(to, from, n, reader, writer);
 }
 
 void
-_ITM_memcpyRtaWWtaR(_ITM_transaction* td, void* to, const void* from, size_t n)
+_ITM_memcpyRtaWWtaR(_ITM_TD_PARAMS void* to, const void* from, size_t n)
 {
+    _ITM_TD_GET;
     BlockReader reader(td->handle());
     BlockWriter writer(td->handle());
     memcpy(to, from, n, reader, writer);
 }
 
 void
-_ITM_memcpyRtaWWtaW(_ITM_transaction* td, void* to, const void* from, size_t n)
+_ITM_memcpyRtaWWtaW(_ITM_TD_PARAMS void* to, const void* from, size_t n)
 {
+    _ITM_TD_GET;
     BlockReader reader(td->handle());
     BlockWriter writer(td->handle());
     memcpy(to, from, n, reader, writer);
@@ -241,115 +256,130 @@ _ITM_memcpyRtaWWtaW(_ITM_transaction* td, void* to, const void* from, size_t n)
 // 5.14  Transactional versions of memmove ------------------------------------
 // ----------------------------------------------------------------------------
 void
-_ITM_memmoveRnWt(_ITM_transaction* td, void* to, const void* from, size_t n)
+_ITM_memmoveRnWt(_ITM_TD_PARAMS void* to, const void* from, size_t n)
 {
+    _ITM_TD_GET;
     BlockWriter writer(td->handle());
     memmove(to, from, n, builtin_memcpy_wrapper, writer);
 }
 
 void
-_ITM_memmoveRnWtaR(_ITM_transaction* td, void* to, const void* from, size_t n)
+_ITM_memmoveRnWtaR(_ITM_TD_PARAMS void* to, const void* from, size_t n)
 {
+    _ITM_TD_GET;
     BlockWriter writer(td->handle());
     memmove(to, from, n, builtin_memcpy_wrapper, writer);
 }
 
 void
-_ITM_memmoveRnWtaW(_ITM_transaction* td, void* to, const void* from, size_t n)
+_ITM_memmoveRnWtaW(_ITM_TD_PARAMS void* to, const void* from, size_t n)
 {
+    _ITM_TD_GET;
     BlockWriter writer(td->handle());
     memmove(to, from, n, builtin_memcpy_wrapper, writer);
 }
 
 
 void
-_ITM_memmoveRtWn(_ITM_transaction* td, void* to, const void* from, size_t n)
+_ITM_memmoveRtWn(_ITM_TD_PARAMS void* to, const void* from, size_t n)
 {
+    _ITM_TD_GET;
     BlockReader reader(td->handle());
     memmove(to, from, n, reader, builtin_memcpy_wrapper);
 }
 
 void
-_ITM_memmoveRtWt(_ITM_transaction* td, void* to, const void* from, size_t n)
+_ITM_memmoveRtWt(_ITM_TD_PARAMS void* to, const void* from, size_t n)
 {
+    _ITM_TD_GET;
     BlockReader reader(td->handle());
     BlockWriter writer(td->handle());
     memmove(to, from, n, reader, writer);
 }
 
 void
-_ITM_memmoveRtWtaR(_ITM_transaction* td, void* to, const void* from, size_t n)
+_ITM_memmoveRtWtaR(_ITM_TD_PARAMS void* to, const void* from, size_t n)
 {
+    _ITM_TD_GET;
     BlockReader reader(td->handle());
     BlockWriter writer(td->handle());
     memmove(to, from, n, reader, writer);
 }
 
 void
-_ITM_memmoveRtWtaW(_ITM_transaction* td, void* to, const void* from, size_t n)
+_ITM_memmoveRtWtaW(_ITM_TD_PARAMS void* to, const void* from, size_t n)
 {
+    _ITM_TD_GET;
     BlockReader reader(td->handle());
     BlockWriter writer(td->handle());
     memmove(to, from, n, reader, writer);
 }
 
 void
-_ITM_memmoveRtaRWn(_ITM_transaction* td, void* to, const void* from, size_t n)
+_ITM_memmoveRtaRWn(_ITM_TD_PARAMS void* to, const void* from, size_t n)
 {
+    _ITM_TD_GET;
     BlockReader reader(td->handle());
     memmove(to, from, n, reader, builtin_memcpy_wrapper);
 }
 
 void
-_ITM_memmoveRtaRWt(_ITM_transaction* td, void* to, const void* from, size_t n)
+_ITM_memmoveRtaRWt(_ITM_TD_PARAMS void* to, const void* from, size_t n)
 {
+    _ITM_TD_GET;
     BlockReader reader(td->handle());
     BlockWriter writer(td->handle());
     memmove(to, from, n, reader, writer);
 }
 
 void
-_ITM_memmoveRtaRWtaR(_ITM_transaction* td, void* to, const void* from, size_t n)
+_ITM_memmoveRtaRWtaR(_ITM_TD_PARAMS void* to, const void* from, size_t n)
 {
+    _ITM_TD_GET;
     BlockReader reader(td->handle());
     BlockWriter writer(td->handle());
     memmove(to, from, n, reader, writer);
 }
 
 void
-_ITM_memmoveRtaRWtaW(_ITM_transaction* td, void* to, const void* from, size_t n)
+_ITM_memmoveRtaRWtaW(_ITM_TD_PARAMS void* to, const void* from, size_t n)
 {
+    _ITM_TD_GET;
     BlockReader reader(td->handle());
     BlockWriter writer(td->handle());
     memmove(to, from, n, reader, writer);
 }
 
 void
-_ITM_memmoveRtaWWn(_ITM_transaction* td, void* to, const void* from, size_t n)
+_ITM_memmoveRtaWWn(_ITM_TD_PARAMS void* to, const void* from, size_t n)
 {
+    _ITM_TD_GET;
     BlockReader reader(td->handle());
     memmove(to, from, n, reader, builtin_memcpy_wrapper);
 }
 
 void
-_ITM_memmoveRtaWWt(_ITM_transaction* td, void* to, const void* from, size_t n)
+_ITM_memmoveRtaWWt(_ITM_TD_PARAMS void* to, const void* from, size_t n)
 {
+    _ITM_TD_GET;
     BlockReader reader(td->handle());
     BlockWriter writer(td->handle());
     memmove(to, from, n, reader, writer);
 }
 
 void
-_ITM_memmoveRtaWWtaR(_ITM_transaction* td, void* to, const void* from, size_t n)
+_ITM_memmoveRtaWWtaR(_ITM_TD_PARAMS void* to, const void* from, size_t n)
 {
+    _ITM_TD_GET;
     BlockReader reader(td->handle());
     BlockWriter writer(td->handle());
     memmove(to, from, n, reader, writer);
 }
 
 void
-_ITM_memmoveRtaWWtaW(_ITM_transaction* td, void* to, const void* from, size_t n)
+_ITM_memmoveRtaWWtaW(_ITM_TD_PARAMS void* to, const void* from, size_t n)
 {
+    _ITM_TD_GET;
     BlockReader reader(td->handle());
     BlockWriter writer(td->handle());
     memmove(to, from, n, reader, writer);

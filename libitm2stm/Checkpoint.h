@@ -30,7 +30,6 @@ class Checkpoint {
         return (void**)checkpoint_[0];
     }
 
-  protected:
     void* checkpoint_[CHECKPOINT_SIZE];
 };
 } // namespace itm2stm

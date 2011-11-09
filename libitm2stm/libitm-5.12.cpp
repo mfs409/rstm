@@ -298,27 +298,32 @@ inline bool is_stack_write(const _ITM_transaction* const tx, const T* address) {
 /// detects that the write might need to be undone on a nested cancal_inner.
 #define BARRIERS(TYPE, EXT)                                     \
     TYPE                                                        \
-    _ITM_R##EXT(_ITM_transaction* td, const TYPE* address) {    \
+    _ITM_R##EXT(_ITM_TD_PARAMS const TYPE* address) {           \
+	_ITM_TD_GET;                                            \
         return INST<TYPE>::Read(td->handle(), address);         \
     }                                                           \
                                                                 \
     TYPE                                                        \
-    _ITM_RaR##EXT(_ITM_transaction* td, const TYPE* address) {  \
+    _ITM_RaR##EXT(_ITM_TD_PARAMS const TYPE* address) {         \
+	_ITM_TD_GET;                                            \
         return INST<TYPE>::Read(td->handle(), address);         \
     }                                                           \
                                                                 \
     TYPE                                                        \
-    _ITM_RaW##EXT(_ITM_transaction* td, const TYPE* address) {  \
+    _ITM_RaW##EXT(_ITM_TD_PARAMS const TYPE* address) {         \
+	_ITM_TD_GET;                                            \
         return INST<TYPE>::Read(td->handle(), address);         \
     }                                                           \
                                                                 \
     TYPE                                                        \
-    _ITM_RfW##EXT(_ITM_transaction* td, const TYPE* address) {  \
+    _ITM_RfW##EXT(_ITM_TD_PARAMS const TYPE* address) {         \
+	_ITM_TD_GET;                                            \
         return INST<TYPE>::Read(td->handle(), address);         \
     }                                                           \
                                                                 \
     void                                                        \
-    _ITM_W##EXT(_ITM_transaction* td, TYPE* address, const TYPE value) { \
+    _ITM_W##EXT(_ITM_TD_PARAMS TYPE* address, const TYPE value) { \
+	_ITM_TD_GET;                                            \
         if (is_stack_write(td, address))                                \
             *address = value;                                           \
         else                                                            \
@@ -326,7 +331,8 @@ inline bool is_stack_write(const _ITM_transaction* const tx, const T* address) {
     }                                                                   \
                                                                         \
     void                                                                \
-    _ITM_WaR##EXT(_ITM_transaction* td, TYPE* address, const TYPE value) { \
+    _ITM_WaR##EXT(_ITM_TD_PARAMS TYPE* address, const TYPE value) {     \
+	_ITM_TD_GET;                                                    \
         if (is_stack_write(td, address))                                \
             *address = value;                                           \
         else                                                            \
@@ -334,7 +340,8 @@ inline bool is_stack_write(const _ITM_transaction* const tx, const T* address) {
     }                                                                   \
                                                                         \
     void                                                                \
-    _ITM_WaW##EXT(_ITM_transaction* td, TYPE* address, const TYPE value) { \
+    _ITM_WaW##EXT(_ITM_TD_PARAMS TYPE* address, const TYPE value) {     \
+	_ITM_TD_GET;                                                    \
         if (is_stack_write(td, address))                                \
             *address = value;                                           \
         else                                                            \

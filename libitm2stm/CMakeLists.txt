@@ -18,9 +18,19 @@ if (CMAKE_COMPILER_IS_GNUCXX AND CMAKE_SYSTEM_NAME MATCHES "Darwin")
   append_cxx_flags(-Wno-unknown-pragmas)
 endif ()
 
+# This macro enables to change TM-ABI defs (see libitm.h)
+# Default for ICC
+if (rstm_itm2stm STREQUAL "DTMC")
+  append_cxx_flags(-emit-llvm -D_ITM_DTMC)
+elseif (rstm_itm2stm STREQUAL "GCC")
+  append_cxx_flags(-emit-llvm -D_ITM_GCC)
+else ()
+  append_cxx_flags(-emit-llvm -D_ITM_ICC)
+endif ()
+
+
 set(cppsources
   BlockOperations.cpp
-  Extras.cpp
   Scope.cpp
   Transaction.cpp
   libitm-5.1,5.cpp
@@ -40,8 +50,10 @@ set(cppsources
 
 set(asmsources
   arch/x86/_ITM_beginTransaction.S
+  arch/x86/_ITM_beginTransaction_no_td.S
   arch/x86/checkpoint_restore.S
   arch/x86_64/_ITM_beginTransaction.S
+  arch/x86_64/_ITM_beginTransaction_no_td.S
   arch/x86_64/checkpoint_restore.S)
 
 if (itm2stm_enable_assert_on_irrevocable)
@@ -50,26 +62,63 @@ if (itm2stm_enable_assert_on_irrevocable)
 endif ()
   
 # Hack because preprocessed asm files aren't supported in cmake-2.8.4, so we
-# pretend they're C++ files. They also need the additional include directory.
+# pretend they're C files. They also need the additional include directory.
 set_source_files_properties(
   ${asmsources} PROPERTIES
-  LANGUAGE CXX
+  LANGUAGE C
   COMPILE_FLAGS -I${CMAKE_CURRENT_SOURCE_DIR}/arch)
 
 if (rstm_build_32-bit)
   set(arch_path ${CMAKE_CURRENT_SOURCE_DIR}/arch/x86)
-  add_library(itm2stm32
-    ${cppsources}
-    ${arch_path}/_ITM_beginTransaction.S
-    ${arch_path}/checkpoint_restore.S)
-  append_property(TARGET itm2stm32 COMPILE_FLAGS -m32 -I${arch_path})
-  target_link_libraries(itm2stm32 stm32)
+
+  # For Intel STM Compiler
+  if (rstm_itm2stm STREQUAL "ICC")
+    add_library(itm2stm32
+      ${cppsources}
+      icc.cpp
+      ${arch_path}/_ITM_beginTransaction.S
+      ${arch_path}/checkpoint_restore.S)
+    append_property(TARGET itm2stm32 COMPILE_FLAGS -m32 -I${arch_path})
+    target_link_libraries(itm2stm32 stm32)
+
+  # For DTMC 
+  elseif (rstm_itm2stm STREQUAL "DTMC")
+    add_library(tanger-stm
+      ${arch_path}/_ITM_beginTransaction_no_td.S
+      ${arch_path}/checkpoint_restore.S)
+    append_property(TARGET tanger-stm COMPILE_FLAGS -m32 -I${arch_path})
+
+    add_library(itm2stm32
+      ${cppsources}
+      dtmc.cpp)
+    add_dependencies(itm2stm32 stm32 tanger-stm)
+    append_property(TARGET itm2stm32 COMPILE_FLAGS -m32 -I${arch_path})
+    # Merge itm2stm and stm in one library
+    add_custom_command(TARGET itm2stm32 
+                       POST_BUILD
+                       COMMAND ${CMAKE_LINKER} -link-as-library -o libtanger-stm.bc libitm2stm32.a ../libstm/libstm32.a 
+                       )
+    # Copying DTMC required files
+    add_custom_command(TARGET itm2stm32 
+                       POST_BUILD
+                       COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/libtanger-stm.public-symbols ${CMAKE_CURRENT_BINARY_DIR}/libtanger-stm.public-symbols)
+    add_custom_command(TARGET itm2stm32 
+                       POST_BUILD
+                       COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/libtanger-stm.support ${CMAKE_CURRENT_BINARY_DIR}/libtanger-stm.support)
+  
+  # For GCC 
+  elseif (${rstm_itm2stm} STREQUAL "GCC")
+    # FIXME for GCC
+  endif ()
 endif ()
 
 if (rstm_build_64-bit)
   set(arch_path ${CMAKE_CURRENT_SOURCE_DIR}/arch/x86_64)
+  # TODO report changes from 32bits
+  # TODO it could be great to avoid duplicate, suggestion?
   add_library(itm2stm64
     ${cppsources}
+    icc.cpp
     ${arch_path}/_ITM_beginTransaction.S
     ${arch_path}/checkpoint_restore.S)
   append_property(TARGET itm2stm64 COMPILE_FLAGS -m64 -I${arch_path})

@@ -23,6 +23,33 @@ static const int CGL = 0;
 /// instance of _ITM_beginTransaction, and from _ITM_transaction::reenter during
 /// an abort-and-restart.
 uint32_t
+_ITM_transaction::enter_no_td(const uint32_t flags, void** regs) {
+    _ITM_transaction *td = _ITM_getTransaction();
+    _ITM_transaction::Node* scope = td->inner();
+
+    if (__builtin_expect(scope != NULL, false))
+        goto check_aborted;
+enter:
+    scope = (__builtin_expect(td->free_scopes_ != NULL, true)) ?
+                      td->free_scopes_ : td->NewNode();
+    td->free_scopes_ = scope->next_;
+
+    /* Checkpoint saving */
+    memcpy(scope->checkpoint_, regs, 8*4); /* FIXME use CHECKPOINT_SIZE CHECKPOINT_SIZE #include <Checkpoint.h> */
+
+    /* ??? a_saveLiveVariables required? */
+    return a_saveLiveVariables | td->enter(scope, flags);
+    
+check_aborted:
+    if (__builtin_expect(scope->getAborted(), false))
+        goto aborted;
+    goto enter;
+    
+aborted:
+    return a_abortTransaction;
+}
+
+uint32_t
 _ITM_transaction::enter(Node* const scope, const uint32_t flags) {
     // clear any abort reasons that are hanging around
     prev_abort_ = false;

@@ -138,6 +138,10 @@ struct _ITM_transaction {
     uint32_t enter(Node* const scope, const uint32_t flags)
         asm("_stm_itm2stm_transaction_enter") GCC_FASTCALL;
 
+    /* ??? a bug in LLVM add ^A before the asm specified symbol which make it unusable */
+    static uint32_t enter_no_td(const uint32_t flags, void **regs)
+        /*asm("_stm_itm2stm_transaction_enter_no_td")*/ GCC_FASTCALL;
+
     /// Reentering a scope on restart is slightly different than entering a
     /// scope for the first time. This handles that difference.
     uint32_t reenter(Node* const scope);

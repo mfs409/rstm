@@ -22,8 +22,7 @@ _ITM_transaction::registerOnAbort(_ITM_userUndoFunction f, void* arg) {
 
 inline void
 _ITM_transaction::registerOnCommit(_ITM_userCommitFunction f,
-                                  _ITM_transactionId_t tid, void* arg)
-{
+                                  _ITM_transactionId_t tid, void* arg) {
     Node* scope = inner();
     while (scope->getId() > tid)
         scope = inner();
@@ -33,18 +32,19 @@ _ITM_transaction::registerOnCommit(_ITM_userCommitFunction f,
 }
 
 void
-_ITM_addUserCommitAction(_ITM_transaction* td, _ITM_userCommitFunction f,
+_ITM_addUserCommitAction(_ITM_TD_PARAMS _ITM_userCommitFunction f,
                          _ITM_transactionId_t tid, void* args) {
+    _ITM_TD_GET;
     td->registerOnCommit(f, tid, args);
 }
 
 void
-_ITM_addUserUndoAction(_ITM_transaction* td, _ITM_userUndoFunction f,
+_ITM_addUserUndoAction(_ITM_TD_PARAMS _ITM_userUndoFunction f,
                        void* arg) {
+    _ITM_TD_GET;
     td->registerOnAbort(f, arg);
 }
 
 void
-_ITM_dropReferences(_ITM_transaction*, void*, size_t)
-{
+_ITM_dropReferences(_ITM_TD_PARAMS void*, size_t) {
 }
