@@ -111,14 +111,14 @@ test_big_endian(STM_BIG_ENDIAN)
 cmake_dependent_option(
   libstm_enable_byte_logging
   "ON to enable byte granularity logging (DEFAULT word logging)" OFF
-  "NOT rstm_enable_itm2stm AND NOT STM_BIG_ENDIAN" ON)
+  "rstm_itm2stm STREQUAL OFF AND NOT STM_BIG_ENDIAN" ON)
 mark_as_advanced(libstm_enable_byte_logging)
 
 ## Overhead: When we are byte logging we have the option to eliminate NOrec's
 ##           byte-level false conflicts byt storing the byte mask in the read
 ##           set. This has space overhead, as well as a bit of time overhead
 ##           during validation and logging. If this is enabled then NOrec can't
-##           distinguish between tErue and false subword conflicts.
+##           distinguish between true and false subword conflicts.
 ##
 ##           This option is only relevant when using byte logging. When we're
 ##           usign word logging the needed mask infrastructure to do subword
@@ -138,7 +138,7 @@ mark_as_advanced(libstm_enable_norec_false_conflicts)
 cmake_dependent_option(
   libstm_enable_stack_protection
   "ON to protect the stack during rollback/commit" OFF
-  "NOT rstm_enable_itm2stm" ON)
+  "rstm_itm2stm STREQUAL OFF" ON)
 mark_as_advanced(libstm_enable_stack_protection)
 
 ## Overhead: The C++ TM Draft Standard says that an exception that is thrown
@@ -148,7 +148,7 @@ mark_as_advanced(libstm_enable_stack_protection)
 cmake_dependent_option(
   libstm_enable_cancel_and_throw
   "ON to enable writes to exception objects for abort-on-throw" OFF
-  "NOT rstm_enable_itm2stm" ON)
+  "rstm_itm2stm STREQUAL OFF" ON)
 mark_as_advanced(libstm_enable_cancel_and_throw)
 
 ## Overhead: The use of SSE instructions is on for x86, but can be turned

@@ -61,11 +61,14 @@ else ()
 endif ()
 
 ## Ask about building the ITM shim if we're on an x86 platform
-cmake_dependent_option(
-  rstm_enable_itm2stm
-  "ON enables libitm2stm, and forces some libstm options for compatibility"
-  OFF
-  "CMAKE_SYSTEM_PROCESSOR MATCHES (x86_64|i.86)" OFF)
+#cmake_dependent_option(
+#  rstm_enable_itm2stm
+#  "ON enables libitm2stm, and forces some libstm options for compatibility"
+#  OFF
+#  "CMAKE_SYSTEM_PROCESSOR MATCHES (x86_64|i.86)" OFF)
+
+set(rstm_itm2stm OFF CACHE STRING "Enables ITM ABI compatibility for one of TM compilers: ICC DTMC GCC")
+## FIXME how to add the previous "CMAKE_SYSTEM_PROCESSOR MATCHES (x86_64|i.86)" OFF
 
 ## Ask about building the stamp that we distribute in stamp-0.9.10
 option(

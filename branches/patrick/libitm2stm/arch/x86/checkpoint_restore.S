@@ -11,6 +11,8 @@
 // myself.         
 #include "checkpoint.h"
 #include "common.h"
+
+/* ??? Why this function is not fastcall? */
         
         .p2align 4,,15
         .globl _stm_itm2stm_checkpoint_restore
