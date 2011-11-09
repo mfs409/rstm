@@ -24,7 +24,7 @@ struct Config
     std::string bmname;
     uint32_t    duration;               // in seconds
     uint32_t    execute;                // in transactions
-    uintptr_t   threads;                // number of threads
+    uint32_t    threads;                // number of threads
     uint32_t    nops_after_tx;          // self-explanatory
     uint32_t    elements;               // elements in data structure
     uint32_t    lookpct;                // lookup percent
