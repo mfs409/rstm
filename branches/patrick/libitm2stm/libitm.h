@@ -185,7 +185,7 @@ void _ITM_FASTCALL _ITM_WU2(_ITM_TD_PARAMS uint16_t*, uint16_t);
 void _ITM_FASTCALL _ITM_WaRU2(_ITM_TD_PARAMS uint16_t*, uint16_t);
 void _ITM_FASTCALL _ITM_WaWU2(_ITM_TD_PARAMS uint16_t*, uint16_t);
 
-uint32_t _ITM_FASTCALL _ITM_RU4(_ITM_TD_PARAMS const uint32_t*) __attribute__((noinline));  /* FIXME temp for debug */
+uint32_t _ITM_FASTCALL _ITM_RU4(_ITM_TD_PARAMS const uint32_t*);
 uint32_t _ITM_FASTCALL _ITM_RaRU4(_ITM_TD_PARAMS const uint32_t*);
 uint32_t _ITM_FASTCALL _ITM_RaWU4(_ITM_TD_PARAMS const uint32_t*);
 uint32_t _ITM_FASTCALL _ITM_RfWU4(_ITM_TD_PARAMS const uint32_t*);
