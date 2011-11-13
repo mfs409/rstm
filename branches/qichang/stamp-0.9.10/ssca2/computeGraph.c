@@ -182,7 +182,7 @@ computeGraph (void* argPtr)
 
     TM_BEGIN();
     long tmp_maxNumVertices = (long)TM_SHARED_READ_L(global_maxNumVertices);
-    long new_maxNumVertices = MAX((unsigned long)tmp_maxNumVertices, maxNumVertices) + 1;
+    long new_maxNumVertices = MAX((unsigned long)tmp_maxNumVertices, maxNumVertices + 1);
     TM_SHARED_WRITE_L(global_maxNumVertices, (unsigned long)new_maxNumVertices);
     TM_END();
 
