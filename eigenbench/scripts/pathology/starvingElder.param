@@ -1,0 +1,25 @@
+#------------------------------------
+# Parameter Setting for Starving Elder
+#
+# StarvingElder happens when one long transaction 
+# is repeatedly violated by short transactions.
+#------------------------------------
+
+N 8
+A1  1024
+A3  8196
+R30 100
+W3o 100
+Ko  1
+
+# Thread 0 : Long Transaction
+*R1 0 128
+*W1 0 32
+*LOOPS 0  100000
+
+# THread 1 ~ 7 : Short Transaction
+R1 2
+W1 2
+LOOPS  1000000
+
+

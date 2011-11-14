@@ -1,0 +1,41 @@
+# Default Parameter Values for all threads
+N       4
+loops   100000  
+A1      65536
+A2      1048576
+A3      8192
+R1      10
+W1      10
+R2      20
+W2      20
+R3i     10
+W3i     20
+R3o     0
+W3o     0
+NOPi    0
+NOPo    0
+Ki      1
+Ko      0
+LCT     0   
+# LCT is an interger 0~1024. Pr(LCT) = LCT/1024
+
+# Thread-Private Parameters 
+#*(PARAM)   (THREAD_ID)   (VALUE)
+*R1     1       100        
+*W1     1       50
+
+
+#------------------------------------------------
+# Following lines enable probabilistic parameter sets
+# instead of thread-private parameters. (i.e
+# Set 1 has R1 =100, W1=50).
+# In the follwing setup, each thread executes set-0 100 times
+# and set-1 50 times by some random order.
+#------------------------------------------------
+
+## M  <number of sets>
+#M  2     
+
+## *M <SET_ID> <number of execution>
+#*M 0 100
+#*M 1 50

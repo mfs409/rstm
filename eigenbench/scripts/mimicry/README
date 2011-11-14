@@ -1,0 +1,18 @@
+
+Introduction
+---------------------------
+This directory contains scripts that we used for STAMP workload mimicry in [1].  The goal of workload mimicry is, however, to demonstarte the behavior of TM 
+applications are governed by TM characteristics. Therefore we do not expect
+users to investigate in finding EigenBench parameter sets that reproduce 
+their own the application behavior, in general. Rather we expect the application
+behavior is explained by the result of orthogonal analysis. 
+
+See [1] for details.
+
+References
+---------------------
+[1] S. Hong, T. Oguntebi, J. Casper, N.Bronson, C. Kozyrakis, and K.Olukotun.
+    EigenBench: A Simple Exploration Tool for Orthogonal TM Characteristics
+    In IIWSC '10: Proceedings of The IEEE International Symposium on Workload
+    Characterization, December 2010.
+

@@ -1,0 +1,41 @@
+
+Introduction
+---------------------------
+This directory contains scripts that we used for orthogornal analysis in [1]
+Each exp_*.pl is a perl script that explores each eigen-characteristics;
+the result of each is saved in a seperate directory. Each script runs four 
+versions of the benchmark: SwissTM, TL2, Unprotected and Sequential. Sequential
+and Unprotected uses the same binary but with different number of threads. 
+
+In this experiment, we explored eigen-characteristics starting from a non-short
+transaction (100 read+writes, 10% writes) which fits in private cache 
+(workingset:32K*8B per thread).
+
+See [1] for detailed explanation of our orthogonal analysis results.
+
+
+List of EigenBench Parameter Values 
+---------------------------------
+           N  A1   A2  A3  R1  W1   R2   W2 R3i  W3i  R3o  W3o Nopi Nopo  Ki Ko  LCT PER
+(Def)      8   0  32k   0   0   0   90   10   0    0    0    0    0    0   0  0   0   0
+(Workset)  -   -  Var   -   -   -   -    -    -    -    -    -    -    -   -  -   -   -   | A2=1k..32m
+(Length)   -   -    -   -   -   - Var  Var    -    -    -    -    -    -   -  -   -   -   | R2+W2=10..520,W2/(R2+W2)=0.1
+(Pol.)     -   -    -   -   -   - Var  Var    -    -    -    -    -    -   -  -   -   -   | R2+W2=100,W2=0..100
+(Locality) -   -    -   -   -   -   -    -    -    -    -    -    -    -   -  - Var   -   | LCT=0..1024  (**)
+(Cont.)    - Var  Var   -  45   5  45    5    -    -    -    -    -    -   -  -   -   -   | A1+A2=32k,A1=1k..24k
+(Predom)   -   -  16k 16k   -   -   -    -  Var    -  Var    -    -    -   -  1   -   -   | R3o = 10 .. 1000
+(Density*) - 512  31k 512   8   2  82    2  Var    -    -    -    -    - Var  1   -   -   | R3i*Ki/Len+R3o=100,R3o=1..90
+(Scale)  Var   -    -   -   -   -   -    -    -    -    -    -    -    -   -  -   -   -   | N=1..8
+
+(*) For density exploration, Contention 0.24, and Predominance 0.5 was used.
+(**) LCT is a interger parameter range in (0..1024). The locality is computed as LCT/1024
+
+
+
+References
+---------------------
+[1] S. Hong, T. Oguntebi, J. Casper, N.Bronson, C. Kozyrakis, and K.Olukotun.
+    EigenBench: A Simple Exploration Tool for Orthogonal TM Characteristics
+    In IIWSC '10: Proceedings of The IEEE International Symposium on Workload
+    Characterization, December 2010.
+

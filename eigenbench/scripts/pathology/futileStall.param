@@ -1,0 +1,16 @@
+#------------------------------------
+# Parameters for FutileStall
+#
+# FutileStall happens when a transaction is stalling by another transaction
+# but that transaction is violated eventually
+#------------------------------------
+
+N 8
+A1  1024
+A2  16384
+R1  80
+W1  20
+R2  10
+W2  10
+LOOPS 100000
+

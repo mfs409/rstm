@@ -1,0 +1,25 @@
+
+Introduction
+---------------------------
+This directory contains scripts that we used for pathology generation in [1].
+
+In [1], we hacked eager and lazy version of tl2 such that  time-stamp value 
+at every (re-)start of the transaction is stored in the memory buffer; we
+use these time-stamp values to create a visualized trace of pathology signatures.
+In this package, however, we only provide EigenBench scripts without any 'hackings'
+since out package do not include any STM implementation.
+
+See [1] for details.
+
+Note that, in [1], we only verified three parameter sets. FirendelyFire, StarvingEdler 
+and RestartConvoy. Othe pathology parameters are, currently, conjectural. Please share 
+your experience if you find better parameter sets for these pathology generation.
+
+
+References
+---------------------
+[1] S. Hong, T. Oguntebi, J. Casper, N.Bronson, C. Kozyrakis, and K.Olukotun.
+    EigenBench: A Simple Exploration Tool for Orthogonal TM Characteristics
+    In IIWSC '10: Proceedings of The IEEE International Symposium on Workload
+    Characterization, December 2010.
+

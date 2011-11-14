@@ -1,0 +1,13 @@
+#------------------------------------
+# Parameters for SerialCommit
+#
+# SerialCommit happens when non-conflicting
+# transactions are serialized due to commit lock or token
+#------------------------------------
+
+N 8
+A2  1048576
+R2  10
+W2  500
+LOOPS   100000
+
