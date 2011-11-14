@@ -1,0 +1,19 @@
+#------------------------------------
+# Parameter Setting for Friendly Fire
+#
+# FriendlyFire happens to the two long transactions that violate each other
+#------------------------------------
+
+N 2
+A1  1024
+A2  16384
+A3  8196
+R1  100
+W1  20
+R2  400
+W2  0
+R3i 200
+Ki  1
+PERSIST 1
+LOOPS   100000
+

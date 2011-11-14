@@ -1,0 +1,63 @@
+
+Files
+-------------------------------------
+  eigenbench.h, eigenbench.c: core benchmark routines. 
+  thread.h, thread.c, types.h: thread API copied from STAMP benchmark suite, to maintain same 
+  main.c: a main() routine that parses input parameter and setup the tests.
+
+Note for Compilation
+-------------------------------------
+  One should provide appropriate TM macros to connect Eignebench with target TM systems,
+  while we provide examples for two decent STM implementations (tl2 and swisstm).
+  Once there macros are included in eigenbench.h, edit Makefile to generate your binary.
+
+
+Execution
+-------------------------------------
+  (binary_name) [-p] [-s <random_seed>] input_parameter_file
+     -p : prints out input parameters
+     -s : specifies random seed. if not specified use the result of time(2) as seed.
+
+
+About the format of input paramter file
+-------------------------------------
+The parameter file should be described in following rules.
+
+  <Global Parameter Values>
+  1) A line starting with # is a comment.
+  2) Lines having the form of 
+        <PARAM_NAME> <VALUE> 
+     specifies the (global) parameter value.
+  3) PARAM_NAME is one of  
+        {N, loops, A1, A2, A3, R1, W1, R2, W2, R3i, W3i, R3o, W3o, NOPi, NOPo, Ki, Ki, LCT, PERSIST, M}
+     while case is ignored. 
+  4) If same PARAM_NAME is repeated more than once, only the last value is applied.
+  
+
+  <Thread-private Parameter Values>
+  5) Each thread may have private parameter values. Lines having the form of
+        *<PARAM_NAME> <THREAD_ID> <VALUE>
+     specify private value of the parameter for the given thread id.  Thread ID 
+     should be 0 ~ (N-1).
+  6) Any parameters that are not given with thread-private value have the global 
+     parameter value. 
+  7) Parameters A1,A2,A3 and N cannot be privatized.
+
+
+  <Probabilistic Parameter Sets>
+  8) However, if global parameter M is given, probabilistic parameter sets are enabled
+     instead of thread-private parameters.  
+  9) Currently, it is not possible to use probabilistic parameter sets and 
+     thread-private parameter values at the same time.
+  10) Global parameter M specifies number of parameter sets.
+  11) Lines starting with asterisk(*) now specifies the parameter value for set_id.
+         *<PARAM_NAME> <SET_ID> <VALUE>
+      Set ID should be 0 ~ (M-1). Parameter A1,A2,A3 and N cannaot be privatized also.
+  12) *M specifies how many times each parameter-set is executed by all threads. For example,
+        *M  0   100
+        *M  1   1000
+      means that parameter set-0 is executed 100/N times, and set-1 1000/N times per each thread.
+      However the execution order is randomized.
+  
+  See example_input.txt if you want to see an example.
+

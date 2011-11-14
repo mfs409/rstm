@@ -1,0 +1,24 @@
+
+Introduction
+---------------------------
+This directory contains scripts that generate transactions with given mixed 
+set of characteristics. This is based on an observation in [1]; the performance
+behavior of certain TM applications can be explained by the mixture of TM Characteristics.
+(For example, the performance difference of TL2/SwissTM version of genome application 
+ was due to the mixture of short and long transactions.)
+Here we provide a set of intersting mixture of TM characteristics, based on our experience
+
+Scripts
+---------------------------
+The first four scripts (unfirom, gaussian, longtail, and bimodal) generate
+various transcation lengths with specified distribution. 
+The fifth script (reader_writer) generates a mixture of read-oriented and 
+write-oriented transactions.
+
+References
+---------------------
+[1] S. Hong, T. Oguntebi, J. Casper, N.Bronson, C. Kozyrakis, and K.Olukotun.
+    EigenBench: A Simple Exploration Tool for Orthogonal TM Characteristics
+    In IIWSC '10: Proceedings of The IEEE International Symposium on Workload
+    Characterization, December 2010.
+

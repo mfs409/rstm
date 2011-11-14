@@ -1,0 +1,17 @@
+#------------------------------------
+# Parameters for Dueling upgrade
+#
+# Dueling upgrade happens read cacheline is upgraded
+# to dirty but false shared by other cores
+#------------------------------------
+
+N   2
+A1  128
+A3  1048576
+R1  80
+W1  10
+R3i 20
+Ki  1
+LCT 768
+LOOPS   1000000
+

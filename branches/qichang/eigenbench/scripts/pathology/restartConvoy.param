@@ -1,0 +1,23 @@
+#------------------------------------
+# Parameters for RestartConvoy
+#
+# RestartConvoy happens when a single transaction violates all the other transaction
+# and those violate transactions all start at the same time
+#------------------------------------
+
+N 8
+A1  32
+A2  4096
+A3  8196
+R1  4
+W1  2
+R2  20
+W2  20
+R3i 5
+Ki  1
+R3o 100
+W3o 100
+Ko  1
+PERSIST 1
+LOOPS   1000000
+

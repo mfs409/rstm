@@ -1,0 +1,22 @@
+#------------------------------------
+# Parameters for StarvingWriter.
+#
+# StarvingWriter happens when writing transaction
+# is indefinitely blocked by short read-only transactions.
+#------------------------------------
+
+N 7
+A1  32
+A3  1048576
+
+# Thread 0 : Writer Transaction
+*W1  0 30
+*R3i 0 500
+*Ki  0 1 
+*LOOPS 0  100000
+
+# THread 1 ~ 7 : Short Transaction
+R1 30
+LOOPS  1000000
+
+
