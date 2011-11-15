@@ -82,9 +82,6 @@ static inline Action roll_action(unsigned* seed, int *r1, int *w1, int *r2, int 
   return a;
 }
 
-static inline void nop() {
-   asm volatile ("nop");
-}
 #include <assert.h>
 
 #define DICE_RNG    1024 
@@ -119,7 +116,7 @@ static inline void local_ops(
   int z = 0;
   int i;
   for (i = 0; i < loop; i++) {
-    uint dummy;
+    int dummy;
     int dcnt = 0;
     int index = roll_addr(seed, A3, 0, &dummy, &dcnt) + A3 * tid;
     Action a = roll_action(seed, &r, &w, &z, &z);

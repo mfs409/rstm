@@ -83,6 +83,13 @@ option(
   rstm_enable_bench
   "ON to enable the benchmark suite." ON)
 
+## Ask about building the eigenbench suite.
+option(
+  rstm_enable_eigenbench
+  "ON to enable the eigenbench suite." ON)
+
+
+
 ## Ask about building with pure-itm.
 cmake_dependent_option(
   rstm_enable_itm "Do you want to build apps with icc's native libitm.a?" OFF
