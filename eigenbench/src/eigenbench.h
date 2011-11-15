@@ -16,6 +16,8 @@
 #include "stamp_api_swisstm.h"
 #elif defined(UNPROTECTED)
 #include "stamp_api_unprotected.h"
+#elif defined(RSTM)
+#include "stamp_api_rstm.h"
 #else 
 # error "No STM defined"
 #endif
