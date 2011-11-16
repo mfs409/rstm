@@ -31,7 +31,7 @@ namespace stm
 }
 
 /**
- *  In OTM, the compiler adds instrumentation to manually unwinde the
+ *  In OTM, the compiler adds instrumentation to manually unwind the
  *  transaction, one stack frame at a time.  This makes sense (especially on
  *  SPARC or for transactions with no function calls and few accesses), but
  *  it's bad for RSTM, because RSTM assumes setjmp/longjmp unwinding (or its
@@ -186,7 +186,7 @@ extern "C"
 
 } // extern "C"
 
-// [mfs] we probably need to implement the following method at some point
+// [mfs] we probably need to implement the following methods at some point
 //
 // void  STM_SelfAbortTransaction(void* theTransId);
 //
