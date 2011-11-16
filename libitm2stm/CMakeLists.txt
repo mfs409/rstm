@@ -68,6 +68,32 @@ set_source_files_properties(
   LANGUAGE C
   COMPILE_FLAGS -I${CMAKE_CURRENT_SOURCE_DIR}/arch)
 
+# Generic DTMC rules for 32/64 bits 
+macro(dtmc arch)
+    add_library(tanger-stm
+      ${arch_path}/_ITM_beginTransaction_no_td.S
+      ${arch_path}/checkpoint_restore.S)
+    append_property(TARGET tanger-stm COMPILE_FLAGS -m${arch} -I${arch_path})
+
+    add_library(itm2stm${arch}
+      ${cppsources}
+      dtmc.cpp)
+    add_dependencies(itm2stm${arch} stm${arch} tanger-stm)
+    append_property(TARGET itm2stm${arch} COMPILE_FLAGS -m${arch} -I${arch_path})
+    # Merge itm2stm and stm in one library
+    add_custom_command(TARGET itm2stm${arch}
+                       POST_BUILD
+                       COMMAND ${CMAKE_LINKER} -link-as-library -o libtanger-stm.bc libitm2stm${arch}.a ../libstm/libstm${arch}.a 
+                       )
+    # Copying DTMC required files
+    add_custom_command(TARGET itm2stm${arch} 
+                       POST_BUILD
+                       COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/libtanger-stm.public-symbols ${CMAKE_CURRENT_BINARY_DIR}/libtanger-stm.public-symbols)
+    add_custom_command(TARGET itm2stm${arch}
+                       POST_BUILD
+                       COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/libtanger-stm.support ${CMAKE_CURRENT_BINARY_DIR}/libtanger-stm.support)
+endmacro(dtmc)
+
 if (rstm_build_32-bit)
   set(arch_path ${CMAKE_CURRENT_SOURCE_DIR}/arch/x86)
 
@@ -83,29 +109,7 @@ if (rstm_build_32-bit)
 
   # For DTMC 
   elseif (rstm_itm2stm STREQUAL "DTMC")
-    add_library(tanger-stm
-      ${arch_path}/_ITM_beginTransaction_no_td.S
-      ${arch_path}/checkpoint_restore.S)
-    append_property(TARGET tanger-stm COMPILE_FLAGS -m32 -I${arch_path})
-
-    add_library(itm2stm32
-      ${cppsources}
-      dtmc.cpp)
-    add_dependencies(itm2stm32 stm32 tanger-stm)
-    append_property(TARGET itm2stm32 COMPILE_FLAGS -m32 -I${arch_path})
-    # Merge itm2stm and stm in one library
-    add_custom_command(TARGET itm2stm32 
-                       POST_BUILD
-                       COMMAND ${CMAKE_LINKER} -link-as-library -o libtanger-stm.bc libitm2stm32.a ../libstm/libstm32.a 
-                       )
-    # Copying DTMC required files
-    add_custom_command(TARGET itm2stm32 
-                       POST_BUILD
-                       COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/libtanger-stm.public-symbols ${CMAKE_CURRENT_BINARY_DIR}/libtanger-stm.public-symbols)
-    add_custom_command(TARGET itm2stm32 
-                       POST_BUILD
-                       COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/libtanger-stm.support ${CMAKE_CURRENT_BINARY_DIR}/libtanger-stm.support)
-  
+    dtmc(32)
   # For GCC 
   elseif (${rstm_itm2stm} STREQUAL "GCC")
     # FIXME for GCC
@@ -114,13 +118,20 @@ endif ()
 
 if (rstm_build_64-bit)
   set(arch_path ${CMAKE_CURRENT_SOURCE_DIR}/arch/x86_64)
-  # TODO report changes from 32bits
-  # TODO it could be great to avoid duplicate, suggestion?
-  add_library(itm2stm64
-    ${cppsources}
-    icc.cpp
-    ${arch_path}/_ITM_beginTransaction.S
-    ${arch_path}/checkpoint_restore.S)
-  append_property(TARGET itm2stm64 COMPILE_FLAGS -m64 -I${arch_path})
-  target_link_libraries(itm2stm64 stm64)
+  # For Intel STM Compiler
+  if (rstm_itm2stm STREQUAL "ICC")
+    add_library(itm2stm64
+      ${cppsources}
+      icc.cpp
+      ${arch_path}/_ITM_beginTransaction.S
+      ${arch_path}/checkpoint_restore.S)
+    append_property(TARGET itm2stm64 COMPILE_FLAGS -m64 -I${arch_path})
+    target_link_libraries(itm2stm64 stm64)
+  # For DTMC 
+  elseif (rstm_itm2stm STREQUAL "DTMC")
+    dtmc(64)
+  # For GCC 
+  elseif (${rstm_itm2stm} STREQUAL "GCC")
+    # FIXME for GCC
+  endif ()
 endif ()

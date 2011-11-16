@@ -31,7 +31,7 @@ _ITM_beginTransaction:
         movl    %edi, CHECKPOINT_EDI_(%esp)
         movl    %ebp, CHECKPOINT_EBP_(%esp)
         leal    (%esp), %edx
-        call    _ZN16_ITM_transaction11enter_no_tdEjPPv
+        call    _stm_itm2stm_transaction_enter_no_td
         addl    $40, %esp
         .cfi_def_cfa_offset 4
         ret
