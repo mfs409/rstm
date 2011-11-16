@@ -40,9 +40,14 @@ _ITM_transaction::commit() {
         // dispatch to the appropriate end function
         thread_handle_.tmcommit(&thread_handle_);
 
-        // // zero scope (to indicate "not in tx")
+        // zero scope (to indicate "not in tx")
         CFENCE;
         thread_handle_.scope = NULL;
+
+#ifdef _ITM_DTMC
+        // Indicate that the stack area is now released
+        resetStackInfo();
+#endif /* _ITM_DTMC */
 
         // clear the high/low stack marks.
         thread_handle_.stack_high = 0x0;

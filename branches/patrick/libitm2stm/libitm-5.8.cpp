@@ -64,6 +64,11 @@ _ITM_transaction::rollback() {
                                   thrown.second);
         thread_handle_.stack_high = 0x0;
         thread_handle_.stack_low = (void**)~0x0;
+
+#ifdef _ITM_DTMC
+        // Restore the stack before leaving.
+        restoreStack();
+#endif /* _ITM_DTMC */
     }
 }
 
