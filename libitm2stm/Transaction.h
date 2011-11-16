@@ -200,6 +200,49 @@ struct _ITM_transaction {
     void registerOnAbort(_ITM_userUndoFunction, void* arg);
     void registerOnCommit(_ITM_userCommitFunction, _ITM_transactionId_t, void*
                           arg);
+
+#ifdef _ITM_DTMC
+    // TODO Nesting is not supported. To manage nesting we can save this in Scope.
+    struct UserStack {
+        void* data;
+        size_t data_size;
+        void* stack_addr;
+        size_t stack_size;
+        UserStack() 
+            : data(0), data_size(0), stack_addr(0), stack_size(0) {}
+        ~UserStack() {
+            if (data)
+                free(data);
+        }
+    };
+
+    UserStack stack;
+
+    inline void recordStackInfo(void* low, void* high) {
+        assert(stack.stack_addr == 0); // Check no nesting
+        stack.stack_addr = low;
+        stack.stack_size = (size_t)high - (size_t)low;
+    }
+
+    inline void resetStackInfo() {
+        stack.stack_addr = 0;
+    }
+
+    inline void saveStack() {
+        // Is the data big enough?
+        if (stack.stack_size > stack.data_size) {
+            // TODO round to 4096+
+            stack.data_size = stack.stack_size; 
+            stack.data = realloc(stack.data, stack.data_size);
+        }
+        __builtin_memcpy(stack.data, stack.stack_addr, stack.stack_size);
+    }
+
+    inline void restoreStack() {
+        __builtin_memcpy(stack.stack_addr, stack.data, stack.stack_size);
+    }
+#endif /* _ITM_DTMC */
+
 };
 
 #endif // STM_ITM2STM_TRANSACTION_H

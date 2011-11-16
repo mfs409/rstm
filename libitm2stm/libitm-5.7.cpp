@@ -13,10 +13,13 @@
 #include "common/platform.hpp"
 #include "stm/txthread.hpp"
 #include "stm/lib_globals.hpp"
+// Define CHECKPOINT_SIZE
+#include <checkpoint.h>
+
 using namespace stm;
 using namespace itm2stm;
 
-// We depende on CGL having ID = 0
+// We depend on CGL having ID = 0
 static const int CGL = 0;
 
 /// We call the enter routine to begin a transaction. It is called both from an
@@ -34,10 +37,15 @@ enter:
                       td->free_scopes_ : td->NewNode();
     td->free_scopes_ = scope->next_;
 
-    /* Checkpoint saving */
-    memcpy(scope->checkpoint_, regs, 8*4); /* FIXME use CHECKPOINT_SIZE CHECKPOINT_SIZE #include <Checkpoint.h> */
+    // Checkpoint saving
+    __builtin_memcpy(scope->checkpoint_, regs, CHECKPOINT_SIZE*sizeof(void*));
 
-    /* ??? a_saveLiveVariables required? */
+#ifdef _ITM_DTMC
+    // Stack saving for DTMC
+    td->saveStack();
+#endif /* _ITM_DTMC */
+
+    // ??? a_saveLiveVariables required?
     return a_saveLiveVariables | td->enter(scope, flags);
     
 check_aborted:
