@@ -61,7 +61,9 @@ set(sources
   policies/cbr.cpp
   policies/policies.cpp
   policies/static.cpp
-  sandboxing/signals.cpp
+  sandboxing/sigs.cpp
+  # sandboxing/signals.cpp
+  sandboxing/timer.cpp
   )
 
 set(mmapwrapsources hooks.cpp)
@@ -78,6 +80,7 @@ endforeach ()
 #  Build the RSTM library
 foreach (arch ${rstm_archs})
   add_library(stm${arch} STATIC ${sources})
+  target_link_libraries(stm${arch} ssigs${arch})
   append_property(TARGET stm${arch} COMPILE_FLAGS -m${arch})
   if (CMAKE_SYSTEM_NAME MATCHES "Linux")
     target_link_libraries(stm${arch} -lrt)

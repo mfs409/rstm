@@ -38,11 +38,11 @@ set(cppsources
   libitm-5.16.cpp
   libitm-5.17.cpp)
 
-set(asmsources
-  arch/x86/_ITM_beginTransaction.S
-  arch/x86/checkpoint_restore.S
-  arch/x86_64/_ITM_beginTransaction.S
-  arch/x86_64/checkpoint_restore.S)
+# set(asmsources
+#   arch/x86/_ITM_beginTransaction.S
+#   arch/x86/checkpoint_restore.S
+#   arch/x86_64/_ITM_beginTransaction.S
+#   arch/x86_64/checkpoint_restore.S)
 
 if (itm2stm_enable_assert_on_irrevocable)
   append_list_property(SOURCE libitm-5.11.cpp COMPILE_DEFINITIONS
@@ -51,10 +51,10 @@ endif ()
   
 # Hack because preprocessed asm files aren't supported in cmake-2.8.4, so we
 # pretend they're C++ files. They also need the additional include directory.
-set_source_files_properties(
-  ${asmsources} PROPERTIES
-  LANGUAGE CXX
-  COMPILE_FLAGS -I${CMAKE_CURRENT_SOURCE_DIR}/arch)
+# set_source_files_properties(
+#   ${asmsources} PROPERTIES
+#   LANGUAGE CXX
+#   COMPILE_FLAGS -I${CMAKE_CURRENT_SOURCE_DIR}/arch)
 
 if (rstm_build_32-bit)
   set(arch_path ${CMAKE_CURRENT_SOURCE_DIR}/arch/x86)

@@ -14,13 +14,13 @@ set(CMAKE_USER_MAKE_RULES_OVERRIDE
 
 # Our top-level configuration. We include the "C" language because otherwise
 # we have trouble with some of the standard configuration packages.
-project(rstm C CXX)
+project(rstm C CXX ASM)
 
 # This may work on other versions of cmake, but we've never done any testing
 # so it's safer for us to be conservative. If you have an earlier version
 # that you can confirm works please contact us and we can update this
 # requirement.
-cmake_minimum_required(VERSION 2.8 FATAL_ERROR)
+cmake_minimum_required(VERSION 2.8.6 FATAL_ERROR)
 
 set(PACKAGE rstm)
 
@@ -76,7 +76,7 @@ if (rstm_enable_stamp)
   include (stamp-0.9.10/UserConfig.cmake)
 endif ()
 
-# Build a list of the architectures (-m32/63) that we have configured. This is
+# Build a list of the architectures (-m32/64) that we have configured. This is
 # used all over the place for multilib-like builds.
 set(rstm_archs)
 if (rstm_build_32-bit)
@@ -87,26 +87,27 @@ if (rstm_build_64-bit)
 endif ()
 
 include_directories (
-  ${CMAKE_SOURCE_DIR}           # alt-license is a top-level directory
-  ${CMAKE_SOURCE_DIR}/include   # standard project headers
-  ${CMAKE_BINARY_DIR}/include   # configured headers
+  ${CMAKE_SOURCE_DIR}                   # alt-license is a top-level directory
+  ${CMAKE_SOURCE_DIR}/include           # standard project headers
+  ${CMAKE_BINARY_DIR}/include           # configured headers
   )
 
-add_subdirectory(include)     # configures stm/config.h.cmake
-add_subdirectory (libstm)     # the main library
+add_subdirectory (include)              # configures stm/config.h.cmake
+add_subdirectory (libssigs)             # signal shadowing for stm sandboxing
+add_subdirectory (libstm)               # the main library
 if (rstm_enable_itm2stm)
-  add_subdirectory (libitm2stm) # the shim library
+  add_subdirectory (libitm2stm)         # the shim library
 endif ()
 
 if (CMAKE_USE_PTHREADS_INIT)
   if (rstm_enable_bench)
-    add_subdirectory (bench) # build bench
+    add_subdirectory (bench)            # build bench
   endif ()
   if (rstm_enable_stamp)
-    add_subdirectory(stamp-0.9.10) # build stamp
+    add_subdirectory(stamp-0.9.10)      # build stamp
   endif ()
   if (rstm_enable_mesh)
-    add_subdirectory(mesh) # build mesh
+    add_subdirectory(mesh)              # build mesh
   endif ()
 else ()
   message (STATUS "Pthreads not found, will not build pthread apps.")

@@ -160,4 +160,23 @@ mcs_release(mcs_qnode_t** lock, mcs_qnode_t* mine)
     mine->next->flag = false;
 }
 
+// scoped
+namespace stm {
+  template <typename TLOCK>
+  class RAII;
+
+  template <>
+  class RAII<tatas_lock_t> {
+    public:
+      RAII(tatas_lock_t& lock) : lock_(lock) {
+          tatas_acquire(&lock_);
+      }
+      ~RAII() {
+          tatas_release(&lock_);
+      }
+    private:
+      tatas_lock_t& lock_;
+  };
+}
+
 #endif // LOCKS_HPP__

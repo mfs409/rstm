@@ -19,6 +19,7 @@
 #ifndef TXTHREAD_HPP__
 #define TXTHREAD_HPP__
 
+#include <pthread.h>                    // thread_t
 #include "alt-license/rand_r_32.h"
 #include "common/locks.hpp"
 #include "common/ThreadLocal.hpp"
@@ -96,6 +97,8 @@ namespace stm
       /*** PER-THREAD FIELDS FOR ENABLING ADAPTIVITY POLICIES */
       uint64_t      end_txn_time;      // end of non-transactional work
       uint64_t      total_nontxn_time; // time on non-transactional work
+
+      pthread_t     pthread_id;     // sandbox validation via pthread_kill
 
       /*** POINTERS TO INSTRUMENTATION */
 

@@ -28,6 +28,14 @@ namespace stm
       return static_cast<T*>(malloc(sizeof(T) * numTs));
   }
 
+  /// We use memcpy in a bunch of places.
+  template <typename T>
+  inline T*
+  typed_memcpy(T* to, const T* from)
+  {
+      return static_cast<T*>(__builtin_memcpy(to, from, sizeof(T)));
+  }
+
   /// Convince the compiler to tell us how many elements are in a statically
   /// sized array. This code appears in a lot of places on the web.
   template <typename T, std::size_t NELEMENTS>

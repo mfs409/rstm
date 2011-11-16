@@ -52,7 +52,7 @@ endmacro ()
 macro (add_stm_executable exec name arch)
   add_multiarch_executable(${exec} ${name} ${arch} ${ARGN})
   target_link_libraries(${${exec}} stm${arch})
-  append_property(TARGET ${${exec}} LINK_FLAGS -Wl,--wrap,signal -Wl,--wrap,sigaction)
+  # append_property(TARGET ${${exec}} LINK_FLAGS -Wl,--wrap,signal -Wl,--wrap,sigaction)
 endmacro ()
 
 ## Add a multiarch executable that uses Intel's itm library.

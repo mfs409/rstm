@@ -27,7 +27,8 @@ using std::cout;
  */
 static const char* init_lib_name = NULL;
 
-const char* stm::get_algname()
+const char*
+stm::get_algname()
 {
     return init_lib_name;
 }
@@ -156,6 +157,9 @@ TxThread::TxThread()
     // preserve ordering so that write comes after initialization, but
     // before lock release.
 
+    // grab my thread id.
+    pthread_id = pthread_self();
+
     // predict the new value of threadcount.val
     id = threadcount.val + 1;
 
@@ -238,6 +242,9 @@ TxThread::thread_init()
 
     // create a TxThread and save it in thread-local storage
     Self = new TxThread();
+
+    //
+    sandbox::init_thread();
 }
 
 /**
@@ -377,7 +384,7 @@ stm::sys_init(AbortHandler conflict_abort_handler)
         return;
     }
 
-    install_signal_handlers();
+    sandbox::init_system();
     init_algorithms();
 
     // check env for a default
