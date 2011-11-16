@@ -77,6 +77,10 @@ namespace stm
       // did we make a decision due to aborting?
       bool abort_switch;
 
+      // was this decision based on an explicit request by the current STM
+      // implementation?
+      bool requested_switch;
+
       // so we can backoff on our thresholds when we have repeat
       // algorithim selections
       int abortThresh;
@@ -254,6 +258,8 @@ namespace stm
       PROFILE_NOCHANGE,
       // the state-machine policies
       E, ER, R, X,
+      // test policies
+      MFS_NOL,
       // CBR without dynamic profiling
       CBR_RO,
       // CBR with dynamic profiling

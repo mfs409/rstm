@@ -138,6 +138,34 @@ namespace {
   void*
   Nano::read_ro(STM_READ_SIG(tx,addr,))
   {
+      // Nano knows that it isn't a good algorithm when the read set is
+      // large.  To address this situation, on every read, Nano checks if the
+      // transaction is too big, and if so, it sets a flag and aborts itself,
+      // so that we can change algorithms.
+      //
+      // One danger is that we must have some sort of adaptivity policy in
+      // place for this to work.  Implicit is that the adaptivity policy
+      // can't continuously re-select Nano, but that's a problem for the
+      // policy, not for this code.  This code need only ensure that it
+      // doesn't self-abort unless there is an adaptive policy that will
+      // register the trigger and cause a policy change.
+      //
+      // A hack here is that we use an extremely large consec_aborts rate to
+      // indicate that Nano is in big trouble.  So if this code cranks the
+      // consec_aborts field up, then the trigger will assume that this is a
+      // self-abort for the sake of switching, and will inform the adaptivity
+      // policy accordingly.
+      //
+      // [mfs] note that the toxic transaction work suggests that 1024 aborts
+      //       might happen anyway, so we may have a problem.  We're not
+      //       going to worry about it for now.
+      if (stm::curr_policy.POL_ID != stm::Single) {
+          if (tx->nanorecs.size() > 8) {
+              tx->consec_aborts = 1024;
+              tx->tmabort(tx);
+          }
+      }
+
       // get the orec addr
       orec_t* o = get_nanorec(addr);
 

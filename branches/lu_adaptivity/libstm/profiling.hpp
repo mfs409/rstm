@@ -166,9 +166,28 @@ namespace stm
 
       /**
        *  Part 3: the thing that gets inlined into stm abort, and gets called
-       *  on every abort.  It's the same as in AbortWaitTrigger
+       *  on every abort.  It's no longer the same as AbortWaitTrigger,
+       *  because we need to have extra code to detect when the change is due
+       *  to an explicit requested switch.  In other words, if an algorithm
+       *  self-detects itself as bad, we want to set a flag in this code.
        */
-      static void onAbort(TxThread* tx) { AbortWaitTrigger::onAbort(tx); }
+      static void onAbort(TxThread* tx)
+      {
+          // if we don't have a function for changing algs, then we should just
+          // return
+          if (!pols[curr_policy.POL_ID].decider)
+              return;
+          // return if we didn't abort enough
+          if (tx->consec_aborts <= (unsigned)curr_policy.abortThresh)
+              return;
+          // if the thread's current abort count is HUGE, it means this was a
+          // requested abort
+          if (tx->consec_aborts > 1024)
+              curr_policy.requested_switch = true;
+          // ok, we're going to adapt.  Call the common adapt code
+          curr_policy.abort_switch = true;
+          trigger_common(tx);
+      }
   };
 
 #ifdef STM_PROFILETMTRIGGER_ALL

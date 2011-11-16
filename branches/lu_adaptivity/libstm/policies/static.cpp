@@ -107,6 +107,22 @@ namespace
       }
       return NOrec;
   }
+
+  /**
+   *  This policy is is a simple test.  We'd like to be able to use Nano for
+   *  really small transactions, but if we stumble upon a large transaction,
+   *  we will switch to OrecLazy.  Nano will detect when it is no longer
+   *  suitable, and at that point, we should switch immediately.
+   */
+  TM_FASTCALL uint32_t pol_MFS_NOL()
+  {
+      // if we are in the trigger because of a requested switch, then change
+      // from Nano.  Otherwise, don't.
+      if (curr_policy.requested_switch)
+          return OrecLazy;
+      else
+          return Nano;
+  }
 }
 
 namespace stm
@@ -127,6 +143,7 @@ namespace stm
       init_adapt_pol(ER, TMLLazy, 16, 2048, false, false, false, pol_ER, "ER");
       init_adapt_pol(X, CGL, 16, 2048, false, false, false, pol_X, "X");
       init_adapt_pol(R, TMLLazy, 16, 2048, false, false, false, pol_R, "R");
+      init_adapt_pol(MFS_NOL, Nano, 16, 2048, false, false, false, pol_MFS_NOL, "MFS_NOL");
   }
 
 } // namespace stm
