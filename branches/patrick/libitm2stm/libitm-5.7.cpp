@@ -40,11 +40,6 @@ enter:
     // Checkpoint saving
     __builtin_memcpy(scope->checkpoint_, regs, CHECKPOINT_SIZE*sizeof(void*));
 
-#ifdef _ITM_DTMC
-    // Stack saving for DTMC
-    td->saveStack();
-#endif /* _ITM_DTMC */
-
     // ??? a_saveLiveVariables required?
     return a_saveLiveVariables | td->enter(scope, flags);
     
@@ -86,6 +81,11 @@ _ITM_transaction::enter(Node* const scope, const uint32_t flags) {
         // Set the overall high stack address for the transaction (needed by
         // NOrec to filter read validation).
         thread_handle_.stack_high = scope->stackHigh();
+
+#ifdef _ITM_DTMC
+        // Stack saving for DTMC
+        saveStack();
+#endif
 
         // We must ensure that the write of the transaction's scope occurs
         // *before* the read of the begin function pointer.  on x86, a CAS is

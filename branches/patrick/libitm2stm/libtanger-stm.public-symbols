@@ -1,3 +1,5 @@
 main
-_ZN16_ITM_transaction11enter_no_tdEjPPv
-
+_stm_itm2stm_transaction_enter
+_stm_itm2stm_transaction_enter_no_td
+_stm_itm2stm_transaction_new_node
+_ITM_getTransaction
