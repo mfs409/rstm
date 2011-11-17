@@ -243,6 +243,7 @@ namespace stm
       tx->allocator.onTxCommit();
       tx->abort_hist.onCommit(tx->consec_aborts);
       tx->consec_aborts = 0;
+      tx->consec_ro = 0;
       ++tx->num_commits;
       tx->tmread = read_ro;
       tx->tmwrite = write_ro;
@@ -255,6 +256,7 @@ namespace stm
       tx->allocator.onTxCommit();
       tx->abort_hist.onCommit(tx->consec_aborts);
       tx->consec_aborts = 0;
+      tx->consec_ro = 0;
       ++tx->num_commits;
       Trigger::onCommitSTM(tx);
   }
@@ -264,6 +266,7 @@ namespace stm
       tx->allocator.onTxCommit();
       tx->abort_hist.onCommit(tx->consec_aborts);
       tx->consec_aborts = 0;
+      ++tx->consec_ro;
       ++tx->num_ro;
       Trigger::onCommitSTM(tx);
   }
@@ -271,6 +274,7 @@ namespace stm
   inline void OnCGLCommit(TxThread* tx)
   {
       tx->allocator.onTxCommit();
+      tx->consec_ro = 0;
       ++tx->num_commits;
       Trigger::onCommitLock(tx);
   }
@@ -278,6 +282,7 @@ namespace stm
   inline void OnReadOnlyCGLCommit(TxThread* tx)
   {
       tx->allocator.onTxCommit();
+      ++tx->consec_ro;
       ++tx->num_ro;
       Trigger::onCommitLock(tx);
   }

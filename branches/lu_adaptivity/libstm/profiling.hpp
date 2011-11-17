@@ -136,6 +136,13 @@ namespace stm
           // return
           if (!pols[curr_policy.POL_ID].decider)
               return;
+          // figure out if this policy likes to move into TML on consec RO
+          if (tx->consec_ro > pols[curr_policy.POL_ID].roThresh) {
+              curr_policy.abort_switch = false;
+              curr_policy.requested_switch = true;
+              trigger_common(tx);
+              return;
+          }
           // return if this policy doesn't allow commit-time probing
           if (!pols[curr_policy.POL_ID].isCommitProfile)
               return;
@@ -156,7 +163,7 @@ namespace stm
 
           // record that this is a non-abort trigger, and call the adapt code
           //
-          // NB: this write could be racy if another thread is aborting at
+          // NB: this write could be racy if another thread is aborting at the
           //     same time.  In that case, both threads are trying to request
           //     collection of profiles, so it really doesn't matter.
           curr_policy.abort_switch = false;

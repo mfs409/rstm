@@ -87,6 +87,7 @@ namespace stm
       filter_t*      cf;            // conflict filter (RingALA)
       NanorecList    nanorecs;      // list of nanorecs held
       uint32_t       consec_commits;// count consec commits
+      uint32_t       consec_ro;     // count consec ro commits
       toxic_t        abort_hist;    // for counting poison
       uint32_t       begin_wait;    // how long did last tx block at begin
       bool           strong_HG;     // for strong hourglass

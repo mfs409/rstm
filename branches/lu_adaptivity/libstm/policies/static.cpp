@@ -123,6 +123,23 @@ namespace
       else
           return Nano;
   }
+
+  /**
+   *  Another simple test.  We switch between TML and OrecLazy, depending on
+   *  the consec RO threshold.
+   */
+  TM_FASTCALL uint32_t pol_MFS_TOL()
+  {
+      // if we are in the trigger because of a requested switch, then change
+      // to TML.  Otherwise, go with OrecLazy
+      if (curr_policy.requested_switch) {
+          // dirty trick to prevent reevaluation
+          pols[MFS_TOL].roThresh = INT_MAX;
+          return TML;
+      }
+      pols[MFS_TOL].roThresh = 16;
+      return OrecLazy;
+  }
 }
 
 namespace stm
@@ -144,6 +161,8 @@ namespace stm
       init_adapt_pol(X, CGL, 16, 2048, false, false, false, pol_X, "X");
       init_adapt_pol(R, TMLLazy, 16, 2048, false, false, false, pol_R, "R");
       init_adapt_pol(MFS_NOL, Nano, 16, 2048, false, false, false, pol_MFS_NOL, "MFS_NOL");
+      init_adapt_pol(MFS_TOL, OrecLazy, 16, 2048, false, false, false, pol_MFS_TOL, "MFS_TOL");
+      pols[MFS_TOL].roThresh = 16;
   }
 
 } // namespace stm

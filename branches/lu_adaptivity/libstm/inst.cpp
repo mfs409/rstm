@@ -46,6 +46,13 @@ namespace stm
    */
   void install_algorithm(int new_alg, TxThread* tx)
   {
+      // diagnostic: count total commits
+      int commits = 0;
+      for (unsigned i = 0; i < threadcount.val; ++i)
+          commits += tx->num_commits + tx->num_ro;
+      printf("Total commits thus far = %d\n", commits);
+
+      // [mfs] when is tx null?
       // diagnostic message
       if (tx)
           printf("[%u] switching from %s to %s\n", tx->id,
