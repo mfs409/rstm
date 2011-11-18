@@ -14,31 +14,10 @@
 ODIR = ./obj.sparc
 
 #######################################################
-# Names of important tools.
-#
-# NB: These are hard-coded for Lehigh for now
-#
-# NB: We have both the pre-release Oracle compiler, and the special revised
-#     pre-release iropt.  The Qpath flag gets us the newer iropt, which is
-#     necessary to get things to build correctly
-#######################################################
-
-CXX = /apps/suncc-s2-sparc/bin/CC -Qpath /proj/spear1/suncc/sparc-S2/
-
-#######################################################
-# Platform-specific build flags
-#######################################################
-
-CXXFLAGS    = -mt +w -xMMD -fast -xchip=ultraT2 -xtarget=ultraT2 -xalias_level=any
-CXXFLAGS   += -features=zla -template=no%extdef
-CXXFLAGS   += -m32 -I./$(ODIR) -I./include -I.
-CXXFLAGS   += -DSINGLE_SOURCE_BUILD
-LDFLAGS    += -lrt -lpthread -m32 -lmtmalloc
-
-#######################################################
 # Pull in standard stuff
 #######################################################
 
+include Defines.sparc
 include Makefile.common
 
 #######################################################

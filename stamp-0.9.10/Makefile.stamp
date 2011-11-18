@@ -1,0 +1,72 @@
+# Where is the config.h file?
+PATH_TO_STM_INSTALL = ../../
+
+# pull in all global Make variable definitions
+-include ../../Defines.x86
+
+# set extra STAMP build flags
+CXXFLAGS += -I$(PATH_TO_STM_INSTALL)/include -I../../obj.x86/ -I../../ -DSTM -I../lib/ -DSTM_API_STAMP
+CXXFLAGS += $(CUSTOM_CXXFLAGS)
+LDFLAGS  += -L../../obj.x86 -lrstm
+LDFLAGS  += $(CUSTOM_LDFLAGS)
+
+# transform filenames
+OBJDIR      = ./obj
+PROG_CFILES = $(patsubst %, %.c, $(PROG_SOURCES)) 
+LIB_CFILES  = $(patsubst %, ../lib/%.c, $(LIB_SOURCES))
+PROG_OFILES = $(patsubst %, $(OBJDIR)/%.o, $(PROG_SOURCES))
+LIB_OFILES  = $(patsubst %, $(OBJDIR)/%.o, $(LIB_SOURCES))
+DEPS        = $(patsubst %, $(OBJDIR)/%.d, $(PROG_SOURCES) $(LIB_SOURCES))
+STMLIB      = $(PATH_TO_STM_INSTALL)/obj.x86/librstm.a
+GOAL        = $(OBJDIR)/$(PROGNAME)
+
+# build rules
+.PHONY: all clean realclean info
+
+all: info $(OBJDIR) $(GOAL)
+	@echo $(GOAL) complete
+
+# to keep the build lines comprehensible, we hide the actual g++ invocations.
+# Printing this information first helps if we need to recreate the invocation
+# manually
+info:
+	@echo "Build Configuration:"
+	@echo "  OUTPUT FOLDER  = $(ODIR)"
+	@echo "  CXX            = ${CXX}"
+	@echo "  CXXFLAGS       = ${CXXFLAGS}"
+	@echo "  LDFLAGS        = ${LDFLAGS}"
+	@echo "  CXXFLAGS_CXXTM = ${CXXFLAGS_CXXTM}"
+	@echo "  LDFLAGS_LIBAPI = ${LDFLAGS_LIBAPI}"
+	@echo "  CXXFLAGS_SHIM  = ${CXXFLAGS_SHIM}"
+	@echo "  LDFLAGS_SHIM   = ${LDFLAGS_SHIM}"
+	@echo "  CXXFLAGS_LOCK  = ${CXXFLAGS_LOCK}"
+	@echo "  LDFLAGS_LOCK   = ${LDFLAGS_LOCK}"
+
+# /clean/ deletes everything from the obj directory
+clean:
+	@rm -f $(PROG_OFILES) $(LIB_OFILES) $(GOAL)
+
+# /realclean/ gets rid of the build folder and the dependencies
+realclean:
+	@rm -rf obj/
+
+# build the directory in which the .o files will go
+$(OBJDIR):
+	mkdir -p $@
+
+# compilation rule for making .o files and .d files from a c file.  We need
+# two rules to handle ./ and ../lib
+$(OBJDIR)/%.o: ./%.c
+	@echo [${CXX}] $< "-->" $@
+	@$(CXX) $(CXXFLAGS) -c $< -o $@
+$(OBJDIR)/%.o: ../lib/%.c
+	@echo [${CXX}] $< "-->" $@
+	@$(CXX) $(CXXFLAGS) -c $< -o $@
+
+# build the executable.  Note the dependence on STMLIB, in case we rebuilt it
+# without changing any files upon which $(GOAL) depends
+$(GOAL): $(LIB_OFILES) $(PROG_OFILES) $(STMLIB)
+	@echo [${CXX}] "${OBJDIR}/*.o + ${STMLIB} -->" $@
+	@$(CXX) -o $@ $(LIB_OFILES) $(PROG_OFILES) $(LDFLAGS)
+
+-include $(DEPS)
