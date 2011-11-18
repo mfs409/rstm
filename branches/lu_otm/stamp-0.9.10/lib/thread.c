@@ -167,6 +167,10 @@ thread_startup (long numThread)
  * -- funcPtr takes one arguments: argPtr
  * =============================================================================
  */
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 void
 thread_start (void (*funcPtr)(void*), void* argPtr)
 {
@@ -176,6 +180,10 @@ thread_start (void (*funcPtr)(void*), void* argPtr)
     long threadId = 0; /* primary */
     threadWait((void*)&threadId);
 }
+
+#ifdef __cplusplus
+}
+#endif
 
 
 /* =============================================================================

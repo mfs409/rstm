@@ -8,11 +8,6 @@
 #          Please see the file LICENSE.RSTM for licensing information
 
 #######################################################
-# names of important tools that are not platform-specific
-#######################################################
-AR  = ar
-
-#######################################################
 # Source folder names.  Note that since there are three folders holding
 # libstm sources, we need three vars here
 #######################################################
