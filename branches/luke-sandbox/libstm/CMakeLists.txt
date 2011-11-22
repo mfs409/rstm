@@ -62,8 +62,6 @@ set(sources
   policies/policies.cpp
   policies/static.cpp
   sandboxing/sigs.cpp
-  # sandboxing/signals.cpp
-  sandboxing/timer.cpp
   )
 
 set(mmapwrapsources hooks.cpp)

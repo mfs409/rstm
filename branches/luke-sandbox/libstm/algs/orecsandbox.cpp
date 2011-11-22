@@ -68,7 +68,7 @@ namespace {
 bool
 OrecSandbox::validate(TxThread* tx)
 {
-    stm::sandbox::InLib block;
+    stm::sandbox::InLib raii;
 
     // skip validation entirely if no one has committed
     if (tx->start_time == timestamp.val)
@@ -163,9 +163,7 @@ OrecSandbox::commit_ro(TxThread* tx)
 void
 OrecSandbox::commit_rw(TxThread* tx)
 {
-    // ! don't ask me to validate during my commit protocol !!!
-    // ! NB: this only works because we're using siglongjmp
-    stm::sandbox::InLib block;
+    stm::sandbox::InLib raii;           // don't handle validate signal
 
     // acquire locks
     foreach (WriteSet, i, tx->writes) {
