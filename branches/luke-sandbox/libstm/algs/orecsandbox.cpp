@@ -68,7 +68,7 @@ namespace {
 bool
 OrecSandbox::validate(TxThread* tx)
 {
-    // stm::sandbox::InLib block;
+    stm::sandbox::InLib block;
 
     // skip validation entirely if no one has committed
     if (tx->start_time == timestamp.val)
@@ -117,7 +117,6 @@ OrecSandbox::begin(TxThread* tx)
 
     // Start after the last cleanup, instead of after the last commit, to
     // avoid spinning in begin()
-    stm::sandbox::in_lib = 0;
     tx->start_time = last_complete.val;
     tx->end_time = 0;
     return false;
@@ -322,6 +321,9 @@ OrecSandbox::rollback(STM_ROLLBACK_SIG(tx, except, len))
             spin64();
         last_complete.val = tx->end_time;
     }
+
+    // we're going to longjmp from an abort---in_lib needs to be reset
+    stm::sandbox::in_lib = 0;
     return PostRollback(tx, read_ro, write_ro, commit_ro);
 }
 
