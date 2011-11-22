@@ -22,6 +22,7 @@
 #include "common/utils.hpp"
 #include "algs.hpp"
 #include "RedoRAWUtils.hpp"
+#include "../sandboxing/sandboxing.hpp"
 
 using stm::TxThread;
 using stm::timestamp;
@@ -67,6 +68,8 @@ namespace {
 bool
 OrecSandbox::validate(TxThread* tx)
 {
+    // stm::sandbox::InLib block;
+
     // skip validation entirely if no one has committed
     if (tx->start_time == timestamp.val)
         return true;
@@ -111,8 +114,10 @@ bool
 OrecSandbox::begin(TxThread* tx)
 {
     tx->allocator.onTxBegin();
+
     // Start after the last cleanup, instead of after the last commit, to
     // avoid spinning in begin()
+    stm::sandbox::in_lib = 0;
     tx->start_time = last_complete.val;
     tx->end_time = 0;
     return false;
@@ -159,6 +164,10 @@ OrecSandbox::commit_ro(TxThread* tx)
 void
 OrecSandbox::commit_rw(TxThread* tx)
 {
+    // ! don't ask me to validate during my commit protocol !!!
+    // ! NB: this only works because we're using siglongjmp
+    stm::sandbox::InLib block;
+
     // acquire locks
     foreach (WriteSet, i, tx->writes) {
         // get orec, read its version#
@@ -185,8 +194,7 @@ OrecSandbox::commit_rw(TxThread* tx)
 
     // skip validation if possible
     if (tx->end_time != (tx->start_time + 1)) {
-        // clean up any outstanding hashes we might have---we ignore the
-        // return value because we have to do a full validation as a writer
+        // clean up any outstanding hashes we might have
         tx->r_orecs.doLazyHashes();
 
         // inner loop that looks out for our locks, which is different than

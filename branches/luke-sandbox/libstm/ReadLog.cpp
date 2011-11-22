@@ -10,6 +10,7 @@
 
 #include "stm/ReadLog.hpp"
 #include "stm/txthread.hpp" // expand() validation
+#include "common/utils.hpp" // stm::Guard
 #include "algs/algs.hpp"    // get_orec
 
 using stm::ReadLog;
@@ -18,30 +19,8 @@ using stm::get_orec;
 using stm::TxThread;
 using stm::Self;
 using stm::UNRECOVERABLE;
+using stm::Guard;
 using std::sig_atomic_t;
-
-namespace {
-  /// For protecting against reentrancy.
-  class Guard {
-    public:
-      Guard(volatile sig_atomic_t& f) : flag(f) {
-          if (flag)
-              UNRECOVERABLE("Function is not reentrant");
-          flag = 1;
-      }
-
-      ~Guard() {
-          flag = 0;
-      }
-
-    private:
-      volatile sig_atomic_t& flag;
-
-      Guard();
-      Guard(const Guard&);
-      Guard& operator=(const Guard&);
-  };
-}
 
 ReadLog::ReadLog(const unsigned long capacity)
     : OrecList(capacity), cursor_(0), hashing_(0)

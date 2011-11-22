@@ -17,6 +17,7 @@
 #include "inst.hpp"
 #include "policies/policies.hpp"
 #include "algs/algs.hpp"
+#include "sandboxing/sandboxing.hpp"    // (start/stop)_timer
 
 using std::cout;
 
@@ -58,6 +59,11 @@ namespace stm
       if (!stms[new_alg].privatization_safe)
           cout << "Warning: Algorithm " << stms[new_alg].name
                << " is not privatization-safe!\n";
+
+      if (stms[new_alg].sandbox_signals)
+          stm::sandbox::start_timer();
+      else
+          stm::sandbox::stop_timer();
 
       // we need to make sure the metadata remains healthy
       //

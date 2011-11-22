@@ -98,7 +98,7 @@ namespace stm
       uint64_t      end_txn_time;      // end of non-transactional work
       uint64_t      total_nontxn_time; // time on non-transactional work
 
-      pthread_t     pthread_id;     // sandbox validation via pthread_kill
+      pthread_t     pthreadid;          // used for sandbox validation
 
       /*** POINTERS TO INSTRUMENTATION */
 

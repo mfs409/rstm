@@ -123,10 +123,13 @@ TxThread::TxThread()
       irrevocable(false),
       end_txn_time(0),
       total_nontxn_time(0),
+      pthreadid(),
       tmcommit(NULL),
       tmread(NULL),
       tmwrite(NULL)
 {
+    pthreadid = pthread_self();
+
     // prevent new txns from starting.
     while (true) {
         int i = curr_policy.ALG_ID;
@@ -156,9 +159,6 @@ TxThread::TxThread()
     // Lastly, when we finally do write threadcount.val, we make sure to
     // preserve ordering so that write comes after initialization, but
     // before lock release.
-
-    // grab my thread id.
-    pthread_id = pthread_self();
 
     // predict the new value of threadcount.val
     id = threadcount.val + 1;

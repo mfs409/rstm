@@ -17,4 +17,4 @@ foreach (arch ${rstm_archs})
   endif ()
 endforeach ()
 
-add_subdirectory (test)
+# add_subdirectory (test)

@@ -61,7 +61,9 @@ call_signal(int sig, sighandler_t handler)
 }
 
 static void do_shadowed_signal(int);
+static void do_shadowed_signal_cont(int, siginfo_t*, void*);
 static void do_shadowed_sigaction(int, siginfo_t*, void*);
+static void do_shadowed_sigaction_cont(int, siginfo_t*, void*);
 
 namespace {
 /// ---------------------------------------------------------------------------
@@ -107,7 +109,7 @@ struct Record {
             return;
         }
 
-        // Set our installed sym_shadow_t. Need to make sure mask includes sig
+        // Set our installed stm_shadow_t. Need to make sure mask includes sig
         // if we're not deferring.
         installed.action = install.action;
         typed_memcpy(&installed.mask, &install.mask);
@@ -157,25 +159,38 @@ struct Record {
     }
 
     // Calls the installed action (handles mask).
-    void
-    operator()(int sig, siginfo_t* info, void* ctx, libc_sigaction_t cont) const
+    void callInstalled(int sig, siginfo_t* info, void* ctx) const
     {
         assert(installed.action && "not masking signal");
         pthread_sigmask(SIG_SETMASK, &installed.mask, NULL);
-        installed.action(sig, info, ctx, cont);
+        installed.action(sig, info, ctx, (shadowed.sa_flags & SA_SIGINFO) ?
+                         do_shadowed_sigaction_cont : do_shadowed_signal_cont);
     }
 
     // Calls the shadowed sigaction (handles mask)
-    void operator()(int sig, siginfo_t* info, void* ctx) const {
+    void callShadowedSigaction(int sig, siginfo_t* info, void* ctx) const {
+        assert(shadowed.sa_sigaction && "no shadowed sigaction installed");
         assert(shadowed.sa_flags & SA_SIGINFO && "used signal as sigaction");
+        // if (shadowed.sa_sigaction == SIG_IGN)
+        //     return;
+        // if (shadowed.sa_sigaction == SIG_DFL) {
+        //     // TODO: can't just ignore this
+        //     return;
+        // }
         pthread_sigmask(SIG_SETMASK, &shadowed.sa_mask, NULL);
         shadowed.sa_sigaction(sig, info, ctx);
     }
 
     // Calls the shadowed signal.
-    void operator()(int sig) const {
+    void callShadowedSignal(int sig) const {
         assert((shadowed.sa_flags & SA_SIGINFO) != SA_SIGINFO && "used sigaction as signal");
         // note no mask set for signal
+        if (shadowed.sa_handler == SIG_IGN)
+            return;
+        if (shadowed.sa_handler == SIG_DFL) {
+            // TODO: can't just ignore this
+            return;
+        }
         shadowed.sa_handler(sig);
     }
 
@@ -306,12 +321,12 @@ struct WriteLock {
 /// shadowed signal handler. Note that this uses a new snapshot of the handler,
 /// so it may call a different handler than existed initially.
 /// ---------------------------------------------------------------------------
-static void
+void
 do_shadowed_signal_cont(int sig, siginfo_t*, void*)
 {
     Snapshot snap(sig);
     const Record& r = snap.get();
-    r(sig);
+    r.callShadowedSignal(sig);
 }
 
 /// ---------------------------------------------------------------------------
@@ -323,7 +338,7 @@ do_shadowed_signal(int sig)
 {
     Snapshot snap(sig);
     const Record& r = snap.get();
-    r(sig, NULL, NULL, do_shadowed_signal_cont);
+    r.callInstalled(sig, NULL, NULL);
 }
 
 /// ---------------------------------------------------------------------------
@@ -333,7 +348,7 @@ do_shadowed_signal(int sig)
 /// is registered with the SA_RESETHAND flag then we need to atomically reset
 /// the shadowed handler to SIG_DFL before actually running it.
 /// ---------------------------------------------------------------------------
-static void
+void
 do_shadowed_sigaction_cont(int sig, siginfo_t* info, void* ctx)
 {
     Snapshot snap(sig);
@@ -356,7 +371,7 @@ do_shadowed_sigaction_cont(int sig, siginfo_t* info, void* ctx)
             w.resetToDefault(sig);
     }
 
-    rec(sig, info, ctx);
+    rec.callShadowedSigaction(sig, info, ctx);
 }
 
 /// ---------------------------------------------------------------------------
@@ -367,7 +382,7 @@ do_shadowed_sigaction(int sig, siginfo_t* info, void* ctx)
 {
     Snapshot snap(sig);
     const Record& r = snap.get();
-    r(sig, info, ctx, do_shadowed_sigaction_cont);
+    r.callInstalled(sig, info, ctx);
 }
 
 /// ---------------------------------------------------------------------------

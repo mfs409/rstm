@@ -5,7 +5,11 @@
 
 namespace stm {
 namespace sandbox {
+
+void init_timer_validation();
+
 bool demultiplex_timer(int, siginfo_t*, void*);
+
 }
 }
 

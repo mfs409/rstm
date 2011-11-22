@@ -35,29 +35,33 @@
 #include <unistd.h>
 #include <sys/time.h>
 #include "common/interposition.hpp"
-#include "../policies/policies.hpp"     // curr_policy
-#include "../algs/algs.hpp"             // stms[]
 #include "sandboxing.hpp"
 #include "timer.hpp"
 
-using stm::pad_word_t;
-using stm::MAX_THREADS;
 using stm::lazy_load_symbol;
 
-extern "C" {
-
+namespace {
+/**
+ *  We're going to, for now, use a simple linked list of timer events ordered
+ *  by time. When we get a SIGALRM we need to match it with the front of the
+ *  list to determine who the timer is targeting. We then reschedule the event
+ *  based on its period (if it has one) and move it to the appropriate place in
+ *  the queue. We then schedule another timer based on the front of the queue
+ *  using alarm.
+ *
+ *  We interpose on SIGALRM-based timer-scheduler calls so that we con
+ *  correctly schedule them in our list, and report correct results (this only
+ *  includes alarm, setitimer, and getitimer).
+ */
+/**
+ *  Lazy binding routines.
+ */
 static unsigned int
 call_alarm(unsigned int seconds)
 {
     static unsigned int (*palarm)(unsigned int) = NULL;
     lazy_load_symbol(palarm, "alarm");
     return palarm(seconds);
-}
-
-unsigned int
-alarm(unsigned int seconds)
-{
-    return call_alarm(seconds);
 }
 
 static int
@@ -68,12 +72,6 @@ call_getitimer(int which, struct itimerval *curr_value)
     return pgetitimer(which, curr_value);
 }
 
-int
-getitimer(int which, struct itimerval *curr_value)
-{
-    return call_getitimer(which, curr_value);
-}
-
 static int
 call_setitimer(int which, const struct itimerval* new_, struct itimerval* old)
 {
@@ -82,6 +80,24 @@ call_setitimer(int which, const struct itimerval* new_, struct itimerval* old)
     lazy_load_symbol(psetitimer, "setitimer");
     return psetitimer(which, new_, old);
 }
+}
+
+/**
+ *  Interposition routines.
+ */
+extern "C" {
+
+unsigned int
+alarm(unsigned int seconds)
+{
+    return call_alarm(seconds);
+}
+
+int
+getitimer(int which, struct itimerval *curr_value)
+{
+    return call_getitimer(which, curr_value);
+}
 
 int
 setitimer(int which, const struct itimerval* new_, struct itimerval* old)
@@ -89,8 +105,6 @@ setitimer(int which, const struct itimerval* new_, struct itimerval* old)
     return call_setitimer(which, new_, old);
 }
 }
-
-static pad_word_t prev_trans[MAX_THREADS] = {{0}};
 
 bool
 stm::sandbox::demultiplex_timer(int sig, siginfo_t* info, void* ctx)
