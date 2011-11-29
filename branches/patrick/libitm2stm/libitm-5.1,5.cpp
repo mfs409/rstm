@@ -82,6 +82,7 @@ _ITM_finalizeProcess(void) {
 _ITM_transaction*
 _ITM_getTransaction(void) {
     if (!thread_td) {
+        sys_init(tmabort); // In case the library was not already initialized
         TxThread::thread_init();
         thread_td = new _ITM_transaction(*stm::Self);
     }

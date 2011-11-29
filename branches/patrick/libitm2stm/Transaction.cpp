@@ -12,6 +12,8 @@
 #include "Transaction.h"
 #include "Scope.h"
 #include "CheckOffsets.h"
+#include "Utilities.h"
+
 using namespace stm;
 using namespace itm2stm;
 
