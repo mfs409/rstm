@@ -11,6 +11,7 @@
 #include <cassert>
 #include "Scope.h"
 #include "CheckOffsets.h"
+#include "Utilities.h"
 
 using namespace itm2stm;
 using std::pair;

@@ -23,9 +23,9 @@ endif ()
 if (rstm_itm2stm STREQUAL "DTMC")
   append_cxx_flags(-emit-llvm -D_ITM_DTMC)
 elseif (rstm_itm2stm STREQUAL "GCC")
-  append_cxx_flags(-emit-llvm -D_ITM_GCC)
+  append_cxx_flags(-D_ITM_GCC)
 else ()
-  append_cxx_flags(-emit-llvm -D_ITM_ICC)
+  append_cxx_flags(-D_ITM_ICC)
 endif ()
 
 
@@ -94,6 +94,25 @@ macro(dtmc arch)
                        COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/libtanger-stm.support ${CMAKE_CURRENT_BINARY_DIR}/libtanger-stm.support)
 endmacro(dtmc)
 
+# Generic GCC rules for 32/64 bits 
+macro(gcc arch)
+  add_library(itm2stm${arch} STATIC
+    ${cppsources}
+    gcc.cpp
+    ${arch_path}/_ITM_beginTransaction_no_td.S
+    ${arch_path}/checkpoint_restore.S)
+  add_library(itm2stm${arch}shared SHARED
+    ${cppsources}
+    gcc.cpp
+    ${arch_path}/_ITM_beginTransaction_no_td.S
+    ${arch_path}/checkpoint_restore.S)
+  append_property(TARGET itm2stm${arch} COMPILE_FLAGS -m${arch} -I${arch_path})
+  append_property(TARGET itm2stm${arch}shared COMPILE_FLAGS -m${arch} -I${arch_path})
+  target_link_libraries(itm2stm${arch} stm${arch})
+endmacro(gcc)
+
+# TODO for GCC (and ICC), must merge the two library in one (at least more convenient)
+
 if (rstm_build_32-bit)
   set(arch_path ${CMAKE_CURRENT_SOURCE_DIR}/arch/x86)
 
@@ -111,8 +130,8 @@ if (rstm_build_32-bit)
   elseif (rstm_itm2stm STREQUAL "DTMC")
     dtmc(32)
   # For GCC 
-  elseif (${rstm_itm2stm} STREQUAL "GCC")
-    # FIXME for GCC
+  elseif (rstm_itm2stm STREQUAL "GCC")
+    gcc(32)
   endif ()
 endif ()
 
@@ -131,7 +150,7 @@ if (rstm_build_64-bit)
   elseif (rstm_itm2stm STREQUAL "DTMC")
     dtmc(64)
   # For GCC 
-  elseif (${rstm_itm2stm} STREQUAL "GCC")
-    # FIXME for GCC
+  elseif (rstm_itm2stm STREQUAL "GCC")
+    gcc(64)
   endif ()
 endif ()

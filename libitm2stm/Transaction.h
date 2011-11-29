@@ -242,6 +242,12 @@ struct _ITM_transaction {
     }
 #endif /* _ITM_DTMC */
 
+#ifdef _ITM_GCC
+    struct {
+        uint32_t cxa_catch_count;
+        void *cxa_unthrown;
+    } TMException;
+#endif /* _ITM_GCC */
 };
 
 #endif // STM_ITM2STM_TRANSACTION_H
