@@ -136,7 +136,7 @@ _ITM_cxa_end_catch(void) {
     __cxa_end_catch();
 }
 
-static void
+void
 exceptionOnAbort(void *exc_ptr) {
     _ITM_TD_GET;
 
