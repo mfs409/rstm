@@ -153,6 +153,9 @@ void _ITM_FASTCALL _ITM_rollbackTransaction(_ITM_TD_PARAMS const _ITM_srcLocatio
 void _ITM_FASTCALL _ITM_commitTransaction(_ITM_TD_PARAMS const _ITM_srcLocation*);
 bool _ITM_FASTCALL _ITM_tryCommitTransaction(_ITM_TD_PARAMS const _ITM_srcLocation*);
 void _ITM_FASTCALL _ITM_commitTransactionToId(_ITM_TD_PARAMS const _ITM_transactionId_t, const _ITM_srcLocation*);
+#ifdef _ITM_GCC
+void _ITM_FASTCALL _ITM_commitTransactionEH(void *);
+#endif /* _ITM_GCC */
 
 // -----------------------------------------------------------------------------
 // 5.10  Exception handling support --------------------------------------------

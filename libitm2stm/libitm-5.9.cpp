@@ -108,8 +108,9 @@ _ITM_commitTransactionToId(_ITM_TD_PARAMS const _ITM_transactionId_t id,
     td->commitToId(id);
 }
 
-#ifdef _TM_GCC
+#ifdef _ITM_GCC
 // _ITM_commitTransactionEH is here to keep the inline of the commit() call
+extern "C" void exceptionOnAbort(void *);
 void _ITM_FASTCALL
 _ITM_commitTransactionEH(void *exc_ptr) {
     _ITM_TD_GET;
@@ -119,5 +120,5 @@ _ITM_commitTransactionEH(void *exc_ptr) {
     td->TMException.cxa_catch_count = 0;
     td->TMException.cxa_unthrown = NULL;
 }
-#endif /* _TM_GCC */
+#endif /* _ITM_GCC */
 
