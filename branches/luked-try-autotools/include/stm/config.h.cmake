@@ -29,8 +29,6 @@
 // Target OS
 #cmakedefine STM_OS_LINUX
 #cmakedefine STM_OS_SOLARIS
-#cmakedefine STM_OS_MACOS
-#cmakedefine STM_OS_WINDOWS
 
 // The kind of build we're doing
 #cmakedefine STM_O3

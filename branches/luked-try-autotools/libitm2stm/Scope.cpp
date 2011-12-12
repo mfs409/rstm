@@ -96,7 +96,7 @@ Scope::Scope(_ITM_transaction& owner)
       do_on_commit_(4),
       owner_(owner) {
 #if defined(SCOPE_ABORTED_)
-    ASSERT_OFFSET(offsetof(Scope, aborted_), SCOPE_ABORTED_);
+    ASSERT_OFFSET(__builtin_offsetof(Scope, aborted_), SCOPE_ABORTED_);
 #endif
 }
 

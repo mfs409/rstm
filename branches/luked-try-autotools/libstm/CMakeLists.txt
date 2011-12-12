@@ -60,6 +60,10 @@ set(sources
   policies/static.cpp
   )
 
+if (CMAKE_SYSTEM_NAME MATCHES "SunOS")
+  set (sources ${sources} ../alt-license/rand_r.cpp)
+endif ()
+  
 set(mmapwrapsources hooks.cpp)
   
 # build 32 and/or 64 bit libraries for intercepting munmap, so that we can
@@ -79,7 +83,7 @@ foreach (arch ${rstm_archs})
     target_link_libraries(stm${arch} -lrt)
   endif ()
   if (CMAKE_SYSTEM_NAME MATCHES "SunOS")
-    target_link_libraries(stm${arch} -lmtmalloc)
+    target_link_libraries(stm${arch} -lmtmalloc -ldl)
   endif ()
 endforeach ()
 

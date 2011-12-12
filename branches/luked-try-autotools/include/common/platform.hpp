@@ -35,8 +35,7 @@
  *       for -m64 code, but it works on the platforms that we support.
  *
  *  NB2: We don't really support non-gcc compatible compilers, so there isn't
- *       any compiler logic in these ifdefs. If we begin to support the Windows
- *       platform these will need to be more complicated
+ *       any compiler logic in these ifdefs.
  */
 
 /**
@@ -430,32 +429,5 @@ inline uint64_t getElapsedTime()
 }
 
 #endif // STM_OS_SOLARIS
-
-#if defined(STM_OS_MACOS)
-#include <mach/mach_time.h>
-#include <sched.h>
-
-/**
- *  Yield the CPU
- */
-inline void yield_cpu() {
-    sched_yield();
-}
-
-/**
- *  We'll use the MACH timer as our nanosecond timer
- *
- *  This code is based on code at
- *  http://developer.apple.com/qa/qa2004/qa1398.html
- */
-inline uint64_t getElapsedTime()
-{
-    static mach_timebase_info_data_t sTimebaseInfo;
-    if (sTimebaseInfo.denom == 0)
-        (void)mach_timebase_info(&sTimebaseInfo);
-    return mach_absolute_time() * sTimebaseInfo.numer / sTimebaseInfo.denom;
-}
-
-#endif // STM_OS_MACOS
 
 #endif // PLATFORM_HPP__
