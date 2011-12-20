@@ -19,7 +19,6 @@
 #ifndef TXTHREAD_HPP__
 #define TXTHREAD_HPP__
 
-#include "alt-license/rand_r_32.h"
 #include "common/locks.hpp"
 #include "stm/metadata.hpp"
 #include "stm/WriteSet.hpp"
