@@ -17,18 +17,14 @@
 #include "Transaction.h"
 #include "Scope.h"
 #include "StackProtection.h"
-#include "common/ThreadLocal.hpp"
 #include "stm/txthread.hpp"
 #include "stm/lib_globals.hpp"
 using namespace stm;
 using namespace itm2stm;
 
 namespace {
-/// Our thread local transaction descriptor. On most platforms this uses
-/// __thread or its equivalent, but on Mac OS X---or if explicitly selected by
-/// the user---it will use a specialized template-based Pthreads
-/// implementation.
-THREAD_LOCAL_DECL_TYPE(_ITM_transaction*) td;
+/// Our thread local transaction descriptor.
+static __thread _ITM_transaction* td = NULL;
 
 /// This is what the stm library will call when it detects a conflict and needs
 /// to abort. We always retry in this case, and if we have a registered thrown
