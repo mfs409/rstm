@@ -351,7 +351,9 @@ BARRIERS(double, D)
 BARRIERS(long double, E)
 BARRIERS(__m64, M64)
 BARRIERS(__m128, M128)
+#ifdef __AVX__
 BARRIERS(__m256, M256)
+#endif
 BARRIERS(_Complex float, CF)
 BARRIERS(_Complex double, CD)
 BARRIERS(_Complex long double, CE)
