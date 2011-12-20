@@ -60,6 +60,12 @@ set(sources
   policies/static.cpp
   )
 
+# Solaris includes a 16-bit implementation of rand_r, which isn't adequate for
+# what we want to do, so we have a replacement.
+if (CMAKE_SYSTEM_NAME MATCHES "SunOS")
+  list (APPEND sources ${CMAKE_SOURCE_DIR}/alt-license/rand_r.cpp)
+endif ()
+
 set(mmapwrapsources hooks.cpp)
   
 # build 32 and/or 64 bit libraries for intercepting munmap, so that we can

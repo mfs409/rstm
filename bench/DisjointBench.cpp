@@ -19,7 +19,6 @@
  */
 
 #include <iostream>
-#include <alt-license/rand_r_32.h>
 #include <api/api.hpp>
 #include "bmconfig.hpp"
 
@@ -93,11 +92,11 @@ void bench_init()
 /*** Run a bunch of random transactions */
 void bench_test(uintptr_t id, uint32_t* seed)
 {
-   uint32_t act = rand_r_32(seed) % 100;
+   uint32_t act = rand_r(seed) % 100;
     // NB: volatile needed because using a non-volatile local in conjunction
     //     with a setjmp-longjmp control transfer is undefined, and gcc won't
     //     allow it with -Wall -Werror.
-    volatile uint32_t start = rand_r_32(seed) % Disjoint::DJBUFFER_SIZE;
+    volatile uint32_t start = rand_r(seed) % Disjoint::DJBUFFER_SIZE;
 
     TM_BEGIN(atomic) {
         // RO or RW transaction?
