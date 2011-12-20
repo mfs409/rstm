@@ -21,7 +21,6 @@
 #include <cassert>
 
 #include "common/platform.hpp"
-#include "common/ThreadLocal.hpp"
 #include "lock.hpp"  // pthread locks
 
 #ifdef __APPLE__
@@ -52,7 +51,7 @@ extern unsigned long long last_time;
 /// We piggyback on the libstm configuration in order to chose a thread-local
 /// storage mechanism.
 class thread;
-extern THREAD_LOCAL_DECL_TYPE(thread*) currentThread;
+extern __thread thread* currentThread;
 
 #ifdef CGL
 #   define BEGIN_TRANSACTION(TYPE) {with_lock tx_cs(io_lock);

@@ -21,7 +21,6 @@
 
 #include "alt-license/rand_r_32.h"
 #include "common/locks.hpp"
-#include "common/ThreadLocal.hpp"
 #include "stm/metadata.hpp"
 #include "stm/WriteSet.hpp"
 #include "stm/UndoLog.hpp"
@@ -161,7 +160,7 @@ namespace stm
   }; // class TxThread
 
   /*** GLOBAL VARIABLES RELATED TO THREAD MANAGEMENT */
-  extern THREAD_LOCAL_DECL_TYPE(TxThread*) Self; // this thread's TxThread
+  extern __thread TxThread* Self; // this thread's TxThread
 
 } // namespace stm
 

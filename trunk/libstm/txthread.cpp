@@ -51,7 +51,7 @@ namespace stm
   /*** BACKING FOR GLOBAL VARS DECLARED IN TXTHREAD.HPP */
   pad_word_t threadcount          = {0}; // thread count
   TxThread*  threads[MAX_THREADS] = {0}; // all TxThreads
-  THREAD_LOCAL_DECL_TYPE(TxThread*) Self; // this thread's TxThread
+  __thread TxThread* Self = NULL;        // this thread's TxThread
 
   /**
    *  Constructor sets up the lists and vars
