@@ -61,7 +61,9 @@ GENERATE_LOG(double, D)
 GENERATE_LOG(long double, E)
 GENERATE_LOG(__m64, M64)
 GENERATE_LOG(__m128, M128)
+#ifdef __AVX__
 GENERATE_LOG(__m256, M256)
+#endif
 GENERATE_LOG(_Complex float, CF)
 GENERATE_LOG(_Complex double, CD)
 GENERATE_LOG(_Complex long double, CE)
