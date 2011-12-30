@@ -1,0 +1,10 @@
+AC_PREREQ(2.68)
+AC_INIT([libstm], [7.0], [luked@cs.rochester.edu])
+AC_CONFIG_SRCDIR(txthread.cpp)
+AC_CONFIG_AUX_DIR(config)
+AM_INIT_AUTOMAKE
+AC_PROG_CXX
+AM_PROG_AR
+AC_PROG_RANLIB
+AC_CONFIG_FILES([Makefile])
+AC_OUTPUT

@@ -1,0 +1,1 @@
+SUBDIRS = libstm libitm2stm
