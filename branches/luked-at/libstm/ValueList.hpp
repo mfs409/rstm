@@ -8,8 +8,8 @@
  *          Please see the file LICENSE.RSTM for licensing information
  */
 
-#ifndef STM_VALUE_LIST_HPP
-#define STM_VALUE_LIST_HPP
+#ifndef LIBSTM_VALUE_LIST_HPP
+#define LIBSTM_VALUE_LIST_HPP
 
 /**
  *  We use the ValueList class to log address/value pairs for our
@@ -38,8 +38,7 @@
  *  This file implements the value log given the current configuration settings
  *  in stm/config.h.
  */
-#include "stm/config.h"
-#include "stm/MiniVector.hpp"
+#include "MiniVector.hpp"
 
 namespace stm {
   /**
@@ -182,4 +181,4 @@ namespace stm {
   };
 }
 
-#endif // STM_VALUE_LIST_HPP
+#endif // LIBSTM_VALUE_LIST_HPP

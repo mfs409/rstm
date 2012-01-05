@@ -8,8 +8,8 @@
  *          Please see the file LICENSE.RSTM for licensing information
  */
 
-#ifndef PROFILING_HPP__
-#define PROFILING_HPP__
+#ifndef LIBSTM_PROFILING_HPP
+#define LIBSTM_PROFILING_HPP
 
 /**
  *  This code handles the profiling mechanism.  It consists of three parts:
@@ -24,9 +24,8 @@
  */
 
 #include <cstdlib>
-#include <stm/config.h> // profiletrigger stuff
-#include <stm/txthread.hpp>
-#include "./policies/policies.hpp"
+#include "txthread.hpp"
+#include "policies/policies.hpp"
 
 namespace stm
 {
@@ -181,4 +180,4 @@ namespace stm
 
 } // namespace stm
 
-#endif // PROFILING_HPP__
+#endif // LIBSTM_PROFILING_HPP

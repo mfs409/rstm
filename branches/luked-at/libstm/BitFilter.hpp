@@ -14,10 +14,9 @@
  *  bits.
  */
 
-#ifndef BITFILTER_HPP__
-#define BITFILTER_HPP__
+#ifndef LIBSTM_BITFILTER_HPP
+#define LIBSTM_BITFILTER_HPP
 
-#include <stm/config.h>
 #include <stdint.h>
 
 #if defined(STM_USE_SSE)
@@ -175,4 +174,4 @@ namespace stm
 
 }  // namespace stm
 
-#endif // BITFILTER_HPP__
+#endif // LIBSTM_BITFILTER_HPP

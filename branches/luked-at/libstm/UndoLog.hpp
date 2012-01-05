@@ -13,12 +13,11 @@
  *  in in-place update STMs
  */
 
-#ifndef UNDO_LOG_HPP__
-#define UNDO_LOG_HPP__
+#ifndef LIBSTM_UNDO_LOG_HPP
+#define LIBSTM_UNDO_LOG_HPP
 
-#include <stm/config.h>
-#include "stm/MiniVector.hpp"
-#include "stm/macros.hpp"
+#include "MiniVector.hpp"
+#include "macros.hpp"
 
 /**
  *  An undo log is a pretty simple structure. We never need to search it, so
@@ -195,4 +194,4 @@ namespace stm
 #endif
   };
 }
-#endif // UNDO_LOG_HPP__
+#endif // LIBSTM_UNDO_LOG_HPP

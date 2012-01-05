@@ -15,9 +15,7 @@
  *  In this file, we declare functions and variables that need to be visible
  *  to many parts of the STM library.
  */
-
-#include <stm/config.h>
-#include <stm/metadata.hpp>
+#include "metadata.hpp"
 
 namespace stm
 {

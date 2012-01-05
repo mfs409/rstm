@@ -21,13 +21,12 @@
  *  footprint of this file on the rest of the project.
  */
 
-#ifndef WBMMPOLICY_HPP__
-#define WBMMPOLICY_HPP__
+#ifndef LIBSTM_WBMMPOLICY_HPP
+#define LIBSTM_WBMMPOLICY_HPP
 
 #include <stdlib.h>
-#include <stm/config.h>
-#include "stm/MiniVector.hpp"
-#include "stm/metadata.hpp"
+#include "MiniVector.hpp"
+#include "metadata.hpp"
 
 namespace stm
 {
@@ -171,4 +170,4 @@ namespace stm
 
 } // namespace stm
 
-#endif // WBMMPOLICY_HPP__
+#endif // LIBSTM_WBMMPOLICY_HPP

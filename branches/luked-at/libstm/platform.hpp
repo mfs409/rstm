@@ -20,24 +20,39 @@
  *    5) a high-resolution timer
  */
 
-#ifndef PLATFORM_HPP__
-#define PLATFORM_HPP__
+#ifndef LIBSTM_PLATFORM_HPP
+#define LIBSTM_PLATFORM_HPP
 
-#include <stm/config.h>
 #include <stdint.h>
 #include <limits.h>
 
 /**
  *  We set up a bunch of macros that we use to insulate the rest of the code
  *  from potentially platform-dependent behavior.
- *
- *  NB:  This is partially keyed off of __LP64__ which isn't universally defined
- *       for -m64 code, but it works on the platforms that we support.
- *
- *  NB2: We don't really support non-gcc compatible compilers, so there isn't
- *       any compiler logic in these ifdefs. If we begin to support the Windows
- *       platform these will need to be more complicated
  */
+
+
+#if defined(__i386) || defined(__x86_64)
+#define STM_CPU_X86
+#elif defined(__sparc)
+#define STM_CPU_SPARC
+#else
+#error Compiling for unsupported architecture
+#endif
+
+#if defined(__ICC)
+#define STM_CC_ICC
+#elif defined(__sun)
+#define STM_CC_SUN
+#elif defined(__clang__)
+#define STM_CC_CLANG
+#define STM_CC_GCC
+#elif defined(__GNUC__)
+#define STM_CC_GCC
+#else
+#warning Unexpected target compiler---defaulting to GCC
+#define STM_CC_GCC
+#endif
 
 /**
  *  We begin by hard-coding some macros that may become platform-dependent in
@@ -49,15 +64,6 @@
 #define ALWAYS_INLINE   __attribute__((always_inline))
 #define USED            __attribute__((used))
 #define REGPARM(N)      __attribute__((regparm(N)))
-
-/**
- *  Pick up the BITS define from the __LP64__ token.
- */
-#if defined(__LP64__)
-#define STM_BITS_64
-#else
-#define STM_BITS_32
-#endif
 
 /**
  *  GCC's fastcall attribute causes a warning on x86_64, so we don't use it
@@ -182,7 +188,7 @@ inline uint64_t internal_cas64(volatile uint64_t* ptr, uint64_t old,
 }
 
 #define cas32(p, o, n)      internal_cas32((uint32_t*)(p), (uint32_t)(o), (uint32_t)(n))
-#ifdef STM_BITS_64
+#if defined(__LP64__)
 #define cas64(p, o, n)      internal_cas64((uint64_t*)(p), (uint64_t)(o), (uint64_t)(n))
 #define casptr(p, o, n)     cas64(p, o, n)
 #else
@@ -199,7 +205,7 @@ inline uint64_t internal_cas64(volatile uint64_t* ptr, uint64_t old,
 #define nop()             __asm__ volatile("nop")
 
 // NB: SPARC swap instruction only is 32/64-bit... there is no atomicswap8
-#ifdef STM_BITS_32
+#if !defined(__LP64__)
 #define atomicswapptr(p, v)                                 \
     ({                                                      \
         __typeof((v)) v1 = v;                               \
@@ -275,7 +281,7 @@ inline uint64_t internal_cas64(volatile uint64_t* ptr, uint64_t old,
  *  CPU
  */
 
-#if defined(STM_BITS_64)
+#if defined(__LP64__)
 /**
  *  64-bit code is easy... 64-bit accesses are atomic
  */
@@ -283,9 +289,7 @@ inline void mvx(const volatile uint64_t* src, volatile uint64_t* dest)
 {
     *dest = *src;
 }
-#endif
-
-#if defined(STM_BITS_32) && defined(STM_CPU_X86)
+#elif defined(STM_CPU_X86)
 /**
  *  32-bit on x86... cast to double
  */
@@ -295,9 +299,7 @@ inline void mvx(const volatile uint64_t* src, volatile uint64_t* dest)
     volatile double* destd = (volatile double*)dest;
     *destd = *srcd;
 }
-#endif
-
-#if defined(STM_BITS_32) && defined(STM_CPU_SPARC)
+#elif defined(STM_CPU_SPARC)
 /**
  *  32-bit on SPARC... use ldx/stx
  */
@@ -325,9 +327,7 @@ inline uint64_t tick()
     __asm__ ("rdtsc" : "=a" (tmp[1]), "=d" (tmp[0]) : "c" (0x10) );
     return (((uint64_t)tmp[0]) << 32) | tmp[1];
 }
-#endif
-
-#if defined(STM_CPU_SPARC) && defined(STM_BITS_64)
+#elif defined(STM_CPU_SPARC) && defined(__LP64__)
 /**
  *  64-bit SPARC: read the tick register into a regular (64-bit) register
  *
@@ -340,9 +340,7 @@ inline uint64_t tick()
     __asm__ volatile("rd %%tick, %[val]" : [val] "=r" (val) : :);
     return val;
 }
-#endif
-
-#if defined(STM_CPU_SPARC) && defined(STM_BITS_32)
+#elif defined(STM_CPU_SPARC) && !defined(__LP64__)
 /**
  *  32-bit SPARC: read the tick register into two 32-bit registers, then
  *  manually combine the result
@@ -370,21 +368,10 @@ inline uint64_t tick()
 #endif
 
 /**
- *  Next, we provide a platform-independent function for sleeping for a number
- *  of milliseconds.  This code depends on the OS.
- *
- *  NB: since we do not have Win32 support, this is now very easy... we just
- *      use the usleep instruction.
- */
-#include <unistd.h>
-inline void sleep_ms(uint32_t ms) { usleep(ms*1000); }
-
-
-/**
  *  Now we present a clock that operates in nanoseconds, instead of in ticks,
  *  and a function for yielding the CPU.  This code also depends on the OS
  */
-#if defined(STM_OS_LINUX)
+#if defined(__linux)
 #include <stdio.h>
 #include <cstring>
 #include <assert.h>
@@ -411,9 +398,7 @@ inline uint64_t getElapsedTime()
     return tt;
 }
 
-#endif // STM_OS_LINUX
-
-#if defined(STM_OS_SOLARIS)
+#elif defined(__sunos)
 #include <sys/time.h>
 
 /**
@@ -428,7 +413,8 @@ inline uint64_t getElapsedTime()
 {
     return gethrtime();
 }
+#else
+#error Unexpected OS
+#endif
 
-#endif // STM_OS_SOLARIS
-
-#endif // PLATFORM_HPP__
+#endif // LIBSTM_PLATFORM_HPP

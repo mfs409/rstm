@@ -13,19 +13,17 @@
  *  along with some accessor functions
  */
 
-#ifndef ALGS_HPP__
-#define ALGS_HPP__
+#ifndef LIBSTM_ALGS_HPP
+#define LIBSTM_ALGS_HPP
 
-#include <stm/config.h>
 #ifdef STM_CC_SUN
 #include <stdio.h>
 #else
 #include <cstdio>
 #endif
-
-#include "stm/metadata.hpp"
-#include "stm/txthread.hpp"
-#include "../profiling.hpp" // Trigger::
+#include "metadata.hpp"
+#include "txthread.hpp"
+#include "profiling.hpp" // Trigger::
 
 namespace stm
 {
@@ -494,4 +492,4 @@ namespace stm
 
 } // namespace stm
 
-#endif // ALGS_HPP__
+#endif // LIBSTM_ALGS_HPP

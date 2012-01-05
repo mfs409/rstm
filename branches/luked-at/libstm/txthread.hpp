@@ -16,14 +16,14 @@
  *  can use to access its TxThread object.
  */
 
-#ifndef TXTHREAD_HPP__
-#define TXTHREAD_HPP__
+#ifndef LIBSTM_TXTHREAD_HPP
+#define LIBSTM_TXTHREAD_HPP
 
-#include "common/locks.hpp"
-#include "stm/metadata.hpp"
-#include "stm/WriteSet.hpp"
-#include "stm/UndoLog.hpp"
-#include "stm/ValueList.hpp"
+#include "locks.hpp"
+#include "metadata.hpp"
+#include "WriteSet.hpp"
+#include "UndoLog.hpp"
+#include "ValueList.hpp"
 #include "WBMMPolicy.hpp"
 
 namespace stm
@@ -163,4 +163,4 @@ namespace stm
 
 } // namespace stm
 
-#endif // TXTHREAD_HPP__
+#endif // LIBSTM_TXTHREAD_HPP

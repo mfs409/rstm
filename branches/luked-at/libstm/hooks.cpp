@@ -9,7 +9,7 @@
  */
 
 #include <dlfcn.h>
-#include <stm/WBMMPolicy.hpp>
+#include "WBMMPolicy.hpp"
 
 int (*_munmap)(void *, size_t) = NULL;
 

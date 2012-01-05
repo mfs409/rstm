@@ -1,0 +1,11 @@
+prefix=@prefix@
+exec_prefix=@exec_prefix@
+includedir=@includedir@
+libdir=@libdir@
+
+Name: STM
+Description: The RSTM Library
+URL: rstm.googlecode.com
+Version: @PACKAGE_VERSION@
+Cflags: -I${includedir} @libstm_CPPFLAGS@
+Libs: -L${libdir} -lstm

@@ -8,12 +8,11 @@
  *          Please see the file LICENSE.RSTM for licensing information
  */
 
-#ifndef CM_HPP__
-#define CM_HPP__
+#ifndef LIBSTM_CM_HPP
+#define LIBSTM_CM_HPP
 
-#include <stm/config.h>
 #include <limits.h>
-#include "stm/txthread.hpp"
+#include "txthread.hpp"
 #include "algs/algs.hpp"     // for exp_backoff
 
 /**

@@ -10,11 +10,10 @@
 
 /***  This file declares the methods that install a new algorithm */
 
-#ifndef INST_HPP__
-#define INST_HPP__
+#ifndef LIBSTM_INST_HPP
+#define LIBSTM_INST_HPP
 
-#include <stm/config.h>
-#include <common/platform.hpp>
+#include "platform.hpp"
 
 namespace stm
 {
@@ -29,4 +28,4 @@ namespace stm
 
 } // namespace stm
 
-#endif // INST_HPP__
+#endif // LIBSTM_INST_HPP

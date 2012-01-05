@@ -8,10 +8,8 @@
  *          Please see the file LICENSE.RSTM for licensing information
  */
 
-#ifndef MACROS_HPP__
-#define MACROS_HPP__
-
-#include <stm/config.h>
+#ifndef LIBSTM_MACROS_HPP
+#define LIBSTM_MACROS_HPP
 
 /**
  *  This file establishes a few helpful macros.  Some of these are obvious.
@@ -80,4 +78,4 @@
 #   define STM_ROLLBACK_SIG(tx, exception, len)  TxThread* tx
 #endif
 
-#endif // MACROS_HPP__
+#endif // LIBSTM_MACROS_HPP

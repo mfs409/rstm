@@ -9,10 +9,10 @@
  */
 
 #include "profiling.hpp"         // Trigger
-#include "common/platform.hpp"   // NORETURN, FASTCALL, etc
-#include "stm/lib_globals.hpp"   // AbortHandler
-#include "stm/macros.hpp"        // barrier signatures
-#include "stm/txthread.hpp"      // TxThread stuff
+#include "platform.hpp"   // NORETURN, FASTCALL, etc
+#include "lib_globals.hpp"   // AbortHandler
+#include "macros.hpp"        // barrier signatures
+#include "txthread.hpp"      // TxThread stuff
 #include "policies/policies.hpp" // curr_policy
 #include "algs/algs.hpp"         // stms
 #include "algs/tml_inline.hpp"

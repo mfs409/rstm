@@ -14,12 +14,11 @@
  *  logging the progress of a transaction.
  */
 
-#ifndef METADATA_HPP__
-#define METADATA_HPP__
+#ifndef LIBSTM_METADATA_HPP
+#define LIBSTM_METADATA_HPP
 
-#include <stm/config.h>
-#include "stm/MiniVector.hpp"
-#include "stm/BitFilter.hpp"
+#include "MiniVector.hpp"
+#include "BitFilter.hpp"
 
 namespace stm
 {
@@ -244,4 +243,4 @@ namespace stm
 
 } // namespace stm
 
-#endif // METADATA_HPP__
+#endif // LIBSTM_METADATA_HPP

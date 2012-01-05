@@ -1,4 +1,4 @@
-ACLOCAL_AMFLAGS = -I config/m4
+ACLOCAL_AMFLAGS = -I m4
 lib_LTLIBRARIES = libitm2stm.la
 libitm2stm_la_SOURCES = BlockOperations.cpp Extras.cpp Scope.cpp \
 						Transaction.cpp libitm-5.1,5.cpp libitm-5.2.cpp \

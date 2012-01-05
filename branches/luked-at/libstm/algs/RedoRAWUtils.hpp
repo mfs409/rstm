@@ -8,10 +8,8 @@
  *          Please see the file LICENSE.RSTM for licensing information
  */
 
-#ifndef STM_REDO_RAW_CHECK_HPP
-#define STM_REDO_RAW_CHECK_HPP
-
-#include <stm/config.h>
+#ifndef LIBSTM_REDO_RAW_CHECK_HPP
+#define LIBSTM_REDO_RAW_CHECK_HPP
 
 /**
  *  Redo-log TMs all need to perform a read-after-write check in their read_rw
@@ -101,4 +99,4 @@
 #error "Preprocessor configuration error: STM_WS_(WORD|BYTE)LOG not defined."
 #endif
 
-#endif // STM_REDO_RAW_CHECK_HPP
+#endif // LIBSTM_REDO_RAW_CHECK_HPP

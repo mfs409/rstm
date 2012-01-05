@@ -21,7 +21,7 @@
 #include <cassert>
 #include <cstdlib>
 #include <string.h>
-#include <common/platform.hpp>
+#include "platform.hpp"
 
 namespace stm
 {
