@@ -19,7 +19,6 @@
  */
 
 #include <iostream>
-#include <alt-license/rand_r_32.h>
 #include <api/api.hpp>
 #include "bmconfig.hpp"
 
@@ -68,7 +67,7 @@ void bench_test(uintptr_t, uint32_t* seed)
         int sum = 0;
         int loc = 0;
         for (uint32_t i = 0; i < CFG.ops; ++i) {
-            loc = rand_r_32(&local_seed) % CFG.elements;
+            loc = rand_r((uint32_t*)&local_seed) % CFG.elements;
             sum += TM_READ(matrix[loc]);
         }
         TM_WRITE(matrix[loc], sum);
