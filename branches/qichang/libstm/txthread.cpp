@@ -51,7 +51,7 @@ namespace stm
   /*** BACKING FOR GLOBAL VARS DECLARED IN TXTHREAD.HPP */
   pad_word_t threadcount          = {0}; // thread count
   TxThread*  threads[MAX_THREADS] = {0}; // all TxThreads
-  THREAD_LOCAL_DECL_TYPE(TxThread*) Self; // this thread's TxThread
+  __thread TxThread* Self = NULL;        // this thread's TxThread
 
   /**
    *  Constructor sets up the lists and vars
@@ -63,7 +63,7 @@ namespace stm
         num_ro(0), scope(NULL),
 #ifdef STM_PROTECT_STACK
         stack_high(NULL),
-        stack_low(~0x0),
+        stack_low((void**)~0x0),
 #endif
         start_time(0), tmlHasLock(false), undo_log(64), vlist(64), writes(64),
         r_orecs(64), locks(64),
@@ -75,7 +75,9 @@ namespace stm
         my_mcslock(new mcs_qnode_t()),
         cm_ts(INT_MAX),
         cf((filter_t*)FILTER_ALLOC(sizeof(filter_t))),
-        nanorecs(64), begin_wait(0), strong_HG(),
+        nanorecs(64),
+        begin_wait(0),
+        strong_HG(),
         irrevocable(false)
   {
       // prevent new txns from starting.

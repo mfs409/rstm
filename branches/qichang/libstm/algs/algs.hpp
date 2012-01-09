@@ -223,7 +223,7 @@ namespace stm
       bits = (bits > BACKOFF_MAX) ? BACKOFF_MAX : bits;
       // get a random amount of time to wait, bounded by an exponentially
       // increasing limit
-      int32_t delay = rand_r_32(&tx->seed);
+      int32_t delay = rand_r(&tx->seed);
       delay &= ((1 << bits)-1);
       // wait until at least that many ns have passed
       unsigned long long start = getElapsedTime();

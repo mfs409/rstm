@@ -8,6 +8,7 @@
  *          Please see the file LICENSE.RSTM for licensing information
  */
 
+#include "profiling.hpp"         // Trigger
 #include "common/platform.hpp"   // NORETURN, FASTCALL, etc
 #include "stm/lib_globals.hpp"   // AbortHandler
 #include "stm/macros.hpp"        // barrier signatures
@@ -22,6 +23,7 @@ using stm::AbortHandler;
 using stm::stms;
 using stm::curr_policy;
 using stm::CGL;
+using stm::Trigger;
 
 namespace {
   /**
@@ -81,7 +83,14 @@ namespace {
       CFENCE;
       TxThread::tmbegin = stms[curr_policy.ALG_ID].begin;
       // finally, call the standard commit cleanup routine
-      OnReadOnlyCommit(tx);
+      // OnReadOnlyCommit(tx);
+      // NB: We need custom commit logic here, in particular, we don't want to
+      //     notify the allocator of anything because irrevocable transactions
+      //     don't buffer allocations.
+      tx->abort_hist.onCommit(tx->consec_aborts);
+      tx->consec_aborts = 0;
+      ++tx->num_commits;
+      Trigger::onCommitSTM(tx);
   }
 
   /**
@@ -166,6 +175,7 @@ namespace stm
 
       // If inflight succeeded, switch our barriers and return true.
       if (tx->irrevocable) {
+          tx->allocator.onTxCommit();    // tell the allocator do cleanup
           set_irrevocable_barriers(*tx);
           return;
       }
@@ -208,6 +218,8 @@ namespace stm
   bool begin_blocker(TxThread* tx)
   {
       // if the caller is trying to restart as irrevocable, let them
+      // NB: do not notify allocator of anything because irrevocable
+      //     transactions don't buffer allocation.
       if (tx->irrevocable) {
           set_irrevocable_barriers(*tx);
           return true;

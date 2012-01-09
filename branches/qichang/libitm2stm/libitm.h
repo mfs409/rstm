@@ -24,11 +24,7 @@ extern "C" {
 
 #include <stdint.h>     // uint32_t
 #include <stdbool.h>    // bool for tryCommitTransaction
-#ifndef __AVX__
-#    include "alt-license/avxintrin_emu.h"
-#else
-#    include <immintrin.h>  // sse-specific type __m256, __m128, __m64
-#endif
+#include <immintrin.h>  // sse-specific type __m256, __m128, __m64
 
 // -----------------------------------------------------------------------------
 // 4  Types and macro list -----------------------------------------------------
@@ -238,6 +234,7 @@ void _ITM_FASTCALL _ITM_WM128(_ITM_transaction*, __m128*, __m128);
 void _ITM_FASTCALL _ITM_WaRM128(_ITM_transaction*, __m128*, __m128);
 void _ITM_FASTCALL _ITM_WaWM128(_ITM_transaction*, __m128*, __m128);
 
+#ifdef __AVX__
 __m256 _ITM_FASTCALL _ITM_RM256(_ITM_transaction*, const __m256*);
 __m256 _ITM_FASTCALL _ITM_RaRM256(_ITM_transaction*, const __m256*);
 __m256 _ITM_FASTCALL _ITM_RaWM256(_ITM_transaction*, const __m256*);
@@ -246,6 +243,7 @@ __m256 _ITM_FASTCALL _ITM_RfWM256(_ITM_transaction*, const __m256*);
 void _ITM_FASTCALL _ITM_WM256(_ITM_transaction*, __m256*, __m256);
 void _ITM_FASTCALL _ITM_WaRM256(_ITM_transaction*, __m256*, __m256);
 void _ITM_FASTCALL _ITM_WaWM256(_ITM_transaction*, __m256*, __m256);
+#endif
 
 _Complex float _ITM_FASTCALL _ITM_RCF(_ITM_transaction*, const _Complex float*);
 _Complex float _ITM_FASTCALL _ITM_RaRCF(_ITM_transaction*, const _Complex float*);
@@ -331,7 +329,9 @@ void _ITM_FASTCALL _ITM_LD(_ITM_transaction*, const double*);
 void _ITM_FASTCALL _ITM_LE(_ITM_transaction*, const long double*);
 void _ITM_FASTCALL _ITM_LM64(_ITM_transaction*, const __m64*);
 void _ITM_FASTCALL _ITM_LM128(_ITM_transaction*, const __m128*);
+#ifdef __AVX__
 void _ITM_FASTCALL _ITM_LM256(_ITM_transaction*, const __m256*);
+#endif
 void _ITM_FASTCALL _ITM_LCF(_ITM_transaction*, const _Complex float*);
 void _ITM_FASTCALL _ITM_LCD(_ITM_transaction*, const _Complex double*);
 void _ITM_FASTCALL _ITM_LCE(_ITM_transaction*, const _Complex long double*);
