@@ -40,9 +40,8 @@ namespace stm
       BitLazy, LLT, TLI, ByteEager, MCS, Serial, BitEager, ByteLazy,
       ByEAR, OrecEagerRedo, ByteEagerRedo, BitEagerRedo,
       RingALA, Nano, Swiss,
-
-      ByEAUBackoff, ByEAUFCM, ByEAUNoBackoff, ByEAUHour,
-      OrEAUBackoff, OrEAUFCM, OrEAUNoBackoff, OrEAUHour,
+      ByEAU, ByEAUFCM, ByEAUHA, ByEAUHour,
+      OrEAU, OrEAUFCM, OrEAUHA, OrEAUHour,
       OrecEager, OrecEagerHour, OrecEagerBackoff, OrecEagerHB,
       OrecLazy,  OrecLazyHour,  OrecLazyBackoff,  OrecLazyHB,
       NOrec,     NOrecHour,     NOrecBackoff,     NOrecHB,
@@ -223,7 +222,7 @@ namespace stm
       bits = (bits > BACKOFF_MAX) ? BACKOFF_MAX : bits;
       // get a random amount of time to wait, bounded by an exponentially
       // increasing limit
-      int32_t delay = rand_r(&tx->seed);
+      int32_t delay = rand_r_32(&tx->seed);
       delay &= ((1 << bits)-1);
       // wait until at least that many ns have passed
       unsigned long long start = getElapsedTime();
@@ -244,6 +243,7 @@ namespace stm
       tx->allocator.onTxCommit();
       tx->abort_hist.onCommit(tx->consec_aborts);
       tx->consec_aborts = 0;
+      tx->consec_ro = 0;
       ++tx->num_commits;
       tx->tmread = read_ro;
       tx->tmwrite = write_ro;
@@ -256,6 +256,7 @@ namespace stm
       tx->allocator.onTxCommit();
       tx->abort_hist.onCommit(tx->consec_aborts);
       tx->consec_aborts = 0;
+      tx->consec_ro = 0;
       ++tx->num_commits;
       Trigger::onCommitSTM(tx);
   }
@@ -265,6 +266,7 @@ namespace stm
       tx->allocator.onTxCommit();
       tx->abort_hist.onCommit(tx->consec_aborts);
       tx->consec_aborts = 0;
+      ++tx->consec_ro;
       ++tx->num_ro;
       Trigger::onCommitSTM(tx);
   }
@@ -272,6 +274,7 @@ namespace stm
   inline void OnCGLCommit(TxThread* tx)
   {
       tx->allocator.onTxCommit();
+      tx->consec_ro = 0;
       ++tx->num_commits;
       Trigger::onCommitLock(tx);
   }
@@ -279,6 +282,7 @@ namespace stm
   inline void OnReadOnlyCGLCommit(TxThread* tx)
   {
       tx->allocator.onTxCommit();
+      ++tx->consec_ro;
       ++tx->num_ro;
       Trigger::onCommitLock(tx);
   }

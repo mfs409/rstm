@@ -157,3 +157,10 @@ cmake_dependent_option(
   libstm_use_sse
   "ON to use SSE for things like bit-filter intersections" ON
   "NOT CMAKE_BUILD_TYPE STREQUAL Debug AND NOT CMAKE_SYSTEM_PROCESSOR MATCHES sparc" OFF)
+
+## Experimental: Allow use of PAPI for interfacing with the hardware
+## performance monitoring unit (PMU)
+cmake_dependent_option(
+  libstm_use_pmu
+  "ON to enable hardware performance counter support (Linux/x86 only)" OFF
+  "NOT CMAKE_SYSTEM_PROCESSOR MATCHES sparc AND CMAKE_SYSTEM_NAME MATCHES Linux" OFF)

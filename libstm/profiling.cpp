@@ -91,6 +91,10 @@ namespace
           while ((i != (tx->id-1)) && (threads[i]->scope))
               spin64();
 
+      // since this operation is done, we can clear out any state related to
+      // why we adapted
+      curr_policy.requested_switch = false;
+
       // adjust thresholds
       adjust_thresholds(new_algorithm, curr_policy.ALG_ID);
 

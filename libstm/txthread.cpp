@@ -51,7 +51,7 @@ namespace stm
   /*** BACKING FOR GLOBAL VARS DECLARED IN TXTHREAD.HPP */
   pad_word_t threadcount          = {0}; // thread count
   TxThread*  threads[MAX_THREADS] = {0}; // all TxThreads
-  __thread TxThread* Self = NULL;        // this thread's TxThread
+  THREAD_LOCAL_DECL_TYPE(TxThread*) Self; // this thread's TxThread
 
   /**
    *  Constructor sets up the lists and vars
@@ -61,9 +61,9 @@ namespace stm
         allocator(),
         num_commits(0), num_aborts(0), num_restarts(0),
         num_ro(0), scope(NULL),
-#ifdef STM_PROTECT_STACK
+#ifdef STM_STACK_PROTECT
         stack_high(NULL),
-        stack_low((void**)~0x0),
+        stack_low(~0x0),
 #endif
         start_time(0), tmlHasLock(false), undo_log(64), vlist(64), writes(64),
         r_orecs(64), locks(64),
@@ -75,10 +75,8 @@ namespace stm
         my_mcslock(new mcs_qnode_t()),
         cm_ts(INT_MAX),
         cf((filter_t*)FILTER_ALLOC(sizeof(filter_t))),
-        nanorecs(64),
-        begin_wait(0),
-        strong_HG(),
-        irrevocable(false)
+        nanorecs(64), begin_wait(0), strong_HG(),
+        irrevocable(false), pmu()
   {
       // prevent new txns from starting.
       while (true) {
@@ -133,6 +131,9 @@ namespace stm
       // set the epoch to default
       epochs[id-1].val = EPOCH_MAX;
 
+      // configure the pmu
+      pmu.onThreadInit();
+
       // NB: at this point, we could change the mode based on the thread
       //     count.  The best way to do so would be to install ProfileTM.  We
       //     would need to be very careful, though, in case another thread is
@@ -184,6 +185,13 @@ namespace stm
 
       // create a TxThread and save it in thread-local storage
       Self = new TxThread();
+  }
+
+  /*** shut down a thread */
+  void TxThread::thread_shutdown()
+  {
+      // for now, all we need to do is dump the PMU information
+      Self->pmu.onThreadShutdown();
   }
 
   /**
@@ -250,6 +258,10 @@ namespace stm
                     << ((100*app_profiles->timecounter)/nontxn_count) << ", "
                     << pct_ro << " #" << std::endl;
       }
+
+      // dump PMU information, if any
+      pmu_t::onSysShutdown();
+
       CFENCE;
       mtx = 0;
   }
@@ -376,7 +388,10 @@ namespace stm
           // now set the phase
           set_policy(cfg);
 
-          printf("STM library configured using config == %s\n", cfg);
+          // and configure the PMU interface
+          pmu_t::onSysInit();
+
+          printf("STM library configured using %s\n", cfg);
 
           mtx = 2;
       }

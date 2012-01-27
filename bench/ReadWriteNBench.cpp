@@ -19,6 +19,7 @@
  */
 
 #include <iostream>
+#include <alt-license/rand_r_32.h>
 #include <api/api.hpp>
 #include "bmconfig.hpp"
 
@@ -67,7 +68,7 @@ void bench_test(uintptr_t, uint32_t* seed)
         int snapshot[1024];
         uint32_t loc[1024];
         for (uint32_t i = 0; i < CFG.ops; ++i) {
-            loc[i] = rand_r((uint32_t*)&local_seed) % CFG.elements;
+            loc[i] = rand_r_32(&local_seed) % CFG.elements;
             snapshot[i] = TM_READ(matrix[loc[i]]);
         }
         for (uint32_t i = 0; i < CFG.ops; ++i) {

@@ -19,6 +19,7 @@
  */
 
 #include <iostream>
+#include <alt-license/rand_r_32.h>
 #include <api/api.hpp>
 #include "bmconfig.hpp"
 
@@ -65,7 +66,7 @@ void bench_init()
 /*** Run a bunch of random transactions */
 void bench_test(uintptr_t, uint32_t* seed)
 {
-    uint32_t val = rand_r(seed) % CFG.elements;
+    uint32_t val = rand_r_32(seed) % CFG.elements;
     TM_BEGIN(atomic) {
         SET->modify(val TM_PARAM);
     } TM_END;

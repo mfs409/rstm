@@ -45,7 +45,6 @@ set(CMAKE_THREAD_PREFER_PTHREAD 1)
 find_package(Threads)
 find_package(OpenMP)
 
-
 # The threads package is sort of wonky in that it doesn't set any compile
 # flags, just a link flag.
 #
@@ -58,13 +57,12 @@ find_package(OpenMP)
 # platforms where the LIBS_LIBS is actually a library, we get warnings if we
 # try and add the LIBS_INIT to the CXXFLAGS. We deal with this by definining
 # another variable for the include-side
-#
 string(REGEX MATCH "-l" CMAKE_THREAD_LIBS_IS_LIB ${CMAKE_THREAD_LIBS_INIT})
 if (NOT CMAKE_THREAD_LIBS_IS_LIB)
   set(CMAKE_THREAD_INCLUDE ${CMAKE_THREAD_LIBS_INIT})
 endif ()
 
-# Include all fo the relevant UserConfig modules.
+# Include all of the relevant UserConfig modules.
 include (UserConfig.cmake)
 include (libstm/UserConfig.cmake)
 if (rstm_enable_mesh)
@@ -77,7 +75,7 @@ if (rstm_enable_stamp)
   include (stamp-0.9.10/UserConfig.cmake)
 endif ()
 
-# Build a list of the architectures (-m32/63) that we have configured. This is
+# Build a list of the architectures (-m32/64) that we have configured. This is
 # used all over the place for multilib-like builds.
 set(rstm_archs)
 if (rstm_build_32-bit)

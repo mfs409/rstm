@@ -29,6 +29,8 @@
 // Target OS
 #cmakedefine STM_OS_LINUX
 #cmakedefine STM_OS_SOLARIS
+#cmakedefine STM_OS_MACOS
+#cmakedefine STM_OS_WINDOWS
 
 // The kind of build we're doing
 #cmakedefine STM_O3
@@ -58,5 +60,8 @@
 
 // Defined when we want to optimize for SSE execution
 #cmakedefine STM_USE_SSE
+
+// Allow use of PMU for adaptivity
+#cmakedefine STM_USE_PMU
 
 #endif // RSTM_STM_INCLUDE_CONFIG_H

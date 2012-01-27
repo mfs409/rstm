@@ -26,8 +26,7 @@ namespace
 
 pad_word_t stm::trans_nums[MAX_THREADS] = {{0}};
 
-// [mfs] the caller has an odd timestamp at the time of the call.  Does that
-//       mean it will not reclaim some things as early as it might otherwise?
+
 void WBMMPolicy::handle_full_prelimbo()
 {
     // get the current timestamp from the epoch

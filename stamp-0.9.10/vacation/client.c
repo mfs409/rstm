@@ -183,7 +183,13 @@ client_run (void* argPtr)
         switch (action) {
 
             case ACTION_MAKE_RESERVATION: {
-                long maxPrices[NUM_RESERVATION_TYPE] = { -1, -1, -1 };
+                // [mfs] making maxPrices volatile resolves a bug when using
+                //       gcc4.3.2 on SPARC, where maxPrices initializer does
+                //       not work correctly (the numbers are >70K), and
+                //       consequently we get an outlandish number of RO
+                //       transactions due to the "if (price > maxPrices[t])"
+                //       statement never evaluating true
+                volatile long maxPrices[NUM_RESERVATION_TYPE] = { -1, -1, -1 };
                 long maxIds[NUM_RESERVATION_TYPE] = { -1, -1, -1 };
                 long n;
                 long numQuery = random_generate(randomPtr) % numQueryPerTransaction + 1;

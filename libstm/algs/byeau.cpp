@@ -394,8 +394,8 @@ namespace {
 // Register ByEAU initializer functions. Do this as declaratively as
 // possible. Remember that they need to be in the stm:: namespace.
 #define FOREACH_BYEAU(MACRO)                    \
-    MACRO(ByEAUBackoff, BackoffCM)                     \
-    MACRO(ByEAUNoBackoff, HyperAggressiveCM)           \
+    MACRO(ByEAU, BackoffCM)                     \
+    MACRO(ByEAUHA, HyperAggressiveCM)           \
     MACRO(ByEAUFCM, FCM)                        \
     MACRO(ByEAUHour, HourglassCM)
 

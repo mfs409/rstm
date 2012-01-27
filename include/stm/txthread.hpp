@@ -19,7 +19,9 @@
 #ifndef TXTHREAD_HPP__
 #define TXTHREAD_HPP__
 
+#include "alt-license/rand_r_32.h"
 #include "common/locks.hpp"
+#include "common/ThreadLocal.hpp"
 #include "stm/metadata.hpp"
 #include "stm/WriteSet.hpp"
 #include "stm/UndoLog.hpp"
@@ -85,6 +87,7 @@ namespace stm
       filter_t*      cf;            // conflict filter (RingALA)
       NanorecList    nanorecs;      // list of nanorecs held
       uint32_t       consec_commits;// count consec commits
+      uint32_t       consec_ro;     // count consec ro commits
       toxic_t        abort_hist;    // for counting poison
       uint32_t       begin_wait;    // how long did last tx block at begin
       bool           strong_HG;     // for strong hourglass
@@ -93,6 +96,7 @@ namespace stm
       /*** PER-THREAD FIELDS FOR ENABLING ADAPTIVITY POLICIES */
       uint64_t      end_txn_time;      // end of non-transactional work
       uint64_t      total_nontxn_time; // time on non-transactional work
+      pmu_t         pmu;               // for accessing the hardware PMU
 
       /*** POINTERS TO INSTRUMENTATION */
 
@@ -144,9 +148,9 @@ namespace stm
       static bool(*tmirrevoc)(TxThread*);
 
       /**
-       * for shutting down threads.  Currently a no-op.
+       *  For shutting down threads.
        */
-      static void thread_shutdown() { }
+      static void thread_shutdown();
 
       /**
        * the init factory.  Construction of TxThread objects is only possible
@@ -159,7 +163,7 @@ namespace stm
   }; // class TxThread
 
   /*** GLOBAL VARIABLES RELATED TO THREAD MANAGEMENT */
-  extern __thread TxThread* Self; // this thread's TxThread
+  extern THREAD_LOCAL_DECL_TYPE(TxThread*) Self; // this thread's TxThread
 
 } // namespace stm
 

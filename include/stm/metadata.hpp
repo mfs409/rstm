@@ -186,9 +186,9 @@ namespace stm
   typedef MiniVector<void*>        AddressList;  // for the mmpolicy
 
   /**
-   *  These are for counting consecutive aborts in a histogram.  We use them
-   *  for measuring toxic transactions.  Note that there is special support
-   *  for counting how many times an hourglass transaction commits or aborts.
+   *  This is for counting consecutive aborts in a histogram.  We use it for
+   *  measuring toxic transactions.  Note that there is special support for
+   *  counting how many times an hourglass transaction commits or aborts.
    */
   struct toxic_histogram_t
   {
@@ -240,6 +240,42 @@ namespace stm
   typedef toxic_histogram_t toxic_t;
 #else
   typedef toxic_nop_t toxic_t;
+#endif
+
+  /**
+   *  This is for providing an interface to the PMU (currently via PAPI) in
+   *  order to measure low-level hardware events that occur during transaction
+   *  execution.
+   */
+  struct pmu_papi_t
+  {
+      static const int VAL_COUNT = 8;
+      int EventSet;
+      long long values[VAL_COUNT];
+      static int WhichEvent;
+      static void onSysInit();
+      static void onSysShutdown();
+      void onThreadInit();
+      void onThreadShutdown();
+      pmu_papi_t();
+  };
+
+  /**
+   *  When STM_USE_PMU is not set, we don't do anything for these
+   */
+  struct pmu_nop_t
+  {
+      static void onSysInit()     { }
+      static void onSysShutdown() { }
+      void onThreadInit()         { }
+      void onThreadShutdown()     { }
+      pmu_nop_t()                 { }
+  };
+
+#ifdef STM_USE_PMU
+  typedef pmu_papi_t pmu_t;
+#else
+  typedef pmu_nop_t pmu_t;
 #endif
 
 } // namespace stm

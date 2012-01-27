@@ -18,15 +18,29 @@
    Software Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA
    02111-1307 USA.  */
 
-#ifndef RAND_R_H
-#define RAND_R_H
+#ifndef RAND_R_32_H__
+#define RAND_R_32_H__
 
 #include <stdlib.h>
+#include <stm/config.h>
 
 /* This algorithm is mentioned in the ISO C standard, here extended
    for 32 bits.  */
-int
-rand_r (unsigned int *seed)
+
+/**
+ *  Changes:
+ *
+ *    The file/function name has been changed from rand_r to rand_r_32.
+ *
+ *    Added attributes for transactional use.
+ *
+ *    Cloned the function to handle the case where the seed is volatile
+ */
+#if defined(STM_API_CXXTM)
+[[transaction_safe]]
+#endif
+inline int
+rand_r_32 (unsigned int *seed)
 {
     unsigned int next = *seed;
     int result;
@@ -50,4 +64,32 @@ rand_r (unsigned int *seed)
     return result;
 }
 
-#endif // RAND_R_H
+#if defined(STM_API_CXXTM)
+[[transaction_safe]]
+#endif
+inline int
+rand_r_32 (volatile unsigned int *seed)
+{
+    unsigned int next = *seed;
+    int result;
+
+    next *= 1103515245;
+    next += 12345;
+    result = (unsigned int) (next / 65536) % 2048;
+
+    next *= 1103515245;
+    next += 12345;
+    result <<= 10;
+    result ^= (unsigned int) (next / 65536) % 1024;
+
+    next *= 1103515245;
+    next += 12345;
+    result <<= 10;
+    result ^= (unsigned int) (next / 65536) % 1024;
+
+    *seed = next;
+
+    return result;
+}
+
+#endif // RAND_R_32_H__

@@ -60,26 +60,8 @@ set(sources
   policies/static.cpp
   )
 
-# Solaris includes a 16-bit implementation of rand_r, which isn't adequate for
-# what we want to do, so we have a replacement.
-if (CMAKE_SYSTEM_NAME MATCHES "SunOS")
-  list (APPEND sources ${CMAKE_SOURCE_DIR}/alt-license/rand_r.cpp)
-endif ()
-
-set(mmapwrapsources hooks.cpp)
-  
-# build 32 and/or 64 bit libraries for intercepting munmap, so that we can
-# avoid a problem when nontransactional code munmaps privatized memory that
-# is still being accessed by doomed transactions
 foreach (arch ${rstm_archs})
-  add_library(mmapwrapper${arch} SHARED ${mmapwrapsources})
-  append_property(TARGET mmapwrapper${arch} COMPILE_FLAGS -m${arch})
-  append_property(TARGET mmapwrapper${arch} LINK_FLAGS -m${arch})
-endforeach ()
-
-#  Build the RSTM library
-foreach (arch ${rstm_archs})
-  add_library(stm${arch} STATIC ${sources})
+  add_library(stm${arch} ${sources})
   append_property(TARGET stm${arch} COMPILE_FLAGS -m${arch})
   if (CMAKE_SYSTEM_NAME MATCHES "Linux")
     target_link_libraries(stm${arch} -lrt)
@@ -87,5 +69,7 @@ foreach (arch ${rstm_archs})
   if (CMAKE_SYSTEM_NAME MATCHES "SunOS")
     target_link_libraries(stm${arch} -lmtmalloc)
   endif ()
+  if (libstm_use_pmu MATCHES "ON")
+    target_link_libraries(stm${arch} -lpapi)
+  endif ()
 endforeach ()
-

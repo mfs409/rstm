@@ -19,6 +19,7 @@
  */
 #include <iostream>
 #include <vector>
+#include <alt-license/rand_r_32.h>
 #include <api/api.hpp>
 #include "bmconfig.hpp"
 
@@ -121,9 +122,9 @@ void bench_test(uintptr_t, uint32_t* seed)
             local_seed = *seed;
             for (uint32_t i = 0; i < SET->trees_per_tx; ++i) {
                 // pick a tree, a value, and a read-only ratio
-                int tree_idx = rand_r((uint32_t*)&local_seed) % SET->total_trees;
-                int val = rand_r((uint32_t*)&local_seed) % SET->keydepths;
-                uint32_t act = rand_r((uint32_t*)&local_seed) % 100;
+                int tree_idx = rand_r_32(&local_seed) % SET->total_trees;
+                int val = rand_r_32(&local_seed) % SET->keydepths;
+                uint32_t act = rand_r_32(&local_seed) % 100;
                 // do a lookup?
                 if (act < SET->roratio)
                     SET->trees[tree_idx]->lookup(val TM_PARAM);

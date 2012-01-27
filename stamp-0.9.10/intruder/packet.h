@@ -79,11 +79,11 @@ typedef struct packet {
     long fragmentId;
     long numFragment;
     long length;
-#ifdef STM_CC_SUN
-    char data[0];
-#else
+/* #ifdef STM_CC_SUN */
+/*     char data[0]; */
+/* #else */
     char data[];
-#endif
+/* #endif */
 } packet_t;
 
 

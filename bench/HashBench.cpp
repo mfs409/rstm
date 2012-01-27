@@ -18,6 +18,7 @@
  *    Include the configuration code for the harness, and the API code.
  */
 #include <iostream>
+#include <alt-license/rand_r_32.h>
 #include <api/api.hpp>
 #include "bmconfig.hpp"
 
@@ -64,8 +65,8 @@ void bench_init()
 /*** Run a bunch of increment transactions */
 void bench_test(uintptr_t, uint32_t* seed)
 {
-    uint32_t val = rand_r(seed) % CFG.elements;
-    uint32_t act = rand_r(seed) % 100;
+    uint32_t val = rand_r_32(seed) % CFG.elements;
+    uint32_t act = rand_r_32(seed) % 100;
     if (act < CFG.lookpct) {
         TM_BEGIN(atomic) {
             SET->lookup(val TM_PARAM);

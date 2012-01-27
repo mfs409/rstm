@@ -41,6 +41,7 @@ namespace stm
       /*** thresholds for adapting due to aborts and waiting */
       int   abortThresh;
       int   waitThresh;
+      uint32_t roThresh;
 
       /*** does the policy use profiles? */
       bool  isDynamic;
@@ -55,7 +56,7 @@ namespace stm
       uint32_t (*TM_FASTCALL decider) ();
 
       /*** simple ctor, because a NULL name is a bad thing */
-      pol_t() : name(""){ }
+      pol_t() : name(""), roThresh(INT_MAX) { }
   };
 
   /**
@@ -76,6 +77,10 @@ namespace stm
 
       // did we make a decision due to aborting?
       bool abort_switch;
+
+      // was this decision based on an explicit request by the current STM
+      // implementation?
+      bool requested_switch;
 
       // so we can backoff on our thresholds when we have repeat
       // algorithim selections
@@ -254,6 +259,8 @@ namespace stm
       PROFILE_NOCHANGE,
       // the state-machine policies
       E, ER, R, X,
+      // test policies
+      MFS_NOL, MFS_TOL,
       // CBR without dynamic profiling
       CBR_RO,
       // CBR with dynamic profiling

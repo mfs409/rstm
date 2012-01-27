@@ -17,7 +17,7 @@ using namespace itm2stm;
 
 _ITM_transaction::Node::~Node() {
 #if defined(NODE_NEXT_)
-    ASSERT_OFFSET(__builtin_offsetof(Node, next_), NODE_NEXT_);
+    ASSERT_OFFSET(offsetof(Node, next_), NODE_NEXT_);
 #endif
     if (next_)
         delete next_;
@@ -31,10 +31,10 @@ _ITM_transaction::_ITM_transaction(TxThread& handle)
       next_tid_(_ITM_NoTransactionId + 1),
       prev_abort_(0) {
 #if defined(TRANSACTION_INNER_)
-    ASSERT_OFFSET(__builtin_offsetof(_ITM_transaction, scopes_), TRANSACTION_INNER_);
+    ASSERT_OFFSET(offsetof(_ITM_transaction, scopes_), TRANSACTION_INNER_);
 #endif
 #if defined(TRANSACTION_FREE_SCOPES_)
-    ASSERT_OFFSET(__builtin_offsetof(_ITM_transaction, free_scopes_),
+    ASSERT_OFFSET(offsetof(_ITM_transaction, free_scopes_),
                   TRANSACTION_FREE_SCOPES_);
 #endif
 }
