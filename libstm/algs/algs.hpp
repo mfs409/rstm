@@ -45,6 +45,7 @@ namespace stm
       OrecEager, OrecEagerHour, OrecEagerBackoff, OrecEagerHB,
       OrecLazy,  OrecLazyHour,  OrecLazyBackoff,  OrecLazyHB,
       NOrec,     NOrecHour,     NOrecBackoff,     NOrecHB,
+      Wealth, Cohorts,
       // ProfileTM support.  These are not true STMs
       ProfileTM, ProfileAppAvg, ProfileAppMax, ProfileAppAll,
       // end with a distinct value
@@ -63,7 +64,7 @@ namespace stm
   static const uint32_t EPOCH_MAX     = INT_MAX;  // default epoch
   static const uint32_t ACTIVE        = 0;        // transaction status
   static const uint32_t ABORTED       = 1;        // transaction status
-  static const uint32_t SWISS_PHASE2  = 10; // swisstm cm phase change thresh
+  static const uint32_t SWISS_PHASE2  = 10;       // swisstm cm phase change thresh
 
   /**
    *  These global fields are used for concurrency control and conflict
@@ -90,6 +91,10 @@ namespace stm
   // ProfileTM can't function without these
   extern dynprof_t*    profiles;          // a list of ProfileTM measurements
   extern uint32_t      profile_txns;      // how many txns per profile
+
+  // Global variables for Cohort
+  extern uint32_t tx_allowed;              // allow tx to start or not
+  extern uint32_t tx_total;                // total # of tx in one cohort
 
   /**
    *  To describe an STM algorithm, we provide a name, a set of function
