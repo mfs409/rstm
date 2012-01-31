@@ -67,6 +67,10 @@ namespace stm
   /*** for some CMs */
   pad_word_t fcm_timestamp = {0};
 
+  /*** for Cohorts */
+  uint32_t tx_allowed = 1;
+  uint32_t tx_total = 0;
+
   /*** Store descriptions of the STM algorithms */
   alg_t stms[ALG_MAX];
 
