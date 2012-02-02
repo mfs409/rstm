@@ -55,6 +55,8 @@ set(sources
   algs/tli.cpp
   algs/tml.cpp
   algs/tmllazy.cpp
+  algs/wealth.cpp
+  algs/cohorts.cpp
   policies/cbr.cpp
   policies/policies.cpp
   policies/static.cpp
