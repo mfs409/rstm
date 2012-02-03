@@ -93,7 +93,7 @@ namespace stm
   extern uint32_t      profile_txns;      // how many txns per profile
 
   // Global variables for Cohort
-  extern volatile uint32_t tx_total;      // total # of tx waiting for commit in a cohort
+  extern volatile int32_t tx_total;      // total # of tx waiting for commit in a cohort
 
   /**
    *  To describe an STM algorithm, we provide a name, a set of function

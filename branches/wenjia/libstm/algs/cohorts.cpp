@@ -57,6 +57,8 @@ namespace {
       static void onSwitchTo();
       static NOINLINE void validate(TxThread* tx, uintptr_t finish_cache);
       static NOINLINE void validate_cm(TxThread* tx, uintptr_t finish_cache);
+      static NOINLINE void TxAbortWrapper(TxThread* tx);
+      static NOINLINE void TxAbortWrapper_cm(TxThread* tx);
   };
 
   /**
@@ -70,13 +72,21 @@ namespace {
   Cohorts::begin(TxThread* tx)
   {
       // wait until we are allowed to start
-      while (tx_total > 0){
-          // in this wait loop, we need to check if an adaptivity action is
-          // underway :(
+      // when tx_total is even, we wait
+      while (tx_total % 2 == 0){
+          // unless tx_total is 0, which means all commits is done
+          if (tx_total == 0)
+              // now we can start again
+              __sync_val_compare_and_swap(&tx_total, 0, -1);
+          // check if an adaptivity action is underway
           if (TxThread::tmbegin != begin){
               tx->tmabort(tx);
           }
       }
+
+      CFENCE;
+      // before start, increase total number of tx in one cohort
+      __sync_fetch_and_add(&tx_total, 2);
 
       tx->allocator.onTxBegin();
       // get time of last finished txn
@@ -92,9 +102,12 @@ namespace {
   void
   Cohorts::commit_ro(TxThread* tx)
   {
+      __sync_fetch_and_sub(&tx_total, 2);
+
       // commit all frees, reset all lists
       tx->r_orecs.reset();
       OnReadOnlyCommit(tx);
+
   }
 
   /**
@@ -106,22 +119,20 @@ namespace {
   void
   Cohorts::commit_rw(TxThread* tx)
   {
-      // before commit, add one to tx_total
-      __sync_fetch_and_add ( &tx_total, 1 );
-
       // NB: get a new order at the begainning of commit
       tx->order = 1 + faiptr(&timestamp.val);
 
       // wait until it is our turn to commit, validate, and do writeback
       while (last_complete.val != (uintptr_t)(tx->order - 1)) {
-          if (TxThread::tmbegin != begin){
-
-              // decrease total number of committing tx
-              __sync_fetch_and_sub ( &tx_total, 1 );
-
-              tx->tmabort(tx);
-          }
+          if (TxThread::tmbegin != begin)
+              TxAbortWrapper_cm(tx);
       }
+
+      // since we have order, from now on ,only one tx can go through below at one time
+
+      // set tx_total from odd to even, so that no one can begin now
+      if (tx_total % 2 != 0)
+          __sync_fetch_and_add(&tx_total, 1);
 
       // since we have the token, we can validate before getting locks
       validate_cm(tx, last_complete.val);
@@ -143,20 +154,19 @@ namespace {
           }
       }
 
-      // mark self as done
-      last_complete.val = tx->order;
-
-      // set status to committed...
-      tx->order = -1;
-
       // commit all frees, reset all lists
       tx->r_orecs.reset();
       tx->writes.reset();
       OnReadWriteCommit(tx, read_ro, write_ro, commit_ro);
 
       // decrease total number of committing tx
-      __sync_fetch_and_sub ( &tx_total, 1 );
+      __sync_fetch_and_sub(&tx_total, 2);
 
+      // mark self as done
+      last_complete.val = tx->order;
+
+      // set status to committed...
+      tx->order = -1;
   }
 
   /**
@@ -177,7 +187,7 @@ namespace {
       // NB: this is a pretty serious tradeoff... it admits false aborts for
       //     the sake of preventing a 'check if locked' test
       if (ivt > tx->ts_cache){
-          tx->tmabort(tx);
+          TxAbortWrapper(tx);
       }
 
       // log orec
@@ -210,7 +220,6 @@ namespace {
 
   /**
    *  Cohorts write (read-only context)
-   *  NB: get order on first write
    */
   void
   Cohorts::write_ro(STM_WRITE_SIG(tx,addr,val,mask))
@@ -265,30 +274,6 @@ namespace {
   }
 
   /**
-   *  Cohorts validation, only invoked in commit
-   */
-  void
-  Cohorts::validate_cm(TxThread* tx, uintptr_t finish_cache)
-  {
-      // check that all reads are valid
-      foreach (OrecList, i, tx->r_orecs) {
-          // read this orec
-          uintptr_t ivt = (*i)->v.all;
-          // if it has a timestamp of ts_cache or greater, abort
-          if (ivt > tx->ts_cache){
-              // decrease total number of committing tx
-              __sync_fetch_and_sub ( &tx_total, 1 );
-              // set self as completed
-              last_complete.val = tx->order;
-              tx->tmabort(tx);
-          }
-      }
-      // now update the finish_cache to remember that at this time, we were
-      // still valid
-      tx->ts_cache = finish_cache;
-  }
-
-  /**
    *  Cohorts validation
    */
   void
@@ -300,11 +285,62 @@ namespace {
           uintptr_t ivt = (*i)->v.all;
           // if it has a timestamp of ts_cache or greater, abort
           if (ivt > tx->ts_cache)
-              tx->tmabort(tx);
+              TxAbortWrapper(tx);
       }
       // now update the finish_cache to remember that at this time, we were
       // still valid
       tx->ts_cache = finish_cache;
+  }
+
+  /**
+   *  Cohorts validation for commit
+   */
+  void
+  Cohorts::validate_cm(TxThread* tx, uintptr_t finish_cache)
+  {
+      // check that all reads are valid
+      foreach (OrecList, i, tx->r_orecs) {
+          // read this orec
+          uintptr_t ivt = (*i)->v.all;
+          // if it has a timestamp of ts_cache or greater, abort
+          if (ivt > tx->ts_cache)
+              TxAbortWrapper_cm(tx);
+      }
+      // now update the finish_cache to remember that at this time, we were
+      // still valid
+      tx->ts_cache = finish_cache;
+  }
+
+  /**
+   *   Cohorts Tx Abort Wrapper
+   *   decrease total # in one cohort, and abort
+   */
+  void
+  Cohorts::TxAbortWrapper(TxThread* tx)
+  {
+      // decrease total number of tx in one cohort
+      __sync_fetch_and_sub(&tx_total, 2);
+
+      // abort
+      tx->tmabort(tx);
+  }
+
+  /**
+   *   Cohorts Tx Abort Wrapper for commit
+   *   for abort inside commit. Since we already have order, we need to mark
+   *   self as last_complete, and decrease total number of tx in one cohort.
+   */
+  void
+  Cohorts::TxAbortWrapper_cm(TxThread* tx)
+  {
+      // decrease total number of tx in one cohort
+      __sync_fetch_and_sub(&tx_total, 2);
+
+      // set self as completed
+      last_complete.val = tx->order;
+
+      // abort
+      tx->tmabort(tx);
   }
 
   /**
@@ -323,6 +359,10 @@ namespace {
   {
       timestamp.val = MAXIMUM(timestamp.val, timestamp_max.val);
       last_complete.val = timestamp.val;
+
+      // init total tx number in an cohort
+      tx_total = -1;
+
       for (uint32_t i = 0; i < threadcount.val; ++i)
           threads[i]->order = -1;
   }
