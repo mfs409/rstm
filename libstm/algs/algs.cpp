@@ -68,7 +68,7 @@ namespace stm
   pad_word_t fcm_timestamp = {0};
 
   /*** for Cohorts */
-  volatile uint32_t tx_total = 0;
+  volatile int32_t tx_total = -1;
 
   /*** Store descriptions of the STM algorithms */
   alg_t stms[ALG_MAX];
