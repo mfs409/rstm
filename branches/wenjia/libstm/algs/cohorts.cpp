@@ -420,7 +420,7 @@ namespace {
           threads[i]->order = -1;
 
       // unlock all the locks
-      for (uint32_t i = 0; i < 8; i++)
+      for (uint32_t i = 0; i < 9; i++)
           locks[i] = 0;
   }
 }
