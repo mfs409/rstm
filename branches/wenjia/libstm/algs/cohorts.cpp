@@ -24,6 +24,11 @@
 #include "algs.hpp"
 #include "RedoRAWUtils.hpp"
 
+// define atomic operations
+#define CAS __sync_val_compare_and_swap
+#define ADD __sync_fetch_and_add
+#define SUB __sync_fetch_and_sub
+
 using stm::TxThread;
 using stm::threads;
 using stm::threadcount;
@@ -38,6 +43,10 @@ using stm::orec_t;
 using stm::get_orec;
 using stm::tx_total;
 
+// a big lock at locks[0], and small locks from locks[1] to locks[8]
+volatile uint32_t locks[9];
+
+/////////////////////////////////////////////////////////////////////////////
 /**
  *  Declare the functions that we're going to implement, so that we can avoid
  *  circular dependencies.
@@ -76,8 +85,14 @@ namespace {
       while (tx_total % 2 == 0){
           // unless tx_total is 0, which means all commits is done
           if (tx_total == 0)
+          {
+              // set no validation, for big lock
+              locks[0] = 0;
+
               // now we can start again
-              __sync_val_compare_and_swap(&tx_total, 0, -1);
+              CAS(&tx_total, 0, -1);
+          }
+
           // check if an adaptivity action is underway
           if (TxThread::tmbegin != begin){
               tx->tmabort(tx);
@@ -86,7 +101,7 @@ namespace {
 
       CFENCE;
       // before start, increase total number of tx in one cohort
-      __sync_fetch_and_add(&tx_total, 2);
+      ADD(&tx_total, 2);
 
       tx->allocator.onTxBegin();
       // get time of last finished txn
@@ -102,7 +117,8 @@ namespace {
   void
   Cohorts::commit_ro(TxThread* tx)
   {
-      __sync_fetch_and_sub(&tx_total, 2);
+      // decrease total number of tx in a cohort
+      SUB(&tx_total, 2);
 
       // commit all frees, reset all lists
       tx->r_orecs.reset();
@@ -122,7 +138,7 @@ namespace {
       // NB: get a new order at the begainning of commit
       tx->order = 1 + faiptr(&timestamp.val);
 
-      // wait until it is our turn to commit, validate, and do writeback
+      // Wait until it is our turn to commit, validate, and do writeback
       while (last_complete.val != (uintptr_t)(tx->order - 1)) {
           if (TxThread::tmbegin != begin)
               TxAbortWrapper_cm(tx);
@@ -130,9 +146,20 @@ namespace {
 
       // since we have order, from now on ,only one tx can go through below at one time
 
-      // set tx_total from odd to even, so that no one can begin now
+      // tx_total is odd, so I'm the first to enter commit in a cohort
       if (tx_total % 2 != 0)
-          __sync_fetch_and_add(&tx_total, 1);
+      {
+          // set tx_total from odd to even, so that no one can begin now
+          ADD(&tx_total, 1);
+
+          // set validation flag
+          CAS(&locks[0], 0, 1); // we need validations in read from now on
+
+          // wait until all the small locks are unlocked
+          for(uint32_t i = 1; i < 9 ; i++)
+              while(locks[i] != 0);
+
+      }
 
       // since we have the token, we can validate before getting locks
       validate_cm(tx, last_complete.val);
@@ -160,7 +187,7 @@ namespace {
       OnReadWriteCommit(tx, read_ro, write_ro, commit_ro);
 
       // decrease total number of committing tx
-      __sync_fetch_and_sub(&tx_total, 2);
+      SUB(&tx_total, 2);
 
       // mark self as done
       last_complete.val = tx->order;
@@ -178,6 +205,32 @@ namespace {
   {
       void* tmp = *addr;
       CFENCE; // RBR between dereference and orec check
+
+      // It's possible that no validation is needed
+      if (tx_total % 2 != 0 && locks[0] == 0)
+      {
+          // mark my lock 1, means I'm doing no validation read_ro
+          locks[tx->id] = 1;
+
+          if (locks[0] == 0)
+          {
+              orec_t* o = get_orec(addr);
+              // log orec
+              tx->r_orecs.insert(o);
+
+              // update the finish_cache to remember that at this time, we were valid
+              if (last_complete.val > tx->ts_cache)
+                  tx->ts_cache = last_complete.val;
+
+              // mark my lock 0, means I finished no validation read_ro
+              locks[tx->id] = 0;
+              return tmp;
+          }
+          else
+              // mark my lock 0, means I finished no validation read_ro
+              locks[tx->id] = 0;
+
+      }
 
       // get the orec addr, read the orec's version#
       orec_t* o = get_orec(addr);
@@ -319,7 +372,7 @@ namespace {
   Cohorts::TxAbortWrapper(TxThread* tx)
   {
       // decrease total number of tx in one cohort
-      __sync_fetch_and_sub(&tx_total, 2);
+      SUB(&tx_total, 2);
 
       // abort
       tx->tmabort(tx);
@@ -334,7 +387,7 @@ namespace {
   Cohorts::TxAbortWrapper_cm(TxThread* tx)
   {
       // decrease total number of tx in one cohort
-      __sync_fetch_and_sub(&tx_total, 2);
+      SUB(&tx_total, 2);
 
       // set self as completed
       last_complete.val = tx->order;
@@ -365,6 +418,10 @@ namespace {
 
       for (uint32_t i = 0; i < threadcount.val; ++i)
           threads[i]->order = -1;
+
+      // unlock all the locks
+      for (uint32_t i = 0; i < 8; i++)
+          locks[i] = 0;
   }
 }
 
