@@ -57,6 +57,7 @@ set(sources
   algs/tmllazy.cpp
   algs/wealth.cpp
   algs/cohorts.cpp
+  algs/cohortsnoorder.cpp
   policies/cbr.cpp
   policies/policies.cpp
   policies/static.cpp

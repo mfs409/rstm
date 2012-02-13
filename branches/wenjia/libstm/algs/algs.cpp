@@ -67,9 +67,10 @@ namespace stm
   /*** for some CMs */
   pad_word_t fcm_timestamp = {0};
 
-  /*** for Cohorts */
+  /*** for Cohorts and Cohortsnoorder*/
   volatile int32_t tx_total = -1;
-
+  volatile uint32_t locks[9] = {0};
+  
   /*** Store descriptions of the STM algorithms */
   alg_t stms[ALG_MAX];
 

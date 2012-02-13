@@ -42,9 +42,8 @@ using stm::WriteSetEntry;
 using stm::orec_t;
 using stm::get_orec;
 using stm::tx_total;
+using stm::locks;
 
-// a big lock at locks[0], and small locks from locks[1] to locks[8]
-volatile uint32_t locks[9];
 
 /////////////////////////////////////////////////////////////////////////////
 /**
@@ -227,7 +226,7 @@ namespace {
               return tmp;
           }
           else
-              // mark my lock 0, means I finished no validation read_ro
+              // mark my lock 0, means I will do validation read_ro
               locks[tx->id] = 0;
 
       }
