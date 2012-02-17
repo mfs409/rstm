@@ -45,7 +45,7 @@ namespace stm
       OrecEager, OrecEagerHour, OrecEagerBackoff, OrecEagerHB,
       OrecLazy,  OrecLazyHour,  OrecLazyBackoff,  OrecLazyHB,
       NOrec,     NOrecHour,     NOrecBackoff,     NOrecHB,
-      Wealth, Cohorts, Cohortsnoorder,
+      Wealth, Cohorts, Cohortsnoorder, Cohortsold,
       // ProfileTM support.  These are not true STMs
       ProfileTM, ProfileAppAvg, ProfileAppMax, ProfileAppAll,
       // end with a distinct value
@@ -92,11 +92,13 @@ namespace stm
   extern dynprof_t*    profiles;          // a list of ProfileTM measurements
   extern uint32_t      profile_txns;      // how many txns per profile
 
-  // Global variables for Cohort and Cohortsnoorder
+  // Global variables for Cohort, Cohortsnoorder and Cohortsold
   extern volatile int32_t tx_total;      // total # of tx waiting for commit in a cohort
   extern volatile uint32_t locks[9];     // a big lock at locks[0], and
 				         // small locks from locks[1] to locks[8]
-
+  extern volatile uint32_t started;     
+  extern volatile uint32_t cpending;;
+  extern volatile uint32_t committed;;     
   /**
    *  To describe an STM algorithm, we provide a name, a set of function
    *  pointers, and some other information
