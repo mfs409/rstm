@@ -79,22 +79,22 @@ namespace {
   {
   S1:
     // wait until everyone is committed
-    while(started != committed){
+    while (cpending != committed){
       // check if an adaptivity action is underway
       if (TxThread::tmbegin != begin){
 	tx->tmabort(tx);
       }
     }
     
-    // before start, increase total number of tx in one cohort
+    // before start, increase total number of tx
     ADD(&started, 1);
     
     // [NB] we must double check no one is ready to commit yet!
-    if(cpending == started){
+    if (cpending > committed){
       SUB(&started, 1);
       goto S1;
     }
-
+    
     tx->allocator.onTxBegin();
 
     // get time of last finished txn
@@ -131,42 +131,35 @@ namespace {
     // increase # of tx waiting to commit
     ADD(&cpending ,1);
 
-    // waiting for all tx ready to commit
+    // waiting for all tx are ready to commit
     while (cpending < started)
-      if (TxThread::tmbegin != begin)
-	{
-	  ADD(&committed, 1);
-	  tx->tmabort(tx);
-	}
-    
+      if (TxThread::tmbegin != begin){
+	ADD(&committed, 1);
+	tx->tmabort(tx);
+      }
     // get an order
-    tx->order = 1 + faiptr(&timestamp.val);    
-    
+    tx->order = 1 + faiptr(&timestamp.val);        
+
     // Wait until it is our turn to commit, validate, and do writeback
     while (last_complete.val != (uintptr_t)(tx->order - 1)) {
       if (TxThread::tmbegin != begin)
 	TxAbortWrapper(tx);
     }
-    
-    // validate before getting locks
-    validate(tx, last_complete.val);
-    
-    // if we had writes, then aborted, then restarted, and then didn't have
-    // writes, we could end up trying to lock a nonexistant write set.  This
-    // condition prevents that case.
-    if (tx->writes.size() != 0) {
-      // mark every location in the write set, and do write-back
-      foreach (WriteSet, i, tx->writes) {
-	// get orec
-	orec_t* o = get_orec(i->addr);
-	// mark orec
-	o->v.all = tx->order;
-	CFENCE; // WBW
-	// write-back
-	*i->addr = i->val;
-      }
+
+    // validate read before write back
+    validate(tx, last_complete.val);    
+
+    // mark every location in the write set, and do write-back
+    foreach (WriteSet, i, tx->writes) {
+      // get orec
+      orec_t* o = get_orec(i->addr);
+      // mark orec
+      o->v.all = tx->order;
+      CFENCE; // WBW
+      // write-back
+      *i->addr = i->val;
     }
-    
+
     // commit all frees, reset all lists
     tx->r_orecs.reset();
     tx->writes.reset();
@@ -174,7 +167,6 @@ namespace {
 
     // mark self as done
     last_complete.val = tx->order;
-
     // increase total number of committed tx
     ADD(&committed, 1);
   }
@@ -186,8 +178,8 @@ namespace {
   void*
   Cohorts::read_ro(STM_READ_SIG(tx,addr,))
   {
-    orec_t* o = get_orec(addr);
-    tx->r_orecs.insert(o);
+    // log orec
+    tx->r_orecs.insert( (orec_t*) get_orec(addr) );
     return *addr;
   }
 
@@ -201,12 +193,12 @@ namespace {
     WriteSetEntry log(STM_WRITE_SET_ENTRY(addr, NULL, mask));
     bool found = tx->writes.find(log);
     REDO_RAW_CHECK(found, log, mask);
-    
-    // reuse the ReadRO barrier, which is adequate here---reduces LOC
-    void* val = read_ro(tx, addr STM_MASK(mask));
+
+    // log orec
+    tx->r_orecs.insert( (orec_t*) get_orec(addr) );
     
     REDO_RAW_CLEANUP(tmp, found, log, mask);
-    return val;
+    return *addr;
   }
   
   /**
@@ -237,19 +229,15 @@ namespace {
   Cohorts::rollback(STM_ROLLBACK_SIG(tx, except, len))
   {
       PreRollback(tx);
-
+      
       // Perform writes to the exception object if there were any... taking the
       // branch overhead without concern because we're not worried about
       // rollback overheads.
       STM_ROLLBACK(tx->writes, except, len);
 
-      // reset all lists, but keep any order we acquired
+      // reset all lists
       tx->r_orecs.reset();
       tx->writes.reset();
-      // NB: we can't reset pointers here, because if the transaction
-      //     performed some writes, then it has an order.  If it has an
-      //     order, but restarts and is read-only, then it still must call
-      //     commit_rw to finish in-order
 
       return PostRollback(tx);
   }
@@ -265,28 +253,26 @@ namespace {
   }
 
   /**
-   *  Cohorts validation for commit
+   *  Cohorts validation for commit: check that all reads are valid
    */
   void
   Cohorts::validate(TxThread* tx, uintptr_t finish_cache)
-  {
-      // check that all reads are valid
-      foreach (OrecList, i, tx->r_orecs) {
-          // read this orec
-          uintptr_t ivt = (*i)->v.all;
-          // if it has a timestamp of ts_cache or greater, abort
-          if (ivt > tx->ts_cache)
-              TxAbortWrapper(tx);
-      }
-      // now update the finish_cache to remember that at this time, we were
-      // still valid
-      tx->ts_cache = finish_cache;
+  { 
+    foreach (OrecList, i, tx->r_orecs) {
+      // read this orec
+      uintptr_t ivt = (*i)->v.all;
+      // if it has a timestamp of ts_cache or greater, abort
+      if (ivt > tx->ts_cache)
+	TxAbortWrapper(tx);
+    }
+    // remember that at this time, we were still valid
+    tx->ts_cache = finish_cache;
   }
 
   /**
    *   Cohorts Tx Abort Wrapper for commit
-   *   for abort inside commit. Since we already have order, we need to mark
-   *   self as last_complete, increase total committed tx
+   *   for abort inside commit. Since we already have order, we need
+   *   to mark self as last_complete, increase total committed tx
    */
   void
   Cohorts::TxAbortWrapper(TxThread* tx)
