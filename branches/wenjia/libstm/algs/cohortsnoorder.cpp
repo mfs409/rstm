@@ -137,7 +137,7 @@ namespace {
 	// we need validations in read from now on
 	CAS(&locks[0], 0, 1); 
 	
-	// wait until all the small locks are unlocked
+	//wait until all the small locks are unlocked
 	for(uint32_t i = 1; i < 9; i++)
 	  while(locks[i] != 0);
       }

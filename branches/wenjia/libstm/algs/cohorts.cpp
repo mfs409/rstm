@@ -41,11 +41,11 @@ using stm::UNRECOVERABLE;
 using stm::WriteSetEntry;
 using stm::orec_t;
 using stm::get_orec;
-using stm::tx_total;
-using stm::locks;
 
+using stm::started;
+using stm::cpending;
+using stm::committed;
 
-/////////////////////////////////////////////////////////////////////////////
 /**
  *  Declare the functions that we're going to implement, so that we can avoid
  *  circular dependencies.
@@ -64,9 +64,7 @@ namespace {
       static bool irrevoc(TxThread*);
       static void onSwitchTo();
       static NOINLINE void validate(TxThread* tx, uintptr_t finish_cache);
-      static NOINLINE void validate_cm(TxThread* tx, uintptr_t finish_cache);
       static NOINLINE void TxAbortWrapper(TxThread* tx);
-      static NOINLINE void TxAbortWrapper_cm(TxThread* tx);
   };
 
   /**
@@ -79,34 +77,30 @@ namespace {
   bool
   Cohorts::begin(TxThread* tx)
   {
-      // wait until we are allowed to start
-      // when tx_total is even, we wait
-      while (tx_total % 2 == 0){
-          // unless tx_total is 0, which means all commits is done
-          if (tx_total == 0)
-          {
-              // set no validation, for big lock
-              locks[0] = 0;
-
-              // now we can start again
-              CAS(&tx_total, 0, -1);
-          }
-
-          // check if an adaptivity action is underway
-          if (TxThread::tmbegin != begin){
-              tx->tmabort(tx);
-          }
+  S1:
+    // wait until everyone is committed
+    while(started != committed){
+      // check if an adaptivity action is underway
+      if (TxThread::tmbegin != begin){
+	tx->tmabort(tx);
       }
+    }
+    
+    // before start, increase total number of tx in one cohort
+    ADD(&started, 1);
+    
+    // [NB] we must double check no one is ready to commit yet!
+    if(cpending == started){
+      SUB(&started, 1);
+      goto S1;
+    }
 
-      CFENCE;
-      // before start, increase total number of tx in one cohort
-      ADD(&tx_total, 2);
+    tx->allocator.onTxBegin();
 
-      tx->allocator.onTxBegin();
-      // get time of last finished txn
-      tx->ts_cache = last_complete.val;
-
-      return false;
+    // get time of last finished txn
+    tx->ts_cache = last_complete.val;
+    
+    return false;
   }
 
   /**
@@ -116,12 +110,12 @@ namespace {
   void
   Cohorts::commit_ro(TxThread* tx)
   {
-      // decrease total number of tx in a cohort
-      SUB(&tx_total, 2);
+    // decrease total number of tx started
+    SUB(&started, 1);
 
-      // commit all frees, reset all lists
-      tx->r_orecs.reset();
-      OnReadOnlyCommit(tx);
+    // commit all frees, reset all lists
+    tx->r_orecs.reset();
+    OnReadOnlyCommit(tx);
 
   }
 
@@ -134,67 +128,57 @@ namespace {
   void
   Cohorts::commit_rw(TxThread* tx)
   {
-      // NB: get a new order at the begainning of commit
-      tx->order = 1 + faiptr(&timestamp.val);
+    // increase # of tx waiting to commit
+    ADD(&cpending ,1);
 
-      // Wait until it is our turn to commit, validate, and do writeback
-      while (last_complete.val != (uintptr_t)(tx->order - 1)) {
-          if (TxThread::tmbegin != begin)
-              TxAbortWrapper_cm(tx);
+    // waiting for all tx ready to commit
+    while (cpending < started)
+      if (TxThread::tmbegin != begin)
+	{
+	  ADD(&committed, 1);
+	  tx->tmabort(tx);
+	}
+    
+    // get an order
+    tx->order = 1 + faiptr(&timestamp.val);    
+    
+    // Wait until it is our turn to commit, validate, and do writeback
+    while (last_complete.val != (uintptr_t)(tx->order - 1)) {
+      if (TxThread::tmbegin != begin)
+	TxAbortWrapper(tx);
+    }
+    
+    // validate before getting locks
+    validate(tx, last_complete.val);
+    
+    // if we had writes, then aborted, then restarted, and then didn't have
+    // writes, we could end up trying to lock a nonexistant write set.  This
+    // condition prevents that case.
+    if (tx->writes.size() != 0) {
+      // mark every location in the write set, and do write-back
+      foreach (WriteSet, i, tx->writes) {
+	// get orec
+	orec_t* o = get_orec(i->addr);
+	// mark orec
+	o->v.all = tx->order;
+	CFENCE; // WBW
+	// write-back
+	*i->addr = i->val;
       }
+    }
+    
+    // commit all frees, reset all lists
+    tx->r_orecs.reset();
+    tx->writes.reset();
+    OnReadWriteCommit(tx, read_ro, write_ro, commit_ro);
 
-      // since we have order, from now on ,only one tx can go through below at one time
+    // mark self as done
+    last_complete.val = tx->order;
 
-      // tx_total is odd, so I'm the first to enter commit in a cohort
-      if (tx_total % 2 != 0)
-      {
-          // set tx_total from odd to even, so that no one can begin now
-          ADD(&tx_total, 1);
-
-          // set validation flag
-          CAS(&locks[0], 0, 1); // we need validations in read from now on
-
-          // wait until all the small locks are unlocked
-          for(uint32_t i = 1; i < 9 ; i++)
-              while(locks[i] != 0);
-
-      }
-
-      // since we have the token, we can validate before getting locks
-      validate_cm(tx, last_complete.val);
-
-      // if we had writes, then aborted, then restarted, and then didn't have
-      // writes, we could end up trying to lock a nonexistant write set.  This
-      // condition prevents that case.
-      if (tx->writes.size() != 0) {
-          // mark every location in the write set, and do write-back
-          foreach (WriteSet, i, tx->writes) {
-              // get orec
-              orec_t* o = get_orec(i->addr);
-              // mark orec
-              o->v.all = tx->order;
-              CFENCE;
-              // WBW
-              // write-back
-              *i->addr = i->val;
-          }
-      }
-
-      // commit all frees, reset all lists
-      tx->r_orecs.reset();
-      tx->writes.reset();
-      OnReadWriteCommit(tx, read_ro, write_ro, commit_ro);
-
-      // decrease total number of committing tx
-      SUB(&tx_total, 2);
-
-      // mark self as done
-      last_complete.val = tx->order;
-
-      // set status to committed...
-      tx->order = -1;
+    // increase total number of committed tx
+    ADD(&committed, 1);
   }
-
+  
   /**
    *  Cohorts read (read-only transaction)
    *  Standard orec read function.
@@ -202,54 +186,9 @@ namespace {
   void*
   Cohorts::read_ro(STM_READ_SIG(tx,addr,))
   {
-      void* tmp = *addr;
-      CFENCE; // RBR between dereference and orec check
-
-      // It's possible that no validation is needed
-      if (tx_total % 2 != 0 && locks[0] == 0)
-      {
-          // mark my lock 1, means I'm doing no validation read_ro
-          locks[tx->id] = 1;
-
-          if (locks[0] == 0)
-          {
-              orec_t* o = get_orec(addr);
-              // log orec
-              tx->r_orecs.insert(o);
-
-              // update the finish_cache to remember that at this time, we were valid
-              if (last_complete.val > tx->ts_cache)
-                  tx->ts_cache = last_complete.val;
-
-              // mark my lock 0, means I finished no validation read_ro
-              locks[tx->id] = 0;
-              return tmp;
-          }
-          else
-              // mark my lock 0, means I will do validation read_ro
-              locks[tx->id] = 0;
-
-      }
-
-      // get the orec addr, read the orec's version#
-      orec_t* o = get_orec(addr);
-      uintptr_t ivt = o->v.all;
-      // abort if this changed since the last time I saw someone finish
-      //
-      // NB: this is a pretty serious tradeoff... it admits false aborts for
-      //     the sake of preventing a 'check if locked' test
-      if (ivt > tx->ts_cache){
-          TxAbortWrapper(tx);
-      }
-
-      // log orec
-      tx->r_orecs.insert(o);
-
-      // validate
-      if (last_complete.val > tx->ts_cache)
-          validate(tx, last_complete.val);
-
-      return tmp;
+    orec_t* o = get_orec(addr);
+    tx->r_orecs.insert(o);
+    return *addr;
   }
 
   /**
@@ -258,18 +197,18 @@ namespace {
   void*
   Cohorts::read_rw(STM_READ_SIG(tx,addr,mask))
   {
-      // check the log for a RAW hazard, we expect to miss
-      WriteSetEntry log(STM_WRITE_SET_ENTRY(addr, NULL, mask));
-      bool found = tx->writes.find(log);
-      REDO_RAW_CHECK(found, log, mask);
-
-      // reuse the ReadRO barrier, which is adequate here---reduces LOC
-      void* val = read_ro(tx, addr STM_MASK(mask));
-
-      REDO_RAW_CLEANUP(tmp, found, log, mask);
-      return val;
+    // check the log for a RAW hazard, we expect to miss
+    WriteSetEntry log(STM_WRITE_SET_ENTRY(addr, NULL, mask));
+    bool found = tx->writes.find(log);
+    REDO_RAW_CHECK(found, log, mask);
+    
+    // reuse the ReadRO barrier, which is adequate here---reduces LOC
+    void* val = read_ro(tx, addr STM_MASK(mask));
+    
+    REDO_RAW_CLEANUP(tmp, found, log, mask);
+    return val;
   }
-
+  
   /**
    *  Cohorts write (read-only context)
    */
@@ -326,7 +265,7 @@ namespace {
   }
 
   /**
-   *  Cohorts validation
+   *  Cohorts validation for commit
    */
   void
   Cohorts::validate(TxThread* tx, uintptr_t finish_cache)
@@ -345,54 +284,21 @@ namespace {
   }
 
   /**
-   *  Cohorts validation for commit
-   */
-  void
-  Cohorts::validate_cm(TxThread* tx, uintptr_t finish_cache)
-  {
-      // check that all reads are valid
-      foreach (OrecList, i, tx->r_orecs) {
-          // read this orec
-          uintptr_t ivt = (*i)->v.all;
-          // if it has a timestamp of ts_cache or greater, abort
-          if (ivt > tx->ts_cache)
-              TxAbortWrapper_cm(tx);
-      }
-      // now update the finish_cache to remember that at this time, we were
-      // still valid
-      tx->ts_cache = finish_cache;
-  }
-
-  /**
-   *   Cohorts Tx Abort Wrapper
-   *   decrease total # in one cohort, and abort
+   *   Cohorts Tx Abort Wrapper for commit
+   *   for abort inside commit. Since we already have order, we need to mark
+   *   self as last_complete, increase total committed tx
    */
   void
   Cohorts::TxAbortWrapper(TxThread* tx)
   {
-      // decrease total number of tx in one cohort
-      SUB(&tx_total, 2);
+    // increase total number of committed tx
+    ADD(&committed, 1);
 
-      // abort
-      tx->tmabort(tx);
-  }
+    // set self as completed
+    last_complete.val = tx->order;
 
-  /**
-   *   Cohorts Tx Abort Wrapper for commit
-   *   for abort inside commit. Since we already have order, we need to mark
-   *   self as last_complete, and decrease total number of tx in one cohort.
-   */
-  void
-  Cohorts::TxAbortWrapper_cm(TxThread* tx)
-  {
-      // decrease total number of tx in one cohort
-      SUB(&tx_total, 2);
-
-      // set self as completed
-      last_complete.val = tx->order;
-
-      // abort
-      tx->tmabort(tx);
+    // abort
+    tx->tmabort(tx);
   }
 
   /**
@@ -404,23 +310,12 @@ namespace {
    *
    *    Also, last_complete must equal timestamp
    *
-   *    Also, all threads' order values must be -1
    */
   void
   Cohorts::onSwitchTo()
   {
       timestamp.val = MAXIMUM(timestamp.val, timestamp_max.val);
       last_complete.val = timestamp.val;
-
-      // init total tx number in an cohort
-      tx_total = -1;
-
-      for (uint32_t i = 0; i < threadcount.val; ++i)
-          threads[i]->order = -1;
-
-      // unlock all the locks
-      for (uint32_t i = 0; i < 9; i++)
-          locks[i] = 0;
   }
 }
 

@@ -58,6 +58,7 @@ set(sources
   algs/wealth.cpp
   algs/cohorts.cpp
   algs/cohortsnoorder.cpp
+  algs/cohortsold.cpp
   policies/cbr.cpp
   policies/policies.cpp
   policies/static.cpp
