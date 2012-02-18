@@ -72,8 +72,9 @@ namespace stm
   volatile uint32_t locks[9] = {0};
   volatile uint32_t started = 0;
   volatile uint32_t cpending = 0;
-  volatile uint32_t committed = 0; ;
-  
+  volatile uint32_t committed = 0;
+  volatile int32_t last_order = 0;
+
   /*** Store descriptions of the STM algorithms */
   alg_t stms[ALG_MAX];
 

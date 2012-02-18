@@ -31,7 +31,6 @@
 
 using stm::TxThread;
 using stm::threads;
-using stm::threadcount;
 using stm::last_complete;
 using stm::timestamp;
 using stm::timestamp_max;
@@ -45,6 +44,7 @@ using stm::get_orec;
 using stm::started;
 using stm::cpending;
 using stm::committed;
+using stm::last_order;
 
 /**
  *  Declare the functions that we're going to implement, so that we can avoid
@@ -77,46 +77,44 @@ namespace {
   bool
   Cohorts::begin(TxThread* tx)
   {
-  S1:
-    // wait until everyone is committed
-    while (cpending != committed){
-      // check if an adaptivity action is underway
-      if (TxThread::tmbegin != begin){
-	tx->tmabort(tx);
+    S1:
+      // wait until everyone is committed
+      while (cpending != committed){
+          // check if an adaptivity action is underway
+          if (TxThread::tmbegin != begin){
+              tx->tmabort(tx);
+          }
       }
-    }
-    
-    // before start, increase total number of tx
-    ADD(&started, 1);
-    
-    // [NB] we must double check no one is ready to commit yet!
-    if (cpending > committed){
-      SUB(&started, 1);
-      goto S1;
-    }
-    
-    tx->allocator.onTxBegin();
 
-    // get time of last finished txn
-    tx->ts_cache = last_complete.val;
-    
-    return false;
+      // before tx begins, increase total number of tx
+      ADD(&started, 1);
+
+      // [NB] we must double check no one is ready to commit yet!
+      if (cpending > committed){
+          SUB(&started, 1);
+          goto S1;
+      }
+
+      tx->allocator.onTxBegin();
+
+      // get time of last finished txn
+      tx->ts_cache = last_complete.val;
+
+      return false;
   }
 
   /**
    *  Cohorts commit (read-only):
-   *  RO commit is easy.
    */
   void
   Cohorts::commit_ro(TxThread* tx)
   {
-    // decrease total number of tx started
-    SUB(&started, 1);
+      // decrease total number of tx started
+      SUB(&started, 1);
 
-    // commit all frees, reset all lists
-    tx->r_orecs.reset();
-    OnReadOnlyCommit(tx);
-
+      // commit all frees, reset all lists
+      tx->r_orecs.reset();
+      OnReadOnlyCommit(tx);
   }
 
   /**
@@ -128,49 +126,55 @@ namespace {
   void
   Cohorts::commit_rw(TxThread* tx)
   {
-    // increase # of tx waiting to commit
-    ADD(&cpending ,1);
+      // increase # of tx waiting to commit
+      ADD(&cpending ,1);
 
-    // waiting for all tx are ready to commit
-    while (cpending < started)
-      if (TxThread::tmbegin != begin){
-	ADD(&committed, 1);
-	tx->tmabort(tx);
+      // get an order
+      tx->order = 1 + faiptr(&timestamp.val);
+
+      // Wait until it is our turn to commit
+      while (last_complete.val != (uintptr_t)(tx->order - 1)) {
+          if (TxThread::tmbegin != begin)
+              TxAbortWrapper(tx);
       }
-    // get an order
-    tx->order = 1 + faiptr(&timestamp.val);        
 
-    // Wait until it is our turn to commit, validate, and do writeback
-    while (last_complete.val != (uintptr_t)(tx->order - 1)) {
-      if (TxThread::tmbegin != begin)
-	TxAbortWrapper(tx);
-    }
+      // Wait until every tx is ready to commit
+      while (cpending < started)
+          if (TxThread::tmbegin != begin)
+              TxAbortWrapper(tx);
 
-    // validate read before write back
-    validate(tx, last_complete.val);    
+      // [NB] The first tx to commit in one cohort needs no validation
+      // The first one in a cohort, validate read
+      if (tx->order != last_order)
+          validate(tx, last_complete.val);
+      // The last one in a cohort, update last_order.
+      if (started - tx->order == 0)
+          last_order = tx->order + 1;
 
-    // mark every location in the write set, and do write-back
-    foreach (WriteSet, i, tx->writes) {
-      // get orec
-      orec_t* o = get_orec(i->addr);
-      // mark orec
-      o->v.all = tx->order;
-      CFENCE; // WBW
-      // write-back
-      *i->addr = i->val;
-    }
+      // mark every location in the write set, and do write-back
+      foreach (WriteSet, i, tx->writes) {
+          // get orec
+          orec_t* o = get_orec(i->addr);
+          // mark orec
+          o->v.all = tx->order;
+          CFENCE; // WBW
+          // write-back
+          *i->addr = i->val;
+      }
 
-    // commit all frees, reset all lists
-    tx->r_orecs.reset();
-    tx->writes.reset();
-    OnReadWriteCommit(tx, read_ro, write_ro, commit_ro);
+      CFENCE;
+      // mark self as done
+      last_complete.val = tx->order;
 
-    // mark self as done
-    last_complete.val = tx->order;
-    // increase total number of committed tx
-    ADD(&committed, 1);
+      // increase total number of committed tx
+      ADD(&committed, 1);
+
+      // commit all frees, reset all lists
+      tx->r_orecs.reset();
+      tx->writes.reset();
+      OnReadWriteCommit(tx, read_ro, write_ro, commit_ro);
   }
-  
+
   /**
    *  Cohorts read (read-only transaction)
    *  Standard orec read function.
@@ -178,9 +182,9 @@ namespace {
   void*
   Cohorts::read_ro(STM_READ_SIG(tx,addr,))
   {
-    // log orec
-    tx->r_orecs.insert( (orec_t*) get_orec(addr) );
-    return *addr;
+      // log orec
+      tx->r_orecs.insert( (orec_t*) get_orec(addr) );
+      return *addr;
   }
 
   /**
@@ -189,18 +193,19 @@ namespace {
   void*
   Cohorts::read_rw(STM_READ_SIG(tx,addr,mask))
   {
-    // check the log for a RAW hazard, we expect to miss
-    WriteSetEntry log(STM_WRITE_SET_ENTRY(addr, NULL, mask));
-    bool found = tx->writes.find(log);
-    REDO_RAW_CHECK(found, log, mask);
+      // check the log for a RAW hazard, we expect to miss
+      WriteSetEntry log(STM_WRITE_SET_ENTRY(addr, NULL, mask));
+      bool found = tx->writes.find(log);
+      REDO_RAW_CHECK(found, log, mask);
 
-    // log orec
-    tx->r_orecs.insert( (orec_t*) get_orec(addr) );
-    
-    REDO_RAW_CLEANUP(tmp, found, log, mask);
-    return *addr;
+      // log orec
+      tx->r_orecs.insert( (orec_t*) get_orec(addr) );
+
+      void* tmp = *addr;
+      REDO_RAW_CLEANUP(tmp, found, log, mask);
+      return tmp;
   }
-  
+
   /**
    *  Cohorts write (read-only context)
    */
@@ -229,7 +234,7 @@ namespace {
   Cohorts::rollback(STM_ROLLBACK_SIG(tx, except, len))
   {
       PreRollback(tx);
-      
+
       // Perform writes to the exception object if there were any... taking the
       // branch overhead without concern because we're not worried about
       // rollback overheads.
@@ -257,16 +262,16 @@ namespace {
    */
   void
   Cohorts::validate(TxThread* tx, uintptr_t finish_cache)
-  { 
-    foreach (OrecList, i, tx->r_orecs) {
+  {
+      foreach (OrecList, i, tx->r_orecs) {
       // read this orec
-      uintptr_t ivt = (*i)->v.all;
-      // if it has a timestamp of ts_cache or greater, abort
+          uintptr_t ivt = (*i)->v.all;
+          // if it has a timestamp of ts_cache or greater, abort
       if (ivt > tx->ts_cache)
-	TxAbortWrapper(tx);
-    }
-    // remember that at this time, we were still valid
-    tx->ts_cache = finish_cache;
+          TxAbortWrapper(tx);
+      }
+      // remember that at this time, we were still valid
+      tx->ts_cache = finish_cache;
   }
 
   /**
@@ -277,14 +282,14 @@ namespace {
   void
   Cohorts::TxAbortWrapper(TxThread* tx)
   {
-    // increase total number of committed tx
-    ADD(&committed, 1);
+      // increase total number of committed tx
+      ADD(&committed, 1);
 
-    // set self as completed
-    last_complete.val = tx->order;
+      // set self as completed
+      last_complete.val = tx->order;
 
-    // abort
-    tx->tmabort(tx);
+      // abort
+      tx->tmabort(tx);
   }
 
   /**
