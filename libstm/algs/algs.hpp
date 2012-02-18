@@ -95,10 +95,11 @@ namespace stm
   // Global variables for Cohort, Cohortsnoorder and Cohortsold
   extern volatile int32_t tx_total;      // total # of tx waiting for commit in a cohort
   extern volatile uint32_t locks[9];     // a big lock at locks[0], and
-				         // small locks from locks[1] to locks[8]
-  extern volatile uint32_t started;     
-  extern volatile uint32_t cpending;;
-  extern volatile uint32_t committed;;     
+                         // small locks from locks[1] to locks[8]
+  extern volatile uint32_t started;
+  extern volatile uint32_t cpending;
+  extern volatile uint32_t committed;
+  extern volatile int32_t last_order;
   /**
    *  To describe an STM algorithm, we provide a name, a set of function
    *  pointers, and some other information
