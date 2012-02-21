@@ -1,0 +1,15 @@
+--- lib/tanger/transformations.cpp	2011-10-11 18:23:01.000000000 -0400
++++ ../tanger-2.9.rc1/lib/tanger/transformations.cpp	2012-02-21 09:34:29.773936141 -0500
+@@ -447,9 +447,9 @@
+     std::vector<Constant*> initElems;
+     if (global_ctors) {
+         // get other initializers
+-        ConstantArray* init = cast<ConstantArray>(global_ctors->getInitializer());
+-        for (unsigned i = 0; i < init->getNumOperands(); i++)
+-            initElems.push_back(init->getOperand(i));
++        Constant* init = global_ctors->getInitializer();
++        for (unsigned i = 0, e = init->getNumOperands(); i < e; ++i)
++            initElems.push_back(cast<Constant>(init->getOperand(i)));
+         global_ctors->eraseFromParent();
+     }
+ 
