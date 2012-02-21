@@ -1,13 +1,12 @@
-CC     := llvm-gcc
-CXX    := llvm-g++
+CC     := @CMAKE_C_COMPILER@
+CXX    := @CMAKE_CXX_COMPILER@
 TMLINK := tmlink
-STAMP  := /u/luked/rstm-branches/patrick/stamp-0.9.10
-VPATH  := ${STAMP}/lib:${STAMP}/vacation
+VPATH  := @CMAKE_CURRENT_SOURCE_DIR@:@CMAKE_CURRENT_SOURCE_DIR@/../lib
 
-STMLIB := ../../libitm2stm
+STMLIB := @CMAKE_CURRENT_BINARY_DIR@/../../libitm2stm
 STMSUPPORT := $(dir $(shell which ${TMLINK}))../lib
 
-CFLAGS   = -I${STAMP}/lib
+CFLAGS   = -I@CMAKE_CURRENT_SOURCE_DIR@/../lib
 CFLAGS  += -DLIST_NO_DUPLICATES -DMAP_USE_RBTREE -DDTMC
 CFLAGS  += -fgnu-tm -emit-llvm
 CFLAGS  += -O3

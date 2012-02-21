@@ -4,5 +4,6 @@ if [ `dirname $0` == '.' ]; then
     exit 1
 fi
 
-rm -rf * && cmake -C `dirname $0`/libitm2stm/dtmc.cmake `dirname $0`
+rm -rI *
+cmake -C `dirname $0`/libitm2stm/dtmc.cmake `dirname $0`
 make $@ itm2stm64

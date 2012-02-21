@@ -34,3 +34,5 @@ foreach (arch ${rstm_archs})
     add_target_definitions(${exec_shim} LIST_NO_DUPLICATES MAP_USE_RBTREE)
   endif ()
 endforeach ()
+
+configure_file (sandbox.mk.cmake sandbox.mk @ONLY)
