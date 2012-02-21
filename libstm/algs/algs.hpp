@@ -92,14 +92,14 @@ namespace stm
   extern dynprof_t*    profiles;          // a list of ProfileTM measurements
   extern uint32_t      profile_txns;      // how many txns per profile
 
-  // Global variables for Cohort, Cohortsnoorder and Cohortsold
-  extern volatile int32_t tx_total;      // total # of tx waiting for commit in a cohort
-  extern volatile uint32_t locks[9];     // a big lock at locks[0], and
-                         // small locks from locks[1] to locks[8]
-  extern volatile uint32_t started;
-  extern volatile uint32_t cpending;
-  extern volatile uint32_t committed;
-  extern volatile int32_t last_order;
+  // Global variables for Cohorts
+  extern volatile uint32_t locks[9];  // a big lock at locks[0], and
+                                      // small locks from locks[1] to locks[8]
+  extern volatile int32_t started;    // number of tx started
+  extern volatile int32_t cpending;   // number of tx waiting to commit
+  extern volatile int32_t committed;  // number of tx committed
+  extern volatile int32_t last_order; // order of last tx in a cohort + 1
+
   /**
    *  To describe an STM algorithm, we provide a name, a set of function
    *  pointers, and some other information
