@@ -11,13 +11,13 @@ set(
   sources
   ../lib/avltree.c
   ../lib/heap.c
-  ../lib/list.c
+  ../lib/list.cpp
   ../lib/mt19937ar.c
   ../lib/pair.c
   ../lib/queue.c
   ../lib/random.c
-  ../lib/rbtree.c
-  ../lib/thread.c
+  ../lib/rbtree.cpp
+  ../lib/thread.cpp
   ../lib/vector.c
   coordinate.c
   element.c

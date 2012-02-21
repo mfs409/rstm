@@ -11,7 +11,7 @@ set(
   sources
   ../lib/mt19937ar.c
   ../lib/random.c
-  ../lib/thread.c
+  ../lib/thread.cpp
   alg_radix_smp.c
   computeGraph.c
   createPartition.c

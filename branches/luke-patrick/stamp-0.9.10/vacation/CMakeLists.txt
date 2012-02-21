@@ -12,14 +12,14 @@ set(
   ../lib/pair.c
   ../lib/mt19937ar.c
   ../lib/random.c
-  ../lib/thread.c
-  client.c
-  customer.c
-  manager.c
+  ../lib/thread.cpp
+  client.cpp
+  customer.cpp
+  manager.cpp
   reservation.c
-  vacation.c
-  ../lib/list.c
-  ../lib/rbtree.c)
+  vacation.cpp
+  ../lib/list.cpp
+  ../lib/rbtree.cpp)
 
 # build the different executables
 foreach (arch ${rstm_archs})
