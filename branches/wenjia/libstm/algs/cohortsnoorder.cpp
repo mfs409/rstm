@@ -35,8 +35,10 @@ using stm::WriteSetEntry;
 using stm::orec_t;
 using stm::get_orec;
 
-using stm::tx_total;
-using stm::locks;
+using stm::started;
+using stm::cpending;
+using stm::committed;
+using stm::last_order;
 
 /**
  *  Declare the functions that we're going to implement, so that we can avoid
@@ -52,64 +54,60 @@ namespace {
     static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,,));
     static TM_FASTCALL void commit_ro(TxThread*);
     static TM_FASTCALL void commit_rw(TxThread*);
-    
+
     static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
     static bool irrevoc(TxThread*);
     static void onSwitchTo();
     static NOINLINE void validate(TxThread*);
     static NOINLINE void TxAbortWrapper(TxThread* tx);
-    
+
   };
 
   /**
    *  Cohortsnoorder begin:
    *  At first, every tx can start, until one of the tx is ready to commit.
    *  Then no tx is allowed to start until all the transactions finishes their
-   *  commits. 
+   *  commits.
    */
   bool
   Cohortsnoorder::begin(TxThread* tx)
   {
-    // wait until we are allowed to start
-    // when tx_total is even, we wait
-    while (tx_total % 2 == 0){
-      // unless tx_total is 0, which means all commits is done
-      if (tx_total == 0)
-	{
-	  // set no validation, for big lock
-	  locks[0] = 0;
-	  
-	  //now we can start again
-	  CAS(&tx_total, 0, -1);
-	}
-      //check if an adaptivity action is underway
-      if (TxThread::tmbegin != begin){
-	tx->tmabort(tx);
+    S1:
+      // wait until everyone is committed
+      while (cpending != committed){
+          // check if an adaptivity action is underway
+          if (TxThread::tmbegin != begin){
+              tx->tmabort(tx);
+          }
       }
-    }
 
-    //before start, increase total number of tx in one cohort
-    ADD(&tx_total, 2);
+      //before start, increase total number of tx in one cohort
+      ADD(&started, 1);
 
-    // now start
-    tx->allocator.onTxBegin();
-    // get a start time
-    tx->start_time = timestamp.val;
-    
-    return false;
+      // [NB] we must double check no one is ready to commit yet!
+      if (cpending > committed){
+          SUB(&started, 1);
+          goto S1;
+      }
+
+      // now start
+      tx->allocator.onTxBegin();
+
+      // get a start time
+      tx->start_time = timestamp.val;
+
+      return false;
   }
 
   /**
    *  Cohortsnoorder commit (read-only):
-   *
-   *    Decrease total number of tx, and commit.
    */
   void
   Cohortsnoorder::commit_ro(TxThread* tx)
   {
-    // decrease total number of tx in a cohort
-    SUB(&tx_total, 2);
-    
+    // decrease total number of tx
+    SUB(&started, 1);
+
     // read-only, so just reset lists
     tx->r_orecs.reset();
     OnReadOnlyCommit(tx);
@@ -117,126 +115,71 @@ namespace {
 
   /**
    *  Cohortsnoorder commit (writing context):
-   *
-   *    Change tx_total from odd to even when first commit occured in cohort.
-   *    Forbid no validation read at the same time.
-   *    Get all locks, validate, do writeback.  Use the counter to avoid some
-   *    validations.
    */
   void
   Cohortsnoorder::commit_rw(TxThread* tx)
   {
-    uint32_t tmp = tx_total;
-    // if tx_total is odd, I'm the first to enter commit in a cohort
-    if (tmp % 2 != 0)
-      {
-	// change it to even
-	CAS(&tx_total, tmp, tmp+1);
-	
-	// set validation flag
-	// we need validations in read from now on
-	CAS(&locks[0], 0, 1); 
-	
-	//wait until all the small locks are unlocked
-	for(uint32_t i = 1; i < 9; i++)
-	  while(locks[i] != 0);
+      // increase # of tx waiting to commit
+      ADD(&cpending, 1);
+
+      // Wait until every tx is ready to commit
+      while (cpending < started)
+          if(TxThread::tmbegin != begin)
+              TxAbortWrapper(tx);
+
+      foreach (WriteSet, i, tx->writes) {
+          // get orec, read its version#
+          orec_t* o = get_orec(i->addr);
+          uintptr_t ivt = o->v.all;
+          // lock all orecs, unless already locked
+          if (ivt <= tx->start_time) {
+              // abort if cannot acquire
+              if (!bcasptr(&o->v.all, ivt, tx->my_lock.all))
+                  TxAbortWrapper(tx);
+              // save old version to o->p, remember that we hold the lock
+              o->p = ivt;
+              tx->locks.insert(o);
+          }
+          // else if we don't hold the lock abort
+          else if (ivt != tx->my_lock.all) {
+              TxAbortWrapper(tx);
+          }
       }
-    
-    // acquire locks
-    foreach (WriteSet, i, tx->writes) {
-      // get orec, read its version#
-      orec_t* o = get_orec(i->addr);
-      uintptr_t ivt = o->v.all;
-      
-      // lock all orecs, unless already locked
-      if (ivt <= tx->start_time) {
-	// abort if cannot acquire
-	if (!bcasptr(&o->v.all, ivt, tx->my_lock.all))
-	  TxAbortWrapper(tx);
-	// save old version to o->p, remember that we hold the lock
-	o->p = ivt;
-	tx->locks.insert(o);
-      }
-      // else if we don't hold the lock abort
-      else if (ivt != tx->my_lock.all) {
-	TxAbortWrapper(tx);
-      }
-    }
-    
-    // increment the global timestamp since we have writes
-    uintptr_t end_time = 1 + faiptr(&timestamp.val);
-    
-    // skip validation if nobody else committed
-    if (end_time != (tx->start_time + 1))
-      validate(tx);
-    
-    // run the redo log
-    tx->writes.writeback();
-    
-    // release locks
-    CFENCE;
-    foreach (OrecList, i, tx->locks)
-      (*i)->v.all = end_time;
-    
-    // clean-up
-    tx->r_orecs.reset();
-    tx->writes.reset();
-    tx->locks.reset();
-    OnReadWriteCommit(tx, read_ro, write_ro, commit_ro);
-    
-    // decrease total number of committing tx
-    SUB(&tx_total, 2);
+
+      // increment the global timestamp since we have writes
+      uintptr_t end_time = 1 + faiptr(&timestamp.val);
+
+      // skip validation if nobody else committed
+      if (end_time != (tx->start_time + 1))
+          validate(tx);
+
+      // run the redo log
+      tx->writes.writeback();
+
+      // release locks
+      CFENCE;
+      foreach (OrecList, i, tx->locks)
+          (*i)->v.all = end_time;
+
+      // clean-up
+      tx->r_orecs.reset();
+      tx->writes.reset();
+      tx->locks.reset();
+      OnReadWriteCommit(tx, read_ro, write_ro, commit_ro);
+
+      // increase total number of committed tx
+      ADD(&committed, 1);
   }
-  
+
   /**
    *  Cohortsnoorder read (read-only transaction)
-   *    We may don't need validations here if no one committed yet,
-   *    but otherwise, we use "check twice" timestamps.
    */
   void*
   Cohortsnoorder::read_ro(STM_READ_SIG(tx,addr,))
   {
-      // It is possible that no validation is needed
-      if (tx_total % 2 != 0 && locks[0] == 0)
-      {
-	// mark my lock 1, means I'm doing no validation read_ro
-	locks[tx->id] = 1;
-
-	// no validation needed
-	if (locks[0] == 0)
-	  {
-	    void* tmp1 = *addr;
-	    // get the orec addr
-	    orec_t* o = get_orec(addr);
-	    // log orec
-	    tx->r_orecs.insert(o);
-
-	    // mark my lock 0, means I finished no validation read_ro
-	    locks[tx->id] = 0;
-	    return tmp1;
-	  }
-	else
-	  // mark my lock 0, means I will do validation read_ro
-	  locks[tx->id] = 0;
-      }
-      
-      // get the orec addr
-      orec_t* o = get_orec(addr);
-      // read orec, then val, then orec
-      uintptr_t ivt = o->v.all;
-      CFENCE;
-      void* tmp = *addr;
-      CFENCE;
-      uintptr_t ivt2 = o->v.all;
-      // if orec never changed, and isn't too new, the read is valid
-      if ((ivt <= tx->start_time) && (ivt == ivt2)) {
-          // log orec, return the value
-          tx->r_orecs.insert(o);
-          return tmp;
-      }
-      // unreachable
-      TxAbortWrapper(tx);
-      return NULL;
+      // log orec
+      tx->r_orecs.insert(get_orec(addr));
+      return *addr;
   }
 
   /**
@@ -250,54 +193,13 @@ namespace {
       bool found = tx->writes.find(log);
       REDO_RAW_CHECK(found, log, mask);
 
-      // It is possible that no validation is needed
-      if (tx_total % 2 != 0 && locks[0] == 0)
-      {
-	// mark my lock 1, means I'm doing no validation read_ro
-	locks[tx->id] = 1;
+      // log orec
+      tx->r_orecs.insert(get_orec(addr));
 
-	// no validation needed
-	if (locks[0] == 0)
-	  {
-	    void* tmp1 = *addr;
-	    // get the orec addr
-	    orec_t* o = get_orec(addr);
-	    // log orec
-	    tx->r_orecs.insert(o);
-
-	    // fixup is here to minimize the postvalidation orec read latency
-	    REDO_RAW_CLEANUP(tmp1, found, log, mask);
-	    
-	    // mark my lock 0, means I finished no validation read_ro
-	    locks[tx->id] = 0;
-	    return tmp1;
-	  }
-	else
-	  // mark my lock 0, means I will do validation read_ro
-	  locks[tx->id] = 0;
-      }
-
-      // get the orec addr
-      orec_t* o = get_orec(addr);
-      // read orec, then val, then orec
-      uintptr_t ivt = o->v.all;
-      CFENCE;
       void* tmp = *addr;
-      CFENCE;
-      uintptr_t ivt2 = o->v.all;
-
       // fixup is here to minimize the postvalidation orec read latency
       REDO_RAW_CLEANUP(tmp, found, log, mask);
-
-      // if orec never changed, and isn't too new, the read is valid
-      if ((ivt <= tx->start_time) && (ivt == ivt2)) {
-          // log orec, return the value
-          tx->r_orecs.insert(o);
-          return tmp;
-      }
-      TxAbortWrapper(tx);
-      // unreachable
-      return NULL;
+      return tmp;
   }
 
   /**
@@ -360,29 +262,27 @@ namespace {
   void
   Cohortsnoorder::validate(TxThread* tx)
   {
-      // validate
       foreach (OrecList, i, tx->r_orecs) {
           uintptr_t ivt = (*i)->v.all;
           // if unlocked and newer than start time, abort
           if ((ivt > tx->start_time) && (ivt != tx->my_lock.all))
-	    TxAbortWrapper(tx);
+              TxAbortWrapper(tx);
       }
   }
 
   /**
    *   Cohorts Tx Abort Wrapper
-   *   decrease total # in one cohort, and abort
    */
     void
     Cohortsnoorder::TxAbortWrapper(TxThread* tx)
     {
-      // decrease total number of tx in one cohort
-      SUB(&tx_total, 2);
+      // Increase total number of committed tx
+      ADD(&committed, 1);
 
       // abort
       tx->tmabort(tx);
     }
-  
+
   /**
    *  Switch to Cohortsnoorder:
    *

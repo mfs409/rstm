@@ -26,8 +26,8 @@
 
 // define atomic operations
 #define CAS __sync_val_compare_and_swap
-#define ADD __sync_fetch_and_add
-#define SUB __sync_fetch_and_sub
+#define ADD __sync_add_and_fetch
+#define SUB __sync_sub_and_fetch
 
 using stm::TxThread;
 using stm::threads;
@@ -126,48 +126,43 @@ namespace {
   void
   Cohorts::commit_rw(TxThread* tx)
   {
-      // increase # of tx waiting to commit
-      ADD(&cpending ,1);
+      // increase # of tx waiting to commit, and use it as the order
+      tx->order = ADD(&cpending ,1);
 
-      // get an order
-      tx->order = 1 + faiptr(&timestamp.val);
+      // Wait for my turn
+      while (last_complete.val != (uintptr_t)(tx->order - 1));
 
-      // Wait until it is our turn to commit
-      while (last_complete.val != (uintptr_t)(tx->order - 1)) {
-          if (TxThread::tmbegin != begin)
-              TxAbortWrapper(tx);
-      }
-
-      // Wait until every tx is ready to commit
-      while (cpending < started)
-          if (TxThread::tmbegin != begin)
-              TxAbortWrapper(tx);
-
-      // [NB] The first tx to commit in one cohort needs no validation
-      // The first one in a cohort, validate read
+      // If I'm not the first one in a cohort to commit, validate read
       if (tx->order != last_order)
-          validate(tx, last_complete.val);
-      // The last one in a cohort, update last_order.
-      if (started - tx->order == 0)
-          last_order = tx->order + 1;
+          validate (tx, last_complete.val);
 
-      // mark every location in the write set, and do write-back
+      // mark orec
       foreach (WriteSet, i, tx->writes) {
           // get orec
           orec_t* o = get_orec(i->addr);
           // mark orec
           o->v.all = tx->order;
-          CFENCE; // WBW
-          // write-back
-          *i->addr = i->val;
       }
 
-      CFENCE;
-      // mark self as done
-      last_complete.val = tx->order;
+      // Wait until all tx are ready to commit
+      while(cpending < started);
+
+      // do write back
+      foreach (WriteSet, i, tx->writes)
+          *i->addr = i->val;
+
+      // Last tx to commit in a cohort, update last_order
+      if (started == tx->order)
+          last_order = tx->order + 1;
 
       // increase total number of committed tx
-      ADD(&committed, 1);
+      // [NB] Using atomic instruction might be faster
+      // ADD(&committed, 1);
+      committed ++;
+      WBR;
+
+      // mark self as done
+      last_complete.val = tx->order;
 
       // commit all frees, reset all lists
       tx->r_orecs.reset();
@@ -177,13 +172,12 @@ namespace {
 
   /**
    *  Cohorts read (read-only transaction)
-   *  Standard orec read function.
    */
   void*
   Cohorts::read_ro(STM_READ_SIG(tx,addr,))
   {
       // log orec
-      tx->r_orecs.insert( (orec_t*) get_orec(addr) );
+      tx->r_orecs.insert( get_orec(addr) );
       return *addr;
   }
 
@@ -199,7 +193,7 @@ namespace {
       REDO_RAW_CHECK(found, log, mask);
 
       // log orec
-      tx->r_orecs.insert( (orec_t*) get_orec(addr) );
+      tx->r_orecs.insert(  get_orec(addr) );
 
       void* tmp = *addr;
       REDO_RAW_CLEANUP(tmp, found, log, mask);
@@ -270,8 +264,6 @@ namespace {
       if (ivt > tx->ts_cache)
           TxAbortWrapper(tx);
       }
-      // remember that at this time, we were still valid
-      tx->ts_cache = finish_cache;
   }
 
   /**
@@ -299,14 +291,12 @@ namespace {
    *    timestamp as a zero-one mutex.  If they do, then they back up the
    *    timestamp first, in timestamp_max.
    *
-   *    Also, last_complete must equal timestamp
-   *
    */
   void
   Cohorts::onSwitchTo()
   {
       timestamp.val = MAXIMUM(timestamp.val, timestamp_max.val);
-      last_complete.val = timestamp.val;
+      last_complete.val = 0;
   }
 }
 
