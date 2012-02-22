@@ -17,6 +17,7 @@ LDFLAGS  = -stmlib=${STMLIB}
 LDFLAGS += -stmsupport=${STMSUPPORT}
 LDFLAGS += -tm-support-file=${STMLIB}/libtanger-stm.support
 LDFLAGS += -internalize-public-api-file=${STMLIB}/libtanger-stm.public-symbols
+LDFLAGS += -n
 
 LDLIBS  := -lrt
 
