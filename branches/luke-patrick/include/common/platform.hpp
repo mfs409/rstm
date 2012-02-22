@@ -20,8 +20,8 @@
  *    5) a high-resolution timer
  */
 
-#ifndef PLATFORM_HPP__
-#define PLATFORM_HPP__
+#ifndef STM_PLATFORM_HPP
+#define STM_PLATFORM_HPP
 
 #include <stm/config.h>
 #include <stdint.h>
@@ -458,4 +458,4 @@ inline uint64_t getElapsedTime()
 
 #endif // STM_OS_MACOS
 
-#endif // PLATFORM_HPP__
+#endif // STM_PLATFORM_HPP

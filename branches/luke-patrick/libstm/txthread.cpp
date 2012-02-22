@@ -16,6 +16,7 @@
 #include "algs/tml_inline.hpp"
 #include "algs/algs.hpp"
 #include "inst.hpp"
+#include "sandboxing.hpp"
 
 using namespace stm;
 
@@ -78,7 +79,13 @@ namespace stm
         nanorecs(64),
         begin_wait(0),
         strong_HG(),
-        irrevocable(false)
+        irrevocable(false),
+        end_txn_time(0),
+        total_nontxn_time(0),
+        pthreadid(),
+        tmcommit(NULL),
+        tmread(NULL),
+        tmwrite(NULL)
   {
       // prevent new txns from starting.
       while (true) {
@@ -170,11 +177,12 @@ namespace stm
   bool TM_FASTCALL (*volatile TxThread::tmbegin)(TxThread*) = begin_CGL;
 
   /**
-   *  The tmrollback, tmabort, and tmirrevoc pointers
+   *  The tmrollback, tmabort, tmirrevoc, tmvalidate pointers
    */
   scope_t* (*TxThread::tmrollback)(STM_ROLLBACK_SIG(,,));
   NORETURN void (*TxThread::tmabort)(TxThread*) = default_abort_handler;
   bool (*TxThread::tmirrevoc)(TxThread*) = NULL;
+  bool (*TxThread::tmvalidate)(TxThread*) = NULL;
 
   /*** the init factory */
   void TxThread::thread_init()
@@ -184,6 +192,9 @@ namespace stm
 
       // create a TxThread and save it in thread-local storage
       Self = new TxThread();
+
+      // initialize the sandboxing subsystem for this thread
+      sandbox::init_thread();
   }
 
   /**
@@ -344,6 +355,9 @@ namespace stm
       static volatile uint32_t mtx = 0;
 
       if (bcas32(&mtx, 0u, 1u)) {
+          // initialize the system-wide sandboxing stuff
+          sandbox::init_system();
+
           // manually register all behavior policies that we support.  We do
           // this via tail-recursive template metaprogramming
           MetaInitializer<0>::init();

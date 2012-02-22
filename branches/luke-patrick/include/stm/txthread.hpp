@@ -96,6 +96,9 @@ namespace stm
       uint64_t      end_txn_time;      // end of non-transactional work
       uint64_t      total_nontxn_time; // time on non-transactional work
 
+      /*** DEBUGGING */
+      pthread_t     pthreadid;          // used for sandbox validation
+
       /*** POINTERS TO INSTRUMENTATION */
 
       /**
@@ -144,6 +147,18 @@ namespace stm
 
       /*** how to become irrevocable in-flight */
       static bool(*tmirrevoc)(TxThread*);
+
+      /**
+       *  When we're sandboxing we need access to a function that validates a
+       *  transaction's read set. We expose the result as a boolean rather than
+       *  letting the TM library abort itself here because we sometimes want to
+       *  do something from the calling context before the abort happens (like,
+       *  say, reset a signal mask).
+       *
+       *  Ultimately this could/should be a per-thread pointer rather than a
+       *  TxThread static.
+       */
+      static bool(*tmvalidate)(TxThread*);
 
       /**
        * for shutting down threads.  Currently a no-op.

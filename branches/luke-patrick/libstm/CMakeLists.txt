@@ -21,6 +21,8 @@ set(sources
   WBMMPolicy.cpp
   irrevocability.cpp
   shadow-signals.cpp
+  signals.cpp
+  validation.cpp
   algs/algs.cpp
   algs/biteager.cpp
   algs/biteagerredo.cpp
