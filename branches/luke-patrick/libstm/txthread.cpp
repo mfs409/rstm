@@ -83,6 +83,7 @@ namespace stm
         end_txn_time(0),
         total_nontxn_time(0),
         pthreadid(),
+        validations(0),
         tmcommit(NULL),
         tmread(NULL),
         tmwrite(NULL)
@@ -94,6 +95,8 @@ namespace stm
               break;
           spin64();
       }
+
+      pthreadid = pthread_self();
 
       // We need to be very careful here.  Some algorithms (at least TLI and
       // NOrecPrio) like to let a thread look at another thread's TxThread
@@ -230,6 +233,7 @@ namespace stm
                     << "; RO Commits: " << threads[i]->num_ro
                     << "; Aborts: "     << threads[i]->num_aborts
                     << "; Restarts: "   << threads[i]->num_restarts
+                    << "; Validations: " << threads[i]->validations
                     << std::endl;
           threads[i]->abort_hist.dump();
           rw_txns += threads[i]->num_commits;

@@ -25,7 +25,7 @@ namespace stm
   typedef void (*AbortHandler)(TxThread*);
   void sys_init(AbortHandler conflict_abort);
   void set_policy(const char* phasename);
-  void sys_shutdown();
+  void sys_shutdown() __attribute__((destructor));
   bool is_irrevoc(const TxThread&);
   void become_irrevoc();
   void restart();
@@ -34,5 +34,8 @@ namespace stm
   extern pad_word_t  threadcount;           // threads in system
   extern TxThread*   threads[MAX_THREADS];  // all TxThreads
 }
+
+// used for sandboxing support
+extern "C" void stm_validation_full();
 
 #endif // LIB_GLOBALS_HPP

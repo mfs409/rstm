@@ -13,6 +13,7 @@
 
 void
 stm_validation_full() {
+    ++stm::Self->validations;
     if (!stm::Self->tmvalidate(stm::Self))
         stm::Self->tmabort(stm::Self);
 }

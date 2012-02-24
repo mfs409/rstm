@@ -239,7 +239,7 @@ SRVEPass::doInitialization(Module& m) {
         funcs.insert(call->getParent()->getParent());
     }
 
-    if (funcs.size() != 0)
+    if (funcs.size() == 0)
         return false;
 
     // If we found any functions to transactionalize, then we initialize our

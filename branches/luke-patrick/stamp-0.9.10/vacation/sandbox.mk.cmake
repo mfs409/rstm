@@ -17,6 +17,12 @@ LDFLAGS  = -stmlib=${STMLIB}
 LDFLAGS += -stmsupport=${STMSUPPORT}
 LDFLAGS += -tm-support-file=${STMLIB}/libtanger-stm.support
 LDFLAGS += -internalize-public-api-file=${STMLIB}/libtanger-stm.public-symbols
+LDFLAGS += -sandboxpass=sandbox-tm
+
+TANGERFLAGS  = -tanger
+TANGERFLAGS += -tanger-whole-program
+TANGERFLAGS += -tanger-indirect-auto
+TANGERFLAGS += -internalize-public-api-file=${STMLIB}/libtanger-stm.public-symbols
 
 LDLIBS  := -lrt -ldl
 
@@ -75,3 +81,11 @@ vacation.low: vacation
 	done
 
 test: vacation.high vacation.low
+
+vacation.sandbox.bc: vacation.tanger.bc
+	opt -load /u/luked/proj/tanger-2.9.rc1-sandboxing-obj/Debug+Asserts/lib/libtanger.so -sandbox-tm -debug-only=sandbox -o $@ $^
+
+vacation.tanger.bc: pair.bc mt19937ar.bc random.bc thread.bc client.bc \
+	                customer.bc manager.bc reservation.bc vacation.bc list.bc \
+                    rbtree.bc
+	llvm-ld -load /u/luked/proj/tanger-2.9.rc1-sandboxing-obj/Debug+Asserts/lib/libtanger.so -link-as-library ${TANGERFLAGS} -mem2reg -o $@ $^
