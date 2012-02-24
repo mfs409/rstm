@@ -47,6 +47,7 @@ set(sources
   algs/orecela.cpp
   algs/orecfair.cpp
   algs/oreclazy.cpp
+  algs/orecsandbox.cpp
   algs/pipeline.cpp
   algs/profiletm.cpp
   algs/ringala.cpp

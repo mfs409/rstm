@@ -27,7 +27,7 @@ namespace stm
 {
   /***  Self-growing array */
   template <class T>
-  class MiniVector
+  struct MiniVector
   {
       unsigned long m_cap;            // current vector capacity
       unsigned long m_size;           // current number of used elements
@@ -35,8 +35,6 @@ namespace stm
 
       /*** double the size of the minivector */
       void expand();
-
-    public:
 
       /*** Construct a minivector with a default size */
       MiniVector(const unsigned long capacity)
