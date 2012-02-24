@@ -25,7 +25,7 @@ namespace stm
   typedef void (*AbortHandler)(TxThread*);
   void sys_init(AbortHandler conflict_abort);
   void set_policy(const char* phasename);
-  void sys_shutdown() __attribute__((destructor));
+  void sys_shutdown();
   bool is_irrevoc(const TxThread&);
   void become_irrevoc();
   void restart();

@@ -47,6 +47,7 @@ vacation: pair.bc mt19937ar.bc random.bc thread.bc client.bc customer.bc \
 BITS   ?= 64
 TRIALS ?= 3
 CORES  ?= 12
+ALGS   ?= CGL OrecEager OrecELA OrecSandbox
 
 ifdef BIND
 CPUSET = 1,3,5,7,9,11,13,15,17,19,21,23
@@ -55,7 +56,7 @@ CPUSET = 1,3,5,7,9,11,13,15,17,19,21,23,0,2,4,6,8,10,12,14,16,18,20,22
 endif
 
 vacation.high: vacation
-	for stm in CGL NOrec LLT OrecEager RingSW OrecELA OrecALA; \
+	for stm in ${ALGS}; \
 	do \
 		for trials in {1..${TRIALS}}; \
 		do \
@@ -68,7 +69,7 @@ vacation.high: vacation
 	done
 
 vacation.low: vacation
-	for stm in CGL NOrec LLT OrecEager RingSW OrecELA OrecALA; \
+	for stm in ${ALGS}; \
 	do \
 		for trials in {1..${TRIALS}}; \
 		do \
