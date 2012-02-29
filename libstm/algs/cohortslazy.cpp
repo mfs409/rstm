@@ -11,13 +11,8 @@
 /**
  *  CohortsLazy Implementation
  *
- *  CohortsLazy has 4 stages. 1) Nobody is running. If anyone starts,
- *  goes to 2) Everybody is running. If anyone is ready to commit,
- *  goes to 3) Every rw tx gets an order, from now on, no one is
- *  allowed to start a tx anymore. When everyone in this cohort is
- *  ready to commit, goes to stage 4)Commit phase. Everyone commits
- *  in an order that given in stage 3. When the last one finishes
- *  its commit, it goes to stage 1. Now tx is allowed to start again.
+ *  Similiar to Cohorts, except that if I'm the last one in the cohort, I
+ *  go to turbo mode, do in place read and write, and do turbo commit.
  */
 
 #include "../profiling.hpp"
@@ -93,14 +88,14 @@ namespace {
       // before tx begins, increase total number of tx
       ADD(&started, 1);
 
-      // [NB] we must double check no one is ready to commit yet!
-      if (cpending > committed){
+      // [NB] we must double check no one is ready to commit yet
+      // and no one entered in place write phase(turbo mode)
+      if (cpending > committed || inplace == 1){
           SUB(&started, 1);
           goto S1;
       }
 
       tx->allocator.onTxBegin();
-
       // get time of last finished txn
       tx->ts_cache = last_complete.val;
 
@@ -165,15 +160,12 @@ namespace {
       while (last_complete.val != (uintptr_t)(tx->order - 1));
 
       // Wait until all tx are ready to commit
-      while(cpending < started);
+      while (cpending < started);
 
       // If in place write occurred, all tx validate reads
-      if (inplace == 1)
+      // Otherwise, only first one skips validation      
+      if (inplace == 1 || tx->order != last_order)
           validate(tx);
-      else
-          // first one needs no validation
-          if (tx->order != last_order)
-              validate (tx);
 
       foreach (WriteSet, i, tx->writes) {
           // get orec
@@ -190,11 +182,11 @@ namespace {
       committed ++;
       WBR;
 
-      // mark self as done
-      last_complete.val = tx->order;
-
       // update last_order
       last_order = started + 1;
+
+      // mark self as done
+      last_complete.val = tx->order;
 
       // commit all frees, reset all lists
       tx->r_orecs.reset();
@@ -247,27 +239,27 @@ namespace {
   void
   CohortsLazy::write_ro(STM_WRITE_SIG(tx,addr,val,mask))
   {
-      // If everyone else is ready to commit, do in place write
-
-      // [[NB]] Here is a problem to solve, if there's only one tx in a
-      // cohort, it will not go turbo, which is incorrect.
-      // use following if condition for single thread:
-      // if (cpending + 1 == started){
-      if (cpending > committed && cpending + 1 == started){
-          // set up flag indicating in place write happens
-          inplace= 1;
-          // mark orec
-          orec_t* o = get_orec(addr);
-          o->v.all = started;
-          // in place write
-          *addr = val;
-          // go turbo mode
-          OnFirstWrite(tx, read_turbo, write_turbo, commit_turbo);
-      }
-      else{
-          tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
-          OnFirstWrite(tx, read_rw, write_rw, commit_rw);
-      }
+       // If everyone else is ready to commit, do in place write
+       if (cpending + 1 == started){
+          // set up flag indicating in place write starts
+          inplace = 1;
+	  WBR;
+	  // double check is necessary
+	  if (cpending + 1 == started){
+	    // mark orec
+	    orec_t* o = get_orec(addr);
+	    o->v.all = started;
+	    // in place write
+	    *addr = val;
+	    // go turbo mode
+	    OnFirstWrite(tx, read_turbo, write_turbo, commit_turbo);
+	    return;
+	  }
+	  // reset flag
+	  inplace = 0;
+       }
+       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
+       OnFirstWrite(tx, read_rw, write_rw, commit_rw);
   }
 
   /**
@@ -345,8 +337,9 @@ namespace {
   CohortsLazy::TxAbortWrapper(TxThread* tx)
   {
       // increase total number of committed tx
-      ADD(&committed, 1);
-
+      // ADD(&committed, 1);
+      committed ++;
+      WBR;
       // set self as completed
       last_complete.val = tx->order;
 
