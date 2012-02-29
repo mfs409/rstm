@@ -160,11 +160,11 @@ namespace {
       committed ++;
       WBR;
 
-      // mark self as done
-      last_complete.val = tx->order;
-
       // update last_order
       last_order = started + 1;
+
+      // mark self as done
+      last_complete.val = tx->order;
 
       // commit all frees, reset all lists
       tx->r_orecs.reset();
