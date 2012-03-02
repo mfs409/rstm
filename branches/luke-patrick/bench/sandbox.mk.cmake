@@ -8,7 +8,7 @@ STMLIB := @CMAKE_CURRENT_BINARY_DIR@/../libitm2stm
 STMSUPPORT := $(dir $(shell which ${TMLINK}))../lib
 
 CFLAGS   = -I@CMAKE_SOURCE_DIR@ -I@CMAKE_SOURCE_DIR@/include -I@CMAKE_BINARY_DIR@/include 
-CFLAGS  += -DDTMC
+CFLAGS  += -DSTM_API_DTMC -DSINGLE_SOURCE_BUILD
 CFLAGS  += -fgnu-tm -emit-llvm
 
 ifndef DEBUG
@@ -39,13 +39,13 @@ clean:
 	@find . -name "TreeBench" | xargs rm -f
 	@find . -name "ListBench" | xargs rm -f
 
-HashBench: bmharness.bc HashBench.bc
+HashBench: HashBench.bc
 	${TMLINK} ${LDFLAGS} -o $@ $^ ${LDLIBS}
 
-TreeBench: bmharness.bc TreeBench.bc
+TreeBench: TreeBench.bc
 	${TMLINK} ${LDFLAGS} -o $@ $^ ${LDLIBS}
 
-ListBench: bmharness.bc ListBench.bc
+ListBench: ListBench.bc
 	${TMLINK} ${LDFLAGS} -o $@ $^ ${LDLIBS}
 
 %.bc: %.c
@@ -58,7 +58,8 @@ BITS   ?= 64
 TRIALS ?= 3
 CORES  ?= 6
 TIME   ?= 5
-ALGS   ?= OrecEager OrecELA OrecSandbox
+ALGS   ?= OrecEager OrecELA
+#OrecSandbox
 
 ifdef BIND
 CPUSET = 1,3,5,7,9,11,13,15,17,19,21,23

@@ -13,6 +13,7 @@
 
 #include <stm/config.h> // NORETURN
 #include <checkpoint.h> // CHECKPOINT_SIZE
+#include <signal.h>     // sigset_t
 
 namespace itm2stm {
 class Checkpoint {
@@ -31,6 +32,7 @@ class Checkpoint {
     }
 
     void* checkpoint_[CHECKPOINT_SIZE];
+    sigset_t mask_;
 };
 } // namespace itm2stm
 
