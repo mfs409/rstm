@@ -78,12 +78,7 @@ namespace {
   {
     S1:
       // wait until everyone is committed
-      while (cpending != committed){
-          // check if an adaptivity action is underway
-          if (TxThread::tmbegin != begin){
-              tx->tmabort(tx);
-          }
-      }
+      while (cpending != committed);
 
       // before tx begins, increase total number of tx
       ADD(&started, 1);
@@ -163,7 +158,7 @@ namespace {
       while (cpending < started);
 
       // If in place write occurred, all tx validate reads
-      // Otherwise, only first one skips validation      
+      // Otherwise, only first one skips validation
       if (inplace == 1 || tx->order != last_order)
           validate(tx);
 
@@ -239,27 +234,28 @@ namespace {
   void
   CohortsLazy::write_ro(STM_WRITE_SIG(tx,addr,val,mask))
   {
-       // If everyone else is ready to commit, do in place write
-       if (cpending + 1 == started){
+      // If everyone else is ready to commit, do in place write
+      if (cpending + 1 == started) {
           // set up flag indicating in place write starts
+          // [NB]When testing on MacOS, better use CAS
           inplace = 1;
-	  WBR;
-	  // double check is necessary
-	  if (cpending + 1 == started){
-	    // mark orec
-	    orec_t* o = get_orec(addr);
-	    o->v.all = started;
-	    // in place write
-	    *addr = val;
-	    // go turbo mode
-	    OnFirstWrite(tx, read_turbo, write_turbo, commit_turbo);
-	    return;
-	  }
-	  // reset flag
-	  inplace = 0;
-       }
-       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
-       OnFirstWrite(tx, read_rw, write_rw, commit_rw);
+          WBR;
+          // double check is necessary
+          if (cpending + 1 == started) {
+              // mark orec
+              orec_t* o = get_orec(addr);
+              o->v.all = started;
+              // in place write
+              *addr = val;
+              // go turbo mode
+              OnFirstWrite(tx, read_turbo, write_turbo, commit_turbo);
+              return;
+          }
+          // reset flag
+          inplace = 0;
+      }
+      tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
+      OnFirstWrite(tx, read_rw, write_rw, commit_rw);
   }
 
   /**

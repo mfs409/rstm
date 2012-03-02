@@ -82,12 +82,7 @@ namespace {
   {
     S1:
       // wait until everyone is committed
-      while (cpending != committed){
-          // check if an adaptivity action is underway
-          if (TxThread::tmbegin != begin){
-              tx->tmabort(tx);
-          }
-      }
+      while (cpending != committed);
 
       // before tx begins, increase total number of tx
       ADD(&started, 1);
