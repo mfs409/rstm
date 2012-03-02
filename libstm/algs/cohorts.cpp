@@ -55,19 +55,15 @@ namespace {
       static TM_FASTCALL bool begin(TxThread*);
       static TM_FASTCALL void* read_ro(STM_READ_SIG(,,));
       static TM_FASTCALL void* read_rw(STM_READ_SIG(,,));
-      static TM_FASTCALL void* read_turbo(STM_READ_SIG(,,));
       static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,,));
       static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void write_turbo(STM_WRITE_SIG(,,,));
       static TM_FASTCALL void commit_ro(TxThread* tx);
       static TM_FASTCALL void commit_rw(TxThread* tx);
-      static TM_FASTCALL void commit_turbo(TxThread* tx);
 
       static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
       static void onSwitchTo();
       static NOINLINE void validate(TxThread* tx);
-      static NOINLINE void TxAbortWrapper(TxThread* tx);
   };
 
   /**
@@ -88,7 +84,7 @@ namespace {
       ADD(&started, 1);
 
       // [NB] we must double check no one is ready to commit yet!
-      if (cpending > committed){
+      if (cpending > committed) {
           SUB(&started, 1);
           goto S1;
       }
@@ -124,15 +120,15 @@ namespace {
   void
   Cohorts::commit_rw(TxThread* tx)
   {
-      // increase # of tx waiting to commit, and use it as the order
-      tx->order = ADD(&cpending ,1);
+      // increment num of tx ready to commit, and use it as the order
+      tx->order = ADD(&cpending, 1);
 
       // Wait for my turn
       while (last_complete.val != (uintptr_t)(tx->order - 1));
 
       // If I'm not the first one in a cohort to commit, validate read
       if (tx->order != last_order)
-          validate (tx);
+          validate(tx);
 
       // mark orec
       foreach (WriteSet, i, tx->writes) {
@@ -143,23 +139,23 @@ namespace {
       }
 
       // Wait until all tx are ready to commit
-      while(cpending < started);
+      while (cpending < started);
 
       // do write back
       foreach (WriteSet, i, tx->writes)
           *i->addr = i->val;
-
-      // increase total number of committed tx
-      // [NB] Using atomic instruction might be faster
-      // ADD(&committed, 1);
-      committed ++;
-      WBR;
 
       // update last_order
       last_order = started + 1;
 
       // mark self as done
       last_complete.val = tx->order;
+
+      // increase total number of committed tx
+      // [NB] atomic increment is faster here
+      ADD(&committed, 1);
+      // committed++;
+      // WBR;
 
       // commit all frees, reset all lists
       tx->r_orecs.reset();
@@ -174,7 +170,7 @@ namespace {
   Cohorts::read_ro(STM_READ_SIG(tx,addr,))
   {
       // log orec
-      tx->r_orecs.insert( get_orec(addr) );
+      tx->r_orecs.insert(get_orec(addr));
       return *addr;
   }
 
@@ -190,7 +186,7 @@ namespace {
       REDO_RAW_CHECK(found, log, mask);
 
       // log orec
-      tx->r_orecs.insert(  get_orec(addr) );
+      tx->r_orecs.insert(get_orec(addr));
 
       void* tmp = *addr;
       REDO_RAW_CLEANUP(tmp, found, log, mask);
@@ -257,28 +253,16 @@ namespace {
       foreach (OrecList, i, tx->r_orecs) {
           // read this orec
           uintptr_t ivt = (*i)->v.all;
-          // If orec changed , abort
-          if (ivt > tx->ts_cache)
-              TxAbortWrapper(tx);
+          // If orec changed, abort
+          if (ivt > tx->ts_cache) {
+              // increase total number of committed tx
+              ADD(&committed, 1);
+              // set self as completed
+              last_complete.val = tx->order;
+              // abort
+              tx->tmabort(tx);
+          }
       }
-  }
-
-  /**
-   *   Cohorts Tx Abort Wrapper for commit
-   *   for abort inside commit. Since we already have order, we need
-   *   to mark self as last_complete, increase total committed tx
-   */
-  void
-  Cohorts::TxAbortWrapper(TxThread* tx)
-  {
-      // increase total number of committed tx
-      ADD(&committed, 1);
-
-      // set self as completed
-      last_complete.val = tx->order;
-
-      // abort
-      tx->tmabort(tx);
   }
 
   /**

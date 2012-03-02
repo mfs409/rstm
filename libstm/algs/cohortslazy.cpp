@@ -63,7 +63,6 @@ namespace {
       static bool irrevoc(TxThread*);
       static void onSwitchTo();
       static NOINLINE void validate(TxThread* tx);
-      static NOINLINE void TxAbortWrapper(TxThread* tx);
   };
 
   /**
@@ -205,7 +204,7 @@ namespace {
   CohortsLazy::read_ro(STM_READ_SIG(tx,addr,))
   {
       // log orec
-      tx->r_orecs.insert( get_orec(addr) );
+      tx->r_orecs.insert(get_orec(addr));
       return *addr;
   }
 
@@ -221,7 +220,7 @@ namespace {
       REDO_RAW_CHECK(found, log, mask);
 
       // log orec
-      tx->r_orecs.insert(  get_orec(addr) );
+      tx->r_orecs.insert(get_orec(addr));
 
       void* tmp = *addr;
       REDO_RAW_CLEANUP(tmp, found, log, mask);
@@ -319,28 +318,17 @@ namespace {
           // read this orec
           uintptr_t ivt = (*i)->v.all;
           // If orec changed , abort
-          if (ivt > tx->ts_cache)
-              TxAbortWrapper(tx);
+          if (ivt > tx->ts_cache) {
+              // increase total number of committed tx
+              // ADD(&committed, 1);
+              committed ++;
+              WBR;
+              // set self as completed
+              last_complete.val = tx->order;
+              // abort
+              tx->tmabort(tx);
+          }
       }
-  }
-
-  /**
-   *   CohortsLazy Tx Abort Wrapper for commit
-   *   for abort inside commit. Since we already have order, we need
-   *   to mark self as last_complete, increase total committed tx
-   */
-  void
-  CohortsLazy::TxAbortWrapper(TxThread* tx)
-  {
-      // increase total number of committed tx
-      // ADD(&committed, 1);
-      committed ++;
-      WBR;
-      // set self as completed
-      last_complete.val = tx->order;
-
-      // abort
-      tx->tmabort(tx);
   }
 
   /**
