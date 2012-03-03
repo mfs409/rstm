@@ -20,12 +20,12 @@
 namespace stm
 {
 
-  void install_algorithm_local(int new_alg, TxThread* tx)
+  void install_algorithm_local(int new_alg)
   {
       // set my read/write/commit pointers
-      tx->tmread     = stms[new_alg].read;
-      tx->tmwrite    = stms[new_alg].write;
-      tx->tmcommit   = stms[new_alg].commit;
+      Self.tmread     = stms[new_alg].read;
+      Self.tmwrite    = stms[new_alg].write;
+      Self.tmcommit   = stms[new_alg].commit;
   }
 
   /**
@@ -44,11 +44,11 @@ namespace stm
    *  a time.  Furthermore, no two of those actions can be done
    *  simultaneously.
    */
-  void install_algorithm(int new_alg, TxThread* tx)
+  void install_algorithm(int new_alg)
   {
       // diagnostic message
-      if (tx)
-          printf("[%u] switching from %s to %s\n", tx->id,
+      //if (tx)
+          printf("[%u] switching from %s to %s\n", Self.id,
                  stms[curr_policy.ALG_ID].name, stms[new_alg].name);
       if (!stms[new_alg].privatization_safe)
           printf("Warning: Algorithm %s is not privatization-safe!\n",

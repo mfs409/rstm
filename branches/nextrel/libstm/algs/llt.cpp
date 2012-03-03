@@ -32,7 +32,12 @@ using stm::UNRECOVERABLE;
 using stm::WriteSetEntry;
 using stm::orec_t;
 using stm::get_orec;
-
+using stm::Self;
+using stm::OnFirstWrite;
+using stm::OnReadWriteCommit;
+using stm::OnReadOnlyCommit;
+using stm::PreRollback;
+using stm::PostRollback;
 
 /**
  *  Declare the functions that we're going to implement, so that we can avoid
@@ -41,29 +46,29 @@ using stm::get_orec;
 namespace {
   struct LLT
   {
-      static TM_FASTCALL bool begin(TxThread*);
-      static TM_FASTCALL void* read_ro(STM_READ_SIG(,,));
-      static TM_FASTCALL void* read_rw(STM_READ_SIG(,,));
-      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void commit_ro(TxThread*);
-      static TM_FASTCALL void commit_rw(TxThread*);
+      static TM_FASTCALL bool begin();
+      static TM_FASTCALL void* read_ro(STM_READ_SIG(,));
+      static TM_FASTCALL void* read_rw(STM_READ_SIG(,));
+      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,));
+      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,));
+      static TM_FASTCALL void commit_ro();
+      static TM_FASTCALL void commit_rw();
 
-      static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
-      static bool irrevoc(TxThread*);
+      static stm::scope_t* rollback(STM_ROLLBACK_SIG(,));
+      static bool irrevoc();
       static void onSwitchTo();
-      static NOINLINE void validate(TxThread*);
+      static NOINLINE void validate();
   };
 
   /**
    *  LLT begin:
    */
   bool
-  LLT::begin(TxThread* tx)
+  LLT::begin()
   {
-      tx->allocator.onTxBegin();
+      Self.allocator.onTxBegin();
       // get a start time
-      tx->start_time = timestamp.val;
+      Self.start_time = timestamp.val;
       return false;
   }
 
@@ -71,11 +76,11 @@ namespace {
    *  LLT commit (read-only):
    */
   void
-  LLT::commit_ro(TxThread* tx)
+  LLT::commit_ro()
   {
       // read-only, so just reset lists
-      tx->r_orecs.reset();
-      OnReadOnlyCommit(tx);
+      Self.r_orecs.reset();
+      OnReadOnlyCommit();
   }
 
   /**
@@ -85,26 +90,26 @@ namespace {
    *    validations.
    */
   void
-  LLT::commit_rw(TxThread* tx)
+  LLT::commit_rw()
   {
       // acquire locks
-      foreach (WriteSet, i, tx->writes) {
+      foreach (WriteSet, i, Self.writes) {
           // get orec, read its version#
           orec_t* o = get_orec(i->addr);
           uintptr_t ivt = o->v.all;
 
           // lock all orecs, unless already locked
-          if (ivt <= tx->start_time) {
+          if (ivt <= Self.start_time) {
               // abort if cannot acquire
-              if (!bcasptr(&o->v.all, ivt, tx->my_lock.all))
-                  tx->tmabort(tx);
+              if (!bcasptr(&o->v.all, ivt, Self.my_lock.all))
+                  Self.tmabort();
               // save old version to o->p, remember that we hold the lock
               o->p = ivt;
-              tx->locks.insert(o);
+              Self.locks.insert(o);
           }
           // else if we don't hold the lock abort
-          else if (ivt != tx->my_lock.all) {
-              tx->tmabort(tx);
+          else if (ivt != Self.my_lock.all) {
+              Self.tmabort();
           }
       }
 
@@ -112,22 +117,22 @@ namespace {
       uintptr_t end_time = 1 + faiptr(&timestamp.val);
 
       // skip validation if nobody else committed
-      if (end_time != (tx->start_time + 1))
-          validate(tx);
+      if (end_time != (Self.start_time + 1))
+          validate();
 
       // run the redo log
-      tx->writes.writeback();
+      Self.writes.writeback();
 
       // release locks
       CFENCE;
-      foreach (OrecList, i, tx->locks)
+      foreach (OrecList, i, Self.locks)
           (*i)->v.all = end_time;
 
       // clean-up
-      tx->r_orecs.reset();
-      tx->writes.reset();
-      tx->locks.reset();
-      OnReadWriteCommit(tx, read_ro, write_ro, commit_ro);
+      Self.r_orecs.reset();
+      Self.writes.reset();
+      Self.locks.reset();
+      OnReadWriteCommit( read_ro, write_ro, commit_ro);
   }
 
   /**
@@ -136,7 +141,7 @@ namespace {
    *    We use "check twice" timestamps in LLT
    */
   void*
-  LLT::read_ro(STM_READ_SIG(tx,addr,))
+  LLT::read_ro(STM_READ_SIG(addr,))
   {
       // get the orec addr
       orec_t* o = get_orec(addr);
@@ -148,13 +153,13 @@ namespace {
       CFENCE;
       uintptr_t ivt2 = o->v.all;
       // if orec never changed, and isn't too new, the read is valid
-      if ((ivt <= tx->start_time) && (ivt == ivt2)) {
+      if ((ivt <= Self.start_time) && (ivt == ivt2)) {
           // log orec, return the value
-          tx->r_orecs.insert(o);
+          Self.r_orecs.insert(o);
           return tmp;
       }
       // unreachable
-      tx->tmabort(tx);
+      Self.tmabort();
       return NULL;
   }
 
@@ -162,11 +167,11 @@ namespace {
    *  LLT read (writing transaction)
    */
   void*
-  LLT::read_rw(STM_READ_SIG(tx,addr,mask))
+  LLT::read_rw(STM_READ_SIG(addr,mask))
   {
       // check the log for a RAW hazard, we expect to miss
       WriteSetEntry log(STM_WRITE_SET_ENTRY(addr, NULL, mask));
-      bool found = tx->writes.find(log);
+      bool found = Self.writes.find(log);
       REDO_RAW_CHECK(found, log, mask);
 
       // get the orec addr
@@ -182,12 +187,12 @@ namespace {
       // fixup is here to minimize the postvalidation orec read latency
       REDO_RAW_CLEANUP(tmp, found, log, mask);
       // if orec never changed, and isn't too new, the read is valid
-      if ((ivt <= tx->start_time) && (ivt == ivt2)) {
+      if ((ivt <= Self.start_time) && (ivt == ivt2)) {
           // log orec, return the value
-          tx->r_orecs.insert(o);
+          Self.r_orecs.insert(o);
           return tmp;
       }
-      tx->tmabort(tx);
+      Self.tmabort();
       // unreachable
       return NULL;
   }
@@ -196,52 +201,52 @@ namespace {
    *  LLT write (read-only context)
    */
   void
-  LLT::write_ro(STM_WRITE_SIG(tx,addr,val,mask))
+  LLT::write_ro(STM_WRITE_SIG(addr,val,mask))
   {
       // add to redo log
-      tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
-      OnFirstWrite(tx, read_rw, write_rw, commit_rw);
+      Self.writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
+      OnFirstWrite( read_rw, write_rw, commit_rw);
   }
 
   /**
    *  LLT write (writing context)
    */
   void
-  LLT::write_rw(STM_WRITE_SIG(tx,addr,val,mask))
+  LLT::write_rw(STM_WRITE_SIG(addr,val,mask))
   {
       // add to redo log
-      tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
+      Self.writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
   }
 
   /**
    *  LLT unwinder:
    */
   stm::scope_t*
-  LLT::rollback(STM_ROLLBACK_SIG(tx, except, len))
+  LLT::rollback(STM_ROLLBACK_SIG( except, len))
   {
-      PreRollback(tx);
+      PreRollback();
 
       // Perform writes to the exception object if there were any... taking the
       // branch overhead without concern because we're not worried about
       // rollback overheads.
-      STM_ROLLBACK(tx->writes, except, len);
+      STM_ROLLBACK(Self.writes, except, len);
 
       // release the locks and restore version numbers
-      foreach (OrecList, i, tx->locks)
+      foreach (OrecList, i, Self.locks)
           (*i)->v.all = (*i)->p;
 
       // undo memory operations, reset lists
-      tx->r_orecs.reset();
-      tx->writes.reset();
-      tx->locks.reset();
-      return PostRollback(tx, read_ro, write_ro, commit_ro);
+      Self.r_orecs.reset();
+      Self.writes.reset();
+      Self.locks.reset();
+      return PostRollback( read_ro, write_ro, commit_ro);
   }
 
   /**
    *  LLT in-flight irrevocability:
    */
   bool
-  LLT::irrevoc(TxThread*)
+  LLT::irrevoc()
   {
       return false;
   }
@@ -250,14 +255,14 @@ namespace {
    *  LLT validation
    */
   void
-  LLT::validate(TxThread* tx)
+  LLT::validate()
   {
       // validate
-      foreach (OrecList, i, tx->r_orecs) {
+      foreach (OrecList, i, Self.r_orecs) {
           uintptr_t ivt = (*i)->v.all;
           // if unlocked and newer than start time, abort
-          if ((ivt > tx->start_time) && (ivt != tx->my_lock.all))
-              tx->tmabort(tx);
+          if ((ivt > Self.start_time) && (ivt != Self.my_lock.all))
+              Self.tmabort();
       }
   }
 

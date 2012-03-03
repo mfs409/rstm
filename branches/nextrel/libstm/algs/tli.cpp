@@ -27,7 +27,12 @@ using stm::timestamp;
 using stm::threads;
 using stm::threadcount;
 using stm::WriteSetEntry;
-
+using stm::Self;
+using stm::OnFirstWrite;
+using stm::OnReadWriteCommit;
+using stm::OnReadOnlyCommit;
+using stm::PreRollback;
+using stm::PostRollback;
 
 /**
  *  Declare the functions that we're going to implement, so that we can avoid
@@ -36,16 +41,16 @@ using stm::WriteSetEntry;
 namespace {
   struct TLI
   {
-      static TM_FASTCALL bool begin(TxThread*);
-      static TM_FASTCALL void* read_ro(STM_READ_SIG(,,));
-      static TM_FASTCALL void* read_rw(STM_READ_SIG(,,));
-      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void commit_ro(TxThread*);
-      static TM_FASTCALL void commit_rw(TxThread*);
+      static TM_FASTCALL bool begin();
+      static TM_FASTCALL void* read_ro(STM_READ_SIG(,));
+      static TM_FASTCALL void* read_rw(STM_READ_SIG(,));
+      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,));
+      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,));
+      static TM_FASTCALL void commit_ro();
+      static TM_FASTCALL void commit_rw();
 
-      static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
-      static bool irrevoc(TxThread*);
+      static stm::scope_t* rollback(STM_ROLLBACK_SIG(,));
+      static bool irrevoc();
       static void onSwitchTo();
   };
 
@@ -54,11 +59,11 @@ namespace {
    *  TLI begin:
    */
   bool
-  TLI::begin(TxThread* tx)
+  TLI::begin()
   {
       // mark self as alive
-      tx->allocator.onTxBegin();
-      tx->alive = 1;
+      Self.allocator.onTxBegin();
+      Self.alive = 1;
       return false;
   }
 
@@ -66,27 +71,27 @@ namespace {
    *  TLI commit (read-only):
    */
   void
-  TLI::commit_ro(TxThread* tx)
+  TLI::commit_ro()
   {
       // if the transaction is invalid, abort
-      if (__builtin_expect(tx->alive == 2, false))
-          tx->tmabort(tx);
+      if (__builtin_expect(Self.alive == 2, false))
+          Self.tmabort();
 
       // ok, all is good
-      tx->alive = 0;
-      tx->rf->clear();
-      OnReadOnlyCommit(tx);
+      Self.alive = 0;
+      Self.rf->clear();
+      OnReadOnlyCommit();
   }
 
   /**
    *  TLI commit (writing context):
    */
   void
-  TLI::commit_rw(TxThread* tx)
+  TLI::commit_rw()
   {
       // if the transaction is invalid, abort
-      if (__builtin_expect(tx->alive == 2, false))
-          tx->tmabort(tx);
+      if (__builtin_expect(Self.alive == 2, false))
+          Self.tmabort();
 
       // grab the lock to stop the world
       uintptr_t tmp = timestamp.val;
@@ -96,26 +101,26 @@ namespace {
       }
 
       // double check that we're valid
-      if (__builtin_expect(tx->alive == 2,false)) {
+      if (__builtin_expect(Self.alive == 2,false)) {
           timestamp.val = tmp + 2; // release the lock
-          tx->tmabort(tx);
+          Self.tmabort();
       }
 
       // kill conflicting transactions
       for (uint32_t i = 0; i < threadcount.val; i++)
-          if ((threads[i]->alive == 1) && (tx->wf->intersect(threads[i]->rf)))
+          if ((threads[i]->alive == 1) && (Self.wf->intersect(threads[i]->rf)))
               threads[i]->alive = 2;
 
       // do writeback
-      tx->writes.writeback();
+      Self.writes.writeback();
 
       // release the lock and clean up
-      tx->alive = 0;
+      Self.alive = 0;
       timestamp.val = tmp+2;
-      tx->writes.reset();
-      tx->rf->clear();
-      tx->wf->clear();
-      OnReadWriteCommit(tx, read_ro, write_ro, commit_ro);
+      Self.writes.reset();
+      Self.rf->clear();
+      Self.wf->clear();
+      OnReadWriteCommit( read_ro, write_ro, commit_ro);
   }
 
   /**
@@ -127,11 +132,11 @@ namespace {
    *    ensure that we are still valid
    */
   void*
-  TLI::read_ro(STM_READ_SIG(tx,addr,))
+  TLI::read_ro(STM_READ_SIG(addr,))
   {
       // push address into read filter, ensure ordering w.r.t. the subsequent
       // read of data
-      tx->rf->atomic_add(addr);
+      Self.rf->atomic_add(addr);
 
       // get a consistent snapshot of the value
       while (true) {
@@ -143,11 +148,11 @@ namespace {
           bool ts_ok = !(x1&1) && (timestamp.val == x1);
           CFENCE;
           // if read valid, and we're not killed, return the value
-          if ((tx->alive == 1) && ts_ok)
+          if ((Self.alive == 1) && ts_ok)
               return val;
           // abort if we're killed
-          if (tx->alive == 2)
-              tx->tmabort(tx);
+          if (Self.alive == 2)
+              Self.tmabort();
       }
   }
 
@@ -155,15 +160,15 @@ namespace {
    *  TLI read (writing transaction)
    */
   void*
-  TLI::read_rw(STM_READ_SIG(tx,addr,mask))
+  TLI::read_rw(STM_READ_SIG(addr,mask))
   {
       // check the log for a RAW hazard, we expect to miss
       WriteSetEntry log(STM_WRITE_SET_ENTRY(addr, NULL, mask));
-      bool found = tx->writes.find(log);
+      bool found = Self.writes.find(log);
       REDO_RAW_CHECK(found, log, mask);
 
       // reuse the ReadRO barrier, which is adequate here---reduces LOC
-      void* val = read_ro(tx, addr STM_MASK(mask));
+      void* val = read_ro( addr STM_MASK(mask));
       REDO_RAW_CLEANUP(val, found, log, mask);
       return val;
   }
@@ -172,12 +177,12 @@ namespace {
    *  TLI write (read-only context)
    */
   void
-  TLI::write_ro(STM_WRITE_SIG(tx,addr,val,mask))
+  TLI::write_ro(STM_WRITE_SIG(addr,val,mask))
   {
       // buffer the write, update the filter
-      tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
-      tx->wf->add(addr);
-      OnFirstWrite(tx, read_rw, write_rw, commit_rw);
+      Self.writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
+      Self.wf->add(addr);
+      OnFirstWrite( read_rw, write_rw, commit_rw);
   }
 
   /**
@@ -186,38 +191,38 @@ namespace {
    *    Just like the RO case
    */
   void
-  TLI::write_rw(STM_WRITE_SIG(tx,addr,val,mask))
+  TLI::write_rw(STM_WRITE_SIG(addr,val,mask))
   {
-      tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
-      tx->wf->add(addr);
+      Self.writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
+      Self.wf->add(addr);
   }
 
   /**
    *  TLI unwinder:
    */
   stm::scope_t*
-  TLI::rollback(STM_ROLLBACK_SIG(tx, except, len))
+  TLI::rollback(STM_ROLLBACK_SIG( except, len))
   {
-      PreRollback(tx);
+      PreRollback();
 
       // Perform writes to the exception object if there were any... taking the
       // branch overhead without concern because we're not worried about
       // rollback overheads.
-      STM_ROLLBACK(tx->writes, except, len);
+      STM_ROLLBACK(Self.writes, except, len);
 
       // clear filters and logs
-      tx->rf->clear();
-      if (tx->writes.size()) {
-          tx->writes.reset();
-          tx->wf->clear();
+      Self.rf->clear();
+      if (Self.writes.size()) {
+          Self.writes.reset();
+          Self.wf->clear();
       }
-      return PostRollback(tx, read_ro, write_ro, commit_ro);
+      return PostRollback( read_ro, write_ro, commit_ro);
   }
 
   /**
    *  TLI in-flight irrevocability: use abort-and-restart
    */
-  bool TLI::irrevoc(TxThread*) { return false; }
+  bool TLI::irrevoc() { return false; }
 
   /**
    *  Switch to TLI:

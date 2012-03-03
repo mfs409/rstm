@@ -30,7 +30,13 @@ using stm::id_version_t;
 using stm::nanorec_t;
 using stm::NanorecList;
 using stm::OrecList;
-
+using stm::Self;
+using stm::OnFirstWrite;
+using stm::OnReadWriteCommit;
+using stm::OnReadOnlyCommit;
+using stm::PreRollback;
+using stm::PostRollback;
+using stm::exp_backoff;
 
 /**
  *  This is a good-faith implementation of SwissTM.
@@ -68,48 +74,48 @@ namespace
 {
   struct Swiss
   {
-      static TM_FASTCALL bool begin(TxThread*);
-      static TM_FASTCALL void* read(STM_READ_SIG(,,));
-      static TM_FASTCALL void write(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void commit(TxThread*);
+      static TM_FASTCALL bool begin();
+      static TM_FASTCALL void* read(STM_READ_SIG(,));
+      static TM_FASTCALL void write(STM_WRITE_SIG(,,));
+      static TM_FASTCALL void commit();
 
-      static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
-      static bool irrevoc(TxThread*);
+      static stm::scope_t* rollback(STM_ROLLBACK_SIG(,));
+      static bool irrevoc();
       static void onSwitchTo();
-      static void cm_start(TxThread*);
-      static void cm_on_rollback(TxThread*);
-      static void cm_on_write(TxThread*);
-      static bool cm_should_abort(TxThread*, uintptr_t owner_id);
-      static NOINLINE void validate_inflight(TxThread*);
-      static NOINLINE void validate_commit(TxThread*);
+      static void cm_start();
+      static void cm_on_rollback();
+      static void cm_on_write();
+      static bool cm_should_abort(uintptr_t owner_id);
+      static NOINLINE void validate_inflight();
+      static NOINLINE void validate_commit();
   };
 
   /**
    * begin swiss transaction: set to active, notify allocator, get start
    * time, and notify CM
    */
-  bool Swiss::begin(TxThread* tx)
+  bool Swiss::begin()
   {
-      tx->alive = ACTIVE;
-      tx->allocator.onTxBegin();
-      tx->start_time = timestamp.val;
-      cm_start(tx);
+      Self.alive = ACTIVE;
+      Self.allocator.onTxBegin();
+      Self.start_time = timestamp.val;
+      cm_start();
       return false;
   }
 
   // word based transactional read
-  void* Swiss::read(STM_READ_SIG(tx,addr,mask))
+  void* Swiss::read(STM_READ_SIG(addr,mask))
   {
       // get orec address
       orec_t* o = get_orec(addr);
 
       // do I own the orec?
-      if (o->v.all == tx->my_lock.all) {
+      if (o->v.all == Self.my_lock.all) {
           CFENCE; // order orec check before possible read of *addr
           // if this address is in my writeset, return looked-up value, else
           // do a direct read from memory
           WriteSetEntry log(STM_WRITE_SET_ENTRY(addr, NULL, mask));
-          bool found = tx->writes.find(log);
+          bool found = Self.writes.find(log);
           REDO_RAW_CHECK(found, log, mask);
 
           void* val = *addr;
@@ -129,19 +135,19 @@ namespace
           if ((rver1 != rver2) || (rver1 == UINT_MAX)) {
               // bad read: we'll go back to top, but first make sure we didn't
               // get aborted
-              if (tx->alive == ABORTED)
-                  tx->tmabort(tx);
+              if (Self.alive == ABORTED)
+                  Self.tmabort();
               continue;
           }
           // the read was good: log the orec
-          tx->r_orecs.insert(o);
+          Self.r_orecs.insert(o);
           // do we need to extend our timestamp?
-          if (rver1 > tx->start_time) {
+          if (rver1 > Self.start_time) {
               uintptr_t newts = timestamp.val;
               CFENCE;
-              validate_inflight(tx);
+              validate_inflight();
               CFENCE;
-              tx->start_time = newts;
+              Self.start_time = newts;
           }
           return tmp;
       }
@@ -150,16 +156,16 @@ namespace
   /**
    *  SwissTM write
    */
-  void Swiss::write(STM_WRITE_SIG(tx,addr,val,mask))
+  void Swiss::write(STM_WRITE_SIG(addr,val,mask))
   {
       // put value in redo log
-      tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
+      Self.writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
 
       // get the orec addr
       orec_t* o = get_orec(addr);
 
       // if I'm already the lock holder, we're done!
-      if (o->v.all == tx->my_lock.all)
+      if (o->v.all == Self.my_lock.all)
           return;
 
       while (true) {
@@ -168,34 +174,34 @@ namespace
           ivt.all = o->v.all;
           // if locked, CM will either tell us to self-abort, or to continue
           if (ivt.fields.lock) {
-              if (cm_should_abort(tx, ivt.fields.id))
-                  tx->tmabort(tx);
+              if (cm_should_abort(ivt.fields.id))
+                  Self.tmabort();
               // check liveness before continuing
-              if (tx->alive == ABORTED)
-                  tx->tmabort(tx);
+              if (Self.alive == ABORTED)
+                  Self.tmabort();
               continue;
           }
 
           // if I can't lock it, start over
-          if (!bcasptr(&o->v.all, ivt.all, tx->my_lock.all)) {
+          if (!bcasptr(&o->v.all, ivt.all, Self.my_lock.all)) {
               // check liveness before continuing
-              if (tx->alive == ABORTED)
-                  tx->tmabort(tx);
+              if (Self.alive == ABORTED)
+                  Self.tmabort();
               continue;
           }
 
           // log this lock acquire
-          tx->nanorecs.insert(nanorec_t(o, o->p));
+          Self.nanorecs.insert(nanorec_t(o, o->p));
 
           // if read version too high, validate and extend ts
-          if (o->p > tx->start_time) {
+          if (o->p > Self.start_time) {
               uintptr_t newts = timestamp.val;
-              validate_inflight(tx);
-              tx->start_time = newts;
+              validate_inflight();
+              Self.start_time = newts;
           }
 
           // notify CM & return
-          cm_on_write(tx);
+          cm_on_write();
           return;
       }
   }
@@ -208,83 +214,83 @@ namespace
    *  abort, we can ignore them... either we commit and zero our state,
    *  or we abort anyway.
    */
-  void Swiss::commit(TxThread* tx)
+  void Swiss::commit()
   {
       // read-only case
-      if (!tx->writes.size()) {
-          tx->r_orecs.reset();
-          OnReadOnlyCommit(tx);
+      if (!Self.writes.size()) {
+          Self.r_orecs.reset();
+          OnReadOnlyCommit();
           return;
       }
 
       // writing case:
 
       // first, grab all read locks covering the write set
-      foreach (NanorecList, i, tx->nanorecs) {
+      foreach (NanorecList, i, Self.nanorecs) {
           i->o->p = UINT_MAX;
       }
 
       // increment the global timestamp, and maybe validate
-      tx->end_time = 1 + faiptr(&timestamp.val);
-      if (tx->end_time > (tx->start_time + 1))
-          validate_commit(tx);
+      Self.end_time = 1 + faiptr(&timestamp.val);
+      if (Self.end_time > (Self.start_time + 1))
+          validate_commit();
 
       // run the redo log
-      tx->writes.writeback();
+      Self.writes.writeback();
 
       // now release all read and write locks covering the writeset
-      foreach (NanorecList, i, tx->nanorecs) {
-          i->o->p = tx->end_time;
+      foreach (NanorecList, i, Self.nanorecs) {
+          i->o->p = Self.end_time;
           CFENCE;
-          i->o->v.all = tx->end_time;
+          i->o->v.all = Self.end_time;
       }
 
       // clean up
-      tx->writes.reset();
-      tx->r_orecs.reset();
-      tx->nanorecs.reset();
-      OnReadWriteCommit(tx);
+      Self.writes.reset();
+      Self.r_orecs.reset();
+      Self.nanorecs.reset();
+      OnReadWriteCommit();
   }
 
   // rollback a transaction
   stm::scope_t*
-  Swiss::rollback(STM_ROLLBACK_SIG(tx, except, len))
+  Swiss::rollback(STM_ROLLBACK_SIG( except, len))
   {
-      PreRollback(tx);
+      PreRollback();
 
       // Perform writes to the exception object if there were any... taking
       // the branch overhead without concern because we're not worried about
       // rollback overheads.
-      STM_ROLLBACK(tx->writes, except, len);
+      STM_ROLLBACK(Self.writes, except, len);
 
       // now release all read and write locks covering the writeset... often,
       // we didn't acquire the read locks, but it's harmless to do it like
       // this
-      if (tx->nanorecs.size()) {
-          foreach (NanorecList, i, tx->nanorecs) {
+      if (Self.nanorecs.size()) {
+          foreach (NanorecList, i, Self.nanorecs) {
               i->o->v.all = i->v;
           }
       }
 
       // reset lists
-      tx->writes.reset();
-      tx->r_orecs.reset();
-      tx->nanorecs.reset();
+      Self.writes.reset();
+      Self.r_orecs.reset();
+      Self.nanorecs.reset();
 
       // contention management on rollback
-      cm_on_rollback(tx);
-      return PostRollback(tx);
+      cm_on_rollback();
+      return PostRollback();
   }
 
   // Validate a transaction's read set
   //
   // for in-flight transactions, write locks don't provide a fallback when
   // read-lock validation fails
-  void Swiss::validate_inflight(TxThread* tx)
+  void Swiss::validate_inflight()
   {
-      foreach (OrecList, i, tx->r_orecs) {
-          if ((*i)->p > tx->start_time)
-              tx->tmabort(tx);
+      foreach (OrecList, i, Self.r_orecs) {
+          if ((*i)->p > Self.start_time)
+              Self.tmabort();
       }
   }
 
@@ -292,42 +298,42 @@ namespace
   //
   // for committing transactions, there is a backup plan wh read-lock
   // validation fails
-  void Swiss::validate_commit(TxThread* tx)
+  void Swiss::validate_commit()
   {
-      foreach (OrecList, i, tx->r_orecs) {
-          if ((*i)->p > tx->start_time) {
-              if ((*i)->v.all != tx->my_lock.all) {
-                  foreach (NanorecList, i, tx->nanorecs) {
+      foreach (OrecList, i, Self.r_orecs) {
+          if ((*i)->p > Self.start_time) {
+              if ((*i)->v.all != Self.my_lock.all) {
+                  foreach (NanorecList, i, Self.nanorecs) {
                       i->o->p = i->v;
                   }
-                  tx->tmabort(tx);
+                  Self.tmabort();
               }
           }
       }
   }
 
   // cotention managers
-  void Swiss::cm_start(TxThread* tx)
+  void Swiss::cm_start()
   {
-      if (!tx->consec_aborts)
-          tx->cm_ts = UINT_MAX;
+      if (!Self.consec_aborts)
+          Self.cm_ts = UINT_MAX;
   }
 
-  void Swiss::cm_on_write(TxThread* tx)
+  void Swiss::cm_on_write()
   {
-      if ((tx->cm_ts == UINT_MAX) && (tx->writes.size() == SWISS_PHASE2))
-          tx->cm_ts = 1 + faiptr(&greedy_ts.val);
+      if ((Self.cm_ts == UINT_MAX) && (Self.writes.size() == SWISS_PHASE2))
+          Self.cm_ts = 1 + faiptr(&greedy_ts.val);
   }
 
-  bool Swiss::cm_should_abort(TxThread* tx, uintptr_t owner_id)
+  bool Swiss::cm_should_abort(uintptr_t owner_id)
   {
       // if caller has MAX priority, it should self-abort
-      if (tx->cm_ts == UINT_MAX)
+      if (Self.cm_ts == UINT_MAX)
           return true;
 
       // self-abort if owner's priority lower than mine
       TxThread* owner = threads[owner_id - 1];
-      if (owner->cm_ts < tx->cm_ts)
+      if (owner->cm_ts < Self.cm_ts)
           return true;
 
       // request owner to remote abort
@@ -335,13 +341,13 @@ namespace
       return false;
   }
 
-  void Swiss::cm_on_rollback(TxThread* tx)
+  void Swiss::cm_on_rollback()
   {
-      exp_backoff(tx);
+      exp_backoff();
   }
 
   /*** Become irrevocable via abort-and-restart */
-  bool Swiss::irrevoc(TxThread*) { return false; }
+  bool Swiss::irrevoc() { return false; }
 
   /***  Keep SwissTM metadata healthy */
   void Swiss::onSwitchTo()

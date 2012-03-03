@@ -34,11 +34,11 @@ namespace
    *  This is ugly because rollback has a configuration-dependent signature.
    */
   NORETURN void
-  default_abort_handler(TxThread* tx)
+  default_abort_handler()
   {
-      jmp_buf* scope = (jmp_buf*)TxThread::tmrollback(tx
+      jmp_buf* scope = (jmp_buf*)TxThread::tmrollback(
 #if defined(STM_ABORT_ON_THROW)
-                                                      , NULL, 0
+                                                      NULL, 0
 #endif
                                                );
       // need to null out the scope
@@ -51,36 +51,42 @@ namespace stm
   /*** BACKING FOR GLOBAL VARS DECLARED IN TXTHREAD.HPP */
   pad_word_t threadcount          = {0}; // thread count
   TxThread*  threads[MAX_THREADS] = {0}; // all TxThreads
-  __thread TxThread* Self = NULL;        // this thread's TxThread
+  __thread TxThread Self;                // this thread's TxThread
 
-  /**
-   *  Constructor sets up the lists and vars
-   */
-  TxThread::TxThread()
-      : nesting_depth(0),
-        allocator(),
-        num_commits(0), num_aborts(0), num_restarts(0),
-        num_ro(0), scope(NULL),
-#ifdef STM_PROTECT_STACK
-        stack_high(NULL),
-        stack_low((void**)~0x0),
-#endif
-        start_time(0), tmlHasLock(false), undo_log(64), vlist(64), writes(64),
-        r_orecs(64), locks(64),
-        wf((filter_t*)FILTER_ALLOC(sizeof(filter_t))),
-        rf((filter_t*)FILTER_ALLOC(sizeof(filter_t))),
-        prio(0), consec_aborts(0), seed((unsigned long)&id), myRRecs(64),
-        order(-1), alive(1),
-        r_bytelocks(64), w_bytelocks(64), r_bitlocks(64), w_bitlocks(64),
-        my_mcslock(new mcs_qnode_t()),
-        cm_ts(INT_MAX),
-        cf((filter_t*)FILTER_ALLOC(sizeof(filter_t))),
-        nanorecs(64),
-        begin_wait(0),
-        strong_HG(),
-        irrevocable(false)
+void TxThread::init()
   {
-      // prevent new txns from starting.
+      nesting_depth = (0);
+      allocator.init();
+      num_commits = (0);
+      num_aborts = (0);
+      num_restarts = (0);
+      num_ro = (0);
+      scope = (NULL);
+
+#ifdef STM_PROTECT_STACK
+      stack_high = (NULL);
+      stack_low = ((void**)~0x0);
+#endif
+      start_time = (0);
+      tmlHasLock = (false); undo_log.init(64); vlist.init(64); writes.init(64);
+        r_orecs.init(64); locks.init(64);
+        wf = ((filter_t*)FILTER_ALLOC(sizeof(filter_t)));
+        rf = ((filter_t*)FILTER_ALLOC(sizeof(filter_t)));
+        prio = (0); consec_aborts = (0); seed = ((unsigned long)&id); myRRecs.init(64);
+        order = (-1); alive = (1);
+        r_bytelocks.init(64); w_bytelocks.init(64); r_bitlocks.init(64); w_bitlocks.init(64);
+        my_mcslock = (new mcs_qnode_t());
+        cm_ts = (INT_MAX);
+        cf = ((filter_t*)FILTER_ALLOC(sizeof(filter_t)));
+        nanorecs.init(64);
+        begin_wait = (0);
+        strong_HG = (false);
+        irrevocable = (false);
+
+        abort_hist.init();
+
+
+        // prevent new txns from starting.
       while (true) {
           int i = curr_policy.ALG_ID;
           if (bcasptr(&tmbegin, stms[i].begin, &begin_blocker))
@@ -125,7 +131,7 @@ namespace stm
       rf->clear();
 
       // configure my TM instrumentation
-      install_algorithm_local(curr_policy.ALG_ID, this);
+      install_algorithm_local(curr_policy.ALG_ID);
 
       // set the pointer to this TxThread
       threads[id-1] = this;
@@ -152,6 +158,8 @@ namespace stm
       // now we can let threads progress again
       CFENCE;
       tmbegin = stms[curr_policy.ALG_ID].begin;
+
+      INITIALIZED = true;
   }
 
   /*** print a message and die */
@@ -167,23 +175,23 @@ namespace stm
    *  The begin function pointer.  Note that we need tmbegin to equal
    *  begin_cgl initially, since "0" is the default algorithm
    */
-  bool TM_FASTCALL (*volatile TxThread::tmbegin)(TxThread*) = begin_CGL;
+  bool TM_FASTCALL (*volatile TxThread::tmbegin)() = begin_CGL;
 
   /**
    *  The tmrollback, tmabort, and tmirrevoc pointers
    */
-  scope_t* (*TxThread::tmrollback)(STM_ROLLBACK_SIG(,,));
-  NORETURN void (*TxThread::tmabort)(TxThread*) = default_abort_handler;
-  bool (*TxThread::tmirrevoc)(TxThread*) = NULL;
+  scope_t* (*TxThread::tmrollback)(STM_ROLLBACK_SIG(,));
+  NORETURN void (*TxThread::tmabort)() = default_abort_handler;
+  bool (*TxThread::tmirrevoc)() = NULL;
 
   /*** the init factory */
   void TxThread::thread_init()
   {
       // multiple inits from one thread do not cause trouble
-      if (Self) return;
+      if (Self.INITIALIZED) return;
 
       // create a TxThread and save it in thread-local storage
-      Self = new TxThread();
+      Self.init();
   }
 
   /**
@@ -191,12 +199,10 @@ namespace stm
    */
   void restart()
   {
-      // get the thread's tx context
-      TxThread* tx = Self;
       // register this restart
-      ++tx->num_restarts;
+      ++Self.num_restarts;
       // call the abort code
-      tx->tmabort(tx);
+      Self.tmabort();
   }
 
 
@@ -297,7 +303,7 @@ namespace stm
       curr_policy.abortThresh = pols[new_policy].abortThresh;
 
       // install the new algorithm
-      install_algorithm(new_algorithm, Self);
+      install_algorithm(new_algorithm);
   }
 
   /**

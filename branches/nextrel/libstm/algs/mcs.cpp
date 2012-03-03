@@ -22,7 +22,8 @@
 using stm::UNRECOVERABLE;
 using stm::TxThread;
 using stm::mcslock;
-
+using stm::OnCGLCommit;
+using stm::Self;
 
 /**
  *  Declare the functions that we're going to implement, so that we can avoid
@@ -31,13 +32,13 @@ using stm::mcslock;
 namespace  {
   struct MCS
   {
-      static TM_FASTCALL bool begin(TxThread*);
-      static TM_FASTCALL void* read(STM_READ_SIG(,,));
-      static TM_FASTCALL void write(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void commit(TxThread*);
+      static TM_FASTCALL bool begin();
+      static TM_FASTCALL void* read(STM_READ_SIG(,));
+      static TM_FASTCALL void write(STM_WRITE_SIG(,,));
+      static TM_FASTCALL void commit();
 
-      static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
-      static bool irrevoc(TxThread*);
+      static stm::scope_t* rollback(STM_ROLLBACK_SIG(,));
+      static bool irrevoc();
       static void onSwitchTo();
   };
 
@@ -46,11 +47,11 @@ namespace  {
    *  MCS begin:
    */
   bool
-  MCS::begin(TxThread* tx)
+  MCS::begin()
   {
       // acquire the MCS lock
-      tx->begin_wait = mcs_acquire(&mcslock, tx->my_mcslock);
-      tx->allocator.onTxBegin();
+      Self.begin_wait = mcs_acquire(&mcslock, Self.my_mcslock);
+      Self.allocator.onTxBegin();
       return true;
   }
 
@@ -58,18 +59,18 @@ namespace  {
    *  MCS commit
    */
   void
-  MCS::commit(TxThread* tx)
+  MCS::commit()
   {
       // release the lock, finalize mm ops, and log the commit
-      mcs_release(&mcslock, tx->my_mcslock);
-      OnCGLCommit(tx);
+      mcs_release(&mcslock, Self.my_mcslock);
+      OnCGLCommit();
   }
 
   /**
    *  MCS read
    */
   void*
-  MCS::read(STM_READ_SIG(,addr,))
+  MCS::read(STM_READ_SIG(addr,))
   {
       return *addr;
   }
@@ -78,7 +79,7 @@ namespace  {
    *  MCS write
    */
   void
-  MCS::write(STM_WRITE_SIG(,addr,val,mask))
+  MCS::write(STM_WRITE_SIG(addr,val,mask))
   {
       STM_DO_MASKED_WRITE(addr, val, mask);
   }
@@ -89,7 +90,7 @@ namespace  {
    *    In MCS, aborts are never valid
    */
   stm::scope_t*
-  MCS::rollback(STM_ROLLBACK_SIG(,,))
+  MCS::rollback(STM_ROLLBACK_SIG(,))
   {
       UNRECOVERABLE("ATTEMPTING TO ABORT AN IRREVOCABLE MCS TRANSACTION");
       return NULL;
@@ -102,7 +103,7 @@ namespace  {
    *    Instead, the become_irrevoc() call should just return true
    */
   bool
-  MCS::irrevoc(TxThread*)
+  MCS::irrevoc()
   {
       UNRECOVERABLE("MCS::IRREVOC SHOULD NEVER BE CALLED");
       return false;

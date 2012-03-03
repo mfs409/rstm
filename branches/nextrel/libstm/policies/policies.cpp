@@ -87,8 +87,11 @@ namespace
           myf.getline(tmp, 1024);
           q.pct_ro = strtol(tmp,0,10);
           // if the qtable for this thread count doesn't exist, make a new one
-          if (qtbl[q.thr] == NULL)
-              qtbl[q.thr] = new MiniVector<qtable_t>(64);
+          if (qtbl[q.thr] == NULL) {
+              qtbl[q.thr] = new MiniVector<qtable_t>();
+              qtbl[q.thr]->init(64);
+          }
+
           // put it in the qtable
           qtbl[q.thr]->insert(q);
       }

@@ -32,7 +32,12 @@ using stm::get_orec;
 using stm::id_version_t;
 using stm::threads;
 using stm::UndoLogEntry;
-
+using stm::Self;
+using stm::OnFirstWrite;
+using stm::OnReadWriteCommit;
+using stm::OnReadOnlyCommit;
+using stm::PreRollback;
+using stm::PostRollback;
 
 /**
  *  Declare the functions that we're going to implement, so that we can avoid
@@ -43,18 +48,18 @@ namespace {
   struct OrEAU_Generic
   {
       static void Initialize(int id, const char* name);
-      static TM_FASTCALL bool begin(TxThread*);
-      static TM_FASTCALL void* read_ro(STM_READ_SIG(,,));
-      static TM_FASTCALL void* read_rw(STM_READ_SIG(,,));
-      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void commit_ro(TxThread*);
-      static TM_FASTCALL void commit_rw(TxThread*);
+      static TM_FASTCALL bool begin();
+      static TM_FASTCALL void* read_ro(STM_READ_SIG(,));
+      static TM_FASTCALL void* read_rw(STM_READ_SIG(,));
+      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,));
+      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,));
+      static TM_FASTCALL void commit_ro();
+      static TM_FASTCALL void commit_rw();
 
-      static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
-      static bool irrevoc(TxThread*);
+      static stm::scope_t* rollback(STM_ROLLBACK_SIG(,));
+      static bool irrevoc();
       static void onSwitchTo();
-      static NOINLINE void validate(TxThread*);
+      static NOINLINE void validate();
   };
 
   /**
@@ -83,13 +88,13 @@ namespace {
    */
   template <class CM>
   bool
-  OrEAU_Generic<CM>::begin(TxThread* tx)
+  OrEAU_Generic<CM>::begin()
   {
-      tx->allocator.onTxBegin();
-      tx->start_time = timestamp.val;
-      tx->alive = TX_ACTIVE;
+      Self.allocator.onTxBegin();
+      Self.start_time = timestamp.val;
+      Self.alive = TX_ACTIVE;
       // notify CM
-      CM::onBegin(tx);
+      CM::onBegin();
       return false;
   }
 
@@ -98,11 +103,11 @@ namespace {
    */
   template <class CM>
   void
-  OrEAU_Generic<CM>::commit_ro(TxThread* tx)
+  OrEAU_Generic<CM>::commit_ro()
   {
-      CM::onCommit(tx);
-      tx->r_orecs.reset();
-      OnReadOnlyCommit(tx);
+      CM::onCommit();
+      Self.r_orecs.reset();
+      OnReadOnlyCommit();
   }
 
   /**
@@ -110,34 +115,34 @@ namespace {
    */
   template <class CM>
   void
-  OrEAU_Generic<CM>::commit_rw(TxThread* tx)
+  OrEAU_Generic<CM>::commit_rw()
   {
       // we're a writer, so increment the global timestamp
-      tx->end_time = 1 + faiptr(&timestamp.val);
+      Self.end_time = 1 + faiptr(&timestamp.val);
 
       // skip validation if nobody else committed
-      if (tx->end_time != (tx->start_time + 1)) {
-          foreach (OrecList, i, tx->r_orecs) {
+      if (Self.end_time != (Self.start_time + 1)) {
+          foreach (OrecList, i, Self.r_orecs) {
               // read this orec
               uintptr_t ivt = (*i)->v.all;
               // if unlocked and newer than start time, abort
-              if ((ivt > tx->start_time) && (ivt != tx->my_lock.all))
-                  tx->tmabort(tx);
+              if ((ivt > Self.start_time) && (ivt != Self.my_lock.all))
+                  Self.tmabort();
           }
       }
 
       // release locks
-      foreach (OrecList, i, tx->locks)
-          (*i)->v.all = tx->end_time;
+      foreach (OrecList, i, Self.locks)
+          (*i)->v.all = Self.end_time;
 
       // notify CM
-      CM::onCommit(tx);
+      CM::onCommit();
 
       // clean up
-      tx->r_orecs.reset();
-      tx->undo_log.reset();
-      tx->locks.reset();
-      OnReadWriteCommit(tx, read_ro, write_ro, commit_ro);
+      Self.r_orecs.reset();
+      Self.undo_log.reset();
+      Self.locks.reset();
+      OnReadWriteCommit( read_ro, write_ro, commit_ro);
   }
 
   /**
@@ -145,7 +150,7 @@ namespace {
    */
   template <class CM>
   void*
-  OrEAU_Generic<CM>::read_ro(STM_READ_SIG(tx,addr,))
+  OrEAU_Generic<CM>::read_ro(STM_READ_SIG(addr,))
   {
       // get the orec addr
       orec_t* o = get_orec(addr);
@@ -163,27 +168,27 @@ namespace {
           uintptr_t ivt2 = o->v.all;
 
           // common case: new read to uncontended location
-          if ((ivt.all == ivt2) && (ivt.all <= tx->start_time)) {
-              tx->r_orecs.insert(o);
+          if ((ivt.all == ivt2) && (ivt.all <= Self.start_time)) {
+              Self.r_orecs.insert(o);
               return tmp;
           }
 
           // abort the owner if locked
           if (ivt.fields.lock) {
-              if (CM::mayKill(tx, ivt.fields.id - 1))
+              if (CM::mayKill( ivt.fields.id - 1))
                   threads[ivt.fields.id-1]->alive = TX_ABORTED;
               else
-                  tx->tmabort(tx);
+                  Self.tmabort();
           }
 
           // liveness check
-          if (tx->alive == TX_ABORTED)
-              tx->tmabort(tx);
+          if (Self.alive == TX_ABORTED)
+              Self.tmabort();
 
           // scale timestamp if ivt2 is too new
           uintptr_t newts = timestamp.val;
-          validate(tx);
-          tx->start_time = newts;
+          validate();
+          Self.start_time = newts;
       }
   }
 
@@ -192,7 +197,7 @@ namespace {
    */
   template <class CM>
   void*
-  OrEAU_Generic<CM>::read_rw(STM_READ_SIG(tx,addr,))
+  OrEAU_Generic<CM>::read_rw(STM_READ_SIG(addr,))
   {
       // get the orec addr
       orec_t* o = get_orec(addr);
@@ -206,7 +211,7 @@ namespace {
           void* tmp = *addr;
 
           // best case: I locked it already
-          if (ivt.all == tx->my_lock.all)
+          if (ivt.all == Self.my_lock.all)
               return tmp;
 
           // re-read orec
@@ -214,28 +219,28 @@ namespace {
           uintptr_t ivt2 = o->v.all;
 
           // common case: new read to uncontended location
-          if ((ivt.all == ivt2) && (ivt.all <= tx->start_time)) {
-              tx->r_orecs.insert(o);
+          if ((ivt.all == ivt2) && (ivt.all <= Self.start_time)) {
+              Self.r_orecs.insert(o);
               return tmp;
           }
 
           // abort the owner if locked
           if (ivt.fields.lock) {
-              if (CM::mayKill(tx, ivt.fields.id - 1))
+              if (CM::mayKill( ivt.fields.id - 1))
                   threads[ivt.fields.id-1]->alive = TX_ABORTED;
               else
-                  tx->tmabort(tx);
+                  Self.tmabort();
           }
 
           // liveness check
-          if (tx->alive == TX_ABORTED)
-              tx->tmabort(tx);
+          if (Self.alive == TX_ABORTED)
+              Self.tmabort();
 
           // scale timestamp if ivt2 is too new
           uintptr_t newts = timestamp.val;
-          validate(tx);
+          validate();
 
-          tx->start_time = newts;
+          Self.start_time = newts;
       }
   }
 
@@ -244,7 +249,7 @@ namespace {
    */
   template <class CM>
   void
-  OrEAU_Generic<CM>::write_ro(STM_WRITE_SIG(tx,addr,val,mask))
+  OrEAU_Generic<CM>::write_ro(STM_WRITE_SIG(addr,val,mask))
   {
       // get the orec addr
       orec_t* o = get_orec(addr);
@@ -254,35 +259,35 @@ namespace {
           ivt.all = o->v.all;
 
           // common case: uncontended location... lock it
-          if (ivt.all <= tx->start_time) {
-              if (!bcasptr(&o->v.all, ivt.all, tx->my_lock.all))
-                  tx->tmabort(tx);
+          if (ivt.all <= Self.start_time) {
+              if (!bcasptr(&o->v.all, ivt.all, Self.my_lock.all))
+                  Self.tmabort();
 
               // save old, log lock, write, return
               o->p = ivt.all;
-              tx->locks.insert(o);
-              tx->undo_log.insert(UndoLogEntry(STM_UNDO_LOG_ENTRY(addr, *addr, mask)));
+              Self.locks.insert(o);
+              Self.undo_log.insert(UndoLogEntry(STM_UNDO_LOG_ENTRY(addr, *addr, mask)));
               STM_DO_MASKED_WRITE(addr, val, mask);
-              OnFirstWrite(tx, read_rw, write_rw, commit_rw);
+              OnFirstWrite( read_rw, write_rw, commit_rw);
               return;
           }
 
           // abort the owner if locked
           if (ivt.fields.lock) {
-              if (CM::mayKill(tx, ivt.fields.id - 1))
+              if (CM::mayKill( ivt.fields.id - 1))
                   threads[ivt.fields.id-1]->alive = TX_ABORTED;
               else
-                  tx->tmabort(tx);
+                  Self.tmabort();
           }
 
           // liveness check
-          if (tx->alive == TX_ABORTED)
-              tx->tmabort(tx);
+          if (Self.alive == TX_ABORTED)
+              Self.tmabort();
 
           // unlocked but too new... scale forward and try again
           uintptr_t newts = timestamp.val;
-          validate(tx);
-          tx->start_time = newts;
+          validate();
+          Self.start_time = newts;
       }
   }
 
@@ -291,7 +296,7 @@ namespace {
    */
   template <class CM>
   void
-  OrEAU_Generic<CM>::write_rw(STM_WRITE_SIG(tx,addr,val,mask))
+  OrEAU_Generic<CM>::write_rw(STM_WRITE_SIG(addr,val,mask))
   {
       // get the orec addr
       orec_t* o = get_orec(addr);
@@ -301,41 +306,41 @@ namespace {
           ivt.all = o->v.all;
 
           // common case: uncontended location... lock it
-          if (ivt.all <= tx->start_time) {
-              if (!bcasptr(&o->v.all, ivt.all, tx->my_lock.all))
-                  tx->tmabort(tx);
+          if (ivt.all <= Self.start_time) {
+              if (!bcasptr(&o->v.all, ivt.all, Self.my_lock.all))
+                  Self.tmabort();
 
               // save old, log lock, write, return
               o->p = ivt.all;
-              tx->locks.insert(o);
-              tx->undo_log.insert(UndoLogEntry(STM_UNDO_LOG_ENTRY(addr, *addr, mask)));
+              Self.locks.insert(o);
+              Self.undo_log.insert(UndoLogEntry(STM_UNDO_LOG_ENTRY(addr, *addr, mask)));
               STM_DO_MASKED_WRITE(addr, val, mask);
               return;
           }
 
           // next best: already have the lock
-          if (ivt.all == tx->my_lock.all) {
-              tx->undo_log.insert(UndoLogEntry(STM_UNDO_LOG_ENTRY(addr, *addr, mask)));
+          if (ivt.all == Self.my_lock.all) {
+              Self.undo_log.insert(UndoLogEntry(STM_UNDO_LOG_ENTRY(addr, *addr, mask)));
               STM_DO_MASKED_WRITE(addr, val, mask);
               return;
           }
 
           // abort owner if locked
           if (ivt.fields.lock) {
-              if (CM::mayKill(tx, ivt.fields.id - 1))
+              if (CM::mayKill( ivt.fields.id - 1))
                   threads[ivt.fields.id-1]->alive = TX_ABORTED;
               else
-                  tx->tmabort(tx);
+                  Self.tmabort();
           }
 
           // liveness check
-          if (tx->alive == TX_ABORTED)
-              tx->tmabort(tx);
+          if (Self.alive == TX_ABORTED)
+              Self.tmabort();
 
           // unlocked but too new... scale forward and try again
           uintptr_t newts = timestamp.val;
-          validate(tx);
-          tx->start_time = newts;
+          validate();
+          Self.start_time = newts;
       }
   }
 
@@ -344,16 +349,16 @@ namespace {
    */
   template <class CM>
   stm::scope_t*
-  OrEAU_Generic<CM>::rollback(STM_ROLLBACK_SIG(tx, except, len))
+  OrEAU_Generic<CM>::rollback(STM_ROLLBACK_SIG( except, len))
   {
-      PreRollback(tx);
+      PreRollback();
       // run the undo log
-      STM_UNDO(tx->undo_log, except, len);
+      STM_UNDO(Self.undo_log, except, len);
 
       // release the locks and bump version numbers
       uintptr_t max = 0;
       // increment the version number of each held lock by one
-      foreach (OrecList, j, tx->locks) {
+      foreach (OrecList, j, Self.locks) {
           uintptr_t newver = (*j)->p + 1;
           (*j)->v.all = newver;
           max = (newver > max) ? newver : max;
@@ -366,14 +371,14 @@ namespace {
           casptr(&timestamp.val, ts, ts+1);
 
       // notify CM
-      CM::onAbort(tx);
+      CM::onAbort();
 
       // reset all lists
-      tx->r_orecs.reset();
-      tx->undo_log.reset();
-      tx->locks.reset();
+      Self.r_orecs.reset();
+      Self.undo_log.reset();
+      Self.locks.reset();
 
-      return PostRollback(tx, read_ro, write_ro, commit_ro);
+      return PostRollback( read_ro, write_ro, commit_ro);
   }
 
   /**
@@ -384,7 +389,7 @@ namespace {
    */
   template <class CM>
   bool
-  OrEAU_Generic<CM>::irrevoc(TxThread* tx)
+  OrEAU_Generic<CM>::irrevoc()
   {
       return false;
   }
@@ -397,14 +402,14 @@ namespace {
    */
   template <class CM>
   void
-  OrEAU_Generic<CM>::validate(TxThread* tx)
+  OrEAU_Generic<CM>::validate()
   {
-      foreach (OrecList, i, tx->r_orecs) {
+      foreach (OrecList, i, Self.r_orecs) {
           // read this orec
           uintptr_t ivt = (*i)->v.all;
           // if unlocked and newer than start time, abort
-          if ((ivt > tx->start_time) && (ivt != tx->my_lock.all))
-              tx->tmabort(tx);
+          if ((ivt > Self.start_time) && (ivt != Self.my_lock.all))
+              Self.tmabort();
       }
   }
 

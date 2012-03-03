@@ -22,7 +22,8 @@
 using stm::UNRECOVERABLE;
 using stm::TxThread;
 using stm::ticketlock;
-
+using stm::Self;
+using stm::OnCGLCommit;
 
 /**
  *  Declare the functions that we're going to implement, so that we can avoid
@@ -31,13 +32,13 @@ using stm::ticketlock;
 namespace {
   struct Ticket
   {
-      static TM_FASTCALL bool begin(TxThread*);
-      static TM_FASTCALL void* read(STM_READ_SIG(,,));
-      static TM_FASTCALL void write(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void commit(TxThread*);
+      static TM_FASTCALL bool begin();
+      static TM_FASTCALL void* read(STM_READ_SIG(,));
+      static TM_FASTCALL void write(STM_WRITE_SIG(,,));
+      static TM_FASTCALL void commit();
 
-      static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
-      static bool irrevoc(TxThread*);
+      static stm::scope_t* rollback(STM_ROLLBACK_SIG(,));
+      static bool irrevoc();
       static void onSwitchTo();
   };
 
@@ -45,10 +46,10 @@ namespace {
    *  Ticket begin:
    */
   bool
-  Ticket::begin(TxThread* tx) {
+  Ticket::begin() {
       // get the ticket lock
-      tx->begin_wait = ticket_acquire(&ticketlock);
-      tx->allocator.onTxBegin();
+      Self.begin_wait = ticket_acquire(&ticketlock);
+      Self.allocator.onTxBegin();
       return true;
   }
 
@@ -56,17 +57,17 @@ namespace {
    *  Ticket commit:
    */
   void
-  Ticket::commit(TxThread* tx) {
+  Ticket::commit() {
       // release the lock, finalize mm ops, and log the commit
       ticket_release(&ticketlock);
-      OnCGLCommit(tx);
+      OnCGLCommit();
   }
 
   /**
    *  Ticket read
    */
   void*
-  Ticket::read(STM_READ_SIG(,addr,)) {
+  Ticket::read(STM_READ_SIG(addr,)) {
       return *addr;
   }
 
@@ -74,7 +75,7 @@ namespace {
    *  Ticket write
    */
   void
-  Ticket::write(STM_WRITE_SIG(,addr,val,mask)) {
+  Ticket::write(STM_WRITE_SIG(addr,val,mask)) {
       STM_DO_MASKED_WRITE(addr, val, mask);
   }
 
@@ -84,7 +85,7 @@ namespace {
    *    In Ticket, aborts are never valid
    */
   stm::scope_t*
-  Ticket::rollback(STM_ROLLBACK_SIG(,,))
+  Ticket::rollback(STM_ROLLBACK_SIG(,))
   {
       UNRECOVERABLE("ATTEMPTING TO ABORT AN IRREVOCABLE TICKET TRANSACTION");
       return NULL;
@@ -97,7 +98,7 @@ namespace {
    *    Instead, the become_irrevoc() call should just return true.
    */
   bool
-  Ticket::irrevoc(TxThread*)
+  Ticket::irrevoc()
   {
       UNRECOVERABLE("IRREVOC_TICKET SHOULD NEVER BE CALLED");
       return false;

@@ -52,7 +52,12 @@ using stm::orec_t;
 using stm::get_orec;
 using stm::id_version_t;
 using stm::UndoLogEntry;
-
+using stm::Self;
+using stm::OnFirstWrite;
+using stm::OnReadWriteCommit;
+using stm::OnReadOnlyCommit;
+using stm::PreRollback;
+using stm::PostRollback;
 
 /**
  *  Declare the functions that we're going to implement, so that we can avoid
@@ -66,16 +71,16 @@ namespace {
   template <class CM>
   struct OrecEager_Generic
   {
-      static TM_FASTCALL bool begin(TxThread*);
-      static TM_FASTCALL void commit(TxThread*);
+      static TM_FASTCALL bool begin();
+      static TM_FASTCALL void commit();
       static void initialize(int id, const char* name);
-      static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
+      static stm::scope_t* rollback(STM_ROLLBACK_SIG(,));
   };
 
-  TM_FASTCALL void* read(STM_READ_SIG(,,));
-  TM_FASTCALL void write(STM_WRITE_SIG(,,,));
-  bool irrevoc(TxThread*);
-  NOINLINE void validate(TxThread*);
+  TM_FASTCALL void* read(STM_READ_SIG(,));
+  TM_FASTCALL void write(STM_WRITE_SIG(,,));
+  bool irrevoc();
+  NOINLINE void validate();
   void onSwitchTo();
 
   // -----------------------------------------------------------------------------
@@ -102,12 +107,12 @@ namespace {
 
   template <class CM>
   bool
-  OrecEager_Generic<CM>::begin(TxThread* tx)
+  OrecEager_Generic<CM>::begin()
   {
       // sample the timestamp and prepare local structures
-      tx->allocator.onTxBegin();
-      tx->start_time = timestamp.val;
-      CM::onBegin(tx);
+      Self.allocator.onTxBegin();
+      Self.start_time = timestamp.val;
+      CM::onBegin();
       return false;
   }
 
@@ -121,13 +126,13 @@ namespace {
    */
   template <class CM>
   void
-  OrecEager_Generic<CM>::commit(TxThread* tx)
+  OrecEager_Generic<CM>::commit()
   {
       // use the lockset size to identify if tx is read-only
-      if (!tx->locks.size()) {
-          CM::onCommit(tx);
-          tx->r_orecs.reset();
-          OnReadOnlyCommit(tx);
+      if (!Self.locks.size()) {
+          CM::onCommit();
+          Self.r_orecs.reset();
+          OnReadOnlyCommit();
           return;
       }
 
@@ -135,28 +140,28 @@ namespace {
       uintptr_t end_time = 1 + faiptr(&timestamp.val);
 
       // skip validation if nobody else committed since my last validation
-      if (end_time != (tx->start_time + 1)) {
-          foreach (OrecList, i, tx->r_orecs) {
+      if (end_time != (Self.start_time + 1)) {
+          foreach (OrecList, i, Self.r_orecs) {
               // abort unless orec older than start or owned by me
               uintptr_t ivt = (*i)->v.all;
-              if ((ivt > tx->start_time) && (ivt != tx->my_lock.all))
-                  tx->tmabort(tx);
+              if ((ivt > Self.start_time) && (ivt != Self.my_lock.all))
+                  Self.tmabort();
           }
       }
 
       // release locks
-      foreach (OrecList, i, tx->locks)
+      foreach (OrecList, i, Self.locks)
           (*i)->v.all = end_time;
 
       // notify CM
-      CM::onCommit(tx);
+      CM::onCommit();
 
       // reset lock list and undo log
-      tx->locks.reset();
-      tx->undo_log.reset();
+      Self.locks.reset();
+      Self.undo_log.reset();
       // reset read list, do common cleanup
-      tx->r_orecs.reset();
-      OnReadWriteCommit(tx);
+      Self.r_orecs.reset();
+      OnReadWriteCommit();
   }
 
   /**
@@ -165,7 +170,7 @@ namespace {
    *    Must check orec twice, and may need to validate
    */
   void*
-  read(STM_READ_SIG(tx,addr,))
+  read(STM_READ_SIG(addr,))
   {
       // get the orec addr, then start loop to read a consistent value
       orec_t* o = get_orec(addr);
@@ -179,7 +184,7 @@ namespace {
           void* tmp = *addr;
 
           // best case: I locked it already
-          if (ivt.all == tx->my_lock.all)
+          if (ivt.all == Self.my_lock.all)
               return tmp;
 
           // re-read orec AFTER reading value
@@ -187,19 +192,19 @@ namespace {
           uintptr_t ivt2 = o->v.all;
 
           // common case: new read to an unlocked, old location
-          if ((ivt.all == ivt2) && (ivt.all <= tx->start_time)) {
-              tx->r_orecs.insert(o);
+          if ((ivt.all == ivt2) && (ivt.all <= Self.start_time)) {
+              Self.r_orecs.insert(o);
               return tmp;
           }
 
           // abort if locked
           if (__builtin_expect(ivt.fields.lock, 0))
-              tx->tmabort(tx);
+              Self.tmabort();
 
           // scale timestamp if ivt is too new, then try again
           uintptr_t newts = timestamp.val;
-          validate(tx);
-          tx->start_time = newts;
+          validate();
+          Self.start_time = newts;
       }
   }
 
@@ -209,7 +214,7 @@ namespace {
    *    Lock the orec, log the old value, do the write
    */
   void
-  write(STM_WRITE_SIG(tx,addr,val,mask))
+  write(STM_WRITE_SIG(addr,val,mask))
   {
       // get the orec addr, then enter loop to get lock from a consistent state
       orec_t* o = get_orec(addr);
@@ -219,14 +224,14 @@ namespace {
           ivt.all = o->v.all;
 
           // common case: uncontended location... try to lock it, abort on fail
-          if (ivt.all <= tx->start_time) {
-              if (!bcasptr(&o->v.all, ivt.all, tx->my_lock.all))
-                  tx->tmabort(tx);
+          if (ivt.all <= Self.start_time) {
+              if (!bcasptr(&o->v.all, ivt.all, Self.my_lock.all))
+                  Self.tmabort();
 
               // save old value, log lock, do the write, and return
               o->p = ivt.all;
-              tx->locks.insert(o);
-              tx->undo_log.insert(UndoLogEntry(STM_UNDO_LOG_ENTRY(addr, *addr, mask)));
+              Self.locks.insert(o);
+              Self.undo_log.insert(UndoLogEntry(STM_UNDO_LOG_ENTRY(addr, *addr, mask)));
               STM_DO_MASKED_WRITE(addr, val, mask);
               return;
           }
@@ -234,20 +239,20 @@ namespace {
           // next best: I already have the lock... must log old value, because
           // many locations hash to the same orec.  The lock does not mean I
           // have undo logged *this* location
-          if (ivt.all == tx->my_lock.all) {
-              tx->undo_log.insert(UndoLogEntry(STM_UNDO_LOG_ENTRY(addr, *addr, mask)));
+          if (ivt.all == Self.my_lock.all) {
+              Self.undo_log.insert(UndoLogEntry(STM_UNDO_LOG_ENTRY(addr, *addr, mask)));
               STM_DO_MASKED_WRITE(addr, val, mask);
               return;
           }
 
           // fail if lock held by someone else
           if (ivt.fields.lock)
-              tx->tmabort(tx);
+              Self.tmabort();
 
           // unlocked but too new... scale forward and try again
           uintptr_t newts = timestamp.val;
-          validate(tx);
-          tx->start_time = newts;
+          validate();
+          Self.start_time = newts;
       }
   }
 
@@ -258,18 +263,18 @@ namespace {
    */
   template <class CM>
   stm::scope_t*
-  OrecEager_Generic<CM>::rollback(STM_ROLLBACK_SIG(tx, except, len))
+  OrecEager_Generic<CM>::rollback(STM_ROLLBACK_SIG( except, len))
   {
       // common rollback code
-      PreRollback(tx);
+      PreRollback();
 
       // run the undo log
-      STM_UNDO(tx->undo_log, except, len);
+      STM_UNDO(Self.undo_log, except, len);
 
       // release the locks and bump version numbers by one... track the highest
       // version number we write, in case it is greater than timestamp.val
       uintptr_t max = 0;
-      foreach (OrecList, j, tx->locks) {
+      foreach (OrecList, j, Self.locks) {
           uintptr_t newver = (*j)->p + 1;
           (*j)->v.all = newver;
           max = (newver > max) ? newver : max;
@@ -282,15 +287,15 @@ namespace {
           casptr(&timestamp.val, ts, (ts+1)); // assumes no transient failures
 
       // reset all lists
-      tx->r_orecs.reset();
-      tx->undo_log.reset();
-      tx->locks.reset();
+      Self.r_orecs.reset();
+      Self.undo_log.reset();
+      Self.locks.reset();
 
       // notify CM
-      CM::onAbort(tx);
+      CM::onAbort();
 
       // common unwind code when no pointer switching
-      return PostRollback(tx);
+      return PostRollback();
   }
 
   /**
@@ -303,7 +308,7 @@ namespace {
    *        stack.
    */
   bool
-  irrevoc(TxThread* tx)
+  irrevoc()
   {
       // NB: This code is probably more expensive than it needs to be...
 
@@ -311,24 +316,24 @@ namespace {
       uintptr_t end_time = 1 + faiptr(&timestamp.val);
 
       // skip validation only if nobody else committed
-      if (end_time != (tx->start_time + 1)) {
-          foreach (OrecList, i, tx->r_orecs) {
+      if (end_time != (Self.start_time + 1)) {
+          foreach (OrecList, i, Self.r_orecs) {
               // read this orec
               uintptr_t ivt = (*i)->v.all;
               // if unlocked and newer than start time, abort
-              if ((ivt > tx->start_time) && (ivt != tx->my_lock.all))
+              if ((ivt > Self.start_time) && (ivt != Self.my_lock.all))
                   return false;
           }
       }
 
       // release locks
-      foreach (OrecList, i, tx->locks)
+      foreach (OrecList, i, Self.locks)
           (*i)->v.all = end_time;
 
       // clean up
-      tx->r_orecs.reset();
-      tx->undo_log.reset();
-      tx->locks.reset();
+      Self.r_orecs.reset();
+      Self.undo_log.reset();
+      Self.locks.reset();
       return true;
   }
 
@@ -341,14 +346,14 @@ namespace {
    *    be OK.
    */
   void
-  validate(TxThread* tx)
+  validate()
   {
-      foreach (OrecList, i, tx->r_orecs) {
+      foreach (OrecList, i, Self.r_orecs) {
           // read this orec
           uintptr_t ivt = (*i)->v.all;
           // if unlocked and newer than start time, abort
-          if ((ivt > tx->start_time) && (ivt != tx->my_lock.all))
-              tx->tmabort(tx);
+          if ((ivt > Self.start_time) && (ivt != Self.my_lock.all))
+              Self.tmabort();
       }
   }
 

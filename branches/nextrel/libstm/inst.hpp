@@ -22,10 +22,10 @@ namespace stm
   class TxThread;
 
   /*** actually make all threads use the new algorithm */
-  void install_algorithm(int new_alg, TxThread* tx);
+  void install_algorithm(int new_alg);
 
   /*** make just this thread use a new algorith (use in ctors) */
-  void install_algorithm_local(int new_alg, TxThread* tx);
+  void install_algorithm_local(int new_alg);
 
 } // namespace stm
 

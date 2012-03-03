@@ -34,14 +34,14 @@ namespace stm
    */
   struct BackoffCM
   {
-      static void onAbort(TxThread* tx)
+      static void onAbort()
       {
           // randomized exponential backoff
-          exp_backoff(tx);
+          exp_backoff();
       }
-      static void onBegin(TxThread*)  { }
-      static void onCommit(TxThread*) { }
-      static bool mayKill(TxThread*, uint32_t) { return true; }
+      static void onBegin()  { }
+      static void onCommit() { }
+      static bool mayKill(uint32_t) { return true; }
   };
 
   /**
@@ -49,10 +49,10 @@ namespace stm
    */
   struct HyperAggressiveCM
   {
-      static void onAbort(TxThread*) { }
-      static void onBegin(TxThread*)  { }
-      static void onCommit(TxThread*) { }
-      static bool mayKill(TxThread*, uint32_t) { return true; }
+      static void onAbort() { }
+      static void onBegin()  { }
+      static void onCommit() { }
+      static bool mayKill(uint32_t) { return true; }
   };
 
   /**
@@ -63,17 +63,17 @@ namespace stm
    */
   struct FCM
   {
-      static void onAbort(TxThread*) { }
-      static void onCommit(TxThread*) { }
+      static void onAbort() { }
+      static void onCommit() { }
 
       /**
        *  On begin, we must get a timestamp.  For now, we use a global
        *  counter, which is a bottleneck but ensures uniqueness.
        */
-      static void onBegin(TxThread* tx)
+      static void onBegin()
       {
           // acquire timestamp when transaction begins
-          epochs[tx->id-1].val = faiptr(&fcm_timestamp.val);
+          epochs[Self.id-1].val = faiptr(&fcm_timestamp.val);
           // could use (INT32_MAX & tick())
       }
 
@@ -81,10 +81,10 @@ namespace stm
        *  Permission to kill the other is granted when this transaction's
        *  timestamp is less than the other transaction's timestamp
        */
-      static bool mayKill(TxThread* tx, uint32_t other)
+      static bool mayKill(uint32_t other)
       {
-          return (threads[tx->id-1]->alive == TX_ACTIVE)
-              && (epochs[tx->id-1].val < epochs[other].val);
+          return (threads[Self.id-1]->alive == TX_ACTIVE)
+              && (epochs[Self.id-1].val < epochs[other].val);
       }
   };
 
@@ -100,30 +100,30 @@ namespace stm
       /**
        *  On begin, block if there is a distinguished transaction
        */
-      static void onBegin(TxThread* tx)
+      static void onBegin()
       {
-          if (!tx->strong_HG)
+          if (!Self.strong_HG)
               while (fcm_timestamp.val)
                   if (TxThread::tmbegin == begin_blocker)
-                      tx->tmabort(tx);
+                      Self.tmabort();
       }
 
       /**
        *  On abort, get a timestamp if I exceed some threshold
        */
-      static void onAbort(TxThread* tx)
+      static void onAbort()
       {
           // if I'm already in the hourglass, just return
-          if (tx->strong_HG) {
-              tx->abort_hist.onHGAbort();
+          if (Self.strong_HG) {
+              Self.abort_hist.onHGAbort();
               return;
           }
 
           // acquire a timestamp if consecutive aborts exceed a threshold
-          if (tx->consec_aborts > ABORT_THRESHOLD) {
+          if (Self.consec_aborts > ABORT_THRESHOLD) {
               while (true) {
                   if (bcasptr(&fcm_timestamp.val, 0ul, 1ul)) {
-                      tx->strong_HG = true;
+                      Self.strong_HG = true;
                       return;
                   }
                   while (fcm_timestamp.val) { }
@@ -137,19 +137,19 @@ namespace stm
       /**
        *  On commit, release my timestamp
        */
-      static void onCommit(TxThread* tx)
+      static void onCommit()
       {
-          if (tx->strong_HG) {
+          if (Self.strong_HG) {
               fcm_timestamp.val = 0;
-              tx->strong_HG = false;
-              tx->abort_hist.onHGCommit();
+              Self.strong_HG = false;
+              Self.abort_hist.onHGCommit();
           }
       }
 
       /**
        *  During the transaction, always abort conflicting transactions
        */
-      static bool mayKill(TxThread*, uint32_t) { return true; }
+      static bool mayKill(uint32_t) { return true; }
   };
 
   /**
@@ -162,48 +162,48 @@ namespace stm
       /**
        *  On begin, block if there is a distinguished transaction
        */
-      static void onBegin(TxThread* tx)
+      static void onBegin()
       {
-          if (!tx->strong_HG)
+          if (!Self.strong_HG)
               while (fcm_timestamp.val)
                   if (TxThread::tmbegin == begin_blocker)
-                      tx->tmabort(tx);
+                      Self.tmabort();
       }
 
       /**
        *  On abort, get a timestamp if I exceed some threshold
        */
-      static void onAbort(TxThread* tx)
+      static void onAbort()
       {
           // if I'm already in the hourglass, just return
-          if (tx->strong_HG) {
-              tx->abort_hist.onHGAbort();
+          if (Self.strong_HG) {
+              Self.abort_hist.onHGAbort();
               return;
           }
 
           // acquire a timestamp if consecutive aborts exceed a threshold
-          if (tx->consec_aborts > ABORT_THRESHOLD)
+          if (Self.consec_aborts > ABORT_THRESHOLD)
               if (bcasptr(&fcm_timestamp.val, 0ul, 1ul))
-                  tx->strong_HG = true;
+                  Self.strong_HG = true;
           // NB: as before, some counting opportunities here
       }
 
       /**
        *  On commit, release my timestamp
        */
-      static void onCommit(TxThread* tx)
+      static void onCommit()
       {
-          if (tx->strong_HG) {
+          if (Self.strong_HG) {
               fcm_timestamp.val = 0;
-              tx->strong_HG = false;
-              tx->abort_hist.onHGCommit();
+              Self.strong_HG = false;
+              Self.abort_hist.onHGCommit();
           }
       }
 
       /**
        *  During the transaction, always abort conflicting transactions
        */
-      static bool mayKill(TxThread*, uint32_t) { return true; }
+      static bool mayKill(uint32_t) { return true; }
   };
 
   /**
@@ -216,52 +216,52 @@ namespace stm
       /**
        *  On begin, block if there is a distinguished transaction
        */
-      static void onBegin(TxThread* tx)
+      static void onBegin()
       {
-          if (!tx->strong_HG)
+          if (!Self.strong_HG)
               while (fcm_timestamp.val)
                   if (TxThread::tmbegin == begin_blocker)
-                      tx->tmabort(tx);
+                      Self.tmabort();
       }
 
       /**
        *  On abort, get a timestamp if I exceed some threshold
        */
-      static void onAbort(TxThread* tx)
+      static void onAbort()
       {
           // if I'm already in the hourglass, just return
-          if (tx->strong_HG) {
-              tx->abort_hist.onHGAbort();
+          if (Self.strong_HG) {
+              Self.abort_hist.onHGAbort();
               return;
           }
 
           // acquire a timestamp if consecutive aborts exceed a threshold
-          if (tx->consec_aborts > ABORT_THRESHOLD) {
+          if (Self.consec_aborts > ABORT_THRESHOLD) {
               if (bcasptr(&fcm_timestamp.val, 0ul, 1ul))
-                  tx->strong_HG = true;
+                  Self.strong_HG = true;
           }
           else {
               // randomized exponential backoff
-              exp_backoff(tx);
+              exp_backoff();
           }
       }
 
       /**
        *  On commit, release my timestamp
        */
-      static void onCommit(TxThread* tx)
+      static void onCommit()
       {
-          if (tx->strong_HG) {
+          if (Self.strong_HG) {
               fcm_timestamp.val = 0;
-              tx->strong_HG = false;
-              tx->abort_hist.onHGCommit();
+              Self.strong_HG = false;
+              Self.abort_hist.onHGCommit();
           }
       }
 
       /**
        *  During the transaction, always abort conflicting transactions
        */
-      static bool mayKill(TxThread*, uint32_t) { return true; }
+      static bool mayKill(uint32_t) { return true; }
   };
 
 }

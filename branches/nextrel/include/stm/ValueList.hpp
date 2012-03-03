@@ -136,10 +136,10 @@ namespace stm {
    *  STM_PROTECT_STACK macro.
    */
 #if defined(STM_PROTECT_STACK)
-#define STM_LOG_VALUE_IS_VALID(log, tx) \
-      log->isValidFiltered(tx->stack_low, tx->stack_high);
+#define STM_LOG_VALUE_IS_VALID(log) \
+      log->isValidFiltered(Self.stack_low, Self.stack_high);
 #else
-  #define STM_LOG_VALUE_IS_VALID(log, tx) \
+  #define STM_LOG_VALUE_IS_VALID(log) \
       log->isValid();
 #endif
 
@@ -156,9 +156,8 @@ namespace stm {
 #error "Preprocessor configuration error: STM_WS_(WORD|BYTE)LOG should be set"
 #endif
 
-  struct ValueList : public MiniVector<ValueListEntry> {
-      ValueList(const unsigned long cap) : MiniVector<ValueListEntry>(cap) {
-      }
+  struct ValueList : public MiniVector<ValueListEntry>
+  {
 
 #ifdef STM_PROTECT_STACK
       /**
@@ -173,11 +172,15 @@ namespace stm {
                     low : (void**)__builtin_frame_address(0);
           MiniVector<ValueListEntry>::insert(data);
       }
-#define STM_LOG_VALUE(tx, addr, val, mask)                      \
-      tx->vlist.insert(STM_VALUE_LIST_ENTRY(addr, val, mask), tx->stack_low);
+#define STM_LOG_VALUE(addr, val, mask)                      \
+      Self.vlist.insert(STM_VALUE_LIST_ENTRY(addr, val, mask), Self.stack_low);
+#define STM_LOG_VALUE_TX(tx, addr, val, mask)                            \
+      tx.vlist.insert(STM_VALUE_LIST_ENTRY(addr, val, mask), Self.stack_low);
 #else
-#define STM_LOG_VALUE(tx, addr, val, mask)                      \
-      tx->vlist.insert(STM_VALUE_LIST_ENTRY(addr, val, mask));
+#define STM_LOG_VALUE(addr, val, mask)                      \
+      Self.vlist.insert(STM_VALUE_LIST_ENTRY(addr, val, mask));
+#define STM_LOG_VALUE_TX(tx, addr, val, mask)                       \
+      tx.vlist.insert(STM_VALUE_LIST_ENTRY(addr, val, mask));
 #endif
   };
 }

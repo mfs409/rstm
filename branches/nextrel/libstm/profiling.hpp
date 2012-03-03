@@ -31,7 +31,7 @@
 namespace stm
 {
   /*** After profiles are collected, select and install a new algorithm */
-  void profile_oncomplete(TxThread* tx);
+  void profile_oncomplete();
 
   /**
    * custom begin method that blocks the starting thread, in order to get
@@ -39,7 +39,7 @@ namespace stm
    * (implemented in irrevocability.cpp because it uses some static functions
    * declared there)
    */
-  bool begin_blocker(TxThread* tx) TM_FASTCALL;
+  bool begin_blocker() TM_FASTCALL;
 
   /**
    *  This is the code for deciding whether to adapt or not.  It's a little bit
@@ -51,7 +51,7 @@ namespace stm
    *  definitely going to adapt
    */
 
-  void trigger_common(TxThread* tx) TM_FASTCALL NOINLINE;
+  void trigger_common() TM_FASTCALL NOINLINE;
 
   /**
    *  A simple trigger: request collection of profiles after 16 consecutive
@@ -65,17 +65,17 @@ namespace stm
        *  called on every commit
        */
       TM_INLINE
-      static void onCommitLock(TxThread* tx)
+      static void onCommitLock()
       {
           // if we don't have a function for changing algs, then we should just
           // return
           if (!pols[curr_policy.POL_ID].decider)
               return;
           // return if we didn't wait long enough
-          if (tx->begin_wait <= (unsigned)curr_policy.waitThresh)
+          if (Self.begin_wait <= (unsigned)curr_policy.waitThresh)
               return;
           // ok, we're going to adapt.  Call the common adapt code
-          trigger_common(tx);
+          trigger_common();
       }
 
       /**
@@ -88,18 +88,18 @@ namespace stm
        *  on every abort
        */
       TM_INLINE
-      static void onAbort(TxThread* tx)
+      static void onAbort()
       {
           // if we don't have a function for changing algs, then we should just
           // return
           if (!pols[curr_policy.POL_ID].decider)
               return;
           // return if we didn't abort enough
-          if (tx->consec_aborts <= (unsigned)curr_policy.abortThresh)
+          if (Self.consec_aborts <= (unsigned)curr_policy.abortThresh)
               return;
           // ok, we're going to adapt.  Call the common adapt code
           curr_policy.abort_switch = true;
-          trigger_common(tx);
+          trigger_common();
       }
   };
 
@@ -127,10 +127,10 @@ namespace stm
       static unsigned next;
 
       /***  Instead of looking at delays, we just count commits */
-      static void onCommitLock(TxThread* tx) { onCommitSTM(tx); }
+      static void onCommitLock() { onCommitSTM(); }
 
       /*** Count commits to decide if we should request a new profile */
-      static void onCommitSTM(TxThread* tx)
+      static void onCommitSTM()
       {
           // if we don't have a function for changing algs, then we should just
           // return
@@ -140,10 +140,10 @@ namespace stm
           if (!pols[curr_policy.POL_ID].isCommitProfile)
               return;
           // return if not thread#2
-          if (tx->id != 2)
+          if (Self.id != 2)
               return;
           // return if not a trigger commit number
-          unsigned c = tx->num_ro + tx->num_commits;
+          unsigned c = Self.num_ro + Self.num_commits;
           if (c != next)
               return;
           // update the trigger commit number
@@ -161,14 +161,14 @@ namespace stm
           //     collection of profiles, so it really doesn't matter.
           curr_policy.abort_switch = false;
           // ok, we're going to adapt.  Call the common adapt code
-          trigger_common(tx);
+          trigger_common();
       }
 
       /**
        *  Part 3: the thing that gets inlined into stm abort, and gets called
        *  on every abort.  It's the same as in AbortWaitTrigger
        */
-      static void onAbort(TxThread* tx) { AbortWaitTrigger::onAbort(tx); }
+      static void onAbort() { AbortWaitTrigger::onAbort(); }
   };
 
 #ifdef STM_PROFILETMTRIGGER_ALL

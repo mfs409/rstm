@@ -217,8 +217,12 @@ namespace stm
       void onHGAbort();
 
       /*** simple constructor */
-      toxic_histogram_t() : max(0), hg_commits(0), hg_aborts(0)
+      // toxic_histogram_t() : max(0), hg_commits(0), hg_aborts(0) { }
+      void init()
       {
+          max = 0;
+          hg_commits = 0;
+          hg_aborts = 0;
           for (int i = 0; i < 18; ++i)
               buckets[i] = 0;
       }
@@ -234,6 +238,7 @@ namespace stm
       void dump()             { }
       void onHGCommit()       { }
       void onHGAbort()        { }
+      void init()             { }
   };
 
 #ifdef STM_COUNTCONSEC_YES

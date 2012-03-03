@@ -32,27 +32,32 @@ using stm::orec_t;
 using stm::timestamp;
 using stm::timestamp_max;
 using stm::id_version_t;
-
+using stm::Self;
+using stm::OnFirstWrite;
+using stm::OnReadWriteCommit;
+using stm::OnReadOnlyCommit;
+using stm::PreRollback;
+using stm::PostRollback;
 
 namespace {
   template <class CM>
   struct OrecLazy_Generic
   {
-      static TM_FASTCALL bool begin(TxThread*);
-      static TM_FASTCALL void* read_ro(STM_READ_SIG(,,));
-      static TM_FASTCALL void* read_rw(STM_READ_SIG(,,));
-      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void commit_ro(TxThread*);
-      static TM_FASTCALL void commit_rw(TxThread*);
+      static TM_FASTCALL bool begin();
+      static TM_FASTCALL void* read_ro(STM_READ_SIG(,));
+      static TM_FASTCALL void* read_rw(STM_READ_SIG(,));
+      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,));
+      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,));
+      static TM_FASTCALL void commit_ro();
+      static TM_FASTCALL void commit_rw();
 
-      static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
+      static stm::scope_t* rollback(STM_ROLLBACK_SIG(,));
       static void Initialize(int id, const char* name);
   };
 
   void onSwitchTo();
-  bool irrevoc(TxThread*);
-  NOINLINE void validate(TxThread*);
+  bool irrevoc();
+  NOINLINE void validate();
 
   template <class CM>
   void
@@ -79,11 +84,11 @@ namespace {
    */
   template <class CM>
   bool
-  OrecLazy_Generic<CM>::begin(TxThread* tx)
+  OrecLazy_Generic<CM>::begin()
   {
-      tx->allocator.onTxBegin();
-      tx->start_time = timestamp.val;
-      CM::onBegin(tx);
+      Self.allocator.onTxBegin();
+      Self.start_time = timestamp.val;
+      CM::onBegin();
       return false;
   }
 
@@ -94,13 +99,13 @@ namespace {
    */
   template <class CM>
   void
-  OrecLazy_Generic<CM>::commit_ro(TxThread* tx)
+  OrecLazy_Generic<CM>::commit_ro()
   {
       // notify CM
-      CM::onCommit(tx);
+      CM::onCommit();
       // read-only
-      tx->r_orecs.reset();
-      OnReadOnlyCommit(tx);
+      Self.r_orecs.reset();
+      OnReadOnlyCommit();
   }
 
   /**
@@ -111,53 +116,53 @@ namespace {
    */
   template <class CM>
   void
-  OrecLazy_Generic<CM>::commit_rw(TxThread* tx)
+  OrecLazy_Generic<CM>::commit_rw()
   {
       // acquire locks
-      foreach (WriteSet, i, tx->writes) {
+      foreach (WriteSet, i, Self.writes) {
           // get orec, read its version#
           orec_t* o = get_orec(i->addr);
           uintptr_t ivt = o->v.all;
 
           // lock all orecs, unless already locked
-          if (ivt <= tx->start_time) {
+          if (ivt <= Self.start_time) {
               // abort if cannot acquire
-              if (!bcasptr(&o->v.all, ivt, tx->my_lock.all))
-                  tx->tmabort(tx);
+              if (!bcasptr(&o->v.all, ivt, Self.my_lock.all))
+                  Self.tmabort();
               // save old version to o->p, remember that we hold the lock
               o->p = ivt;
-              tx->locks.insert(o);
+              Self.locks.insert(o);
           }
           // else if we don't hold the lock abort
-          else if (ivt != tx->my_lock.all) {
-              tx->tmabort(tx);
+          else if (ivt != Self.my_lock.all) {
+              Self.tmabort();
           }
       }
 
       // validate
-      foreach (OrecList, i, tx->r_orecs) {
+      foreach (OrecList, i, Self.r_orecs) {
           uintptr_t ivt = (*i)->v.all;
           // if unlocked and newer than start time, abort
-          if ((ivt > tx->start_time) && (ivt != tx->my_lock.all))
-              tx->tmabort(tx);
+          if ((ivt > Self.start_time) && (ivt != Self.my_lock.all))
+              Self.tmabort();
       }
 
       // run the redo log
-      tx->writes.writeback();
+      Self.writes.writeback();
 
       // increment the global timestamp, release locks
       uintptr_t end_time = 1 + faiptr(&timestamp.val);
-      foreach (OrecList, i, tx->locks)
+      foreach (OrecList, i, Self.locks)
           (*i)->v.all = end_time;
 
       // notify CM
-      CM::onCommit(tx);
+      CM::onCommit();
 
       // clean-up
-      tx->r_orecs.reset();
-      tx->writes.reset();
-      tx->locks.reset();
-      OnReadWriteCommit(tx, read_ro, write_ro, commit_ro);
+      Self.r_orecs.reset();
+      Self.writes.reset();
+      Self.locks.reset();
+      OnReadWriteCommit( read_ro, write_ro, commit_ro);
   }
 
   /**
@@ -168,7 +173,7 @@ namespace {
    */
   template <class CM>
   void*
-  OrecLazy_Generic<CM>::read_ro(STM_READ_SIG(tx,addr,))
+  OrecLazy_Generic<CM>::read_ro(STM_READ_SIG(addr,))
   {
       // get the orec addr
       orec_t* o = get_orec(addr);
@@ -182,8 +187,8 @@ namespace {
           ivt.all = o->v.all;
 
           // common case: new read to uncontended location
-          if (ivt.all <= tx->start_time) {
-              tx->r_orecs.insert(o);
+          if (ivt.all <= Self.start_time) {
+              Self.r_orecs.insert(o);
               return tmp;
           }
 
@@ -195,8 +200,8 @@ namespace {
 
           // scale timestamp if ivt is too new, then try again
           uintptr_t newts = timestamp.val;
-          validate(tx);
-          tx->start_time = newts;
+          validate();
+          Self.start_time = newts;
       }
   }
 
@@ -207,15 +212,15 @@ namespace {
    */
   template <class CM>
   void*
-  OrecLazy_Generic<CM>::read_rw(STM_READ_SIG(tx,addr,mask))
+  OrecLazy_Generic<CM>::read_rw(STM_READ_SIG(addr,mask))
   {
       // check the log for a RAW hazard, we expect to miss
       WriteSetEntry log(STM_WRITE_SET_ENTRY(addr, NULL, mask));
-      bool found = tx->writes.find(log);
+      bool found = Self.writes.find(log);
       REDO_RAW_CHECK(found, log, mask);
 
       // reuse the ReadRO barrier, which is adequate here---reduces LOC
-      void* val = read_ro(tx, addr STM_MASK(mask));
+      void* val = read_ro( addr STM_MASK(mask));
       REDO_RAW_CLEANUP(val, found, log, mask);
       return val;
   }
@@ -227,11 +232,11 @@ namespace {
    */
   template <class CM>
   void
-  OrecLazy_Generic<CM>::write_ro(STM_WRITE_SIG(tx,addr,val,mask))
+  OrecLazy_Generic<CM>::write_ro(STM_WRITE_SIG(addr,val,mask))
   {
       // add to redo log
-      tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
-      OnFirstWrite(tx, read_rw, write_rw, commit_rw);
+      Self.writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
+      OnFirstWrite( read_rw, write_rw, commit_rw);
   }
 
   /**
@@ -241,10 +246,10 @@ namespace {
    */
   template <class CM>
   void
-  OrecLazy_Generic<CM>::write_rw(STM_WRITE_SIG(tx,addr,val,mask))
+  OrecLazy_Generic<CM>::write_rw(STM_WRITE_SIG(addr,val,mask))
   {
       // add to redo log
-      tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
+      Self.writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
   }
 
   /**
@@ -255,27 +260,27 @@ namespace {
    */
   template <class CM>
   stm::scope_t*
-  OrecLazy_Generic<CM>::rollback(STM_ROLLBACK_SIG(tx, except, len))
+  OrecLazy_Generic<CM>::rollback(STM_ROLLBACK_SIG( except, len))
   {
-      PreRollback(tx);
+      PreRollback();
 
       // Perform writes to the exception object if there were any... taking the
       // branch overhead without concern because we're not worried about
       // rollback overheads.
-      STM_ROLLBACK(tx->writes, except, len);
+      STM_ROLLBACK(Self.writes, except, len);
 
       // release the locks and restore version numbers
-      foreach (OrecList, i, tx->locks)
+      foreach (OrecList, i, Self.locks)
           (*i)->v.all = (*i)->p;
 
       // notify CM
-      CM::onAbort(tx);
+      CM::onAbort();
 
       // undo memory operations, reset lists
-      tx->r_orecs.reset();
-      tx->writes.reset();
-      tx->locks.reset();
-      return PostRollback(tx, read_ro, write_ro, commit_ro);
+      Self.r_orecs.reset();
+      Self.writes.reset();
+      Self.locks.reset();
+      return PostRollback( read_ro, write_ro, commit_ro);
   }
 
   /**
@@ -284,7 +289,7 @@ namespace {
    *    Either commit the transaction or return false.
    */
    bool
-   irrevoc(TxThread* tx)
+   irrevoc()
    {
        return false;
        // NB: In a prior release, we actually had a full OrecLazy commit
@@ -302,11 +307,11 @@ namespace {
    *    inline it.
    */
   void
-  validate(TxThread* tx) {
-      foreach (OrecList, i, tx->r_orecs)
+  validate() {
+      foreach (OrecList, i, Self.r_orecs)
           // abort if orec locked, or if unlocked but timestamp too new
-          if ((*i)->v.all > tx->start_time)
-              tx->tmabort(tx);
+          if ((*i)->v.all > Self.start_time)
+              Self.tmabort();
   }
 
   /**

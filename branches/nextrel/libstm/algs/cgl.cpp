@@ -26,7 +26,7 @@ using stm::TxThread;
 using stm::timestamp;
 using stm::timestamp_max;
 using stm::UNRECOVERABLE;
-
+using stm::OnCGLCommit;
 
 /**
  *  Declare the functions that we're going to implement, so that we can avoid
@@ -37,12 +37,12 @@ namespace
   struct CGL
   {
       // begin_CGL is external
-      static TM_FASTCALL void* read(STM_READ_SIG(,,));
-      static TM_FASTCALL void write(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void commit(TxThread*);
+      static TM_FASTCALL void* read(STM_READ_SIG(,));
+      static TM_FASTCALL void write(STM_WRITE_SIG(,,));
+      static TM_FASTCALL void commit();
 
-      static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
-      static bool irrevoc(TxThread*);
+      static stm::scope_t* rollback(STM_ROLLBACK_SIG(,));
+      static bool irrevoc();
       static void onSwitchTo();
   };
 
@@ -50,18 +50,18 @@ namespace
    *  CGL commit
    */
   void
-  CGL::commit(TxThread* tx)
+  CGL::commit()
   {
       // release the lock, finalize mm ops, and log the commit
       tatas_release(&timestamp.val);
-      OnCGLCommit(tx);
+      OnCGLCommit();
   }
 
   /**
    *  CGL read
    */
   void*
-  CGL::read(STM_READ_SIG(,addr,))
+  CGL::read(STM_READ_SIG(addr,))
   {
       return *addr;
   }
@@ -70,7 +70,7 @@ namespace
    *  CGL write
    */
   void
-  CGL::write(STM_WRITE_SIG(,addr,val,mask))
+  CGL::write(STM_WRITE_SIG(addr,val,mask))
   {
       STM_DO_MASKED_WRITE(addr, val, mask);
   }
@@ -81,7 +81,7 @@ namespace
    *    In CGL, aborts are never valid
    */
   stm::scope_t*
-  CGL::rollback(STM_ROLLBACK_SIG(,,))
+  CGL::rollback(STM_ROLLBACK_SIG(,))
   {
       UNRECOVERABLE("ATTEMPTING TO ABORT AN IRREVOCABLE CGL TRANSACTION");
       return NULL;
@@ -94,7 +94,7 @@ namespace
    *    Instead, the become_irrevoc() call should just return true.
    */
   bool
-  CGL::irrevoc(TxThread*)
+  CGL::irrevoc()
   {
       UNRECOVERABLE("CGL::IRREVOC SHOULD NEVER BE CALLED");
       return false;
@@ -124,11 +124,11 @@ namespace stm {
    *    This is external and declared in algs.hpp so that we can access it as a
    *    default in places.
    */
-  bool begin_CGL(TxThread* tx)
+  bool begin_CGL()
   {
       // get the lock and notify the allocator
-      tx->begin_wait = tatas_acquire(&timestamp.val);
-      tx->allocator.onTxBegin();
+      Self.begin_wait = tatas_acquire(&timestamp.val);
+      Self.allocator.onTxBegin();
       return true;
   }
 

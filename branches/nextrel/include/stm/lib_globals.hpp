@@ -22,11 +22,11 @@
 namespace stm
 {
   struct TxThread;
-  typedef void (*AbortHandler)(TxThread*);
+  typedef void (*AbortHandler)();
   void sys_init(AbortHandler conflict_abort);
   void set_policy(const char* phasename);
   void sys_shutdown();
-  bool is_irrevoc(const TxThread&);
+  bool is_irrevoc();
   void become_irrevoc();
   void restart();
   const char* get_algname();

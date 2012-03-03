@@ -38,15 +38,24 @@ namespace stm
 
     public:
 
-      /*** Construct a minivector with a default size */
-      MiniVector(const unsigned long capacity)
-          : m_cap(capacity), m_size(0),
-            m_elements(static_cast<T*>(malloc(sizeof(T)*m_cap)))
+      /**
+       * Nasty new initializer mechanism: construct to unusable, then
+       * initialize
+       */
+      //MiniVector() { }
+
+      /**
+       * Construct a minivector with a default size
+       */
+      void init(const unsigned long capacity)
       {
+          m_size = 0;
+          m_cap = capacity;
+          m_elements = static_cast<T*>(malloc(sizeof(T)*m_cap));
           assert(m_elements);
       }
 
-      ~MiniVector() { free(m_elements); }
+      // ~MiniVector() { free(m_elements); }
 
       /*** Reset the vector without destroying the elements it holds */
       TM_INLINE void reset() { m_size = 0; }

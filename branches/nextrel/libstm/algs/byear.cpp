@@ -26,7 +26,13 @@ using stm::bytelock_t;
 using stm::get_bytelock;
 using stm::WriteSetEntry;
 using stm::threads;
-
+using stm::Self;
+using stm::OnFirstWrite;
+using stm::OnReadWriteCommit;
+using stm::OnReadOnlyCommit;
+using stm::PreRollback;
+using stm::PostRollback;
+using stm::exp_backoff;
 
 /**
  *  Declare the functions that we're going to implement, so that we can avoid
@@ -35,16 +41,16 @@ using stm::threads;
 namespace {
   struct ByEAR
   {
-      static TM_FASTCALL bool begin(TxThread*);
-      static TM_FASTCALL void* read_ro(STM_READ_SIG(,,));
-      static TM_FASTCALL void* read_rw(STM_READ_SIG(,,));
-      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void commit_ro(TxThread*);
-      static TM_FASTCALL void commit_rw(TxThread*);
+      static TM_FASTCALL bool begin();
+      static TM_FASTCALL void* read_ro(STM_READ_SIG(,));
+      static TM_FASTCALL void* read_rw(STM_READ_SIG(,));
+      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,));
+      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,));
+      static TM_FASTCALL void commit_ro();
+      static TM_FASTCALL void commit_rw();
 
-      static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
-      static bool irrevoc(TxThread*);
+      static stm::scope_t* rollback(STM_ROLLBACK_SIG(,));
+      static bool irrevoc();
       static void onSwitchTo();
   };
 
@@ -59,11 +65,11 @@ namespace {
    *  ByEAR begin:
    */
   bool
-  ByEAR::begin(TxThread* tx)
+  ByEAR::begin()
   {
-      tx->allocator.onTxBegin();
+      Self.allocator.onTxBegin();
       // set self to active
-      tx->alive = TX_ACTIVE;
+      Self.alive = TX_ACTIVE;
       return false;
   }
 
@@ -71,68 +77,68 @@ namespace {
    *  ByEAR commit (read-only):
    */
   void
-  ByEAR::commit_ro(TxThread* tx)
+  ByEAR::commit_ro()
   {
       // read-only... release read locks
-      foreach (ByteLockList, i, tx->r_bytelocks)
-          (*i)->reader[tx->id-1] = 0;
+      foreach (ByteLockList, i, Self.r_bytelocks)
+          (*i)->reader[Self.id-1] = 0;
 
-      tx->r_bytelocks.reset();
-      OnReadOnlyCommit(tx);
+      Self.r_bytelocks.reset();
+      OnReadOnlyCommit();
   }
 
   /**
    *  ByEAR commit (writing context):
    */
   void
-  ByEAR::commit_rw(TxThread* tx)
+  ByEAR::commit_rw()
   {
       // atomically mark self committed
-      if (!bcas32(&tx->alive, TX_ACTIVE, TX_COMMITTED))
-          tx->tmabort(tx);
+      if (!bcas32(&Self.alive, TX_ACTIVE, TX_COMMITTED))
+          Self.tmabort();
 
       // we committed... replay redo log
-      tx->writes.writeback();
+      Self.writes.writeback();
       CFENCE;
 
       // release write locks, then read locks
-      foreach (ByteLockList, i, tx->w_bytelocks)
+      foreach (ByteLockList, i, Self.w_bytelocks)
           (*i)->owner = 0;
-      foreach (ByteLockList, i, tx->r_bytelocks)
-          (*i)->reader[tx->id-1] = 0;
+      foreach (ByteLockList, i, Self.r_bytelocks)
+          (*i)->reader[Self.id-1] = 0;
 
       // clean-up
-      tx->r_bytelocks.reset();
-      tx->w_bytelocks.reset();
-      tx->writes.reset();
-      OnReadWriteCommit(tx, read_ro, write_ro, commit_ro);
+      Self.r_bytelocks.reset();
+      Self.w_bytelocks.reset();
+      Self.writes.reset();
+      OnReadWriteCommit( read_ro, write_ro, commit_ro);
   }
 
   /**
    *  ByEAR read (read-only transaction)
    */
   void*
-  ByEAR::read_ro(STM_READ_SIG(tx,addr,))
+  ByEAR::read_ro(STM_READ_SIG(addr,))
   {
       bytelock_t* lock = get_bytelock(addr);
 
       // do I have a read lock?
-      if (lock->reader[tx->id-1] == 0) {
+      if (lock->reader[Self.id-1] == 0) {
           // first time read, log this location
-          tx->r_bytelocks.insert(lock);
+          Self.r_bytelocks.insert(lock);
           // mark my lock byte
-          lock->set_read_byte(tx->id-1);
+          lock->set_read_byte(Self.id-1);
       }
 
       if (uint32_t owner = lock->owner) {
           switch (threads[owner-1]->alive) {
             case TX_COMMITTED:
               // abort myself if the owner is writing back
-              tx->tmabort(tx);
+              Self.tmabort();
             case TX_ACTIVE:
               // abort the owner(it's active)
               if (!bcas32(&threads[owner-1]->alive, TX_ACTIVE, TX_ABORTED))
-                  tx->tmabort(tx);
+                  Self.tmabort();
               break;
             case TX_ABORTED:
               // if the owner is unwinding, go through and read
@@ -146,8 +152,8 @@ namespace {
       CFENCE;
 
       // check for remote abort
-      if (tx->alive == TX_ABORTED)
-          tx->tmabort(tx);
+      if (Self.alive == TX_ABORTED)
+          Self.tmabort();
       return result;
   }
 
@@ -155,16 +161,16 @@ namespace {
    *  ByEAR read (writing transaction)
    */
   void*
-  ByEAR::read_rw(STM_READ_SIG(tx,addr,mask))
+  ByEAR::read_rw(STM_READ_SIG(addr,mask))
   {
       bytelock_t* lock = get_bytelock(addr);
 
       // skip instrumentation if I am the writer
-      if (lock->owner == tx->id) {
+      if (lock->owner == Self.id) {
           // [lyj] a liveness check can be inserted but not necessary
           // check the log
           WriteSetEntry log(STM_WRITE_SET_ENTRY(addr, NULL, mask));
-          bool found = tx->writes.find(log);
+          bool found = Self.writes.find(log);
           REDO_RAW_CHECK(found, log, mask);
 
           void* val = *addr;
@@ -173,22 +179,22 @@ namespace {
       }
 
       // do I have a read lock?
-      if (lock->reader[tx->id-1] == 0) {
+      if (lock->reader[Self.id-1] == 0) {
           // first time read, log this location
-          tx->r_bytelocks.insert(lock);
+          Self.r_bytelocks.insert(lock);
           // mark my lock byte
-          lock->set_read_byte(tx->id-1);
+          lock->set_read_byte(Self.id-1);
       }
 
       if (uint32_t owner = lock->owner) {
           switch (threads[owner-1]->alive) {
             case TX_COMMITTED:
               // abort myself if the owner is writing back
-              tx->tmabort(tx);
+              Self.tmabort();
             case TX_ACTIVE:
               // abort the owner(it's active)
               if (!bcas32(&threads[owner-1]->alive, TX_ACTIVE, TX_ABORTED))
-                  tx->tmabort(tx);
+                  Self.tmabort();
               break;
             case TX_ABORTED:
               // if the owner is unwinding, go through and read
@@ -202,8 +208,8 @@ namespace {
       CFENCE;
 
       // check for remote abort
-      if (tx->alive == TX_ABORTED)
-          tx->tmabort(tx);
+      if (Self.alive == TX_ABORTED)
+          Self.tmabort();
 
       return result;
   }
@@ -212,7 +218,7 @@ namespace {
    *  ByEAR write (read-only context)
    */
   void
-  ByEAR::write_ro(STM_WRITE_SIG(tx,addr,val,mask))
+  ByEAR::write_ro(STM_WRITE_SIG(addr,val,mask))
   {
       bytelock_t* lock = get_bytelock(addr);
 
@@ -222,16 +228,16 @@ namespace {
           if (uint32_t owner = lock->owner)
               cas32(&threads[owner-1]->alive, TX_ACTIVE, TX_ABORTED);
           // try to get ownership
-          else if (bcas32(&(lock->owner), 0u, tx->id))
+          else if (bcas32(&(lock->owner), 0u, Self.id))
               break;
           // liveness check
-          if (tx->alive == TX_ABORTED)
-              tx->tmabort(tx);
+          if (Self.alive == TX_ABORTED)
+              Self.tmabort();
       }
 
       // log the lock, drop any read locks I have
-      tx->w_bytelocks.insert(lock);
-      lock->reader[tx->id-1] = 0;
+      Self.w_bytelocks.insert(lock);
+      lock->reader[Self.id-1] = 0;
 
       // abort active readers
       //
@@ -242,25 +248,25 @@ namespace {
       for (int i = 0; i < 60; ++i)
           if (lock->reader[i] != 0 && threads[i]->alive == TX_ACTIVE)
               if (!bcas32(&threads[i]->alive, TX_ACTIVE, TX_ABORTED))
-                  tx->tmabort(tx);
+                  Self.tmabort();
 
       // add to redo log
-      tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
+      Self.writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
 
-      OnFirstWrite(tx, read_rw, write_rw, commit_rw);
+      OnFirstWrite( read_rw, write_rw, commit_rw);
   }
 
   /**
    *  ByEAR write (writing context)
    */
   void
-  ByEAR::write_rw(STM_WRITE_SIG(tx,addr,val,mask))
+  ByEAR::write_rw(STM_WRITE_SIG(addr,val,mask))
   {
       bytelock_t* lock = get_bytelock(addr);
 
       // fastpath for repeat writes to the same location
-      if (lock->owner == tx->id) {
-          tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
+      if (lock->owner == Self.id) {
+          Self.writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
           return;
       }
 
@@ -270,62 +276,62 @@ namespace {
           if (uint32_t owner = lock->owner)
               cas32(&threads[owner-1]->alive, TX_ACTIVE, TX_ABORTED);
           // try to get ownership
-          else if (bcas32(&(lock->owner), 0u, tx->id))
+          else if (bcas32(&(lock->owner), 0u, Self.id))
               break;
           // liveness check
-          if (tx->alive == TX_ABORTED)
-              tx->tmabort(tx);
+          if (Self.alive == TX_ABORTED)
+              Self.tmabort();
       }
 
       // log the lock, drop any read locks I have
-      tx->w_bytelocks.insert(lock);
-      lock->reader[tx->id-1] = 0;
+      Self.w_bytelocks.insert(lock);
+      lock->reader[Self.id-1] = 0;
 
       // abort active readers
       for (int i = 0; i < 60; ++i)
           if (lock->reader[i] != 0 && threads[i]->alive == TX_ACTIVE)
               if (!bcas32(&threads[i]->alive, TX_ACTIVE, TX_ABORTED))
-                  tx->tmabort(tx);
+                  Self.tmabort();
 
       // add to redo log
-      tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
+      Self.writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
   }
 
   /**
    *  ByEAR unwinder:
    */
   stm::scope_t*
-  ByEAR::rollback(STM_ROLLBACK_SIG(tx, except, len))
+  ByEAR::rollback(STM_ROLLBACK_SIG( except, len))
   {
-      PreRollback(tx);
+      PreRollback();
 
       // Perform writes to the exception object if there were any... taking the
       // branch overhead without concern because we're not worried about
       // rollback overheads.
-      STM_ROLLBACK(tx->writes, except, len);
+      STM_ROLLBACK(Self.writes, except, len);
 
       // release write locks, then read locks
-      foreach (ByteLockList, i, tx->w_bytelocks)
+      foreach (ByteLockList, i, Self.w_bytelocks)
           (*i)->owner = 0;
-      foreach (ByteLockList, i, tx->r_bytelocks)
-          (*i)->reader[tx->id-1] = 0;
+      foreach (ByteLockList, i, Self.r_bytelocks)
+          (*i)->reader[Self.id-1] = 0;
 
       // reset lists
-      tx->r_bytelocks.reset();
-      tx->w_bytelocks.reset();
-      tx->writes.reset();
+      Self.r_bytelocks.reset();
+      Self.w_bytelocks.reset();
+      Self.writes.reset();
 
       // randomized exponential backoff
-      exp_backoff(tx);
+      exp_backoff();
 
-      return PostRollback(tx, read_ro, write_ro, commit_ro);
+      return PostRollback( read_ro, write_ro, commit_ro);
   }
 
   /**
    *  ByEAR in-flight irrevocability:
    */
   bool
-  ByEAR::irrevoc(TxThread*)
+  ByEAR::irrevoc()
   {
       return false;
   }

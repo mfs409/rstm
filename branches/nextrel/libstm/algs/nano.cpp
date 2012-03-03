@@ -35,7 +35,12 @@ using stm::NanorecList;
 using stm::nanorec_t;
 using stm::get_nanorec;
 using stm::id_version_t;
-
+using stm::Self;
+using stm::OnFirstWrite;
+using stm::OnReadWriteCommit;
+using stm::OnReadOnlyCommit;
+using stm::PreRollback;
+using stm::PostRollback;
 
 /**
  *  Declare the functions that we're going to implement, so that we can avoid
@@ -44,16 +49,16 @@ using stm::id_version_t;
 namespace {
   struct Nano
   {
-      static TM_FASTCALL bool begin(TxThread*);
-      static TM_FASTCALL void* read_ro(STM_READ_SIG(,,));
-      static TM_FASTCALL void* read_rw(STM_READ_SIG(,,));
-      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void commit_ro(TxThread*);
-      static TM_FASTCALL void commit_rw(TxThread*);
+      static TM_FASTCALL bool begin();
+      static TM_FASTCALL void* read_ro(STM_READ_SIG(,));
+      static TM_FASTCALL void* read_rw(STM_READ_SIG(,));
+      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,));
+      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,));
+      static TM_FASTCALL void commit_ro();
+      static TM_FASTCALL void commit_rw();
 
-      static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
-      static bool irrevoc(TxThread*);
+      static stm::scope_t* rollback(STM_ROLLBACK_SIG(,));
+      static bool irrevoc();
       static void onSwitchTo();
   };
 
@@ -61,9 +66,9 @@ namespace {
    *  Nano begin:
    */
   bool
-  Nano::begin(TxThread* tx)
+  Nano::begin()
   {
-      tx->allocator.onTxBegin();
+      Self.allocator.onTxBegin();
       return false;
   }
 
@@ -71,11 +76,11 @@ namespace {
    *  Nano commit (read-only context)
    */
   void
-  Nano::commit_ro(TxThread* tx)
+  Nano::commit_ro()
   {
       // read-only, so reset the orec list and we are done
-      tx->nanorecs.reset();
-      OnReadOnlyCommit(tx);
+      Self.nanorecs.reset();
+      OnReadOnlyCommit();
   }
 
   /**
@@ -85,58 +90,58 @@ namespace {
    *    then validate, then do writeback.
    */
   void
-  Nano::commit_rw(TxThread* tx)
+  Nano::commit_rw()
   {
       // acquire locks
-      foreach (WriteSet, i, tx->writes) {
+      foreach (WriteSet, i, Self.writes) {
           // get orec, read its version#
           orec_t* o = get_nanorec(i->addr);
           id_version_t ivt;
           ivt.all = o->v.all;
 
           // if unlocked and we can lock it, do so
-          if (ivt.all != tx->my_lock.all) {
+          if (ivt.all != Self.my_lock.all) {
               if (!ivt.fields.lock) {
-                  if (!bcasptr(&o->v.all, ivt.all, tx->my_lock.all))
-                      tx->tmabort(tx);
+                  if (!bcasptr(&o->v.all, ivt.all, Self.my_lock.all))
+                      Self.tmabort();
                   // save old version to o->p, remember that we hold the lock
                   o->p = ivt.all;
-                  tx->locks.insert(o);
+                  Self.locks.insert(o);
               }
               else {
-                  tx->tmabort(tx);
+                  Self.tmabort();
               }
           }
       }
 
       // validate (variant for when locks are held)
-      foreach (NanorecList, i, tx->nanorecs) {
+      foreach (NanorecList, i, Self.nanorecs) {
           uintptr_t ivt = i->o->v.all;
           // if orec does not match val, then it must be locked by me, with its
           // old val equalling my expected val
-          if ((ivt != i->v) && ((ivt != tx->my_lock.all) || (i->v != i->o->p)))
-              tx->tmabort(tx);
+          if ((ivt != i->v) && ((ivt != Self.my_lock.all) || (i->v != i->o->p)))
+              Self.tmabort();
       }
 
       // run the redo log
-      tx->writes.writeback();
+      Self.writes.writeback();
 
       // release locks
-      foreach (OrecList, i, tx->locks)
+      foreach (OrecList, i, Self.locks)
           (*i)->v.all = (*i)->p+1;
 
       // clean-up
-      tx->nanorecs.reset();
-      tx->writes.reset();
-      tx->locks.reset();
-      OnReadWriteCommit(tx, read_ro, write_ro, commit_ro);
+      Self.nanorecs.reset();
+      Self.writes.reset();
+      Self.locks.reset();
+      OnReadWriteCommit( read_ro, write_ro, commit_ro);
   }
 
   /**
    *  Nano read (read-only context):
    */
   void*
-  Nano::read_ro(STM_READ_SIG(tx,addr,))
+  Nano::read_ro(STM_READ_SIG(addr,))
   {
       // get the orec addr
       orec_t* o = get_nanorec(addr);
@@ -157,11 +162,11 @@ namespace {
           // common case: valid read
           if ((ivt.all == ivt2) && (!ivt.fields.lock)) {
               // log the read
-              tx->nanorecs.insert(nanorec_t(o, ivt2));
+              Self.nanorecs.insert(nanorec_t(o, ivt2));
               // validate the whole read set, then return the value we just read
-              foreach (NanorecList, i, tx->nanorecs)
+              foreach (NanorecList, i, Self.nanorecs)
                   if (i->o->v.all != i->v)
-                      tx->tmabort(tx);
+                      Self.tmabort();
               return tmp;
           }
 
@@ -175,15 +180,15 @@ namespace {
    *  Nano read (writing context):
    */
   void*
-  Nano::read_rw(STM_READ_SIG(tx,addr,mask))
+  Nano::read_rw(STM_READ_SIG(addr,mask))
   {
       // check the log for a RAW hazard, we expect to miss
       WriteSetEntry log(STM_WRITE_SET_ENTRY(addr, NULL, mask));
-      bool found = tx->writes.find(log);
+      bool found = Self.writes.find(log);
       REDO_RAW_CHECK(found, log, mask);
 
       // reuse the ReadRO barrier, which is adequate here---reduces LOC
-      void* val = read_ro(tx, addr STM_MASK(mask));
+      void* val = read_ro( addr STM_MASK(mask));
       REDO_RAW_CLEANUP(val, found, log, mask);
       return val;
   }
@@ -192,21 +197,21 @@ namespace {
    *  Nano write (read-only context):
    */
   void
-  Nano::write_ro(STM_WRITE_SIG(tx,addr,val,mask))
+  Nano::write_ro(STM_WRITE_SIG(addr,val,mask))
   {
       // add to redo log
-      tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
-      OnFirstWrite(tx, read_rw, write_rw, commit_rw);
+      Self.writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
+      OnFirstWrite( read_rw, write_rw, commit_rw);
   }
 
   /**
    *  Nano write (writing context):
    */
   void
-  Nano::write_rw(STM_WRITE_SIG(tx,addr,val,mask))
+  Nano::write_rw(STM_WRITE_SIG(addr,val,mask))
   {
       // add to redo log
-      tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
+      Self.writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
   }
 
   /**
@@ -216,30 +221,30 @@ namespace {
    *    operation), and then reset local lists.
    */
   stm::scope_t*
-  Nano::rollback(STM_ROLLBACK_SIG(tx, except, len))
+  Nano::rollback(STM_ROLLBACK_SIG( except, len))
   {
-      PreRollback(tx);
+      PreRollback();
 
       // Perform writes to the exception object if there were any... taking the
       // branch overhead without concern because we're not worried about
       // rollback overheads.
-      STM_ROLLBACK(tx->writes, except, len);
+      STM_ROLLBACK(Self.writes, except, len);
 
       // release the locks and restore version numbers
-      foreach (OrecList, i, tx->locks)
+      foreach (OrecList, i, Self.locks)
           (*i)->v.all = (*i)->p;
 
       // undo memory operations, reset lists
-      tx->nanorecs.reset();
-      tx->writes.reset();
-      tx->locks.reset();
-      return PostRollback(tx, read_ro, write_ro, commit_ro);
+      Self.nanorecs.reset();
+      Self.writes.reset();
+      Self.locks.reset();
+      return PostRollback( read_ro, write_ro, commit_ro);
   }
 
   /**
    *  Nano in-flight irrevocability:
    */
-  bool Nano::irrevoc(TxThread*) {
+  bool Nano::irrevoc() {
       return false;
   }
 

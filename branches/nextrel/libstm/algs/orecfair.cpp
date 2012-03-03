@@ -44,7 +44,13 @@ using stm::MAX_THREADS;
 using stm::threads;
 using stm::prioTxCount;
 using stm::WriteSetEntry;
-
+using stm::Self;
+using stm::OnFirstWrite;
+using stm::OnReadWriteCommit;
+using stm::OnReadOnlyCommit;
+using stm::PreRollback;
+using stm::PostRollback;
+using stm::exp_backoff;
 
 /**
  *  Declare the functions that we're going to implement, so that we can avoid
@@ -53,19 +59,19 @@ using stm::WriteSetEntry;
 namespace
 {
   struct OrecFair {
-      static TM_FASTCALL bool begin(TxThread*);
-      static TM_FASTCALL void* read_ro(STM_READ_SIG(,,));
-      static TM_FASTCALL void* read_rw(STM_READ_SIG(,,));
-      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void commit_ro(TxThread*);
-      static TM_FASTCALL void commit_rw(TxThread*);
+      static TM_FASTCALL bool begin();
+      static TM_FASTCALL void* read_ro(STM_READ_SIG(,));
+      static TM_FASTCALL void* read_rw(STM_READ_SIG(,));
+      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,));
+      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,));
+      static TM_FASTCALL void commit_ro();
+      static TM_FASTCALL void commit_rw();
 
-      static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
-      static bool irrevoc(TxThread*);
+      static stm::scope_t* rollback(STM_ROLLBACK_SIG(,));
+      static bool irrevoc();
       static void onSwitchTo();
-      static NOINLINE void validate(TxThread*);
-      static NOINLINE void validate_committime(TxThread*);
+      static NOINLINE void validate();
+      static NOINLINE void validate_committime();
   };
 
   /**
@@ -75,15 +81,15 @@ namespace
    *    priority.
    */
   bool
-  OrecFair::begin(TxThread* tx)
+  OrecFair::begin()
   {
-      tx->allocator.onTxBegin();
-      tx->start_time = timestamp.val;
+      Self.allocator.onTxBegin();
+      Self.start_time = timestamp.val;
       // get priority
-      long prio_bump = tx->consec_aborts / KARMA_FACTOR;
+      long prio_bump = Self.consec_aborts / KARMA_FACTOR;
       if (prio_bump) {
           faiptr(&prioTxCount.val);
-          tx->prio = prio_bump;
+          Self.prio = prio_bump;
       }
       return false;
   }
@@ -95,23 +101,23 @@ namespace
    *    we have.
    */
   void
-  OrecFair::commit_ro(TxThread* tx)
+  OrecFair::commit_ro()
   {
       // If I had priority, release it
-      if (tx->prio) {
+      if (Self.prio) {
           // decrease prio count
           faaptr(&prioTxCount.val, -1);
 
           // give up my priority
-          tx->prio = 0;
+          Self.prio = 0;
 
           // clear metadata, reset list
-          foreach (RRecList, i, tx->myRRecs)
-              (*i)->unsetbit(tx->id-1);
-          tx->myRRecs.reset();
+          foreach (RRecList, i, Self.myRRecs)
+              (*i)->unsetbit(Self.id-1);
+          Self.myRRecs.reset();
       }
-      tx->r_orecs.reset();
-      OnReadOnlyCommit(tx);
+      Self.r_orecs.reset();
+      OnReadOnlyCommit();
   }
 
   /**
@@ -125,10 +131,10 @@ namespace
    *    wait for that thread to detect our conflict and abort itself.
    */
   void
-  OrecFair::commit_rw(TxThread* tx)
+  OrecFair::commit_rw()
   {
       // try to lock every location in the write set
-      WriteSet::iterator i = tx->writes.begin(), e = tx->writes.end();
+      WriteSet::iterator i = Self.writes.begin(), e = Self.writes.end();
       while (i != e) {
           // get orec, read its version#
           orec_t* o = get_orec(i->addr);
@@ -137,29 +143,29 @@ namespace
 
           // if orec not locked, lock it.  for simplicity, abort if timestamp
           // too new.
-          if (ivt.all <= tx->start_time) {
-              if (!bcasptr(&o->v.all, ivt.all, tx->my_lock.all)) {
+          if (ivt.all <= Self.start_time) {
+              if (!bcasptr(&o->v.all, ivt.all, Self.my_lock.all)) {
                   spin64();
                   continue;
               }
               // save old version to o->p, log lock
               o->p = ivt.all;
-              tx->locks.insert(o);
+              Self.locks.insert(o);
           }
           // else if we don't hold the lock abort
-          else if (ivt.all != tx->my_lock.all) {
+          else if (ivt.all != Self.my_lock.all) {
               if (!ivt.fields.lock)
-                  tx->tmabort(tx);
+                  Self.tmabort();
               // priority test... if I have priority, and the last unlocked
               // version of the orec was the one I read, and the current
               // owner has less priority than me, wait
-              if (o->p <= tx->start_time) {
-                  if (threads[ivt.fields.id-1]->prio < tx->prio) {
+              if (o->p <= Self.start_time) {
+                  if (threads[ivt.fields.id-1]->prio < Self.prio) {
                       spin64();
                       continue;
                   }
               }
-              tx->tmabort(tx);
+              Self.tmabort();
           }
           ++i;
       }
@@ -169,7 +175,7 @@ namespace
           // \exist prio txns.  accumulate read bits covering addresses in my
           // write set
           rrec_t accumulator = {{0}};
-          foreach (WriteSet, j, tx->writes) {
+          foreach (WriteSet, j, Self.writes) {
               int index = (((uintptr_t)j->addr) >> 3) % RREC_COUNT;
               accumulator |= rrecs[index];
           }
@@ -180,8 +186,8 @@ namespace
               unsigned bucket = slot / rrec_t::BITS;
               unsigned mask = 1lu<<(slot % rrec_t::BITS);
               if (accumulator.bits[bucket] & mask) {
-                  if (threads[slot]->prio > tx->prio)
-                      tx->tmabort(tx);
+                  if (threads[slot]->prio > Self.prio)
+                      Self.tmabort();
               }
           }
       }
@@ -190,38 +196,38 @@ namespace
       unsigned end_time = 1 + faiptr(&timestamp.val);
 
       // skip validation if nobody else committed
-      if (end_time != (tx->start_time + 1))
-          validate_committime(tx);
+      if (end_time != (Self.start_time + 1))
+          validate_committime();
 
       // run the redo log
-      tx->writes.writeback();
+      Self.writes.writeback();
 
       // NB: if we did the faa, then released writelocks, then released
       //     readlocks, we might be faster
 
       // If I had priority, release it
-      if (tx->prio) {
+      if (Self.prio) {
           // decrease prio count
           faaptr(&prioTxCount.val, -1);
 
           // give up my priority
-          tx->prio = 0;
+          Self.prio = 0;
 
           // clear metadata, reset list
-          foreach (RRecList, j, tx->myRRecs)
-              (*j)->unsetbit(tx->id-1);
-          tx->myRRecs.reset();
+          foreach (RRecList, j, Self.myRRecs)
+              (*j)->unsetbit(Self.id-1);
+          Self.myRRecs.reset();
       }
 
       // release locks
-      foreach (OrecList, j, tx->locks)
+      foreach (OrecList, j, Self.locks)
           (*j)->v.all = end_time;
 
       // remember that this was a commit
-      tx->r_orecs.reset();
-      tx->writes.reset();
-      tx->locks.reset();
-      OnReadWriteCommit(tx, read_ro, write_ro, commit_ro);
+      Self.r_orecs.reset();
+      Self.writes.reset();
+      Self.locks.reset();
+      OnReadWriteCommit( read_ro, write_ro, commit_ro);
   }
 
   /**
@@ -235,14 +241,14 @@ namespace
    *        optimizations for priority transactions
    */
   void*
-  OrecFair::read_ro(STM_READ_SIG(tx,addr,))
+  OrecFair::read_ro(STM_READ_SIG(addr,))
   {
       // CM instrumentation
-      if (tx->prio > 0) {
+      if (Self.prio > 0) {
           // get the rrec for this address, set the bit, log it
           rrec_t* rrec = get_rrec(addr);
-          rrec->setbit(tx->id-1);
-          tx->myRRecs.insert(rrec);
+          rrec->setbit(Self.id-1);
+          Self.myRRecs.insert(rrec);
       }
 
       // get the orec addr
@@ -261,8 +267,8 @@ namespace
           unsigned ivt2 = o->v.all;
 
           // common case: new read to uncontended location
-          if ((ivt.all == ivt2) && (ivt.all <= tx->start_time)) {
-              tx->r_orecs.insert(o);
+          if ((ivt.all == ivt2) && (ivt.all <= Self.start_time)) {
+              Self.r_orecs.insert(o);
               return tmp;
           }
 
@@ -274,8 +280,8 @@ namespace
 
           // unlocked but too new... validate and scale forward
           unsigned newts = timestamp.val;
-          validate(tx);
-          tx->start_time = newts;
+          validate();
+          Self.start_time = newts;
       }
   }
 
@@ -290,19 +296,19 @@ namespace
    *        version of this function
    */
   void*
-  OrecFair::read_rw(STM_READ_SIG(tx,addr,mask))
+  OrecFair::read_rw(STM_READ_SIG(addr,mask))
   {
       // check the log for a RAW hazard, we expect to miss
       WriteSetEntry log(STM_WRITE_SET_ENTRY(addr, NULL, mask));
-      bool found = tx->writes.find(log);
+      bool found = Self.writes.find(log);
       REDO_RAW_CHECK(found, log, mask);
 
       // CM instrumentation
-      if (tx->prio > 0) {
+      if (Self.prio > 0) {
           // get the rrec for this address, set the bit, log it
           rrec_t* rrec = get_rrec(addr);
-          rrec->setbit(tx->id-1);
-          tx->myRRecs.insert(rrec);
+          rrec->setbit(Self.id-1);
+          Self.myRRecs.insert(rrec);
       }
 
       // get the orec addr
@@ -321,8 +327,8 @@ namespace
           unsigned ivt2 = o->v.all;
 
           // common case: new read to uncontended location
-          if ((ivt.all == ivt2) && (ivt.all <= tx->start_time)) {
-              tx->r_orecs.insert(o);
+          if ((ivt.all == ivt2) && (ivt.all <= Self.start_time)) {
+              Self.r_orecs.insert(o);
               // cleanup the value as late as possible.
               REDO_RAW_CLEANUP(tmp, found, log, mask);
               return tmp;
@@ -336,8 +342,8 @@ namespace
 
           // unlocked but too new... validate and scale forward
           unsigned newts = timestamp.val;
-          validate(tx);
-          tx->start_time = newts;
+          validate();
+          Self.start_time = newts;
       }
   }
 
@@ -353,14 +359,14 @@ namespace
    *        redundancy with the checks in the lock acquisition code.
    */
   void
-  OrecFair::write_ro(STM_WRITE_SIG(tx,addr,val,mask))
+  OrecFair::write_ro(STM_WRITE_SIG(addr,val,mask))
   {
       // CM instrumentation
-      if (tx->prio > 0) {
+      if (Self.prio > 0) {
           // get the rrec for this address, set the bit, log it
           rrec_t* rrec = get_rrec(addr);
-          rrec->setbit(tx->id-1);
-          tx->myRRecs.insert(rrec);
+          rrec->setbit(Self.id-1);
+          Self.myRRecs.insert(rrec);
       }
 
       // ensure that the orec isn't newer than we are... if so, validate
@@ -372,10 +378,10 @@ namespace
           // if locked, spin and continue
           if (!ivt.fields.lock) {
               // do we need to scale the start time?
-              if (ivt.all > tx->start_time) {
+              if (ivt.all > Self.start_time) {
                   unsigned newts = timestamp.val;
-                  validate(tx);
-                  tx->start_time = newts;
+                  validate();
+                  Self.start_time = newts;
                   continue;
               }
               break;
@@ -384,8 +390,8 @@ namespace
       }
 
       // Record the new value in a redo log
-      tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
-      OnFirstWrite(tx, read_rw, write_rw, commit_rw);
+      Self.writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
+      OnFirstWrite( read_rw, write_rw, commit_rw);
   }
 
   /**
@@ -395,14 +401,14 @@ namespace
    *    concerns apply as above.
    */
   void
-  OrecFair::write_rw(STM_WRITE_SIG(tx,addr,val,mask))
+  OrecFair::write_rw(STM_WRITE_SIG(addr,val,mask))
   {
       // CM instrumentation
-      if (tx->prio > 0) {
+      if (Self.prio > 0) {
           // get the rrec for this address, set the bit, log it
           rrec_t* rrec = get_rrec(addr);
-          rrec->setbit(tx->id-1);
-          tx->myRRecs.insert(rrec);
+          rrec->setbit(Self.id-1);
+          Self.myRRecs.insert(rrec);
       }
 
       // ensure that the orec isn't newer than we are... if so, validate
@@ -414,10 +420,10 @@ namespace
           // if locked, spin and continue
           if (!ivt.fields.lock) {
               // do we need to scale the start time?
-              if (ivt.all > tx->start_time) {
+              if (ivt.all > Self.start_time) {
                   unsigned newts = timestamp.val;
-                  validate(tx);
-                  tx->start_time = newts;
+                  validate();
+                  Self.start_time = newts;
                   continue;
               }
               break;
@@ -426,7 +432,7 @@ namespace
       }
 
       // Record the new value in a redo log
-      tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
+      Self.writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
   }
 
   /**
@@ -440,45 +446,45 @@ namespace
    *        be completely faithful to [Spear PPoPP 2009]
    */
   stm::scope_t*
-  OrecFair::rollback(STM_ROLLBACK_SIG(tx, except, len))
+  OrecFair::rollback(STM_ROLLBACK_SIG( except, len))
   {
-      PreRollback(tx);
+      PreRollback();
 
       // Perform writes to the exception object if there were any... taking
       // the branch overhead without concern because we're not worried about
       // rollback overheads.
-      STM_ROLLBACK(tx->writes, except, len);
+      STM_ROLLBACK(Self.writes, except, len);
 
       // release the locks and restore version numbers
-      foreach (OrecList, i, tx->locks)
+      foreach (OrecList, i, Self.locks)
           (*i)->v.all = (*i)->p;
 
       // If I had priority, release it
-      if (tx->prio > 0) {
+      if (Self.prio > 0) {
           // give up my priority, unset all my read bits
           faaptr(&prioTxCount.val, -1);
-          tx->prio = 0;
-          foreach (RRecList, i, tx->myRRecs)
-              (*i)->unsetbit(tx->id-1);
-          tx->myRRecs.reset();
+          Self.prio = 0;
+          foreach (RRecList, i, Self.myRRecs)
+              (*i)->unsetbit(Self.id-1);
+          Self.myRRecs.reset();
       }
 
       // undo memory operations, reset lists
-      tx->r_orecs.reset();
-      tx->writes.reset();
-      tx->locks.reset();
+      Self.r_orecs.reset();
+      Self.writes.reset();
+      Self.locks.reset();
 
       // randomized exponential backoff
-      exp_backoff(tx);
+      exp_backoff();
 
-      return PostRollback(tx, read_ro, write_ro, commit_ro);
+      return PostRollback( read_ro, write_ro, commit_ro);
   }
 
   /**
    *  OrecFair in-flight irrevocability: use abort-and-restart
    */
   bool
-  OrecFair::irrevoc(TxThread* tx)
+  OrecFair::irrevoc()
   {
       return false;
   }
@@ -492,27 +498,27 @@ namespace
    *    go away, instead of aborting.
    */
   void
-  OrecFair::validate(TxThread* tx)
+  OrecFair::validate()
   {
-      OrecList::iterator i = tx->r_orecs.begin(), e = tx->r_orecs.end();
+      OrecList::iterator i = Self.r_orecs.begin(), e = Self.r_orecs.end();
       while (i != e) {
           // read this orec
           id_version_t ivt;
           ivt.all = (*i)->v.all;
           // only a problem if locked or newer than start time
-          if (ivt.all > tx->start_time) {
+          if (ivt.all > Self.start_time) {
               if (!ivt.fields.lock)
-                  tx->tmabort(tx);
+                  Self.tmabort();
               // priority test... if I have priority, and the last unlocked
               // orec was the one I read, and the current owner has less
               // priority than me, wait
-              if ((*i)->p <= tx->start_time) {
-                  if (threads[ivt.fields.id-1]->prio < tx->prio) {
+              if ((*i)->p <= Self.start_time) {
+                  if (threads[ivt.fields.id-1]->prio < Self.prio) {
                       spin64();
                       continue;
                   }
               }
-              tx->tmabort(tx);
+              Self.tmabort();
           }
           ++i;
       }
@@ -525,42 +531,42 @@ namespace
    *    caller holds locks
    */
   void
-  OrecFair::validate_committime(TxThread* tx)
+  OrecFair::validate_committime()
   {
-      if (tx->prio) {
-        OrecList::iterator i = tx->r_orecs.begin(), e = tx->r_orecs.end();
+      if (Self.prio) {
+        OrecList::iterator i = Self.r_orecs.begin(), e = Self.r_orecs.end();
         while (i != e) {
               // read this orec
               id_version_t ivt;
               ivt.all = (*i)->v.all;
               // if unlocked and newer than start time, abort
-              if (!ivt.fields.lock && (ivt.all > tx->start_time))
-                  tx->tmabort(tx);
+              if (!ivt.fields.lock && (ivt.all > Self.start_time))
+                  Self.tmabort();
 
               // if locked and not by me, do a priority test
-              if (ivt.fields.lock && (ivt.all != tx->my_lock.all)) {
+              if (ivt.fields.lock && (ivt.all != Self.my_lock.all)) {
                   // priority test... if I have priority, and the last
                   // unlocked orec was the one I read, and the current
                   // owner has less priority than me, wait
-                  if (((*i)->p <= tx->start_time) &&
-                      (threads[ivt.fields.id-1]->prio < tx->prio))
+                  if (((*i)->p <= Self.start_time) &&
+                      (threads[ivt.fields.id-1]->prio < Self.prio))
                   {
                       spin64();
                       continue;
                   }
-                  tx->tmabort(tx);
+                  Self.tmabort();
               }
               ++i;
           }
       }
       else {
-          foreach (OrecList, i, tx->r_orecs) {
+          foreach (OrecList, i, Self.r_orecs) {
               // read this orec
               id_version_t ivt;
               ivt.all = (*i)->v.all;
               // if unlocked and newer than start time, abort
-              if ((ivt.all > tx->start_time) && (ivt.all != tx->my_lock.all))
-                  tx->tmabort(tx);
+              if ((ivt.all > Self.start_time) && (ivt.all != Self.my_lock.all))
+                  Self.tmabort();
           }
       }
   }

@@ -38,9 +38,9 @@
  *  version logs the event.
  */
 #define REDO_RAW_CHECK_PROFILEAPP(found, log, mask) \
-    if (__builtin_expect(found, false)) {     \
-        ++profiles[0].read_rw_raw;              \
-        return log.val;                       \
+    if (__builtin_expect(found, false)) {           \
+        ++profiles[0].read_rw_raw;                  \
+        return log.val;                             \
     }
 
 /**

@@ -68,9 +68,9 @@ namespace stm
    *    (b) avoid code duplication or MACRO nastiness
    */
   TM_INLINE
-  inline void begin(TxThread* tx, scope_t* s, uint32_t /*abort_flags*/)
+  inline void begin(scope_t* s, uint32_t /*abort_flags*/)
   {
-      if (++tx->nesting_depth > 1)
+      if (++Self.nesting_depth > 1)
           return;
 
       // we must ensure that the write of the transaction's scope occurs
@@ -78,21 +78,21 @@ namespace stm
       // CAS is faster than using WBR or xchg to achieve the ordering.  On
       // SPARC, WBR is best.
 #ifdef STM_CPU_SPARC
-      tx->scope = s; WBR;
+      Self.scope = s; WBR;
 #else
       // NB: this CAS fails on a transaction restart... is that too expensive?
-      casptr((volatile uintptr_t*)&tx->scope, (uintptr_t)0, (uintptr_t)s);
+      casptr((volatile uintptr_t*)&Self.scope, (uintptr_t)0, (uintptr_t)s);
 #endif
 
       // some adaptivity mechanisms need to know nontransactional and
       // transactional time.  This code suffices, because it gets the time
       // between transactions.  If we need the time for a single transaction,
       // we can run ProfileTM
-      if (tx->end_txn_time)
-          tx->total_nontxn_time += (tick() - tx->end_txn_time);
+      if (Self.end_txn_time)
+          Self.total_nontxn_time += (tick() - Self.end_txn_time);
 
       // now call the per-algorithm begin function
-      TxThread::tmbegin(tx);
+      TxThread::tmbegin();
   }
 
   /**
@@ -101,21 +101,21 @@ namespace stm
    *  prevent code duplication.
    */
   TM_INLINE
-  inline void commit(TxThread* tx)
+  inline void commit()
   {
       // don't commit anything if we're nested... just exit this scope
-      if (--tx->nesting_depth)
+      if (--Self.nesting_depth)
           return;
 
       // dispatch to the appropriate end function
-      tx->tmcommit(tx);
+      Self.tmcommit();
 
       // zero scope (to indicate "not in tx")
       CFENCE;
-      tx->scope = NULL;
+      Self.scope = NULL;
 
       // record start of nontransactional time
-      tx->end_txn_time = tick();
+      Self.end_txn_time = tick();
   }
 
   /**
@@ -134,14 +134,14 @@ namespace stm
    *  get a chunk of memory that will be automatically reclaimed if the caller
    *  is a transaction that ultimately aborts
    */
-  inline void* tx_alloc(size_t size) { return Self->allocator.txAlloc(size); }
+  inline void* tx_alloc(size_t size) { return Self.allocator.txAlloc(size); }
 
   /**
    *  Free some memory.  If the caller is a transaction that ultimately aborts,
    *  the free will not happen.  If the caller is a transaction that commits,
    *  the free will happen at commit time.
    */
-  inline void tx_free(void* p) { Self->allocator.txFree(p); }
+  inline void tx_free(void* p) { Self.allocator.txFree(p); }
 
   /**
    *  Master class for all objects that are used in transactions, to ensure
@@ -180,7 +180,7 @@ namespace stm
    *  We rely on the default setjmp/longjmp abort handling when using the
    *  library API.
    */
-  void sys_init(void (*abort_handler)(TxThread*) = NULL);
+  void sys_init(void (*abort_handler)() = NULL);
 
   /**
    *  Shut down the library.  This just dumps some statistics.
@@ -223,33 +223,32 @@ namespace stm
 namespace stm
 {
   template <typename T>
-  inline T stm_read(T* addr, TxThread* thread)
+  inline T stm_read(T* addr)
   {
-      return DISPATCH<T, sizeof(T)>::read(addr, thread);
+      return DISPATCH<T, sizeof(T)>::read(addr);
   }
 
   template <typename T>
-  inline void stm_write(T* addr, T val, TxThread* thread)
+  inline void stm_write(T* addr, T val)
   {
-      DISPATCH<T, sizeof(T)>::write(addr, val, thread);
+      DISPATCH<T, sizeof(T)>::write(addr, val);
   }
 } // namespace stm
 
 /**
  * Code should only use these calls, not the template stuff declared above
  */
-#define TM_READ(var)       stm::stm_read(&var, tx)
-#define TM_WRITE(var, val) stm::stm_write(&var, val, tx)
+#define TM_READ(var)       stm::stm_read(&var)
+#define TM_WRITE(var, val) stm::stm_write(&var, val)
 
 /**
  *  This is the way to start a transaction
  */
 #define TM_BEGIN(TYPE)                                      \
     {                                                       \
-    stm::TxThread* tx = (stm::TxThread*)stm::Self;          \
     jmp_buf _jmpbuf;                                        \
     uint32_t abort_flags = setjmp(_jmpbuf);                 \
-    stm::begin(tx, &_jmpbuf, abort_flags);                  \
+    stm::begin(&_jmpbuf, abort_flags);                      \
     CFENCE;                                                 \
     {
 
@@ -259,17 +258,17 @@ namespace stm
  */
 #define TM_END                                  \
     }                                           \
-    stm::commit(tx);                            \
+    stm::commit();                              \
     }
 
 /**
  *  Macro to get STM context.  This currently produces a pointer to a TxThread
  */
-#define TM_GET_THREAD() stm::TxThread* tx = (stm::TxThread*)stm::Self
-#define TM_ARG_ALONE stm::TxThread* tx
-#define TM_ARG , TM_ARG_ALONE
-#define TM_PARAM , tx
-#define TM_PARAM_ALONE tx
+#define TM_GET_THREAD()
+#define TM_ARG_ALONE
+#define TM_ARG
+#define TM_PARAM
+#define TM_PARAM_ALONE
 
 #define TM_WAIVER
 #define TM_CALLABLE
@@ -307,8 +306,8 @@ namespace stm
 #else
 #  define TM_BEGIN_FAST_INITIALIZATION()                \
     const char* __config_string__ = TM_GET_ALGNAME();   \
-    TM_SET_POLICY("CGL");                               \
-    TM_GET_THREAD()
+    TM_SET_POLICY("CGL");
+
 #  define TM_END_FAST_INITIALIZATION()          \
     TM_SET_POLICY(__config_string__)
 #endif

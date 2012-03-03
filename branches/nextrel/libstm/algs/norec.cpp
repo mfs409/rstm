@@ -27,32 +27,37 @@ using stm::timestamp;
 using stm::WriteSetEntry;
 using stm::ValueList;
 using stm::ValueListEntry;
-
+using stm::Self;
+using stm::OnFirstWrite;
+using stm::OnReadWriteCommit;
+using stm::OnReadOnlyCommit;
+using stm::PreRollback;
+using stm::PostRollback;
 
 namespace {
 
   const uintptr_t VALIDATION_FAILED = 1;
-  NOINLINE uintptr_t validate(TxThread*);
-  bool irrevoc(TxThread*);
+  NOINLINE uintptr_t validate(TxThread&);
+  bool irrevoc();
   void onSwitchTo();
 
   template <class CM>
   struct NOrec_Generic
   {
-      static TM_FASTCALL bool begin(TxThread*);
-      static TM_FASTCALL void commit(TxThread*);
-      static TM_FASTCALL void commit_ro(TxThread*);
-      static TM_FASTCALL void commit_rw(TxThread*);
-      static TM_FASTCALL void* read_ro(STM_READ_SIG(,,));
-      static TM_FASTCALL void* read_rw(STM_READ_SIG(,,));
-      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,,));
-      static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
+      static TM_FASTCALL bool begin();
+      static TM_FASTCALL void commit();
+      static TM_FASTCALL void commit_ro();
+      static TM_FASTCALL void commit_rw();
+      static TM_FASTCALL void* read_ro(STM_READ_SIG(,));
+      static TM_FASTCALL void* read_rw(STM_READ_SIG(,));
+      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,));
+      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,));
+      static stm::scope_t* rollback(STM_ROLLBACK_SIG(,));
       static void initialize(int id, const char* name);
   };
 
   uintptr_t
-  validate(TxThread* tx)
+  validate(TxThread& tx)
   {
       while (true) {
           // read the lock until it is even
@@ -65,8 +70,8 @@ namespace {
           // don't branch in the loop---consider it backoff if we fail
           // validation early
           bool valid = true;
-          foreach (ValueList, i, tx->vlist)
-              valid &= STM_LOG_VALUE_IS_VALID(i, tx);
+          foreach (ValueList, i, tx.vlist)
+              valid &= STM_LOG_VALUE_IS_VALID(i);
 
           if (!valid)
               return VALIDATION_FAILED;
@@ -79,20 +84,20 @@ namespace {
   }
 
   bool
-  irrevoc(TxThread* tx)
+  irrevoc()
   {
-      while (!bcasptr(&timestamp.val, tx->start_time, tx->start_time + 1))
-          if ((tx->start_time = validate(tx)) == VALIDATION_FAILED)
+      while (!bcasptr(&timestamp.val, Self.start_time, Self.start_time + 1))
+          if ((Self.start_time = validate(Self)) == VALIDATION_FAILED)
               return false;
 
       // redo writes
-      tx->writes.writeback();
+      Self.writes.writeback();
 
       // Release the sequence lock, then clean up
       CFENCE;
-      timestamp.val = tx->start_time + 2;
-      tx->vlist.reset();
-      tx->writes.reset();
+      timestamp.val = Self.start_time + 2;
+      Self.vlist.reset();
+      Self.writes.reset();
       return true;
   }
 
@@ -126,98 +131,106 @@ namespace {
 
   template <class CM>
   bool
-  NOrec_Generic<CM>::begin(TxThread* tx)
+  NOrec_Generic<CM>::begin()
   {
+      TxThread& tx = Self;
+
       // Originally, NOrec required us to wait until the timestamp is odd
       // before we start.  However, we can round down if odd, in which case
       // we don't need control flow here.
 
       // Sample the sequence lock, if it is even decrement by 1
-      tx->start_time = timestamp.val & ~(1L);
+      tx.start_time = timestamp.val & ~(1L);
 
       // notify the allocator
-      tx->allocator.onTxBegin();
+      tx.allocator.onTxBegin();
 
       // notify CM
-      CM::onBegin(tx);
+      CM::onBegin();
 
       return false;
   }
 
   template <class CM>
   void
-  NOrec_Generic<CM>::commit(TxThread* tx)
+  NOrec_Generic<CM>::commit()
   {
+      TxThread& me = Self;
+
       // From a valid state, the transaction increments the seqlock.  Then it
       // does writeback and increments the seqlock again
 
       // read-only is trivially successful at last read
-      if (!tx->writes.size()) {
-          CM::onCommit(tx);
-          tx->vlist.reset();
-          OnReadOnlyCommit(tx);
+      if (!me.writes.size()) {
+          CM::onCommit();
+          me.vlist.reset();
+          OnReadOnlyCommit();
           return;
       }
 
       // get the lock and validate (use RingSTM obstruction-free technique)
-      while (!bcasptr(&timestamp.val, tx->start_time, tx->start_time + 1))
-          if ((tx->start_time = validate(tx)) == VALIDATION_FAILED)
-              tx->tmabort(tx);
+      while (!bcasptr(&timestamp.val, me.start_time, me.start_time + 1))
+          if ((me.start_time = validate(Self)) == VALIDATION_FAILED)
+              me.tmabort();
 
-      tx->writes.writeback();
+      me.writes.writeback();
 
       // Release the sequence lock, then clean up
       CFENCE;
-      timestamp.val = tx->start_time + 2;
-      CM::onCommit(tx);
-      tx->vlist.reset();
-      tx->writes.reset();
-      OnReadWriteCommit(tx);
+      timestamp.val = me.start_time + 2;
+      CM::onCommit();
+      me.vlist.reset();
+      me.writes.reset();
+      OnReadWriteCommit();
   }
 
   template <class CM>
   void
-  NOrec_Generic<CM>::commit_ro(TxThread* tx)
+  NOrec_Generic<CM>::commit_ro()
   {
       // Since all reads were consistent, and no writes were done, the read-only
       // NOrec transaction just resets itself and is done.
-      CM::onCommit(tx);
-      tx->vlist.reset();
-      OnReadOnlyCommit(tx);
+      CM::onCommit();
+      Self.vlist.reset();
+      OnReadOnlyCommit();
   }
 
   template <class CM>
   void
-  NOrec_Generic<CM>::commit_rw(TxThread* tx)
+  NOrec_Generic<CM>::commit_rw()
   {
+      TxThread& tx = Self;
+
       // From a valid state, the transaction increments the seqlock.  Then it does
       // writeback and increments the seqlock again
 
       // get the lock and validate (use RingSTM obstruction-free technique)
-      while (!bcasptr(&timestamp.val, tx->start_time, tx->start_time + 1))
-          if ((tx->start_time = validate(tx)) == VALIDATION_FAILED)
-              tx->tmabort(tx);
+      while (!bcasptr(&timestamp.val, tx.start_time, tx.start_time + 1))
+          if ((tx.start_time = validate(Self)) == VALIDATION_FAILED)
+              tx.tmabort();
 
-      tx->writes.writeback();
+      tx.writes.writeback();
 
       // Release the sequence lock, then clean up
       CFENCE;
-      timestamp.val = tx->start_time + 2;
+      timestamp.val = tx.start_time + 2;
 
       // notify CM
-      CM::onCommit(tx);
+      CM::onCommit();
 
-      tx->vlist.reset();
-      tx->writes.reset();
+      tx.vlist.reset();
+      tx.writes.reset();
 
       // This switches the thread back to RO mode.
-      OnReadWriteCommit(tx, read_ro, write_ro, commit_ro);
+      OnReadWriteCommit( read_ro, write_ro, commit_ro);
   }
 
   template <class CM>
   void*
-  NOrec_Generic<CM>::read_ro(STM_READ_SIG(tx,addr,mask))
+  NOrec_Generic<CM>::read_ro(STM_READ_SIG(addr,mask))
   {
+      TxThread& tx = Self;
+
       // A read is valid iff it occurs during a period where the seqlock does
       // not change and is even.  This code also polls for new changes that
       // might necessitate a validation.
@@ -228,26 +241,28 @@ namespace {
 
       // if the timestamp has changed since the last read, we must validate and
       // restart this read
-      while (tx->start_time != timestamp.val) {
-          if ((tx->start_time = validate(tx)) == VALIDATION_FAILED)
-              tx->tmabort(tx);
+      while (tx.start_time != timestamp.val) {
+          if ((tx.start_time = validate(tx)) == VALIDATION_FAILED)
+              tx.tmabort();
           tmp = *addr;
           CFENCE;
       }
 
       // log the address and value, uses the macro to deal with
       // STM_PROTECT_STACK
-      STM_LOG_VALUE(tx, addr, tmp, mask);
+      STM_LOG_VALUE_TX(tx, addr, tmp, mask);
       return tmp;
   }
 
   template <class CM>
   void*
-  NOrec_Generic<CM>::read_rw(STM_READ_SIG(tx,addr,mask))
+  NOrec_Generic<CM>::read_rw(STM_READ_SIG(addr,mask))
   {
+      TxThread& tx = Self;
+
       // check the log for a RAW hazard, we expect to miss
       WriteSetEntry log(STM_WRITE_SET_ENTRY(addr, NULL, mask));
-      bool found = tx->writes.find(log);
+      bool found = tx.writes.find(log);
       REDO_RAW_CHECK(found, log, mask);
 
       // Use the code from the read-only read barrier. This is complicated by
@@ -257,45 +272,49 @@ namespace {
       // bytes that we "actually" need, which is computed as bytes in mask but
       // not in log.mask. This is only correct because we know that a failed
       // find also reset the log.mask to 0 (that's part of the find interface).
-      void* val = read_ro(tx, addr STM_MASK(mask & ~log.mask));
+      void* val = read_ro( addr STM_MASK(mask & ~log.mask));
       REDO_RAW_CLEANUP(val, found, log, mask);
       return val;
   }
 
   template <class CM>
   void
-  NOrec_Generic<CM>::write_ro(STM_WRITE_SIG(tx,addr,val,mask))
+  NOrec_Generic<CM>::write_ro(STM_WRITE_SIG(addr,val,mask))
   {
+      TxThread& tx = Self;
+
       // buffer the write, and switch to a writing context
-      tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
-      OnFirstWrite(tx, read_rw, write_rw, commit_rw);
+      tx.writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
+      OnFirstWrite( read_rw, write_rw, commit_rw);
   }
 
   template <class CM>
   void
-  NOrec_Generic<CM>::write_rw(STM_WRITE_SIG(tx,addr,val,mask))
+  NOrec_Generic<CM>::write_rw(STM_WRITE_SIG(addr,val,mask))
   {
+      TxThread& tx = Self;
+
       // just buffer the write
-      tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
+      tx.writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
   }
 
   template <class CM>
   stm::scope_t*
-  NOrec_Generic<CM>::rollback(STM_ROLLBACK_SIG(tx, except, len))
+  NOrec_Generic<CM>::rollback(STM_ROLLBACK_SIG( except, len))
   {
-      stm::PreRollback(tx);
+      stm::PreRollback();
 
       // notify CM
-      CM::onAbort(tx);
+      CM::onAbort();
 
       // Perform writes to the exception object if there were any... taking the
       // branch overhead without concern because we're not worried about
       // rollback overheads.
-      STM_ROLLBACK(tx->writes, except, len);
+      STM_ROLLBACK(Self.writes, except, len);
 
-      tx->vlist.reset();
-      tx->writes.reset();
-      return stm::PostRollback(tx, read_ro, write_ro, commit_ro);
+      Self.vlist.reset();
+      Self.writes.reset();
+      return stm::PostRollback( read_ro, write_ro, commit_ro);
   }
 } // (anonymous namespace)
 

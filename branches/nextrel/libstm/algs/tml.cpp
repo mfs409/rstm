@@ -28,7 +28,13 @@ using stm::TxThread;
 using stm::timestamp;
 using stm::Trigger;
 using stm::UNRECOVERABLE;
-
+using stm::Self;
+using stm::PreRollback;
+using stm::PostRollback;
+using stm::OnReadWriteCommit;
+using stm::OnReadOnlyCommit;
+using stm::afterread_TML;
+using stm::beforewrite_TML;
 
 /**
  *  Declare the functions that we're going to implement, so that we can avoid
@@ -39,13 +45,13 @@ using stm::UNRECOVERABLE;
  */
 namespace {
   struct TML {
-      static TM_FASTCALL bool begin(TxThread*);
-      static TM_FASTCALL void* read(STM_READ_SIG(,,));
-      static TM_FASTCALL void write(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void commit(TxThread*);
+      static TM_FASTCALL bool begin();
+      static TM_FASTCALL void* read(STM_READ_SIG(,));
+      static TM_FASTCALL void write(STM_WRITE_SIG(,,));
+      static TM_FASTCALL void commit();
 
-      static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
-      static bool irrevoc(TxThread*);
+      static stm::scope_t* rollback(STM_ROLLBACK_SIG(,));
+      static bool irrevoc();
       static void onSwitchTo();
   };
 
@@ -53,18 +59,18 @@ namespace {
    *  TML begin:
    */
   bool
-  TML::begin(TxThread* tx)
+  TML::begin()
   {
       int counter = 0;
       // Sample the sequence lock until it is even (unheld)
-      while ((tx->start_time = timestamp.val) & 1) {
+      while ((Self.start_time = timestamp.val) & 1) {
           spin64();
           counter += 64;
       }
 
       // notify the allocator
-      tx->begin_wait = counter;
-      tx->allocator.onTxBegin();
+      Self.begin_wait = counter;
+      Self.allocator.onTxBegin();
       return false;
   }
 
@@ -72,19 +78,19 @@ namespace {
    *  TML commit:
    */
   void
-  TML::commit(TxThread* tx)
+  TML::commit()
   {
       // writing context: release lock, free memory, remember commit
-      if (tx->tmlHasLock) {
+      if (Self.tmlHasLock) {
           ++timestamp.val;
-          tx->tmlHasLock = false;
-          OnReadWriteCommit(tx);
+          Self.tmlHasLock = false;
+          OnReadWriteCommit();
       }
       // reading context: just remember the commit
       else {
-          OnReadOnlyCommit(tx);
+          OnReadOnlyCommit();
       }
-      Trigger::onCommitLock(tx);
+      Trigger::onCommitLock();
   }
 
   /**
@@ -94,13 +100,13 @@ namespace {
    *    after doing the read, make sure we are still valid.
    */
   void*
-  TML::read(STM_READ_SIG(tx,addr,))
+  TML::read(STM_READ_SIG(addr,))
   {
       void* val = *addr;
-      if (tx->tmlHasLock)
+      if (Self.tmlHasLock)
           return val;
       // NB:  afterread_tml includes a CFENCE
-      afterread_TML(tx);
+      afterread_TML();
       return val;
   }
 
@@ -111,14 +117,14 @@ namespace {
    *    need to become irrevocable first, then do the write.
    */
   void
-  TML::write(STM_WRITE_SIG(tx,addr,val,mask))
+  TML::write(STM_WRITE_SIG(addr,val,mask))
   {
-      if (tx->tmlHasLock) {
+      if (Self.tmlHasLock) {
           STM_DO_MASKED_WRITE(addr, val, mask);
           return;
       }
       // NB:  beforewrite_tml includes a fence via CAS
-      beforewrite_TML(tx);
+      beforewrite_TML();
       STM_DO_MASKED_WRITE(addr, val, mask);
   }
 
@@ -134,10 +140,10 @@ namespace {
    *        exception objects pending.
    */
   stm::scope_t*
-  TML::rollback(STM_ROLLBACK_SIG(tx,,))
+  TML::rollback(STM_ROLLBACK_SIG(,))
   {
-      PreRollback(tx);
-      return PostRollback(tx);
+      PreRollback();
+      return PostRollback();
   }
 
   /**
@@ -147,7 +153,7 @@ namespace {
    *    never be called.
    */
   bool
-  TML::irrevoc(TxThread*)
+  TML::irrevoc()
   {
       UNRECOVERABLE("IRREVOC_TML SHOULD NEVER BE CALLED");
       return false;

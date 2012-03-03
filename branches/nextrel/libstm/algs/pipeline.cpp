@@ -39,7 +39,14 @@ using stm::OrecList;
 using stm::WriteSet;
 using stm::UNRECOVERABLE;
 using stm::WriteSetEntry;
-
+using stm::Self;
+using stm::OnFirstWrite;
+using stm::OnReadWriteCommit;
+using stm::OnReadOnlyCommit;
+using stm::PreRollback;
+using stm::PostRollback;
+using stm::GoTurbo;
+using stm::CheckTurboMode;
 
 /**
  *  Declare the functions that we're going to implement, so that we can avoid
@@ -47,22 +54,22 @@ using stm::WriteSetEntry;
  */
 namespace {
   struct Pipeline {
-      static TM_FASTCALL bool begin(TxThread*);
-      static TM_FASTCALL void* read_ro(STM_READ_SIG(,,));
-      static TM_FASTCALL void* read_rw(STM_READ_SIG(,,));
-      static TM_FASTCALL void* read_turbo(STM_READ_SIG(,,));
-      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void write_turbo(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void commit_ro(TxThread*);
-      static TM_FASTCALL void commit_rw(TxThread*);
-      static TM_FASTCALL void commit_turbo(TxThread*);
+      static TM_FASTCALL bool begin();
+      static TM_FASTCALL void* read_ro(STM_READ_SIG(,));
+      static TM_FASTCALL void* read_rw(STM_READ_SIG(,));
+      static TM_FASTCALL void* read_turbo(STM_READ_SIG(,));
+      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,));
+      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,));
+      static TM_FASTCALL void write_turbo(STM_WRITE_SIG(,,));
+      static TM_FASTCALL void commit_ro();
+      static TM_FASTCALL void commit_rw();
+      static TM_FASTCALL void commit_turbo();
 
 
-      static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
-      static bool irrevoc(TxThread*);
+      static stm::scope_t* rollback(STM_ROLLBACK_SIG(,));
+      static bool irrevoc();
       static void onSwitchTo();
-      static NOINLINE void validate(TxThread*, uintptr_t finish_cache);
+      static NOINLINE void validate(uintptr_t finish_cache);
   };
 
   /**
@@ -78,17 +85,17 @@ namespace {
    *    one does, this tx will need to validate.
    */
   bool
-  Pipeline::begin(TxThread* tx)
+  Pipeline::begin()
   {
-      tx->allocator.onTxBegin();
+      Self.allocator.onTxBegin();
 
       // only get a new start time if we didn't just abort
-      if (tx->order == -1)
-          tx->order = 1 + faiptr(&timestamp.val);
+      if (Self.order == -1)
+          Self.order = 1 + faiptr(&timestamp.val);
 
-      tx->ts_cache = last_complete.val;
-      if (tx->ts_cache == ((uintptr_t)tx->order - 1))
-          GoTurbo(tx, read_turbo, write_turbo, commit_turbo);
+      Self.ts_cache = last_complete.val;
+      if (Self.ts_cache == ((uintptr_t)Self.order - 1))
+          GoTurbo( read_turbo, write_turbo, commit_turbo);
       return false;
   }
 
@@ -101,31 +108,31 @@ namespace {
    *    semantics.
    */
   void
-  Pipeline::commit_ro(TxThread* tx)
+  Pipeline::commit_ro()
   {
       // wait our turn, then validate
-      while (last_complete.val != ((uintptr_t)tx->order - 1)) {
+      while (last_complete.val != ((uintptr_t)Self.order - 1)) {
           // in this wait loop, we need to check if an adaptivity action is
           // underway :(
           if (TxThread::tmbegin != begin)
-              tx->tmabort(tx);
+              Self.tmabort();
       }
-      foreach (OrecList, i, tx->r_orecs) {
+      foreach (OrecList, i, Self.r_orecs) {
           // read this orec
           uintptr_t ivt = (*i)->v.all;
           // if it has a timestamp of ts_cache or greater, abort
-          if (ivt > tx->ts_cache)
-              tx->tmabort(tx);
+          if (ivt > Self.ts_cache)
+              Self.tmabort();
       }
       // mark self as complete
-      last_complete.val = tx->order;
+      last_complete.val = Self.order;
 
       // set status to committed...
-      tx->order = -1;
+      Self.order = -1;
 
       // commit all frees, reset all lists
-      tx->r_orecs.reset();
-      OnReadOnlyCommit(tx);
+      Self.r_orecs.reset();
+      OnReadOnlyCommit();
   }
 
   /**
@@ -137,40 +144,40 @@ namespace {
    *    commits.
    */
   void
-  Pipeline::commit_rw(TxThread* tx)
+  Pipeline::commit_rw()
   {
       // wait our turn, validate, writeback
-      while (last_complete.val != ((uintptr_t)tx->order - 1)) {
+      while (last_complete.val != ((uintptr_t)Self.order - 1)) {
           if (TxThread::tmbegin != begin)
-              tx->tmabort(tx);
+              Self.tmabort();
       }
-      foreach (OrecList, i, tx->r_orecs) {
+      foreach (OrecList, i, Self.r_orecs) {
           // read this orec
           uintptr_t ivt = (*i)->v.all;
           // if it has a timestamp of ts_cache or greater, abort
-          if (ivt > tx->ts_cache)
-              tx->tmabort(tx);
+          if (ivt > Self.ts_cache)
+              Self.tmabort();
       }
       // mark every location in the write set, and perform write-back
       // NB: we cannot abort anymore
-      foreach (WriteSet, i, tx->writes) {
+      foreach (WriteSet, i, Self.writes) {
           // get orec
           orec_t* o = get_orec(i->addr);
           // mark orec
-          o->v.all = tx->order;
+          o->v.all = Self.order;
           CFENCE; // WBW
           // write-back
           *i->addr = i->val;
       }
-      last_complete.val = tx->order;
+      last_complete.val = Self.order;
 
       // set status to committed...
-      tx->order = -1;
+      Self.order = -1;
 
       // commit all frees, reset all lists
-      tx->r_orecs.reset();
-      tx->writes.reset();
-      OnReadWriteCommit(tx, read_ro, write_ro, commit_ro);
+      Self.r_orecs.reset();
+      Self.writes.reset();
+      OnReadWriteCommit( read_ro, write_ro, commit_ro);
   }
 
   /**
@@ -180,21 +187,21 @@ namespace {
    *    acquired all locks.  There is nothing to do but mark self as done.
    *
    *    NB: we do not distinguish between RO and RW... we should, and could
-   *        via tx->writes
+   *        via Self.writes
    */
   void
-  Pipeline::commit_turbo(TxThread* tx)
+  Pipeline::commit_turbo()
   {
       CFENCE;
-      last_complete.val = tx->order;
+      last_complete.val = Self.order;
 
       // set status to committed...
-      tx->order = -1;
+      Self.order = -1;
 
       // commit all frees, reset all lists
-      tx->r_orecs.reset();
-      tx->writes.reset();
-      OnReadWriteCommit(tx, read_ro, write_ro, commit_ro);
+      Self.r_orecs.reset();
+      Self.writes.reset();
+      OnReadWriteCommit( read_ro, write_ro, commit_ro);
   }
 
   /**
@@ -205,7 +212,7 @@ namespace {
    *    Otherwise, this is a standard orec read function.
    */
   void*
-  Pipeline::read_ro(STM_READ_SIG(tx,addr,))
+  Pipeline::read_ro(STM_READ_SIG(addr,))
   {
       void* tmp = *addr;
       CFENCE; // RBR between dereference and orec check
@@ -214,13 +221,13 @@ namespace {
       orec_t* o = get_orec(addr);
       uintptr_t ivt = o->v.all;
       // abort if this changed since the last time I saw someone finish
-      if (ivt > tx->ts_cache)
-          tx->tmabort(tx);
+      if (ivt > Self.ts_cache)
+          Self.tmabort();
       // log orec
-      tx->r_orecs.insert(o);
+      Self.r_orecs.insert(o);
       // validate if necessary
-      if (last_complete.val > tx->ts_cache)
-          validate(tx, last_complete.val);
+      if (last_complete.val > Self.ts_cache)
+          validate(last_complete.val);
       return tmp;
   }
 
@@ -228,11 +235,11 @@ namespace {
    *  Pipeline read (writing transaction)
    */
   void*
-  Pipeline::read_rw(STM_READ_SIG(tx,addr,mask))
+  Pipeline::read_rw(STM_READ_SIG(addr,mask))
   {
       // check the log for a RAW hazard, we expect to miss
       WriteSetEntry log(STM_WRITE_SET_ENTRY(addr, NULL, mask));
-      bool found = tx->writes.find(log);
+      bool found = Self.writes.find(log);
       REDO_RAW_CHECK(found, log, mask);
 
       void* tmp = *addr;
@@ -242,13 +249,13 @@ namespace {
       orec_t* o = get_orec(addr);
       uintptr_t ivt = o->v.all;
       // abort if this changed since the last time I saw someone finish
-      if (ivt > tx->ts_cache)
-          tx->tmabort(tx);
+      if (ivt > Self.ts_cache)
+          Self.tmabort();
       // log orec
-      tx->r_orecs.insert(o);
+      Self.r_orecs.insert(o);
       // validate if necessary
-      if (last_complete.val > tx->ts_cache)
-          validate(tx, last_complete.val);
+      if (last_complete.val > Self.ts_cache)
+          validate( last_complete.val);
 
       REDO_RAW_CLEANUP(tmp, found, log, mask)
       return tmp;
@@ -258,7 +265,7 @@ namespace {
    *  Pipeline read (turbo mode)
    */
   void*
-  Pipeline::read_turbo(STM_READ_SIG(,addr,))
+  Pipeline::read_turbo(STM_READ_SIG(addr,))
   {
       return *addr;
   }
@@ -267,21 +274,21 @@ namespace {
    *  Pipeline write (read-only context)
    */
   void
-  Pipeline::write_ro(STM_WRITE_SIG(tx,addr,val,mask))
+  Pipeline::write_ro(STM_WRITE_SIG(addr,val,mask))
   {
       // record the new value in a redo log
-      tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
-      OnFirstWrite(tx, read_rw, write_rw, commit_rw);
+      Self.writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
+      OnFirstWrite( read_rw, write_rw, commit_rw);
   }
 
   /**
    *  Pipeline write (writing context)
    */
   void
-  Pipeline::write_rw(STM_WRITE_SIG(tx,addr,val,mask))
+  Pipeline::write_rw(STM_WRITE_SIG(addr,val,mask))
   {
       // record the new value in a redo log
-      tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
+      Self.writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
   }
 
   /**
@@ -290,10 +297,10 @@ namespace {
    *    The oldest transaction needs to mark the orec before writing in-place.
    */
   void
-  Pipeline::write_turbo(STM_WRITE_SIG(tx,addr,val,mask))
+  Pipeline::write_turbo(STM_WRITE_SIG(addr,val,mask))
   {
       orec_t* o = get_orec(addr);
-      o->v.all = tx->order;
+      o->v.all = Self.order;
       CFENCE;
       STM_DO_MASKED_WRITE(addr, val, mask);
   }
@@ -308,30 +315,30 @@ namespace {
    *        turbo mode would resolve the issue.
    */
   stm::scope_t*
-  Pipeline::rollback(STM_ROLLBACK_SIG(tx, except, len))
+  Pipeline::rollback(STM_ROLLBACK_SIG( except, len))
   {
-      PreRollback(tx);
+      PreRollback();
       // we cannot be in fast mode
-      if (CheckTurboMode(tx, read_turbo))
+      if (CheckTurboMode( read_turbo))
           UNRECOVERABLE("Attempting to abort a turbo-mode transaction!");
 
       // Perform writes to the exception object if there were any... taking the
       // branch overhead without concern because we're not worried about
       // rollback overheads.
-      STM_ROLLBACK(tx->writes, except, len);
+      STM_ROLLBACK(Self.writes, except, len);
 
-      tx->r_orecs.reset();
-      tx->writes.reset();
+      Self.r_orecs.reset();
+      Self.writes.reset();
       // NB: at one time, this implementation could not reset pointers on
       //     abort.  This situation may remain, but it is not certain that it
       //     has not been resolved.
-      return PostRollback(tx);
+      return PostRollback();
   }
 
   /**
    *  Pipeline in-flight irrevocability:
    */
-  bool Pipeline::irrevoc(TxThread*)
+  bool Pipeline::irrevoc()
   {
       UNRECOVERABLE("Pipeline Irrevocability not yet supported");
       return false;
@@ -345,32 +352,32 @@ namespace {
    *    written to memory.
    */
   void
-  Pipeline::validate(TxThread* tx, uintptr_t finish_cache)
+  Pipeline::validate(uintptr_t finish_cache)
   {
-      foreach (OrecList, i, tx->r_orecs) {
+      foreach (OrecList, i, Self.r_orecs) {
           // read this orec
           uintptr_t ivt = (*i)->v.all;
           // if it has a timestamp of ts_cache or greater, abort
-          if (ivt > tx->ts_cache)
-              tx->tmabort(tx);
+          if (ivt > Self.ts_cache)
+              Self.tmabort();
       }
       // now update the finish_cache to remember that at this time, we were
       // still valid
-      tx->ts_cache = finish_cache;
+      Self.ts_cache = finish_cache;
       // and if we are now the oldest thread, transition to fast mode
-      if (tx->ts_cache == ((uintptr_t)tx->order - 1)) {
-          if (tx->writes.size() != 0) {
+      if (Self.ts_cache == ((uintptr_t)Self.order - 1)) {
+          if (Self.writes.size() != 0) {
               // mark every location in the write set, and perform write-back
-              foreach (WriteSet, i, tx->writes) {
+              foreach (WriteSet, i, Self.writes) {
                   // get orec
                   orec_t* o = get_orec(i->addr);
                   // mark orec
-                  o->v.all = tx->order;
+                  o->v.all = Self.order;
                   CFENCE; // WBW
                   // write-back
                   *i->addr = i->val;
               }
-              GoTurbo(tx, read_turbo, write_turbo, commit_turbo);
+              GoTurbo( read_turbo, write_turbo, commit_turbo);
           }
       }
   }

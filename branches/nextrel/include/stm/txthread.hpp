@@ -45,6 +45,7 @@ namespace stm
   struct TxThread
   {
       /*** THESE FIELDS DEAL WITH THE STM IMPLEMENTATIONS ***/
+      bool           INITIALIZED;
       uint32_t       id;            // per thread id
       uint32_t       nesting_depth; // nesting; 0 == not in transaction
       WBMMPolicy     allocator;     // buffer malloc/free
@@ -114,12 +115,12 @@ namespace stm
        * use this return to execute completely uninstrumented code if it's
        * available.
        */
-      static TM_FASTCALL bool(*volatile tmbegin)(TxThread*);
+      static TM_FASTCALL bool(*volatile tmbegin)();
 
       /*** Per-thread commit, read, and write pointers */
-      TM_FASTCALL void(*tmcommit)(TxThread*);
-      TM_FASTCALL void*(*tmread)(STM_READ_SIG(,,));
-      TM_FASTCALL void(*tmwrite)(STM_WRITE_SIG(,,,));
+      TM_FASTCALL void(*tmcommit)();
+      TM_FASTCALL void*(*tmread)(STM_READ_SIG(,));
+      TM_FASTCALL void(*tmwrite)(STM_WRITE_SIG(,,));
 
       /**
        * Some APIs, in particular the itm API at the moment, want to be able
@@ -127,7 +128,7 @@ namespace stm
        * stack. Rollback behavior changes per-implementation (some, such as
        * CGL, can't rollback) so we add it here.
        */
-      static scope_t* (*tmrollback)(STM_ROLLBACK_SIG(,,));
+      static scope_t* (*tmrollback)(STM_ROLLBACK_SIG(,));
 
       /**
        * The function for aborting a transaction. The "tmabort" function is
@@ -138,10 +139,10 @@ namespace stm
        * Some advanced APIs may not want a NORETURN abort function, but the stm
        * library at the moment only handles this option.
        */
-      static NORETURN void (*tmabort)(TxThread*);
+      static NORETURN void (*tmabort)();
 
       /*** how to become irrevocable in-flight */
-      static bool(*tmirrevoc)(TxThread*);
+      static bool(*tmirrevoc)();
 
       /**
        * for shutting down threads.  Currently a no-op.
@@ -154,12 +155,16 @@ namespace stm
        */
       static void thread_init();
     protected:
-      TxThread();
-      ~TxThread() { }
+
+
+    public:
+      //TxThread() : INITIALIZED(false) { };
+      //~TxThread() { }
+      void init();
   }; // class TxThread
 
   /*** GLOBAL VARIABLES RELATED TO THREAD MANAGEMENT */
-  extern __thread TxThread* Self; // this thread's TxThread
+  extern __thread TxThread Self; // this thread's TxThread
 
 } // namespace stm
 

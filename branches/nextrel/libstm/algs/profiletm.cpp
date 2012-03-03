@@ -22,6 +22,12 @@
 #include "algs.hpp"
 
 using namespace stm;
+using stm::Self;
+using stm::OnFirstWrite;
+using stm::OnReadWriteCommit;
+using stm::OnReadOnlyCommit;
+using stm::PreRollback;
+using stm::PostRollback;
 
 namespace
 {
@@ -31,16 +37,16 @@ namespace
  */
   struct ProfileTM
   {
-      static TM_FASTCALL bool begin(TxThread*);
-      static TM_FASTCALL void* read_ro(STM_READ_SIG(,,));
-      static TM_FASTCALL void* read_rw(STM_READ_SIG(,,));
-      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void commit_ro(TxThread*);
-      static TM_FASTCALL void commit_rw(TxThread*);
+      static TM_FASTCALL bool begin();
+      static TM_FASTCALL void* read_ro(STM_READ_SIG(,));
+      static TM_FASTCALL void* read_rw(STM_READ_SIG(,));
+      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,));
+      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,));
+      static TM_FASTCALL void commit_ro();
+      static TM_FASTCALL void commit_rw();
 
-      static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
-      static bool irrevoc(TxThread*);
+      static stm::scope_t* rollback(STM_ROLLBACK_SIG(,));
+      static bool irrevoc();
       static void onSwitchTo();
   };
 
@@ -52,7 +58,7 @@ namespace
    *    that we run.
    */
   bool
-  ProfileTM::begin(TxThread* tx)
+  ProfileTM::begin()
   {
       // bump the last_init field
       uintptr_t my_order = faiptr(&last_init.val);
@@ -62,7 +68,7 @@ namespace
           while (last_complete.val < my_order) spin64();
           // OK, I have the ticket.  Go for it!
           // update allocator
-          tx->allocator.onTxBegin();
+          Self.allocator.onTxBegin();
           // clear the profile buffer I'll be filling
           profiles[last_complete.val].clear();
           // record the start time, so we can compute duration
@@ -75,8 +81,8 @@ namespace
       // begin_blocker nor begin().
       while (true) {
           // first, clear the outer scope, because it's our 'tx/nontx' flag
-          stm::scope_t* b = tx->scope;
-          tx->scope = 0;
+          stm::scope_t* b = Self.scope;
+          Self.scope = 0;
           // next, wait for a good begin pointer
           while ((TxThread::tmbegin == begin) ||
                  (TxThread::tmbegin == stm::begin_blocker))
@@ -84,18 +90,18 @@ namespace
           CFENCE;
           // now reinstall the scope
 #ifdef STM_CPU_SPARC
-          tx->scope = b; WBR;
+          Self.scope = b; WBR;
 #else
-          casptr((volatile uintptr_t*)&tx->scope, (uintptr_t)0, (uintptr_t)b);
+          casptr((volatile uintptr_t*)&Self.scope, (uintptr_t)0, (uintptr_t)b);
 #endif
           // read the begin function pointer AFTER setting the scope
-          bool TM_FASTCALL (*beginner)(TxThread*) = TxThread::tmbegin;
+          bool TM_FASTCALL (*beginner)() = TxThread::tmbegin;
           // if begin_blocker is no longer installed, and ProfileTM::begin
           // isn't installed either, we can call the pointer to start a
           // transaction, and then return.  Otherwise, we missed our window,
           // so we need to go back to the top of the loop
           if ((beginner != stm::begin_blocker) && (beginner != begin))
-              return beginner(tx);
+              return beginner();
       }
   }
 
@@ -107,7 +113,7 @@ namespace
    *    the final transaction of the set that were requested.
    */
   void
-  ProfileTM::commit_ro(TxThread* tx)
+  ProfileTM::commit_ro()
   {
       // figure out this transaction's running time
       unsigned long long tmp = tick();
@@ -115,12 +121,12 @@ namespace
           tmp - profiles[last_complete.val].txn_time;
 
       // do all the standard RO cleanup stuff
-      OnReadOnlyCommit(tx);
+      OnReadOnlyCommit();
 
       // now adapt based on the fact that we just successfully collected a
       // profile
       if (++last_complete.val == profile_txns)
-          profile_oncomplete(tx);
+          profile_oncomplete();
   }
 
   /**
@@ -129,12 +135,12 @@ namespace
    *    Same as RO case, but we must also perform the writeback.
    */
   void
-  ProfileTM::commit_rw(TxThread* tx)
+  ProfileTM::commit_rw()
   {
       // we're committed... run the redo log, remember that this is a commit
-      tx->writes.writeback();
-      int x = tx->writes.size();
-      tx->writes.reset();
+      Self.writes.writeback();
+      int x = Self.writes.size();
+      Self.writes.reset();
 
       // figure out this transaction's running time
       unsigned long long tmp = tick();
@@ -146,12 +152,12 @@ namespace
       profiles[last_complete.val].write_waw -= x;
 
       // do all the standard RW cleanup stuff
-      OnReadWriteCommit(tx, read_ro, write_ro, commit_ro);
+      OnReadWriteCommit( read_ro, write_ro, commit_ro);
 
       // now adapt based on the fact that we just successfully collected a
       // profile
       if (++last_complete.val == profile_txns)
-          profile_oncomplete(tx);
+          profile_oncomplete();
   }
 
   /**
@@ -160,7 +166,7 @@ namespace
    *    Simply read the location, and remember that we did a read
    */
   void*
-  ProfileTM::read_ro(STM_READ_SIG(,addr,))
+  ProfileTM::read_ro(STM_READ_SIG(addr,))
   {
       ++profiles[last_complete.val].read_ro;
       return *addr;
@@ -170,11 +176,11 @@ namespace
    *  ProfileTM read (writing transaction)
    */
   void*
-  ProfileTM::read_rw(STM_READ_SIG(tx,addr,mask))
+  ProfileTM::read_rw(STM_READ_SIG(addr,mask))
   {
       // check the log
       WriteSetEntry log(STM_WRITE_SET_ENTRY(addr, NULL, mask));
-      if (tx->writes.find(log)) {
+      if (Self.writes.find(log)) {
           ++profiles[last_complete.val].read_rw_raw;
           return log.val;
       }
@@ -187,22 +193,22 @@ namespace
    *  ProfileTM write (read-only context)
    */
   void
-  ProfileTM::write_ro(STM_WRITE_SIG(tx,addr,val,mask))
+  ProfileTM::write_ro(STM_WRITE_SIG(addr,val,mask))
   {
       // do a buffered write
-      tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
+      Self.writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
       ++profiles[last_complete.val].write_waw;
-      OnFirstWrite(tx, read_rw, write_rw, commit_rw);
+      OnFirstWrite( read_rw, write_rw, commit_rw);
   }
 
   /**
    *  ProfileTM write (writing context)
    */
   void
-  ProfileTM::write_rw(STM_WRITE_SIG(tx,addr,val,mask))
+  ProfileTM::write_rw(STM_WRITE_SIG(addr,val,mask))
   {
       // do a buffered write
-      tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
+      Self.writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
       ++profiles[last_complete.val].write_waw;
   }
 
@@ -215,21 +221,21 @@ namespace
    *    NB: This code has not been tested in a while
    */
   stm::scope_t*
-  ProfileTM::rollback(STM_ROLLBACK_SIG(tx, except, len))
+  ProfileTM::rollback(STM_ROLLBACK_SIG( except, len))
   {
-      PreRollback(tx);
+      PreRollback();
 
       // Perform writes to the exception object if there were any... taking the
       // branch overhead without concern because we're not worried about
       // rollback overheads.
-      STM_ROLLBACK(tx->writes, except, len);
+      STM_ROLLBACK(Self.writes, except, len);
 
       // finish the profile
       profiles[last_complete.val].txn_time =
           tick() - profiles[last_complete.val].txn_time;
 
       // clean up metadata
-      tx->writes.reset();
+      Self.writes.reset();
 
       // NB: This is subtle.  In ProfileTM, N transactions run one at a time.
       //     They each run once.  So if this transaction aborts, then we need
@@ -251,10 +257,10 @@ namespace
       //    pointers, the other doesn't.  The one we pick depends on whether
       //    we call profile_oncomplete() or not.
       if (++last_complete.val == profile_txns) {
-          profile_oncomplete(tx);
-          return PostRollbackNoTrigger(tx);
+          profile_oncomplete();
+          return PostRollbackNoTrigger();
       }
-      return PostRollbackNoTrigger(tx, read_ro, write_ro, commit_ro);
+      return PostRollbackNoTrigger( read_ro, write_ro, commit_ro);
   }
 
   /**
@@ -264,7 +270,7 @@ namespace
    *        crash the application.  That's not a good long-term plan
    */
   bool
-  ProfileTM::irrevoc(TxThread*)
+  ProfileTM::irrevoc()
   {
       UNRECOVERABLE("Irrevocable ProfileTM transactions are not supported");
       return false;

@@ -31,7 +31,12 @@ using stm::WriteSetEntry;
 using stm::timestamp;
 using stm::timestamp_max;
 using stm::id_version_t;
-
+using stm::Self;
+using stm::OnFirstWrite;
+using stm::OnReadWriteCommit;
+using stm::OnReadOnlyCommit;
+using stm::PreRollback;
+using stm::PostRollback;
 
 /**
  *  Declare the functions that we're going to implement, so that we can avoid
@@ -40,18 +45,18 @@ using stm::id_version_t;
 namespace {
   struct OrecEagerRedo
   {
-      static TM_FASTCALL bool begin(TxThread*);
-      static TM_FASTCALL void* read_ro(STM_READ_SIG(,,));
-      static TM_FASTCALL void* read_rw(STM_READ_SIG(,,));
-      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void commit_ro(TxThread*);
-      static TM_FASTCALL void commit_rw(TxThread*);
+      static TM_FASTCALL bool begin();
+      static TM_FASTCALL void* read_ro(STM_READ_SIG(,));
+      static TM_FASTCALL void* read_rw(STM_READ_SIG(,));
+      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,));
+      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,));
+      static TM_FASTCALL void commit_ro();
+      static TM_FASTCALL void commit_rw();
 
-      static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
-      static bool irrevoc(TxThread*);
+      static stm::scope_t* rollback(STM_ROLLBACK_SIG(,));
+      static bool irrevoc();
       static void onSwitchTo();
-      static NOINLINE void validate(TxThread*);
+      static NOINLINE void validate();
   };
 
   /**
@@ -60,10 +65,10 @@ namespace {
    *    Standard begin: just get a start time
    */
   bool
-  OrecEagerRedo::begin(TxThread* tx)
+  OrecEagerRedo::begin()
   {
-      tx->allocator.onTxBegin();
-      tx->start_time = timestamp.val;
+      Self.allocator.onTxBegin();
+      Self.start_time = timestamp.val;
       return false;
   }
 
@@ -73,10 +78,10 @@ namespace {
    *    Standard commit: we hold no locks, and we're valid, so just clean up
    */
   void
-  OrecEagerRedo::commit_ro(TxThread* tx)
+  OrecEagerRedo::commit_ro()
   {
-      tx->r_orecs.reset();
-      OnReadOnlyCommit(tx);
+      Self.r_orecs.reset();
+      OnReadOnlyCommit();
   }
 
   /**
@@ -87,35 +92,35 @@ namespace {
    *    release locks.
    */
   void
-  OrecEagerRedo::commit_rw(TxThread* tx)
+  OrecEagerRedo::commit_rw()
   {
       // note: we're using timestamps in the same manner as
       // OrecLazy... without the single-thread optimization
 
       // we have all locks, so validate
-      foreach (OrecList, i, tx->r_orecs) {
+      foreach (OrecList, i, Self.r_orecs) {
           // read this orec
           uintptr_t ivt = (*i)->v.all;
           // if unlocked and newer than start time, abort
-          if ((ivt > tx->start_time) && (ivt != tx->my_lock.all))
-              tx->tmabort(tx);
+          if ((ivt > Self.start_time) && (ivt != Self.my_lock.all))
+              Self.tmabort();
       }
 
       // run the redo log
-      tx->writes.writeback();
+      Self.writes.writeback();
 
       // we're a writer, so increment the global timestamp
-      tx->end_time = 1 + faiptr(&timestamp.val);
+      Self.end_time = 1 + faiptr(&timestamp.val);
 
       // release locks
-      foreach (OrecList, i, tx->locks)
-          (*i)->v.all = tx->end_time;
+      foreach (OrecList, i, Self.locks)
+          (*i)->v.all = Self.end_time;
 
       // clean up
-      tx->r_orecs.reset();
-      tx->writes.reset();
-      tx->locks.reset();
-      OnReadWriteCommit(tx, read_ro, write_ro, commit_ro);
+      Self.r_orecs.reset();
+      Self.writes.reset();
+      Self.locks.reset();
+      OnReadWriteCommit( read_ro, write_ro, commit_ro);
   }
 
   /**
@@ -126,7 +131,7 @@ namespace {
    *    necessary.
    */
   void*
-  OrecEagerRedo::read_ro(STM_READ_SIG(tx,addr,))
+  OrecEagerRedo::read_ro(STM_READ_SIG(addr,))
   {
       // get the orec addr
       orec_t* o = get_orec(addr);
@@ -138,19 +143,19 @@ namespace {
           id_version_t ivt; ivt.all = o->v.all;
 
           // common case: new read to uncontended location
-          if (ivt.all <= tx->start_time) {
-              tx->r_orecs.insert(o);
+          if (ivt.all <= Self.start_time) {
+              Self.r_orecs.insert(o);
               return tmp;
           }
 
           // abort if locked by other
           if (ivt.fields.lock)
-              tx->tmabort(tx);
+              Self.tmabort();
 
           // scale timestamp if ivt is too new
           uintptr_t newts = timestamp.val;
-          validate(tx);
-          tx->start_time = newts;
+          validate();
+          Self.start_time = newts;
       }
   }
 
@@ -161,7 +166,7 @@ namespace {
    *    log if we hold the lock, but we must be prepared for that possibility.
    */
   void*
-  OrecEagerRedo::read_rw(STM_READ_SIG(tx,addr,mask))
+  OrecEagerRedo::read_rw(STM_READ_SIG(addr,mask))
   {
       // get the orec addr
       orec_t* o = get_orec(addr);
@@ -173,16 +178,16 @@ namespace {
           id_version_t ivt; ivt.all = o->v.all;
 
           // common case: new read to uncontended location
-          if (ivt.all <= tx->start_time) {
-              tx->r_orecs.insert(o);
+          if (ivt.all <= Self.start_time) {
+              Self.r_orecs.insert(o);
               return tmp;
           }
 
           // next best: locked by me
-          if (ivt.all == tx->my_lock.all) {
+          if (ivt.all == Self.my_lock.all) {
               // check the log for a RAW hazard, we expect to miss
               WriteSetEntry log(STM_WRITE_SET_ENTRY(addr, NULL, mask));
-              bool found = tx->writes.find(log);
+              bool found = Self.writes.find(log);
               REDO_RAW_CHECK(found, log, mask);
               REDO_RAW_CLEANUP(tmp, found, log, mask);
               return tmp;
@@ -190,12 +195,12 @@ namespace {
 
           // abort if locked by other
           if (ivt.fields.lock)
-              tx->tmabort(tx);
+              Self.tmabort();
 
           // scale timestamp if ivt is too new
           uintptr_t newts = timestamp.val;
-          validate(tx);
-          tx->start_time = newts;
+          validate();
+          Self.start_time = newts;
       }
   }
 
@@ -207,10 +212,10 @@ namespace {
    *    NB: saving the value first decreases register pressure
    */
   void
-  OrecEagerRedo::write_ro(STM_WRITE_SIG(tx,addr,val,mask))
+  OrecEagerRedo::write_ro(STM_WRITE_SIG(addr,val,mask))
   {
       // add to redo log
-      tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
+      Self.writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
 
       // get the orec addr
       orec_t* o = get_orec(addr);
@@ -220,25 +225,25 @@ namespace {
           ivt.all = o->v.all;
 
           // common case: uncontended location... lock it
-          if (ivt.all <= tx->start_time) {
-              if (!bcasptr(&o->v.all, ivt.all, tx->my_lock.all))
-                  tx->tmabort(tx);
+          if (ivt.all <= Self.start_time) {
+              if (!bcasptr(&o->v.all, ivt.all, Self.my_lock.all))
+                  Self.tmabort();
 
               // save old, log lock, write, return
               o->p = ivt.all;
-              tx->locks.insert(o);
-              OnFirstWrite(tx, read_rw, write_rw, commit_rw);
+              Self.locks.insert(o);
+              OnFirstWrite( read_rw, write_rw, commit_rw);
               return;
           }
 
           // fail if lock held
           if (ivt.fields.lock)
-              tx->tmabort(tx);
+              Self.tmabort();
 
           // unlocked but too new... scale forward and try again
           uintptr_t newts = timestamp.val;
-          validate(tx);
-          tx->start_time = newts;
+          validate();
+          Self.start_time = newts;
       }
   }
 
@@ -249,10 +254,10 @@ namespace {
    *    by the caller.
    */
   void
-  OrecEagerRedo::write_rw(STM_WRITE_SIG(tx,addr,val,mask))
+  OrecEagerRedo::write_rw(STM_WRITE_SIG(addr,val,mask))
   {
       // add to redo log
-      tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
+      Self.writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
 
       // get the orec addr
       orec_t* o = get_orec(addr);
@@ -262,28 +267,28 @@ namespace {
           ivt.all = o->v.all;
 
           // common case: uncontended location... lock it
-          if (ivt.all <= tx->start_time) {
-              if (!bcasptr(&o->v.all, ivt.all, tx->my_lock.all))
-                  tx->tmabort(tx);
+          if (ivt.all <= Self.start_time) {
+              if (!bcasptr(&o->v.all, ivt.all, Self.my_lock.all))
+                  Self.tmabort();
 
               // save old, log lock, write, return
               o->p = ivt.all;
-              tx->locks.insert(o);
+              Self.locks.insert(o);
               return;
           }
 
           // next best: already have the lock
-          if (ivt.all == tx->my_lock.all)
+          if (ivt.all == Self.my_lock.all)
               return;
 
           // fail if lock held
           if (ivt.fields.lock)
-              tx->tmabort(tx);
+              Self.tmabort();
 
           // unlocked but too new... scale forward and try again
           uintptr_t newts = timestamp.val;
-          validate(tx);
-          tx->start_time = newts;
+          validate();
+          Self.start_time = newts;
       }
   }
 
@@ -293,31 +298,31 @@ namespace {
    *    To unwind, we must release locks, but we don't have an undo log to run.
    */
   stm::scope_t*
-  OrecEagerRedo::rollback(STM_ROLLBACK_SIG(tx, except, len))
+  OrecEagerRedo::rollback(STM_ROLLBACK_SIG( except, len))
   {
-      PreRollback(tx);
+      PreRollback();
 
       // Perform writes to the exception object if there were any... taking the
       // branch overhead without concern because we're not worried about
       // rollback overheads.
-      STM_ROLLBACK(tx->writes, except, len);
+      STM_ROLLBACK(Self.writes, except, len);
 
       // release the locks and restore version numbers
-      foreach (OrecList, i, tx->locks)
+      foreach (OrecList, i, Self.locks)
           (*i)->v.all = (*i)->p;
 
       // undo memory operations, reset lists
-      tx->r_orecs.reset();
-      tx->writes.reset();
-      tx->locks.reset();
-      return PostRollback(tx, read_ro, write_ro, commit_ro);
+      Self.r_orecs.reset();
+      Self.writes.reset();
+      Self.locks.reset();
+      return PostRollback( read_ro, write_ro, commit_ro);
   }
 
   /**
    *  OrecEagerRedo in-flight irrevocability: use abort-and-restart.
    */
   bool
-  OrecEagerRedo::irrevoc(TxThread*)
+  OrecEagerRedo::irrevoc()
   {
       return false;
   }
@@ -329,14 +334,14 @@ namespace {
    *    timestamps older than our start time, unless we locked those orecs.
    */
   void
-  OrecEagerRedo::validate(TxThread* tx)
+  OrecEagerRedo::validate()
   {
-      foreach (OrecList, i, tx->r_orecs) {
+      foreach (OrecList, i, Self.r_orecs) {
           // read this orec
           uintptr_t ivt = (*i)->v.all;
           // if unlocked and newer than start time, abort
-          if ((ivt > tx->start_time) && (ivt != tx->my_lock.all))
-              tx->tmabort(tx);
+          if ((ivt > Self.start_time) && (ivt != Self.my_lock.all))
+              Self.tmabort();
       }
   }
 

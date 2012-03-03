@@ -66,18 +66,18 @@
 #endif
 
 #if defined(STM_WS_BYTELOG)
-#   define STM_READ_SIG(tx, addr, mask)       TxThread* tx, void** addr, uintptr_t mask
-#   define STM_WRITE_SIG(tx, addr, val, mask) TxThread* tx, void** addr, void* val, uintptr_t mask
+#   define STM_READ_SIG(addr, mask)       void** addr, uintptr_t mask
+#   define STM_WRITE_SIG(addr, val, mask) void** addr, void* val, uintptr_t mask
 #else
-#   define STM_READ_SIG(tx, addr, mask)       TxThread* tx, void** addr
-#   define STM_WRITE_SIG(tx, addr, val, mask) TxThread* tx, void** addr, void* val
+#   define STM_READ_SIG(addr, mask)       void** addr
+#   define STM_WRITE_SIG(addr, val, mask) void** addr, void* val
 #endif
 
 #if defined(STM_ABORT_ON_THROW)
-#   define STM_ROLLBACK_SIG(tx, exception, len)  \
-    TxThread* tx, void** exception, size_t len
+#   define STM_ROLLBACK_SIG(exception, len)  \
+    void** exception, size_t len
 #else
-#   define STM_ROLLBACK_SIG(tx, exception, len)  TxThread* tx
+#   define STM_ROLLBACK_SIG(exception, len)
 #endif
 
 #endif // MACROS_HPP__

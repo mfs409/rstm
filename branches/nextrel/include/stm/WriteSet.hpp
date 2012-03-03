@@ -297,8 +297,10 @@ namespace stm
 
     public:
 
-      WriteSet(const size_t initial_capacity);
-      ~WriteSet();
+      void init(const size_t initial_capacity);
+      //WriteSet() { }
+
+      //~WriteSet();
 
       /**
        *  Search function.  The log is an in/out parameter, and the bool

@@ -25,7 +25,12 @@
 using stm::TxThread;
 using stm::timestamp;
 using stm::WriteSetEntry;
-
+using stm::Self;
+using stm::OnFirstWrite;
+using stm::OnReadWriteCommit;
+using stm::OnReadOnlyCommit;
+using stm::PreRollback;
+using stm::PostRollback;
 /**
  *  Declare the functions that we're going to implement, so that we can avoid
  *  circular dependencies.  Note that with TML, we don't expect the reads and
@@ -35,16 +40,16 @@ using stm::WriteSetEntry;
  */
 namespace {
   struct TMLLazy {
-      static TM_FASTCALL bool begin(TxThread*);
-      static TM_FASTCALL void* read_ro(STM_READ_SIG(,,));
-      static TM_FASTCALL void* read_rw(STM_READ_SIG(,,));
-      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void commit_ro(TxThread*);
-      static TM_FASTCALL void commit_rw(TxThread*);
+      static TM_FASTCALL bool begin();
+      static TM_FASTCALL void* read_ro(STM_READ_SIG(,));
+      static TM_FASTCALL void* read_rw(STM_READ_SIG(,));
+      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,));
+      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,));
+      static TM_FASTCALL void commit_ro();
+      static TM_FASTCALL void commit_rw();
 
-      static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
-      static bool irrevoc(TxThread*);
+      static stm::scope_t* rollback(STM_ROLLBACK_SIG(,));
+      static bool irrevoc();
       static void onSwitchTo();
   };
 
@@ -52,14 +57,14 @@ namespace {
    *  TMLLazy begin:
    */
   bool
-  TMLLazy::begin(TxThread* tx)
+  TMLLazy::begin()
   {
       // Sample the sequence lock until it is even (unheld)
-      while ((tx->start_time = timestamp.val)&1)
+      while ((Self.start_time = timestamp.val)&1)
           spin64();
 
       // notify the allocator
-      tx->allocator.onTxBegin();
+      Self.allocator.onTxBegin();
       return false;
   }
 
@@ -67,36 +72,36 @@ namespace {
    *  TMLLazy commit (read-only context):
    */
   void
-  TMLLazy::commit_ro(TxThread* tx)
+  TMLLazy::commit_ro()
   {
       // no metadata to manage, so just be done!
-      OnReadOnlyCommit(tx);
+      OnReadOnlyCommit();
   }
 
   /**
    *  TMLLazy commit (writer context):
    */
   void
-  TMLLazy::commit_rw(TxThread* tx)
+  TMLLazy::commit_rw()
   {
       // we have writes... if we can't get the lock, abort
-      if (!bcasptr(&timestamp.val, tx->start_time, tx->start_time + 1))
-          tx->tmabort(tx);
+      if (!bcasptr(&timestamp.val, Self.start_time, Self.start_time + 1))
+          Self.tmabort();
 
       // we're committed... run the redo log
-      tx->writes.writeback();
+      Self.writes.writeback();
 
       // release the sequence lock and clean up
       timestamp.val++;
-      tx->writes.reset();
-      OnReadWriteCommit(tx, read_ro, write_ro, commit_ro);
+      Self.writes.reset();
+      OnReadWriteCommit( read_ro, write_ro, commit_ro);
   }
 
   /**
    *  TMLLazy read (read-only context)
    */
   void*
-  TMLLazy::read_ro(STM_READ_SIG(tx,addr,))
+  TMLLazy::read_ro(STM_READ_SIG(addr,))
   {
       // read the actual value, direct from memory
       void* tmp = *addr;
@@ -105,9 +110,9 @@ namespace {
       // if the lock has changed, we must fail
       //
       // NB: this form of /if/ appears to be faster
-      if (__builtin_expect(timestamp.val == tx->start_time, true))
+      if (__builtin_expect(timestamp.val == Self.start_time, true))
           return tmp;
-      tx->tmabort(tx);
+      Self.tmabort();
       // unreachable
       return NULL;
   }
@@ -116,15 +121,15 @@ namespace {
    *  TMLLazy read (writing context)
    */
   void*
-  TMLLazy::read_rw(STM_READ_SIG(tx,addr,mask))
+  TMLLazy::read_rw(STM_READ_SIG(addr,mask))
   {
       // check the log for a RAW hazard, we expect to miss
       WriteSetEntry log(STM_WRITE_SET_ENTRY(addr, NULL, mask));
-      bool found = tx->writes.find(log);
+      bool found = Self.writes.find(log);
       REDO_RAW_CHECK(found, log, mask);
 
       // reuse the ReadRO barrier, which is adequate here---reduces LOC
-      void* val = read_ro(tx, addr STM_MASK(mask));
+      void* val = read_ro( addr STM_MASK(mask));
       REDO_RAW_CLEANUP(val, found, log, mask);
       return val;
   }
@@ -133,57 +138,57 @@ namespace {
    *  TMLLazy write (read-only context):
    */
   void
-  TMLLazy::write_ro(STM_WRITE_SIG(tx,addr,val,mask))
+  TMLLazy::write_ro(STM_WRITE_SIG(addr,val,mask))
   {
       // do a buffered write
-      tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
-      OnFirstWrite(tx, read_rw, write_rw, commit_rw);
+      Self.writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
+      OnFirstWrite( read_rw, write_rw, commit_rw);
   }
 
   /**
    *  TMLLazy write (writing context):
    */
   void
-  TMLLazy::write_rw(STM_WRITE_SIG(tx,addr,val,mask))
+  TMLLazy::write_rw(STM_WRITE_SIG(addr,val,mask))
   {
       // do a buffered write
-      tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
+      Self.writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
   }
 
   /**
    *  TMLLazy unwinder
    */
   stm::scope_t*
-  TMLLazy::rollback(STM_ROLLBACK_SIG(tx, except, len))
+  TMLLazy::rollback(STM_ROLLBACK_SIG( except, len))
   {
-      PreRollback(tx);
+      PreRollback();
       // Perform writes to the exception object if there were any... taking the
       // branch overhead without concern because we're not worried about
       // rollback overheads.
-      STM_ROLLBACK(tx->writes, except, len);
+      STM_ROLLBACK(Self.writes, except, len);
 
-      tx->writes.reset();
-      return PostRollback(tx, read_ro, write_ro, commit_ro);
+      Self.writes.reset();
+      return PostRollback( read_ro, write_ro, commit_ro);
   }
 
   /**
    *  TMLLazy in-flight irrevocability:
    */
   bool
-  TMLLazy::irrevoc(TxThread* tx)
+  TMLLazy::irrevoc()
   {
       // we are running in isolation by the time this code is run.  Make sure
       // we are valid.
-      if (!bcasptr(&timestamp.val, tx->start_time, tx->start_time + 1))
+      if (!bcasptr(&timestamp.val, Self.start_time, Self.start_time + 1))
           return false;
 
       // push all writes back to memory and clear writeset
-      tx->writes.writeback();
+      Self.writes.writeback();
       timestamp.val++;
 
       // return the STM to a state where it can be used after we finish our
       // irrevoc transaction
-      tx->writes.reset();
+      Self.writes.reset();
       return true;
   }
 

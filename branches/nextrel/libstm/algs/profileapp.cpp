@@ -33,7 +33,12 @@ using stm::dynprof_t;
 using stm::profiles;
 using stm::app_profiles;
 using stm::WriteSetEntry;
-
+using stm::Self;
+using stm::OnFirstWrite;
+using stm::OnReadWriteCommit;
+using stm::OnReadOnlyCommit;
+using stm::PreRollback;
+using stm::PostRollback;
 
 /*** to distinguish between the two variants of this code */
 #define __AVERAGE 1
@@ -54,16 +59,16 @@ namespace {
   struct ProfileApp
   {
       static void Initialize(int id, const char* name);
-      static TM_FASTCALL bool begin(TxThread*);
-      static TM_FASTCALL void* read_ro(STM_READ_SIG(,,));
-      static TM_FASTCALL void* read_rw(STM_READ_SIG(,,));
-      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void commit_ro(TxThread*);
-      static TM_FASTCALL void commit_rw(TxThread*);
+      static TM_FASTCALL bool begin();
+      static TM_FASTCALL void* read_ro(STM_READ_SIG(,));
+      static TM_FASTCALL void* read_rw(STM_READ_SIG(,));
+      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,));
+      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,));
+      static TM_FASTCALL void commit_ro();
+      static TM_FASTCALL void commit_rw();
 
-      static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
-      static bool irrevoc(TxThread*);
+      static stm::scope_t* rollback(STM_ROLLBACK_SIG(,));
+      static bool irrevoc();
       static void onSwitchTo();
   };
 
@@ -97,9 +102,9 @@ namespace {
    */
   template <int COUNTMODE>
   bool
-  ProfileApp<COUNTMODE>::begin(TxThread* tx)
+  ProfileApp<COUNTMODE>::begin()
   {
-      tx->allocator.onTxBegin();
+      Self.allocator.onTxBegin();
       profiles[0].txn_time = tick();
       return false;
   }
@@ -111,7 +116,7 @@ namespace {
    */
   template <int COUNTMODE>
   void
-  ProfileApp<COUNTMODE>::commit_ro(TxThread* tx)
+  ProfileApp<COUNTMODE>::commit_ro()
   {
       // NB: statically optimized version of RW code for RO case
       unsigned long long runtime = tick() - profiles[0].txn_time;
@@ -130,7 +135,7 @@ namespace {
 
       // clear the profile, clean up the transaction
       profiles[0].read_ro = 0;
-      OnReadOnlyCommit(tx);
+      OnReadOnlyCommit();
   }
 
   /**
@@ -140,13 +145,13 @@ namespace {
    */
   template <int COUNTMODE>
   void
-  ProfileApp<COUNTMODE>::commit_rw(TxThread* tx)
+  ProfileApp<COUNTMODE>::commit_rw()
   {
       // run the redo log
-      tx->writes.writeback();
+      Self.writes.writeback();
       // remember write set size before clearing it
-      int x = tx->writes.size();
-      tx->writes.reset();
+      int x = Self.writes.size();
+      Self.writes.reset();
 
       // compute the running time and write info
       unsigned long long runtime = tick() - profiles[0].txn_time;
@@ -177,7 +182,7 @@ namespace {
       profiles[0].clear();
 
       // finish cleaning up
-      OnReadWriteCommit(tx, read_ro, write_ro, commit_ro);
+      OnReadWriteCommit( read_ro, write_ro, commit_ro);
   }
 
   /**
@@ -185,7 +190,7 @@ namespace {
    */
   template <int COUNTMODE>
   void*
-  ProfileApp<COUNTMODE>::read_ro(STM_READ_SIG(,addr,))
+  ProfileApp<COUNTMODE>::read_ro(STM_READ_SIG(addr,))
   {
       // count the read
       ++profiles[0].read_ro;
@@ -198,11 +203,11 @@ namespace {
    */
   template <int COUNTMODE>
   void*
-  ProfileApp<COUNTMODE>::read_rw(STM_READ_SIG(tx,addr,mask))
+  ProfileApp<COUNTMODE>::read_rw(STM_READ_SIG(addr,mask))
   {
       // check the log for a RAW hazard, we expect to miss
       WriteSetEntry log(STM_WRITE_SET_ENTRY(addr, NULL, mask));
-      bool found = tx->writes.find(log);
+      bool found = Self.writes.find(log);
       REDO_RAW_CHECK_PROFILEAPP(found, log, mask);
 
       // count this read, and get value from memory
@@ -220,12 +225,12 @@ namespace {
    */
   template <int COUNTMODE>
   void
-  ProfileApp<COUNTMODE>::write_ro(STM_WRITE_SIG(tx,addr,val,mask))
+  ProfileApp<COUNTMODE>::write_ro(STM_WRITE_SIG(addr,val,mask))
   {
       // do a buffered write
-      tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
+      Self.writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
       ++profiles[0].write_waw;
-      OnFirstWrite(tx, read_rw, write_rw, commit_rw);
+      OnFirstWrite( read_rw, write_rw, commit_rw);
   }
 
   /**
@@ -233,11 +238,11 @@ namespace {
    */
   template <int COUNTMODE>
   void
-  ProfileApp<COUNTMODE>::write_rw(STM_WRITE_SIG(tx,addr,val,mask))
+  ProfileApp<COUNTMODE>::write_rw(STM_WRITE_SIG(addr,val,mask))
 
   {
       // do a buffered write
-      tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
+      Self.writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
       ++profiles[0].write_waw;
   }
 
@@ -249,7 +254,7 @@ namespace {
    */
   template <int COUNTMODE>
   stm::scope_t*
-  ProfileApp<COUNTMODE>::rollback(STM_ROLLBACK_SIG(,,))
+  ProfileApp<COUNTMODE>::rollback(STM_ROLLBACK_SIG(,))
   {
       UNRECOVERABLE("ProfileApp should never incur an abort");
       return NULL;
@@ -260,7 +265,7 @@ namespace {
    */
   template <int COUNTMODE>
   bool
-  ProfileApp<COUNTMODE>::irrevoc(TxThread*)
+  ProfileApp<COUNTMODE>::irrevoc()
   {
       // NB: there is no reason why we can't support this, we just don't yet.
       UNRECOVERABLE("ProfileApp does not support irrevocability");

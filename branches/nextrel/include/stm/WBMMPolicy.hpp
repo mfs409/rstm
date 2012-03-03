@@ -114,9 +114,16 @@ namespace stm
        *  Null out the timestamp for a particular thread.  We only call this
        *  at initialization.
        */
-      WBMMPolicy()
-          : prelimbo(new limbo_t()), limbo(NULL), frees(128), allocs(128)
-      { }
+      // WBMMPolicy()       { }
+
+      void init()
+      {
+          prelimbo = new limbo_t();
+          limbo = NULL;
+          frees.init(128);
+          allocs.init(128);
+      }
+
 
       /**
        *  Since a TxThread constructs its allocator before it gets its id, we

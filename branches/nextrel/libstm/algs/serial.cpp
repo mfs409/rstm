@@ -24,6 +24,11 @@ using stm::timestamp;
 using stm::timestamp_max;
 using stm::UndoLogEntry;
 using stm::UNRECOVERABLE;
+using stm::Self;
+using stm::OnCGLCommit;
+using stm::OnReadOnlyCGLCommit;
+using stm::PreRollback;
+using stm::PostRollback;
 
 /**
  *  Declare the functions that we're going to implement, so that we can avoid
@@ -32,13 +37,13 @@ using stm::UNRECOVERABLE;
 namespace {
   struct Serial
   {
-      static TM_FASTCALL bool begin(TxThread*);
-      static TM_FASTCALL void* read(STM_READ_SIG(,,));
-      static TM_FASTCALL void write(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void commit(TxThread*);
+      static TM_FASTCALL bool begin();
+      static TM_FASTCALL void* read(STM_READ_SIG(,));
+      static TM_FASTCALL void write(STM_WRITE_SIG(,,));
+      static TM_FASTCALL void commit();
 
-      static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
-      static bool irrevoc(TxThread*);
+      static stm::scope_t* rollback(STM_ROLLBACK_SIG(,));
+      static bool irrevoc();
       static void onSwitchTo();
   };
 
@@ -46,34 +51,34 @@ namespace {
    *  Serial begin:
    */
   bool
-  Serial::begin(TxThread* tx)
+  Serial::begin()
   {
       // get the lock and notify the allocator
-      tx->begin_wait = tatas_acquire(&timestamp.val);
-      tx->allocator.onTxBegin();
+      Self.begin_wait = tatas_acquire(&timestamp.val);
+      Self.allocator.onTxBegin();
       return false;
   }
 
   /**
    *  Serial commit
    */
-  void Serial::commit(TxThread* tx)
+  void Serial::commit()
   {
       // release the lock, finalize mm ops, and log the commit
       tatas_release(&timestamp.val);
-      int x = tx->undo_log.size();
-      tx->undo_log.reset();
+      int x = Self.undo_log.size();
+      Self.undo_log.reset();
       if (x)
-          OnCGLCommit(tx);
+          OnCGLCommit();
       else
-          OnReadOnlyCGLCommit(tx);
+          OnReadOnlyCGLCommit();
   }
 
   /**
    *  Serial read
    */
   void*
-  Serial::read(STM_READ_SIG(,addr,))
+  Serial::read(STM_READ_SIG(addr,))
   {
       return *addr;
   }
@@ -82,10 +87,10 @@ namespace {
    *  Serial write
    */
   void
-  Serial::write(STM_WRITE_SIG(tx,addr,val,mask))
+  Serial::write(STM_WRITE_SIG(addr,val,mask))
   {
       // add to undo log, do an in-place update
-      tx->undo_log.insert(UndoLogEntry(STM_UNDO_LOG_ENTRY(addr, *addr, mask)));
+      Self.undo_log.insert(UndoLogEntry(STM_UNDO_LOG_ENTRY(addr, *addr, mask)));
       STM_DO_MASKED_WRITE(addr, val, mask);
   }
 
@@ -93,20 +98,20 @@ namespace {
    *  Serial unwinder:
    */
   stm::scope_t*
-  Serial::rollback(STM_ROLLBACK_SIG(tx, except, len))
+  Serial::rollback(STM_ROLLBACK_SIG(except, len))
   {
-      PreRollback(tx);
+      PreRollback();
 
       // undo all writes
-      STM_UNDO(tx->undo_log, except, len);
+      STM_UNDO(Self.undo_log, except, len);
 
       // release the lock
       tatas_release(&timestamp.val);
 
       // reset lists
-      tx->undo_log.reset();
+      Self.undo_log.reset();
 
-      return PostRollback(tx);
+      return PostRollback();
   }
 
   /**
@@ -129,7 +134,7 @@ namespace {
    *        no global coordination.
    */
   bool
-  Serial::irrevoc(TxThread* tx)
+  Serial::irrevoc()
   {
       UNRECOVERABLE("Serial::irrevoc should not be called!");
       return false;
@@ -154,10 +159,10 @@ namespace stm
    *  As mentioned above, Serial needs a custom override to work with
    *  irrevocability.
    */
-  void serial_irrevoc_override(TxThread* tx)
+  void serial_irrevoc_override()
   {
       // just drop the undo log and we're good
-      tx->undo_log.reset();
+      Self.undo_log.reset();
   }
 
   /**

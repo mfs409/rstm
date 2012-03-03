@@ -24,6 +24,7 @@ using stm::stms;
 using stm::curr_policy;
 using stm::CGL;
 using stm::Trigger;
+using stm::Self;
 
 namespace {
   /**
@@ -37,7 +38,7 @@ namespace {
    *  Handler for abort attempts while irrevocable. Useful for trapping problems
    *  early.
    */
-  NORETURN void abort_irrevocable(TxThread* tx)
+  NORETURN void abort_irrevocable()
   {
       UNRECOVERABLE("Irrevocable thread attempted to abort.");
   }
@@ -50,7 +51,7 @@ namespace {
    *      X's default gcc-4.2.1. It's fine if we use the fully qualified
    *      namespace here.
    */
-  stm::scope_t* rollback_irrevocable(STM_ROLLBACK_SIG(,,))
+  stm::scope_t* rollback_irrevocable(STM_ROLLBACK_SIG(,))
   {
       UNRECOVERABLE("Irrevocable thread attempted to rollback.");
       return NULL;
@@ -61,50 +62,50 @@ namespace {
    *  tmabort which reverts to the one we saved, and tmbegin which should be
    *  done manually in the caller.
    */
-  inline void unset_irrevocable_barriers(TxThread& tx)
+  inline void unset_irrevocable_barriers()
   {
-      tx.tmread           = stms[curr_policy.ALG_ID].read;
-      tx.tmwrite          = stms[curr_policy.ALG_ID].write;
-      tx.tmcommit         = stms[curr_policy.ALG_ID].commit;
-      tx.tmrollback       = stms[curr_policy.ALG_ID].rollback;
+      Self.tmread           = stms[curr_policy.ALG_ID].read;
+      Self.tmwrite          = stms[curr_policy.ALG_ID].write;
+      Self.tmcommit         = stms[curr_policy.ALG_ID].commit;
+      Self.tmrollback       = stms[curr_policy.ALG_ID].rollback;
       TxThread::tmirrevoc = stms[curr_policy.ALG_ID].irrevoc;
-      tx.tmabort          = old_abort_handler;
+      Self.tmabort          = old_abort_handler;
   }
 
   /**
    *  custom commit for irrevocable transactions
    */
-  TM_FASTCALL void commit_irrevocable(TxThread* tx)
+  TM_FASTCALL void commit_irrevocable()
   {
       // make self non-irrevocable, and unset local r/w/c barriers
-      tx->irrevocable = false;
-      unset_irrevocable_barriers(*tx);
+      Self.irrevocable = false;
+      unset_irrevocable_barriers();
       // now allow other transactions to run
       CFENCE;
       TxThread::tmbegin = stms[curr_policy.ALG_ID].begin;
       // finally, call the standard commit cleanup routine
-      // OnReadOnlyCommit(tx);
+      // OnReadOnlyCommit();
       // NB: We need custom commit logic here, in particular, we don't want to
       //     notify the allocator of anything because irrevocable transactions
       //     don't buffer allocations.
-      tx->abort_hist.onCommit(tx->consec_aborts);
-      tx->consec_aborts = 0;
-      ++tx->num_commits;
-      Trigger::onCommitSTM(tx);
+      Self.abort_hist.onCommit(Self.consec_aborts);
+      Self.consec_aborts = 0;
+      ++Self.num_commits;
+      Trigger::onCommitSTM();
   }
 
   /**
    *  Sets all of the barriers to be irrevocable, except tmbegin.
    */
-  inline void set_irrevocable_barriers(TxThread& tx)
+  inline void set_irrevocable_barriers()
   {
-      tx.tmread           = stms[CGL].read;
-      tx.tmwrite          = stms[CGL].write;
-      tx.tmcommit         = commit_irrevocable;
-      tx.tmrollback       = rollback_irrevocable;
+      Self.tmread           = stms[CGL].read;
+      Self.tmwrite          = stms[CGL].write;
+      Self.tmcommit         = commit_irrevocable;
+      Self.tmrollback       = rollback_irrevocable;
       TxThread::tmirrevoc = stms[CGL].irrevoc;
-      old_abort_handler   = tx.tmabort;
-      tx.tmabort          = abort_irrevocable;
+      old_abort_handler   = Self.tmabort;
+      Self.tmabort          = abort_irrevocable;
   }
 }
 
@@ -114,7 +115,7 @@ namespace stm
    *  The 'Serial' algorithm requires a custom override for irrevocability,
    *  which we implement here.
    */
-  void serial_irrevoc_override(TxThread* tx);
+  void serial_irrevoc_override();
 
   /**
    *  Try to become irrevocable, inflight. This happens via mode
@@ -128,7 +129,6 @@ namespace stm
    */
   void become_irrevoc()
   {
-      TxThread* tx = Self;
       // special code for degenerate STM implementations
       //
       // NB: stm::is_irrevoc relies on how this works, so if it changes then
@@ -140,13 +140,13 @@ namespace stm
           return;
 
       if (curr_policy.ALG_ID == Serial) {
-          serial_irrevoc_override(tx);
+          serial_irrevoc_override();
           return;
       }
 
       if (curr_policy.ALG_ID == TML) {
-          if (!tx->tmlHasLock)
-              beforewrite_TML(tx);
+          if (!Self.tmlHasLock)
+              beforewrite_TML();
           return;
       }
 
@@ -163,20 +163,20 @@ namespace stm
       //  we'll just abort all the time.  The impact should be minimal.
       if (!bcasptr(&TxThread::tmbegin, stms[curr_policy.ALG_ID].begin,
                    &begin_blocker))
-          tx->tmabort(tx);
+          Self.tmabort();
 
       // wait for everyone to be out of a transaction (scope == NULL)
       for (unsigned i = 0; i < threadcount.val; ++i)
-          while ((i != (tx->id-1)) && (threads[i]->scope))
+          while ((i != (Self.id-1)) && (threads[i]->scope))
               spin64();
 
       // try to become irrevocable inflight
-      tx->irrevocable = TxThread::tmirrevoc(tx);
+      Self.irrevocable = TxThread::tmirrevoc();
 
       // If inflight succeeded, switch our barriers and return true.
-      if (tx->irrevocable) {
-          tx->allocator.onTxCommit();    // tell the allocator do cleanup
-          set_irrevocable_barriers(*tx);
+      if (Self.irrevocable) {
+          Self.allocator.onTxCommit();    // tell the allocator do cleanup
+          set_irrevocable_barriers();
           return;
       }
 
@@ -189,20 +189,20 @@ namespace stm
       //
       // begin_blocker sets our barriers to be irrevocable if we have our
       // irrevocable flag set.
-      tx->irrevocable = true;
-      tx->tmabort(tx);
+      Self.irrevocable = true;
+      Self.tmabort();
   }
 
   /**
    * True if the current algorithm is irrevocable.
    */
-  bool is_irrevoc(const TxThread& tx)
+  bool is_irrevoc()
   {
-      if (tx.irrevocable || TxThread::tmirrevoc == stms[CGL].irrevoc)
+      if (Self.irrevocable || TxThread::tmirrevoc == stms[CGL].irrevoc)
           return true;
       if ((curr_policy.ALG_ID == MCS) || (curr_policy.ALG_ID  == Ticket))
           return true;
-      if ((curr_policy.ALG_ID == TML) && (tx.tmlHasLock))
+      if ((curr_policy.ALG_ID == TML) && (Self.tmlHasLock))
           return true;
       if (curr_policy.ALG_ID == Serial)
           return true;
@@ -215,38 +215,38 @@ namespace stm
    *  doubles as an irrevocability mechanism for implementations where we don't
    *  have (or can't write) an in-flight irrevocability mechanism.
    */
-  bool begin_blocker(TxThread* tx)
+  bool begin_blocker()
   {
       // if the caller is trying to restart as irrevocable, let them
       // NB: do not notify allocator of anything because irrevocable
       //     transactions don't buffer allocation.
-      if (tx->irrevocable) {
-          set_irrevocable_barriers(*tx);
+      if (Self.irrevocable) {
+          set_irrevocable_barriers();
           return true;
       }
 
       // adapt without longjmp
       while (true) {
           // first, clear the outer scope, because it's our 'tx/nontx' flag
-          scope_t* b = tx->scope;
-          tx->scope = 0;
+          scope_t* b = Self.scope;
+          Self.scope = 0;
           // next, wait for the begin_blocker to be uninstalled
           while (TxThread::tmbegin == begin_blocker)
               spin64();
           CFENCE;
           // now re-install the scope
 #ifdef STM_CPU_SPARC
-          tx->scope = b; WBR;
+          Self.scope = b; WBR;
 #else
-          casptr((volatile uintptr_t*)&tx->scope, (uintptr_t)0, (uintptr_t)b);
+          casptr((volatile uintptr_t*)&Self.scope, (uintptr_t)0, (uintptr_t)b);
 #endif
           // read the begin function pointer AFTER setting the scope
-          bool TM_FASTCALL (*beginner)(TxThread*) = TxThread::tmbegin;
+          bool TM_FASTCALL (*beginner)() = TxThread::tmbegin;
           // if begin_blocker is no longer installed, we can call the pointer
           // to start a transaction, and then return.  Otherwise, we missed our
           // window, so we need to go back to the top of the loop.
           if (beginner != begin_blocker)
-              return beginner(tx);
+              return beginner();
       }
   }
 }

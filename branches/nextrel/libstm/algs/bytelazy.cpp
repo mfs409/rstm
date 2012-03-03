@@ -27,7 +27,12 @@ using stm::bytelock_t;
 using stm::get_bytelock;
 using stm::WriteSetEntry;
 using stm::threads;
-
+using stm::Self;
+using stm::OnFirstWrite;
+using stm::OnReadWriteCommit;
+using stm::OnReadOnlyCommit;
+using stm::PreRollback;
+using stm::PostRollback;
 
 /**
  *  Declare the functions that we're going to implement, so that we can avoid
@@ -36,16 +41,16 @@ using stm::threads;
 namespace {
   struct ByteLazy
   {
-      static TM_FASTCALL bool begin(TxThread*);
-      static TM_FASTCALL void* read_ro(STM_READ_SIG(,,));
-      static TM_FASTCALL void* read_rw(STM_READ_SIG(,,));
-      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void commit_ro(TxThread*);
-      static TM_FASTCALL void commit_rw(TxThread*);
+      static TM_FASTCALL bool begin();
+      static TM_FASTCALL void* read_ro(STM_READ_SIG(,));
+      static TM_FASTCALL void* read_rw(STM_READ_SIG(,));
+      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,));
+      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,));
+      static TM_FASTCALL void commit_ro();
+      static TM_FASTCALL void commit_rw();
 
-      static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
-      static bool irrevoc(TxThread*);
+      static stm::scope_t* rollback(STM_ROLLBACK_SIG(,));
+      static bool irrevoc();
       static void onSwitchTo();
   };
 
@@ -53,11 +58,11 @@ namespace {
    *  ByteLazy begin:
    */
   bool
-  ByteLazy::begin(TxThread* tx)
+  ByteLazy::begin()
   {
-      tx->allocator.onTxBegin();
+      Self.allocator.onTxBegin();
       // mark self as alive
-      tx->alive = 1;
+      Self.alive = 1;
       return false;
   }
 
@@ -65,20 +70,20 @@ namespace {
    *  ByteLazy commit (read-only):
    */
   void
-  ByteLazy::commit_ro(TxThread* tx)
+  ByteLazy::commit_ro()
   {
       // were there remote aborts?
-      if (!tx->alive)
-          tx->tmabort(tx);
+      if (!Self.alive)
+          Self.tmabort();
       CFENCE;
 
       // release read locks
-      foreach (ByteLockList, i, tx->r_bytelocks)
-          (*i)->reader[tx->id-1] = 0;
+      foreach (ByteLockList, i, Self.r_bytelocks)
+          (*i)->reader[Self.id-1] = 0;
 
       // clean up
-      tx->r_bytelocks.reset();
-      OnReadOnlyCommit(tx);
+      Self.r_bytelocks.reset();
+      OnReadOnlyCommit();
   }
 
   /**
@@ -91,22 +96,22 @@ namespace {
    *    release locks, and clean up.
    */
   void
-  ByteLazy::commit_rw(TxThread* tx)
+  ByteLazy::commit_rw()
   {
       // try to lock every location in the write set
       unsigned char accumulator[60] = {0};
       // acquire locks, accumulate victim readers
-      foreach (WriteSet, i, tx->writes) {
+      foreach (WriteSet, i, Self.writes) {
           // get bytelock, read its version#
           bytelock_t* bl = get_bytelock(i->addr);
 
           // abort if cannot acquire and haven't locked yet
           if (bl->owner == 0) {
-              if (!bcas32(&bl->owner, (uintptr_t)0, tx->my_lock.all))
-                  tx->tmabort(tx);
+              if (!bcas32(&bl->owner, (uintptr_t)0, Self.my_lock.all))
+                  Self.tmabort();
 
               // log lock
-              tx->w_bytelocks.insert(bl);
+              Self.w_bytelocks.insert(bl);
 
               // get readers
               // (read 4 bytelocks at a time)
@@ -115,13 +120,13 @@ namespace {
               for (int j = 0; j < 15; ++j)
                   p1[j] |= p2[j];
           }
-          else if (bl->owner != tx->my_lock.all) {
-              tx->tmabort(tx);
+          else if (bl->owner != Self.my_lock.all) {
+              Self.tmabort();
           }
       }
 
       // take me out of the accumulator
-      accumulator[tx->id-1] = 0;
+      accumulator[Self.id-1] = 0;
 
       // kill the readers
       for (unsigned char c = 0; c < 60; ++c)
@@ -130,53 +135,53 @@ namespace {
 
       // were there remote aborts?
       CFENCE;
-      if (!tx->alive)
-          tx->tmabort(tx);
+      if (!Self.alive)
+          Self.tmabort();
       CFENCE;
 
       // we committed... replay redo log
-      tx->writes.writeback();
+      Self.writes.writeback();
       CFENCE;
 
       // release read locks, write locks
-      foreach (ByteLockList, i, tx->w_bytelocks)
+      foreach (ByteLockList, i, Self.w_bytelocks)
           (*i)->owner = 0;
-      foreach (ByteLockList, i, tx->r_bytelocks)
-          (*i)->reader[tx->id-1] = 0;
+      foreach (ByteLockList, i, Self.r_bytelocks)
+          (*i)->reader[Self.id-1] = 0;
 
       // remember that this was a commit
-      tx->r_bytelocks.reset();
-      tx->writes.reset();
-      tx->w_bytelocks.reset();
-      OnReadWriteCommit(tx, read_ro, write_ro, commit_ro);
+      Self.r_bytelocks.reset();
+      Self.writes.reset();
+      Self.w_bytelocks.reset();
+      OnReadWriteCommit( read_ro, write_ro, commit_ro);
   }
 
   /**
    *  ByteLazy read (read-only transaction)
    */
   void*
-  ByteLazy::read_ro(STM_READ_SIG(tx,addr,))
+  ByteLazy::read_ro(STM_READ_SIG(addr,))
   {
       // first test if we've got a read byte
       bytelock_t* bl = get_bytelock(addr);
 
       // lock and log if the byte is previously unlocked
-      if (bl->reader[tx->id-1] == 0) {
-          bl->set_read_byte(tx->id-1);
+      if (bl->reader[Self.id-1] == 0) {
+          bl->set_read_byte(Self.id-1);
           // log the lock
-          tx->r_bytelocks.insert(bl);
+          Self.r_bytelocks.insert(bl);
       }
 
       // if there's a writer, it can't be me since I'm in-flight
       if (bl->owner != 0)
-          tx->tmabort(tx);
+          Self.tmabort();
 
       // order the read before checking for remote aborts
       void* val = *addr;
       CFENCE;
 
-      if (!tx->alive)
-          tx->tmabort(tx);
+      if (!Self.alive)
+          Self.tmabort();
 
       return val;
   }
@@ -185,7 +190,7 @@ namespace {
    *  ByteLazy read (writing transaction)
    */
   void*
-  ByteLazy::read_rw(STM_READ_SIG(tx,addr,mask))
+  ByteLazy::read_rw(STM_READ_SIG(addr,mask))
   {
       // These are used in REDO_RAW_CLEANUP, so they have to be scoped out
       // here. We expect the compiler to do a good job reordering them when
@@ -197,28 +202,28 @@ namespace {
       bytelock_t* bl = get_bytelock(addr);
 
       // lock and log if the byte is previously unlocked
-      if (bl->reader[tx->id-1] == 0) {
-          bl->set_read_byte(tx->id-1);
+      if (bl->reader[Self.id-1] == 0) {
+          bl->set_read_byte(Self.id-1);
           // log the lock
-          tx->r_bytelocks.insert(bl);
+          Self.r_bytelocks.insert(bl);
       } else {
           // if so, we may be a writer (all writes are also reads!)
           // check the log
-          found = tx->writes.find(log);
+          found = Self.writes.find(log);
           REDO_RAW_CHECK(found, log, mask);
       }
 
       // if there's a writer, it can't be me since I'm in-flight
       if (bl->owner != 0)
-          tx->tmabort(tx);
+          Self.tmabort();
 
       // order the read before checking for remote aborts
       void* val = *addr;
       REDO_RAW_CLEANUP(val, found, log, mask);
       CFENCE;
 
-      if (!tx->alive)
-          tx->tmabort(tx);
+      if (!Self.alive)
+          Self.tmabort();
 
       return val;
   }
@@ -230,78 +235,78 @@ namespace {
    *    this location as if it was a read.
    */
   void
-  ByteLazy::write_ro(STM_WRITE_SIG(tx,addr,val,mask))
+  ByteLazy::write_ro(STM_WRITE_SIG(addr,val,mask))
   {
       // Record the new value in a redo log
-      tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
+      Self.writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
 
       // if we don't have a read byte, get one
       bytelock_t* bl = get_bytelock(addr);
-      if (bl->reader[tx->id-1] == 0) {
-          bl->set_read_byte(tx->id-1);
+      if (bl->reader[Self.id-1] == 0) {
+          bl->set_read_byte(Self.id-1);
           // log the lock
-          tx->r_bytelocks.insert(bl);
+          Self.r_bytelocks.insert(bl);
       }
 
       if (bl->owner)
-          tx->tmabort(tx);
+          Self.tmabort();
 
-      OnFirstWrite(tx, read_rw, write_rw, commit_rw);
+      OnFirstWrite( read_rw, write_rw, commit_rw);
   }
 
   /**
    *  ByteLazy write (writing context)
    */
   void
-  ByteLazy::write_rw(STM_WRITE_SIG(tx,addr,val,mask))
+  ByteLazy::write_rw(STM_WRITE_SIG(addr,val,mask))
   {
       // Record the new value in a redo log
-      tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
+      Self.writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
 
       // if we don't have a read byte, get one
       bytelock_t* bl = get_bytelock(addr);
-      if (bl->reader[tx->id-1] == 0) {
-          bl->set_read_byte(tx->id-1);
+      if (bl->reader[Self.id-1] == 0) {
+          bl->set_read_byte(Self.id-1);
           // log the lock
-          tx->r_bytelocks.insert(bl);
+          Self.r_bytelocks.insert(bl);
       }
 
       if (bl->owner)
-          tx->tmabort(tx);
+          Self.tmabort();
   }
 
   /**
    *  ByteLazy unwinder:
    */
   stm::scope_t*
-  ByteLazy::rollback(STM_ROLLBACK_SIG(tx, except, len))
+  ByteLazy::rollback(STM_ROLLBACK_SIG( except, len))
   {
-      PreRollback(tx);
+      PreRollback();
 
       // Perform writes to the exception object if there were any... taking the
       // branch overhead without concern because we're not worried about
       // rollback overheads.
-      STM_ROLLBACK(tx->writes, except, len);
+      STM_ROLLBACK(Self.writes, except, len);
 
       // release the locks
-      foreach (ByteLockList, i, tx->w_bytelocks)
+      foreach (ByteLockList, i, Self.w_bytelocks)
           (*i)->owner = 0;
-      foreach (ByteLockList, i, tx->r_bytelocks)
-          (*i)->reader[tx->id-1] = 0;
+      foreach (ByteLockList, i, Self.r_bytelocks)
+          (*i)->reader[Self.id-1] = 0;
 
       // clear all lists
-      tx->r_bytelocks.reset();
-      tx->writes.reset();
-      tx->w_bytelocks.reset();
+      Self.r_bytelocks.reset();
+      Self.writes.reset();
+      Self.w_bytelocks.reset();
 
-      return PostRollback(tx, read_ro, write_ro, commit_ro);
+      return PostRollback( read_ro, write_ro, commit_ro);
   }
 
   /**
    *  ByteLazy in-flight irrevocability:
    */
   bool
-  ByteLazy::irrevoc(TxThread*)
+  ByteLazy::irrevoc()
   {
       return false;
   }

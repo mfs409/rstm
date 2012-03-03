@@ -51,7 +51,7 @@ namespace
    *  Collecting profiles is a lot like changing algorithms, but there are a
    *  few customizations we make to address the probing.
    */
-  void collect_profiles(TxThread* tx)
+  void collect_profiles()
   {
       // prevent new txns from starting
       if (!bcasptr(&TxThread::tmbegin, stms[curr_policy.ALG_ID].begin,
@@ -60,21 +60,21 @@ namespace
 
       // wait for everyone to be out of a transaction (scope == NULL)
       for (unsigned i = 0; i < threadcount.val; ++i)
-          while ((i != (tx->id-1)) && (threads[i]->scope))
+          while ((i != (Self.id-1)) && (threads[i]->scope))
               spin64();
 
       // remember the prior algorithm
       curr_policy.PREPROFILE_ALG = curr_policy.ALG_ID;
 
       // install ProfileTM
-      install_algorithm(ProfileTM, tx);
+      install_algorithm(ProfileTM);
   }
 
   /**
    *  change_algorithm is used to transition between STM implementations when
    *  ProfileTM is not involved.
    */
-  void change_algorithm(TxThread* tx, unsigned new_algorithm)
+  void change_algorithm(unsigned new_algorithm)
   {
       // NB: we could compare new_algorithm to curr_policy.ALG_ID, and if
       //     they were the same, then we could just adjust the thresholds
@@ -88,14 +88,14 @@ namespace
 
       // wait for everyone to be out of a transaction (scope == NULL)
       for (unsigned i = 0; i < threadcount.val; ++i)
-          while ((i != (tx->id-1)) && (threads[i]->scope))
+          while ((i != (Self.id-1)) && (threads[i]->scope))
               spin64();
 
       // adjust thresholds
       adjust_thresholds(new_algorithm, curr_policy.ALG_ID);
 
       // update the instrumentation level
-      install_algorithm(new_algorithm, tx);
+      install_algorithm(new_algorithm);
   }
 
 } // (anonymous namespace)
@@ -110,7 +110,7 @@ namespace stm
    * calls the current policy's 'decider' to pick the new algorithm, and then
    * sets up metadata and makes the switch.
    */
-  void profile_oncomplete(TxThread* tx)
+  void profile_oncomplete()
   {
       // NB: This is subtle: When we switched /to/ ProfileTM, we installed
       //     begin_blocker, then changed algorithms via install_algorithm(),
@@ -138,21 +138,21 @@ namespace stm
       adjust_thresholds(new_algorithm, curr_policy.PREPROFILE_ALG);
 
       // update the instrumentation level and install the algorithm
-      install_algorithm(new_algorithm, tx);
+      install_algorithm(new_algorithm);
   }
 
-  void trigger_common(TxThread* tx)
+  void trigger_common()
   {
       // if we're dynamic, ask for profiles to be requested and then return
       if (pols[curr_policy.POL_ID].isDynamic) {
-          collect_profiles(tx);
+          collect_profiles();
           return;
       }
       // if we're static, run the policy-specific code to decide what to do.
       // This will lead to either changing algorithms, or resetting the local
       // consec abort counter.
       uint32_t new_algorithm = pols[curr_policy.POL_ID].decider();
-      change_algorithm(tx, new_algorithm);
+      change_algorithm(new_algorithm);
   }
 } // namespace stm
 

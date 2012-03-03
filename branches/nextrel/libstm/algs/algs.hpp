@@ -105,19 +105,19 @@ namespace stm
        * the begin, commit, read, and write methods a tx uses when it
        * starts
        */
-      bool  (*TM_FASTCALL begin) (TxThread*);
-      void  (*TM_FASTCALL commit)(TxThread*);
-      void* (*TM_FASTCALL read)  (STM_READ_SIG(,,));
-      void  (*TM_FASTCALL write) (STM_WRITE_SIG(,,,));
+      bool  (*TM_FASTCALL begin) ();
+      void  (*TM_FASTCALL commit)();
+      void* (*TM_FASTCALL read)  (STM_READ_SIG(,));
+      void  (*TM_FASTCALL write) (STM_WRITE_SIG(,,));
 
       /**
        * rolls the transaction back without unwinding, returns the scope (which
        * is set to null during rollback)
        */
-      scope_t* (* rollback)(STM_ROLLBACK_SIG(,,));
+      scope_t* (* rollback)(STM_ROLLBACK_SIG(,));
 
       /*** the restart, retry, and irrevoc methods to use */
-      bool  (* irrevoc)(TxThread*);
+      bool  (* irrevoc)();
 
       /*** the code to run when switching to this alg */
       void  (* switcher) ();
@@ -216,14 +216,14 @@ namespace stm
    *      two successive tick() calls return the same value?
    */
   TM_INLINE
-  inline void exp_backoff(TxThread* tx)
+  inline void exp_backoff()
   {
       // how many bits should we use to pick an amount of time to wait?
-      uint32_t bits = tx->consec_aborts + BACKOFF_MIN - 1;
+      uint32_t bits = Self.consec_aborts + BACKOFF_MIN - 1;
       bits = (bits > BACKOFF_MAX) ? BACKOFF_MAX : bits;
       // get a random amount of time to wait, bounded by an exponentially
       // increasing limit
-      int32_t delay = rand_r(&tx->seed);
+      int32_t delay = rand_r(&Self.seed);
       delay &= ((1 << bits)-1);
       // wait until at least that many ns have passed
       unsigned long long start = getElapsedTime();
@@ -232,92 +232,92 @@ namespace stm
   }
 
   // This is used as a default in txthread.cpp... just forwards to CGL::begin.
-  TM_FASTCALL bool begin_CGL(TxThread*);
+  TM_FASTCALL bool begin_CGL();
 
-  typedef TM_FASTCALL void* (*ReadBarrier)(STM_READ_SIG(,,));
-  typedef TM_FASTCALL void (*WriteBarrier)(STM_WRITE_SIG(,,,));
-  typedef TM_FASTCALL void (*CommitBarrier)(TxThread*);
+  typedef TM_FASTCALL void* (*ReadBarrier)(STM_READ_SIG(,));
+  typedef TM_FASTCALL void (*WriteBarrier)(STM_WRITE_SIG(,,));
+  typedef TM_FASTCALL void (*CommitBarrier)();
 
-  inline void OnReadWriteCommit(TxThread* tx, ReadBarrier read_ro,
+  inline void OnReadWriteCommit(ReadBarrier read_ro,
                                 WriteBarrier write_ro, CommitBarrier commit_ro)
   {
-      tx->allocator.onTxCommit();
-      tx->abort_hist.onCommit(tx->consec_aborts);
-      tx->consec_aborts = 0;
-      ++tx->num_commits;
-      tx->tmread = read_ro;
-      tx->tmwrite = write_ro;
-      tx->tmcommit = commit_ro;
-      Trigger::onCommitSTM(tx);
+      Self.allocator.onTxCommit();
+      Self.abort_hist.onCommit(Self.consec_aborts);
+      Self.consec_aborts = 0;
+      ++Self.num_commits;
+      Self.tmread = read_ro;
+      Self.tmwrite = write_ro;
+      Self.tmcommit = commit_ro;
+      Trigger::onCommitSTM();
   }
 
-  inline void OnReadWriteCommit(TxThread* tx)
+  inline void OnReadWriteCommit()
   {
-      tx->allocator.onTxCommit();
-      tx->abort_hist.onCommit(tx->consec_aborts);
-      tx->consec_aborts = 0;
-      ++tx->num_commits;
-      Trigger::onCommitSTM(tx);
+      Self.allocator.onTxCommit();
+      Self.abort_hist.onCommit(Self.consec_aborts);
+      Self.consec_aborts = 0;
+      ++Self.num_commits;
+      Trigger::onCommitSTM();
   }
 
-  inline void OnReadOnlyCommit(TxThread* tx)
+  inline void OnReadOnlyCommit()
   {
-      tx->allocator.onTxCommit();
-      tx->abort_hist.onCommit(tx->consec_aborts);
-      tx->consec_aborts = 0;
-      ++tx->num_ro;
-      Trigger::onCommitSTM(tx);
+      Self.allocator.onTxCommit();
+      Self.abort_hist.onCommit(Self.consec_aborts);
+      Self.consec_aborts = 0;
+      ++Self.num_ro;
+      Trigger::onCommitSTM();
   }
 
-  inline void OnCGLCommit(TxThread* tx)
+  inline void OnCGLCommit()
   {
-      tx->allocator.onTxCommit();
-      ++tx->num_commits;
-      Trigger::onCommitLock(tx);
+      Self.allocator.onTxCommit();
+      ++Self.num_commits;
+      Trigger::onCommitLock();
   }
 
-  inline void OnReadOnlyCGLCommit(TxThread* tx)
+  inline void OnReadOnlyCGLCommit()
   {
-      tx->allocator.onTxCommit();
-      ++tx->num_ro;
-      Trigger::onCommitLock(tx);
+      Self.allocator.onTxCommit();
+      ++Self.num_ro;
+      Trigger::onCommitLock();
   }
 
-  inline void OnFirstWrite(TxThread* tx, ReadBarrier read_rw,
+  inline void OnFirstWrite(ReadBarrier read_rw,
                            WriteBarrier write_rw, CommitBarrier commit_rw)
   {
-      tx->tmread = read_rw;
-      tx->tmwrite = write_rw;
-      tx->tmcommit = commit_rw;
+      Self.tmread = read_rw;
+      Self.tmwrite = write_rw;
+      Self.tmcommit = commit_rw;
   }
 
-  inline void PreRollback(TxThread* tx)
+  inline void PreRollback()
   {
-      ++tx->num_aborts;
-      ++tx->consec_aborts;
+      ++Self.num_aborts;
+      ++Self.consec_aborts;
   }
 
-  inline scope_t* PostRollback(TxThread* tx, ReadBarrier read_ro,
+  inline scope_t* PostRollback(ReadBarrier read_ro,
                                WriteBarrier write_ro, CommitBarrier commit_ro)
   {
-      tx->allocator.onTxAbort();
-      tx->nesting_depth = 0;
-      tx->tmread = read_ro;
-      tx->tmwrite = write_ro;
-      tx->tmcommit = commit_ro;
-      Trigger::onAbort(tx);
-      scope_t* scope = tx->scope;
-      tx->scope = NULL;
+      Self.allocator.onTxAbort();
+      Self.nesting_depth = 0;
+      Self.tmread = read_ro;
+      Self.tmwrite = write_ro;
+      Self.tmcommit = commit_ro;
+      Trigger::onAbort();
+      scope_t* scope = Self.scope;
+      Self.scope = NULL;
       return scope;
   }
 
-  inline scope_t* PostRollback(TxThread* tx)
+  inline scope_t* PostRollback()
   {
-      tx->allocator.onTxAbort();
-      tx->nesting_depth = 0;
-      Trigger::onAbort(tx);
-      scope_t* scope = tx->scope;
-      tx->scope = NULL;
+      Self.allocator.onTxAbort();
+      Self.nesting_depth = 0;
+      Trigger::onAbort();
+      scope_t* scope = Self.scope;
+      Self.scope = NULL;
       return scope;
   }
 
@@ -328,17 +328,16 @@ namespace stm
    *  calling the "Trigger::onAbort()" method.
    */
   inline scope_t*
-  PostRollbackNoTrigger(TxThread* tx,
-                        stm::ReadBarrier r, stm::WriteBarrier w,
+  PostRollbackNoTrigger(stm::ReadBarrier r, stm::WriteBarrier w,
                         stm::CommitBarrier c)
   {
-      tx->allocator.onTxAbort();
-      tx->nesting_depth = 0;
-      tx->tmread = r;
-      tx->tmwrite = w;
-      tx->tmcommit = c;
-      scope_t* scope = tx->scope;
-      tx->scope = NULL;
+      Self.allocator.onTxAbort();
+      Self.nesting_depth = 0;
+      Self.tmread = r;
+      Self.tmwrite = w;
+      Self.tmcommit = c;
+      scope_t* scope = Self.scope;
+      Self.scope = NULL;
       return scope;
   }
 
@@ -348,26 +347,26 @@ namespace stm
   *  That means that it will adapt /out of/ ProfileTM, which in turn means
   *  that we cannot reset the pointers on abort.
   */
-  inline scope_t* PostRollbackNoTrigger(TxThread* tx)
+  inline scope_t* PostRollbackNoTrigger()
   {
-      tx->allocator.onTxAbort();
-      tx->nesting_depth = 0;
-      scope_t* scope = tx->scope;
-      tx->scope = NULL;
+      Self.allocator.onTxAbort();
+      Self.nesting_depth = 0;
+      scope_t* scope = Self.scope;
+      Self.scope = NULL;
       return scope;
   }
 
-  inline void GoTurbo(TxThread* tx, ReadBarrier r, WriteBarrier w,
+  inline void GoTurbo(ReadBarrier r, WriteBarrier w,
                       CommitBarrier c)
   {
-      tx->tmread = r;
-      tx->tmwrite = w;
-      tx->tmcommit = c;
+      Self.tmread = r;
+      Self.tmwrite = w;
+      Self.tmcommit = c;
   }
 
-  inline bool CheckTurboMode(TxThread* tx, ReadBarrier read_turbo)
+  inline bool CheckTurboMode(ReadBarrier read_turbo)
   {
-      return (tx->tmread == read_turbo);
+      return (Self.tmread == read_turbo);
   }
 
   /**

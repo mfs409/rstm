@@ -52,10 +52,11 @@ namespace stm
   }
 
   /***  Writeset constructor.  Note that the version must start at 1. */
-  WriteSet::WriteSet(const size_t initial_capacity)
-      : index(NULL), shift(8 * sizeof(uint32_t)), ilength(0),
-        version(1), list(NULL), capacity(initial_capacity), lsize(0)
+  void WriteSet::init(const size_t initial_capacity)
   {
+      index = (NULL), shift = (8 * sizeof(uint32_t)), ilength = (0),
+          version = (1), list = (NULL), capacity = (initial_capacity), lsize = (0);
+
       // Find a good index length for the initial capacity of the list.
       while (ilength < 3 * initial_capacity)
           doubleIndexLength();
@@ -65,11 +66,11 @@ namespace stm
   }
 
   /***  Writeset destructor */
-  WriteSet::~WriteSet()
-  {
-      delete[] index;
-      free(list);
-  }
+  // WriteSet::~WriteSet()
+  // {
+  //     delete[] index;
+  //     free(list);
+  // }
 
   /***  Rebuild the writeset */
   void WriteSet::rebuild()

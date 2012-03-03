@@ -177,7 +177,6 @@ namespace stm
   class UndoLog : public stm::MiniVector<UndoLogEntry>
   {
     public:
-      UndoLog(const uintptr_t cap) : stm::MiniVector<UndoLogEntry>(cap) { }
 
       /**
        * A utility for undo-log implementations that undoes all of the accesses

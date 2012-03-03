@@ -26,7 +26,13 @@ using stm::bitlock_t;
 using stm::get_bitlock;
 using stm::rrec_t;
 using stm::UndoLogEntry;
-
+using stm::Self;
+using stm::OnReadWriteCommit;
+using stm::OnReadOnlyCommit;
+using stm::PreRollback;
+using stm::exp_backoff;
+using stm::PostRollback;
+using stm::OnFirstWrite;
 
 /**
  *  Declare the functions that we're going to implement, so that we can avoid
@@ -35,15 +41,15 @@ using stm::UndoLogEntry;
 namespace {
   struct BitEager
   {
-      static TM_FASTCALL bool begin(TxThread*);
-      static TM_FASTCALL void* read_ro(STM_READ_SIG(,,));
-      static TM_FASTCALL void* read_rw(STM_READ_SIG(,,));
-      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void commit_ro(TxThread*);
-      static TM_FASTCALL void commit_rw(TxThread*);
-      static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
-      static bool irrevoc(TxThread*);
+      static TM_FASTCALL bool begin();
+      static TM_FASTCALL void* read_ro(STM_READ_SIG(,));
+      static TM_FASTCALL void* read_rw(STM_READ_SIG(,));
+      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,));
+      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,));
+      static TM_FASTCALL void commit_ro();
+      static TM_FASTCALL void commit_rw();
+      static stm::scope_t* rollback(STM_ROLLBACK_SIG(,));
+      static bool irrevoc();
       static void onSwitchTo();
   };
 
@@ -64,9 +70,9 @@ namespace {
    *  BitEager begin:
    */
   bool
-  BitEager::begin(TxThread* tx)
+  BitEager::begin()
   {
-      tx->allocator.onTxBegin();
+      Self.allocator.onTxBegin();
       return false;
   }
 
@@ -74,33 +80,33 @@ namespace {
    *  BitEager commit (read-only):
    */
   void
-  BitEager::commit_ro(TxThread* tx)
+  BitEager::commit_ro()
   {
       // read-only... release read locks
-      foreach (BitLockList, i, tx->r_bitlocks)
-          (*i)->readers.unsetbit(tx->id-1);
+      foreach (BitLockList, i, Self.r_bitlocks)
+          (*i)->readers.unsetbit(Self.id-1);
 
-      tx->r_bitlocks.reset();
-      OnReadOnlyCommit(tx);
+      Self.r_bitlocks.reset();
+      OnReadOnlyCommit();
   }
 
   /**
    *  BitEager commit (writing context):
    */
   void
-  BitEager::commit_rw(TxThread* tx)
+  BitEager::commit_rw()
   {
       // release write locks, then read locks
-      foreach (BitLockList, i, tx->w_bitlocks)
+      foreach (BitLockList, i, Self.w_bitlocks)
           (*i)->owner = 0;
-      foreach (BitLockList, i, tx->r_bitlocks)
-          (*i)->readers.unsetbit(tx->id-1);
+      foreach (BitLockList, i, Self.r_bitlocks)
+          (*i)->readers.unsetbit(Self.id-1);
 
       // clean-up
-      tx->r_bitlocks.reset();
-      tx->w_bitlocks.reset();
-      tx->undo_log.reset();
-      OnReadWriteCommit(tx, read_ro, write_ro, commit_ro);
+      Self.r_bitlocks.reset();
+      Self.w_bitlocks.reset();
+      Self.undo_log.reset();
+      OnReadWriteCommit(read_ro, write_ro, commit_ro);
   }
 
   /**
@@ -111,32 +117,32 @@ namespace {
    *    from memory.
    */
   void*
-  BitEager::read_ro(STM_READ_SIG(tx,addr,))
+  BitEager::read_ro(STM_READ_SIG(addr,))
   {
       uint32_t tries = 0;
       bitlock_t* lock = get_bitlock(addr);
 
       // do I have a read lock?
-      if (lock->readers.getbit(tx->id-1))
+      if (lock->readers.getbit(Self.id-1))
           return *addr;
 
       // log this location
-      tx->r_bitlocks.insert(lock);
+      Self.r_bitlocks.insert(lock);
 
       // now try to get a read lock
       while (true) {
           // mark my reader bit
-          lock->readers.setbit(tx->id-1);
+          lock->readers.setbit(Self.id-1);
 
           // if nobody has the write lock, we're done
           if (__builtin_expect(lock->owner == 0, true))
               return *addr;
 
           // drop read lock, wait (with timeout) for lock release
-          lock->readers.unsetbit(tx->id-1);
+          lock->readers.unsetbit(Self.id-1);
           while (lock->owner != 0)
               if (++tries > READ_TIMEOUT)
-                  tx->tmabort(tx);
+                  Self.tmabort();
       }
   }
 
@@ -147,36 +153,36 @@ namespace {
    *    the write lock, we can return immediately.
    */
   void*
-  BitEager::read_rw(STM_READ_SIG(tx,addr,))
+  BitEager::read_rw(STM_READ_SIG(addr,))
   {
       uint32_t tries = 0;
       bitlock_t* lock = get_bitlock(addr);
 
       // do I have the write lock?
-      if (lock->owner == tx->id)
+      if (lock->owner == Self.id)
           return *addr;
 
       // do I have a read lock?
-      if (lock->readers.getbit(tx->id-1))
+      if (lock->readers.getbit(Self.id-1))
           return *addr;
 
       // log this location
-      tx->r_bitlocks.insert(lock);
+      Self.r_bitlocks.insert(lock);
 
       // now try to get a read lock
       while (true) {
           // mark my reader bit
-          lock->readers.setbit(tx->id-1);
+          lock->readers.setbit(Self.id-1);
 
           // if nobody has the write lock, we're done
           if (__builtin_expect(lock->owner == 0, true))
               return *addr;
 
           // drop read lock, wait (with timeout) for lock release
-          lock->readers.unsetbit(tx->id-1);
+          lock->readers.unsetbit(Self.id-1);
           while (lock->owner != 0)
               if (++tries > READ_TIMEOUT)
-                  tx->tmabort(tx);
+                  Self.tmabort();
       }
   }
 
@@ -187,19 +193,19 @@ namespace {
    *    out.
    */
   void
-  BitEager::write_ro(STM_WRITE_SIG(tx,addr,val,mask))
+  BitEager::write_ro(STM_WRITE_SIG(addr,val,mask))
   {
       uint32_t tries = 0;
       bitlock_t* lock = get_bitlock(addr);
 
       // get the write lock, with timeout
-      while (!bcasptr(&(lock->owner), 0u, tx->id))
+      while (!bcasptr(&(lock->owner), 0u, Self.id))
           if (++tries > ACQUIRE_TIMEOUT)
-              tx->tmabort(tx);
+              Self.tmabort();
 
       // log the lock, drop any read locks I have
-      tx->w_bitlocks.insert(lock);
-      lock->readers.unsetbit(tx->id-1);
+      Self.w_bitlocks.insert(lock);
+      lock->readers.unsetbit(Self.id-1);
 
       // wait (with timeout) for readers to drain out
       // (read one bucket at a time)
@@ -207,14 +213,14 @@ namespace {
           tries = 0;
           while (lock->readers.bits[b])
               if (++tries > DRAIN_TIMEOUT)
-                  tx->tmabort(tx);
+                  Self.tmabort();
       }
 
       // add to undo log, do in-place write
-      tx->undo_log.insert(UndoLogEntry(STM_UNDO_LOG_ENTRY(addr, *addr, mask)));
+      Self.undo_log.insert(UndoLogEntry(STM_UNDO_LOG_ENTRY(addr, *addr, mask)));
       STM_DO_MASKED_WRITE(addr, val, mask);
 
-      OnFirstWrite(tx, read_rw, write_rw, commit_rw);
+      OnFirstWrite(read_rw, write_rw, commit_rw);
   }
 
   /**
@@ -223,26 +229,26 @@ namespace {
    *    This is like the read-only case, except we might already hold the lock.
    */
   void
-  BitEager::write_rw(STM_WRITE_SIG(tx,addr,val,mask))
+  BitEager::write_rw(STM_WRITE_SIG(addr,val,mask))
   {
       uint32_t tries = 0;
       bitlock_t* lock = get_bitlock(addr);
 
       // If I have the write lock, add to undo log, do write, return
-      if (lock->owner == tx->id) {
-          tx->undo_log.insert(UndoLogEntry(STM_UNDO_LOG_ENTRY(addr, *addr, mask)));
+      if (lock->owner == Self.id) {
+          Self.undo_log.insert(UndoLogEntry(STM_UNDO_LOG_ENTRY(addr, *addr, mask)));
           STM_DO_MASKED_WRITE(addr, val, mask);
           return;
       }
 
       // get the write lock, with timeout
-      while (!bcasptr(&(lock->owner), 0u, tx->id))
+      while (!bcasptr(&(lock->owner), 0u, Self.id))
           if (++tries > ACQUIRE_TIMEOUT)
-              tx->tmabort(tx);
+              Self.tmabort();
 
       // log the lock, drop any read locks I have
-      tx->w_bitlocks.insert(lock);
-      lock->readers.unsetbit(tx->id-1);
+      Self.w_bitlocks.insert(lock);
+      lock->readers.unsetbit(Self.id-1);
 
       // wait (with timeout) for readers to drain out
       // (read one bucket at a time)
@@ -253,11 +259,11 @@ namespace {
           tries = 0;
           while (lock->readers.bits[b])
               if (++tries > DRAIN_TIMEOUT)
-                  tx->tmabort(tx);
+                  Self.tmabort();
       }
 
       // add to undo log, do in-place write
-      tx->undo_log.insert(UndoLogEntry(STM_UNDO_LOG_ENTRY(addr, *addr, mask)));
+      Self.undo_log.insert(UndoLogEntry(STM_UNDO_LOG_ENTRY(addr, *addr, mask)));
       STM_DO_MASKED_WRITE(addr, val, mask);
   }
 
@@ -265,34 +271,34 @@ namespace {
    *  BitEager unwinder:
    */
   stm::scope_t*
-  BitEager::rollback(STM_ROLLBACK_SIG(tx, except, len))
+  BitEager::rollback(STM_ROLLBACK_SIG(except, len))
   {
-      PreRollback(tx);
+      PreRollback();
 
       // undo all writes
-      STM_UNDO(tx->undo_log, except, len);
+      STM_UNDO(Self.undo_log, except, len);
 
       // release write locks, then read locks
-      foreach (BitLockList, i, tx->w_bitlocks)
+      foreach (BitLockList, i, Self.w_bitlocks)
           (*i)->owner = 0;
-      foreach (BitLockList, i, tx->r_bitlocks)
-          (*i)->readers.unsetbit(tx->id-1);
+      foreach (BitLockList, i, Self.r_bitlocks)
+          (*i)->readers.unsetbit(Self.id-1);
 
       // reset lists
-      tx->r_bitlocks.reset();
-      tx->w_bitlocks.reset();
-      tx->undo_log.reset();
+      Self.r_bitlocks.reset();
+      Self.w_bitlocks.reset();
+      Self.undo_log.reset();
 
       // randomized exponential backoff
-      exp_backoff(tx);
+      exp_backoff();
 
-      return PostRollback(tx, read_ro, write_ro, commit_ro);
+      return PostRollback(read_ro, write_ro, commit_ro);
   }
 
   /**
    *  BitEager in-flight irrevocability:
    */
-  bool BitEager::irrevoc(TxThread*)
+  bool BitEager::irrevoc()
   {
       return false;
   }

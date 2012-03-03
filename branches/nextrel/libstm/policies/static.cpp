@@ -76,7 +76,7 @@ namespace
       // careful... we don't want to switch out of OrecFair unless we've
       // already done several priority bumps and we're still not happy
       if ((curr_policy.ALG_ID == OrecFair) &&
-          ((Self->consec_aborts / KARMA_FACTOR) < 16))
+          ((Self.consec_aborts / KARMA_FACTOR) < 16))
       {
           return OrecFair;
       }
@@ -101,7 +101,7 @@ namespace
       // careful... we don't want to switch out of OrecFair unless we've
       // already done several priority bumps and we're still not happy
       if ((curr_policy.ALG_ID == OrecFair) &&
-          ((Self->consec_aborts / KARMA_FACTOR) < 16))
+          ((Self.consec_aborts / KARMA_FACTOR) < 16))
       {
           return OrecFair;
       }

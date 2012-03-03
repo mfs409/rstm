@@ -41,7 +41,12 @@ using stm::bitlock_t;
 using stm::get_bitlock;
 using stm::threads;
 using stm::WriteSetEntry;
-
+using stm::Self;
+using stm::OnReadOnlyCommit;
+using stm::OnReadWriteCommit;
+using stm::OnFirstWrite;
+using stm::PreRollback;
+using stm::PostRollback;
 
 /**
  *  Declare the functions that we're going to implement, so that we can avoid
@@ -50,16 +55,16 @@ using stm::WriteSetEntry;
 namespace {
   struct BitLazy
   {
-      static TM_FASTCALL bool begin(TxThread*);
-      static TM_FASTCALL void* read_ro(STM_READ_SIG(,,));
-      static TM_FASTCALL void* read_rw(STM_READ_SIG(,,));
-      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void commit_ro(TxThread*);
-      static TM_FASTCALL void commit_rw(TxThread*);
+      static TM_FASTCALL bool begin();
+      static TM_FASTCALL void* read_ro(STM_READ_SIG(,));
+      static TM_FASTCALL void* read_rw(STM_READ_SIG(,));
+      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,));
+      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,));
+      static TM_FASTCALL void commit_ro();
+      static TM_FASTCALL void commit_rw();
 
-      static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
-      static bool irrevoc(TxThread*);
+      static stm::scope_t* rollback(STM_ROLLBACK_SIG(,));
+      static bool irrevoc();
       static void onSwitchTo();
   };
 
@@ -67,10 +72,10 @@ namespace {
    *  BitLazy begin:
    */
   bool
-  BitLazy::begin(TxThread* tx)
+  BitLazy::begin()
   {
-      tx->allocator.onTxBegin();
-      tx->alive = 1;
+      Self.allocator.onTxBegin();
+      Self.alive = 1;
       return false;
   }
 
@@ -78,19 +83,19 @@ namespace {
    *  BitLazy commit (read-only):
    */
   void
-  BitLazy::commit_ro(TxThread* tx)
+  BitLazy::commit_ro()
   {
       // were there remote aborts?
-      if (!tx->alive)
-          tx->tmabort(tx);
+      if (!Self.alive)
+          Self.tmabort();
       CFENCE;
 
       // release read locks
-      foreach (BitLockList, i, tx->r_bitlocks)
-          (*i)->readers.unsetbit(tx->id-1);
+      foreach (BitLockList, i, Self.r_bitlocks)
+          (*i)->readers.unsetbit(Self.id-1);
 
-      tx->r_bitlocks.reset();
-      OnReadOnlyCommit(tx);
+      Self.r_bitlocks.reset();
+      OnReadOnlyCommit();
   }
 
   /**
@@ -103,31 +108,31 @@ namespace {
    *    release locks, and clean up.
    */
   void
-  BitLazy::commit_rw(TxThread* tx)
+  BitLazy::commit_rw()
   {
       // try to lock every location in the write set
       rrec_t accumulator = {{0}};
       // acquire locks, accumulate victim readers
-      foreach (WriteSet, i, tx->writes) {
+      foreach (WriteSet, i, Self.writes) {
           // get bitlock, read its version#
           bitlock_t* bl = get_bitlock(i->addr);
           // abort if cannot acquire and haven't locked yet
           if (bl->owner == 0) {
-              if (!bcasptr(&bl->owner, (uintptr_t)0, tx->my_lock.all))
-                  tx->tmabort(tx);
+              if (!bcasptr(&bl->owner, (uintptr_t)0, Self.my_lock.all))
+                  Self.tmabort();
               // log lock
-              tx->w_bitlocks.insert(bl);
+              Self.w_bitlocks.insert(bl);
               // get readers
               accumulator |= bl->readers;
           }
-          else if (bl->owner != tx->my_lock.all) {
-              tx->tmabort(tx);
+          else if (bl->owner != Self.my_lock.all) {
+              Self.tmabort();
           }
       }
 
       // take me out of the accumulator
-      accumulator.bits[(tx->id-1)/(8*sizeof(uintptr_t))] &=
-          ~(1lu << ((tx->id-1) % (8*sizeof(uintptr_t))));
+      accumulator.bits[(Self.id-1)/(8*sizeof(uintptr_t))] &=
+          ~(1lu << ((Self.id-1) % (8*sizeof(uintptr_t))));
       // kill conflicting readers
       for (unsigned b = 0; b < rrec_t::BUCKETS; ++b) {
           if (accumulator.bits[b]) {
@@ -148,25 +153,25 @@ namespace {
 
       // were there remote aborts?
       CFENCE;
-      if (!tx->alive)
-          tx->tmabort(tx);
+      if (!Self.alive)
+          Self.tmabort();
       CFENCE;
 
       // we committed... replay redo log
-      tx->writes.writeback();
+      Self.writes.writeback();
       CFENCE;
 
       // release read locks, write locks
-      foreach (BitLockList, i, tx->w_bitlocks)
+      foreach (BitLockList, i, Self.w_bitlocks)
           (*i)->owner = 0;
-      foreach (BitLockList, i, tx->r_bitlocks)
-          (*i)->readers.unsetbit(tx->id-1);
+      foreach (BitLockList, i, Self.r_bitlocks)
+          (*i)->readers.unsetbit(Self.id-1);
 
       // remember that this was a commit
-      tx->r_bitlocks.reset();
-      tx->writes.reset();
-      tx->w_bitlocks.reset();
-      OnReadWriteCommit(tx, read_ro, write_ro, commit_ro);
+      Self.r_bitlocks.reset();
+      Self.writes.reset();
+      Self.w_bitlocks.reset();
+      OnReadWriteCommit( read_ro, write_ro, commit_ro);
   }
 
   /**
@@ -176,20 +181,20 @@ namespace {
    *    and checking for conflicting writers.
    */
   void*
-  BitLazy::read_ro(STM_READ_SIG(tx,addr,))
+  BitLazy::read_ro(STM_READ_SIG(addr,))
   {
       // first test if we've got a read bit
       bitlock_t* bl = get_bitlock(addr);
-      if (bl->readers.setif(tx->id-1))
-          tx->r_bitlocks.insert(bl);
+      if (bl->readers.setif(Self.id-1))
+          Self.r_bitlocks.insert(bl);
       // if there's a writer, it can't be me since I'm in-flight
       if (bl->owner)
-          tx->tmabort(tx);
+          Self.tmabort();
       // order the read before checking for remote aborts
       void* val = *addr;
       CFENCE;
-      if (!tx->alive)
-          tx->tmabort(tx);
+      if (!Self.alive)
+          Self.tmabort();
       return val;
   }
 
@@ -199,7 +204,7 @@ namespace {
    *    Same as above, but with a test if this tx has a pending write
    */
   void*
-  BitLazy::read_rw(STM_READ_SIG(tx,addr,mask))
+  BitLazy::read_rw(STM_READ_SIG(addr,mask))
   {
       // Used by REDO_RAW_CLEANUP so they have to be scoped out here. We assume
       // that the compiler will do a good job when byte-logging isn't enabled in
@@ -209,20 +214,20 @@ namespace {
 
       // first test if we've got a read bit
       bitlock_t* bl = get_bitlock(addr);
-      if (bl->readers.setif(tx->id-1))
-          tx->r_bitlocks.insert(bl);
+      if (bl->readers.setif(Self.id-1))
+          Self.r_bitlocks.insert(bl);
       // if so, we may be a writer (all writes are also reads!)
       else {
-          found = tx->writes.find(log);
+          found = Self.writes.find(log);
           REDO_RAW_CHECK(found, log, mask);
       }
       if (bl->owner)
-          tx->tmabort(tx);
+          Self.tmabort();
       void* val = *addr;
       REDO_RAW_CLEANUP(val, found, log, mask);
       CFENCE;
-      if (!tx->alive)
-          tx->tmabort(tx);
+      if (!Self.alive)
+          Self.tmabort();
       return val;
   }
 
@@ -232,67 +237,67 @@ namespace {
    *    Log the write, and then mark the location as if reading.
    */
   void
-  BitLazy::write_ro(STM_WRITE_SIG(tx,addr,val,mask))
+  BitLazy::write_ro(STM_WRITE_SIG(addr,val,mask))
   {
       // Record the new value in a redo log
-      tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
+      Self.writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
 
       // if we don't have a read bit, get one
       bitlock_t* bl = get_bitlock(addr);
-      if (bl->readers.setif(tx->id-1))
-          tx->r_bitlocks.insert(bl);
+      if (bl->readers.setif(Self.id-1))
+          Self.r_bitlocks.insert(bl);
       if (bl->owner)
-          tx->tmabort(tx);
-      OnFirstWrite(tx, read_rw, write_rw, commit_rw);
+          Self.tmabort();
+      OnFirstWrite( read_rw, write_rw, commit_rw);
   }
 
   /**
    *  BitLazy write (writing context)
    */
   void
-  BitLazy::write_rw(STM_WRITE_SIG(tx,addr,val,mask))
+  BitLazy::write_rw(STM_WRITE_SIG(addr,val,mask))
   {
       // Record the new value in a redo log
-      tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
+      Self.writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
 
       // if we don't have a read bit, get one
       bitlock_t* bl = get_bitlock(addr);
-      if (bl->readers.setif(tx->id-1))
-          tx->r_bitlocks.insert(bl);
+      if (bl->readers.setif(Self.id-1))
+          Self.r_bitlocks.insert(bl);
       if (bl->owner)
-          tx->tmabort(tx);
+          Self.tmabort();
   }
 
   /**
    *  BitLazy unwinder:
    */
   stm::scope_t*
-  BitLazy::rollback(STM_ROLLBACK_SIG(tx, except, len))
+  BitLazy::rollback(STM_ROLLBACK_SIG( except, len))
   {
-      PreRollback(tx);
+      PreRollback();
 
       // Perform writes to the exception object if there were any... taking the
       // branch overhead without concern because we're not worried about
       // rollback overheads.
-      STM_ROLLBACK(tx->writes, except, len);
+      STM_ROLLBACK(Self.writes, except, len);
 
       // release the locks
-      foreach (BitLockList, i, tx->w_bitlocks)
+      foreach (BitLockList, i, Self.w_bitlocks)
           (*i)->owner = 0;
-      foreach (BitLockList, i, tx->r_bitlocks)
-          (*i)->readers.unsetbit(tx->id-1);
+      foreach (BitLockList, i, Self.r_bitlocks)
+          (*i)->readers.unsetbit(Self.id-1);
 
-      tx->r_bitlocks.reset();
-      tx->writes.reset();
-      tx->w_bitlocks.reset();
+      Self.r_bitlocks.reset();
+      Self.writes.reset();
+      Self.w_bitlocks.reset();
 
-      return PostRollback(tx, read_ro, write_ro, commit_ro);
+      return PostRollback( read_ro, write_ro, commit_ro);
   }
 
   /**
    *  BitLazy in-flight irrevocability:
    */
-  bool BitLazy::irrevoc(TxThread*)
+  bool BitLazy::irrevoc()
   {
       return false;
   }

@@ -25,7 +25,13 @@ using stm::ByteLockList;
 using stm::bytelock_t;
 using stm::get_bytelock;
 using stm::WriteSetEntry;
-
+using stm::Self;
+using stm::OnFirstWrite;
+using stm::OnReadWriteCommit;
+using stm::OnReadOnlyCommit;
+using stm::PreRollback;
+using stm::PostRollback;
+using stm::exp_backoff;
 
 /**
  *  Declare the functions that we're going to implement, so that we can avoid
@@ -34,16 +40,16 @@ using stm::WriteSetEntry;
 namespace {
   struct ByteEagerRedo
   {
-      static TM_FASTCALL bool begin(TxThread*);
-      static TM_FASTCALL void* read_ro(STM_READ_SIG(,,));
-      static TM_FASTCALL void* read_rw(STM_READ_SIG(,,));
-      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void commit_ro(TxThread*);
-      static TM_FASTCALL void commit_rw(TxThread*);
+      static TM_FASTCALL bool begin();
+      static TM_FASTCALL void* read_ro(STM_READ_SIG(,));
+      static TM_FASTCALL void* read_rw(STM_READ_SIG(,));
+      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,));
+      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,));
+      static TM_FASTCALL void commit_ro();
+      static TM_FASTCALL void commit_rw();
 
-      static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
-      static bool irrevoc(TxThread*);
+      static stm::scope_t* rollback(STM_ROLLBACK_SIG(,));
+      static bool irrevoc();
       static void onSwitchTo();
   };
 
@@ -64,9 +70,9 @@ namespace {
    *  ByteEagerRedo begin:
    */
   bool
-  ByteEagerRedo::begin(TxThread* tx)
+  ByteEagerRedo::begin()
   {
-      tx->allocator.onTxBegin();
+      Self.allocator.onTxBegin();
       return false;
   }
 
@@ -74,68 +80,68 @@ namespace {
    *  ByteEagerRedo commit (read-only):
    */
   void
-  ByteEagerRedo::commit_ro(TxThread* tx)
+  ByteEagerRedo::commit_ro()
   {
       // read-only... release read locks
-      foreach (ByteLockList, i, tx->r_bytelocks)
-          (*i)->reader[tx->id-1] = 0;
+      foreach (ByteLockList, i, Self.r_bytelocks)
+          (*i)->reader[Self.id-1] = 0;
 
-      tx->r_bytelocks.reset();
-      OnReadOnlyCommit(tx);
+      Self.r_bytelocks.reset();
+      OnReadOnlyCommit();
   }
 
   /**
    *  ByteEagerRedo commit (writing context):
    */
   void
-  ByteEagerRedo::commit_rw(TxThread* tx)
+  ByteEagerRedo::commit_rw()
   {
       // replay redo log
-      tx->writes.writeback();
+      Self.writes.writeback();
       CFENCE;
 
       // release write locks, then read locks
-      foreach (ByteLockList, i, tx->w_bytelocks)
+      foreach (ByteLockList, i, Self.w_bytelocks)
           (*i)->owner = 0;
-      foreach (ByteLockList, i, tx->r_bytelocks)
-          (*i)->reader[tx->id-1] = 0;
+      foreach (ByteLockList, i, Self.r_bytelocks)
+          (*i)->reader[Self.id-1] = 0;
 
       // clean-up
-      tx->r_bytelocks.reset();
-      tx->w_bytelocks.reset();
-      tx->writes.reset();
-      OnReadWriteCommit(tx, read_ro, write_ro, commit_ro);
+      Self.r_bytelocks.reset();
+      Self.w_bytelocks.reset();
+      Self.writes.reset();
+      OnReadWriteCommit( read_ro, write_ro, commit_ro);
   }
 
   /**
    *  ByteEagerRedo read (read-only transaction)
    */
   void*
-  ByteEagerRedo::read_ro(STM_READ_SIG(tx,addr,))
+  ByteEagerRedo::read_ro(STM_READ_SIG(addr,))
   {
       uint32_t tries = 0;
       bytelock_t* lock = get_bytelock(addr);
 
       // do I have a read lock?
-      if (lock->reader[tx->id-1] == 1)
+      if (lock->reader[Self.id-1] == 1)
           return *addr;
 
       // log this location
-      tx->r_bytelocks.insert(lock);
+      Self.r_bytelocks.insert(lock);
 
       // now try to get a read lock
       while (true) {
           // mark my reader byte
-          lock->set_read_byte(tx->id-1);
+          lock->set_read_byte(Self.id-1);
           // if nobody has the write lock, we're done
           if (__builtin_expect(lock->owner == 0, true))
               return *addr;
 
           // drop read lock, wait (with timeout) for lock release
-          lock->reader[tx->id-1] = 0;
+          lock->reader[Self.id-1] = 0;
           while (lock->owner != 0) {
               if (++tries > READ_TIMEOUT)
-                  tx->tmabort(tx);
+                  Self.tmabort();
           }
       }
   }
@@ -144,16 +150,16 @@ namespace {
    *  ByteEagerRedo read (writing transaction)
    */
   void*
-  ByteEagerRedo::read_rw(STM_READ_SIG(tx,addr,mask))
+  ByteEagerRedo::read_rw(STM_READ_SIG(addr,mask))
   {
       uint32_t tries = 0;
       bytelock_t* lock = get_bytelock(addr);
 
       // do I have the write lock?
-      if (lock->owner == tx->id) {
+      if (lock->owner == Self.id) {
           // check the log
           WriteSetEntry log(STM_WRITE_SET_ENTRY(addr, NULL, mask));
-          bool found = tx->writes.find(log);
+          bool found = Self.writes.find(log);
           REDO_RAW_CHECK(found, log, mask);
 
           void* val = *addr;
@@ -162,25 +168,25 @@ namespace {
       }
 
       // do I have a read lock?
-      if (lock->reader[tx->id-1] == 1)
+      if (lock->reader[Self.id-1] == 1)
           return *addr;
 
       // log this location
-      tx->r_bytelocks.insert(lock);
+      Self.r_bytelocks.insert(lock);
 
       // now try to get a read lock
       while (true) {
           // mark my reader byte
-          lock->set_read_byte(tx->id-1);
+          lock->set_read_byte(Self.id-1);
           // if nobody has the write lock, we're done
           if (__builtin_expect(lock->owner == 0, true))
               return *addr;
 
           // drop read lock, wait (with timeout) for lock release
-          lock->reader[tx->id-1] = 0;
+          lock->reader[Self.id-1] = 0;
           while (lock->owner != 0) {
               if (++tries > READ_TIMEOUT)
-                  tx->tmabort(tx);
+                  Self.tmabort();
           }
       }
   }
@@ -189,19 +195,19 @@ namespace {
    *  ByteEagerRedo write (read-only context)
    */
   void
-  ByteEagerRedo::write_ro(STM_WRITE_SIG(tx,addr,val,mask))
+  ByteEagerRedo::write_ro(STM_WRITE_SIG(addr,val,mask))
   {
       uint32_t tries = 0;
       bytelock_t* lock = get_bytelock(addr);
 
       // get the write lock, with timeout
-      while (!bcas32(&(lock->owner), 0u, tx->id))
+      while (!bcas32(&(lock->owner), 0u, Self.id))
           if (++tries > ACQUIRE_TIMEOUT)
-              tx->tmabort(tx);
+              Self.tmabort();
 
       // log the lock, drop any read locks I have
-      tx->w_bytelocks.insert(lock);
-      lock->reader[tx->id-1] = 0;
+      Self.w_bytelocks.insert(lock);
+      lock->reader[Self.id-1] = 0;
 
       // wait (with timeout) for readers to drain out
       // (read 4 bytelocks at a time)
@@ -210,38 +216,38 @@ namespace {
           tries = 0;
           while (lock_alias[i] != 0)
               if (++tries > DRAIN_TIMEOUT)
-                  tx->tmabort(tx);
+                  Self.tmabort();
       }
 
       // record in redo log
-      tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
+      Self.writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
 
-      OnFirstWrite(tx, read_rw, write_rw, commit_rw);
+      OnFirstWrite( read_rw, write_rw, commit_rw);
   }
 
   /**
    *  ByteEagerRedo write (writing context)
    */
   void
-  ByteEagerRedo::write_rw(STM_WRITE_SIG(tx,addr,val,mask))
+  ByteEagerRedo::write_rw(STM_WRITE_SIG(addr,val,mask))
   {
       uint32_t tries = 0;
       bytelock_t* lock = get_bytelock(addr);
 
       // If I have the write lock, record in redo log, return
-      if (lock->owner == tx->id) {
-          tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
+      if (lock->owner == Self.id) {
+          Self.writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
           return;
       }
 
       // get the write lock, with timeout
-      while (!bcas32(&(lock->owner), 0u, tx->id))
+      while (!bcas32(&(lock->owner), 0u, Self.id))
           if (++tries > ACQUIRE_TIMEOUT)
-              tx->tmabort(tx);
+              Self.tmabort();
 
       // log the lock, drop any read locks I have
-      tx->w_bytelocks.insert(lock);
-      lock->reader[tx->id-1] = 0;
+      Self.w_bytelocks.insert(lock);
+      lock->reader[Self.id-1] = 0;
 
       // wait (with timeout) for readers to drain out
       // (read 4 bytelocks at a time)
@@ -250,48 +256,48 @@ namespace {
           tries = 0;
           while (lock_alias[i] != 0)
               if (++tries > DRAIN_TIMEOUT)
-                  tx->tmabort(tx);
+                  Self.tmabort();
       }
 
       // record in redo log
-      tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
+      Self.writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
   }
 
   /**
    *  ByteEagerRedo unwinder:
    */
   stm::scope_t*
-  ByteEagerRedo::rollback(STM_ROLLBACK_SIG(tx, except, len))
+  ByteEagerRedo::rollback(STM_ROLLBACK_SIG( except, len))
   {
-      PreRollback(tx);
+      PreRollback();
 
       // Perform writes to the exception object if there were any... taking the
       // branch overhead without concern because we're not worried about
       // rollback overheads.
-      STM_ROLLBACK(tx->writes, except, len);
+      STM_ROLLBACK(Self.writes, except, len);
 
       // release write locks, then read locks
-      foreach (ByteLockList, i, tx->w_bytelocks)
+      foreach (ByteLockList, i, Self.w_bytelocks)
           (*i)->owner = 0;
-      foreach (ByteLockList, i, tx->r_bytelocks)
-          (*i)->reader[tx->id-1] = 0;
+      foreach (ByteLockList, i, Self.r_bytelocks)
+          (*i)->reader[Self.id-1] = 0;
 
       // reset lists
-      tx->r_bytelocks.reset();
-      tx->w_bytelocks.reset();
-      tx->writes.reset();
+      Self.r_bytelocks.reset();
+      Self.w_bytelocks.reset();
+      Self.writes.reset();
 
       // randomized exponential backoff
-      exp_backoff(tx);
+      exp_backoff();
 
-      return PostRollback(tx, read_ro, write_ro, commit_ro);
+      return PostRollback( read_ro, write_ro, commit_ro);
   }
 
   /**
    *  ByteEagerRedo in-flight irrevocability:
    */
   bool
-  ByteEagerRedo::irrevoc(TxThread*)
+  ByteEagerRedo::irrevoc()
   {
       return false;
   }

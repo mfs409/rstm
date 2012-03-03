@@ -39,7 +39,13 @@ using stm::bytelock_t;
 using stm::get_bytelock;
 using stm::threads;
 using stm::UndoLogEntry;
-
+using stm::Self;
+using stm::OnFirstWrite;
+using stm::OnReadWriteCommit;
+using stm::OnReadOnlyCommit;
+using stm::PreRollback;
+using stm::PostRollback;
+using stm::exp_backoff;
 
 /**
  *  Supporting #defines for tracking thread liveness/deadness
@@ -57,16 +63,16 @@ namespace {
   {
       static void Initialize(int id, const char* name);
 
-      static TM_FASTCALL bool begin(TxThread*);
-      static TM_FASTCALL void* read_ro(STM_READ_SIG(,,));
-      static TM_FASTCALL void* read_rw(STM_READ_SIG(,,));
-      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void commit_ro(TxThread*);
-      static TM_FASTCALL void commit_rw(TxThread*);
+      static TM_FASTCALL bool begin();
+      static TM_FASTCALL void* read_ro(STM_READ_SIG(,));
+      static TM_FASTCALL void* read_rw(STM_READ_SIG(,));
+      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,));
+      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,));
+      static TM_FASTCALL void commit_ro();
+      static TM_FASTCALL void commit_rw();
 
-      static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
-      static bool irrevoc(TxThread*);
+      static stm::scope_t* rollback(STM_ROLLBACK_SIG(,));
+      static bool irrevoc();
       static void onSwitchTo();
   };
 
@@ -96,14 +102,14 @@ namespace {
    */
   template <class CM>
   bool
-  ByEAU_Generic<CM>::begin(TxThread* tx)
+  ByEAU_Generic<CM>::begin()
   {
       // mark self alive
-      tx->alive = TX_ACTIVE;
+      Self.alive = TX_ACTIVE;
       // notify the CM
-      CM::onBegin(tx);
+      CM::onBegin();
       // NB: allocator call at end since CM may block
-      tx->allocator.onTxBegin();
+      Self.allocator.onTxBegin();
       return false;
   }
 
@@ -112,18 +118,18 @@ namespace {
    */
   template <class CM>
   void
-  ByEAU_Generic<CM>::commit_ro(TxThread* tx)
+  ByEAU_Generic<CM>::commit_ro()
   {
       // read-only... release read locks
-      foreach (ByteLockList, i, tx->r_bytelocks)
-          (*i)->reader[tx->id-1] = 0;
+      foreach (ByteLockList, i, Self.r_bytelocks)
+          (*i)->reader[Self.id-1] = 0;
 
       // notify CM
-      CM::onCommit(tx);
+      CM::onCommit();
 
       // reset lists
-      tx->r_bytelocks.reset();
-      OnReadOnlyCommit(tx);
+      Self.r_bytelocks.reset();
+      OnReadOnlyCommit();
   }
 
   /**
@@ -134,23 +140,23 @@ namespace {
    */
   template <class CM>
   void
-  ByEAU_Generic<CM>::commit_rw(TxThread* tx)
+  ByEAU_Generic<CM>::commit_rw()
   {
       // release write locks, then read locks
-      foreach (ByteLockList, i, tx->w_bytelocks)
+      foreach (ByteLockList, i, Self.w_bytelocks)
           (*i)->owner = 0;
-      foreach (ByteLockList, i, tx->r_bytelocks)
-          (*i)->reader[tx->id-1] = 0;
+      foreach (ByteLockList, i, Self.r_bytelocks)
+          (*i)->reader[Self.id-1] = 0;
 
       // notify CM
-      CM::onCommit(tx);
+      CM::onCommit();
 
       // clean-up
-      tx->r_bytelocks.reset();
-      tx->w_bytelocks.reset();
-      tx->undo_log.reset();
+      Self.r_bytelocks.reset();
+      Self.w_bytelocks.reset();
+      Self.undo_log.reset();
 
-      OnReadWriteCommit(tx, read_ro, write_ro, commit_ro);
+      OnReadWriteCommit( read_ro, write_ro, commit_ro);
   }
 
   /**
@@ -158,29 +164,29 @@ namespace {
    */
   template <class CM>
   void*
-  ByEAU_Generic<CM>::read_ro(STM_READ_SIG(tx,addr,))
+  ByEAU_Generic<CM>::read_ro(STM_READ_SIG(addr,))
   {
       bytelock_t* lock = get_bytelock(addr);
 
       // If I don't have a read lock, get one
-      if (lock->reader[tx->id-1] == 0) {
+      if (lock->reader[Self.id-1] == 0) {
           // first time read, log this location
-          tx->r_bytelocks.insert(lock);
+          Self.r_bytelocks.insert(lock);
           // mark my lock byte
-          lock->set_read_byte(tx->id-1);
+          lock->set_read_byte(Self.id-1);
       }
 
       // abort the owner and wait until it cleans up
       while (uint32_t owner = lock->owner) {
           // only abort owner if CM says it's ok
-          if (CM::mayKill(tx, owner - 1))
+          if (CM::mayKill( owner - 1))
               threads[owner-1]->alive = TX_ABORTED;
           else
-              tx->tmabort(tx);
+              Self.tmabort();
           // NB: must have liveness check in the spin, since we may have read
           //     locks
-          if (tx->alive == TX_ABORTED)
-              tx->tmabort(tx);
+          if (Self.alive == TX_ABORTED)
+              Self.tmabort();
       }
 
       // do the read
@@ -189,8 +195,8 @@ namespace {
       CFENCE;
 
       // check for remote abort
-      if (tx->alive == TX_ABORTED)
-          tx->tmabort(tx);
+      if (Self.alive == TX_ABORTED)
+          Self.tmabort();
       return result;
   }
 
@@ -199,29 +205,29 @@ namespace {
    */
   template <class CM>
   void*
-  ByEAU_Generic<CM>::read_rw(STM_READ_SIG(tx,addr,))
+  ByEAU_Generic<CM>::read_rw(STM_READ_SIG(addr,))
   {
       bytelock_t* lock = get_bytelock(addr);
 
       // skip instrumentation if I am the writer
-      if (lock->owner != tx->id) {
+      if (lock->owner != Self.id) {
           // make sure I have a read lock
-          if (lock->reader[tx->id-1] == 0) {
+          if (lock->reader[Self.id-1] == 0) {
               // first time read, log this location
-              tx->r_bytelocks.insert(lock);
+              Self.r_bytelocks.insert(lock);
               // mark my lock byte
-              lock->set_read_byte(tx->id-1);
+              lock->set_read_byte(Self.id-1);
           }
 
           // abort the owner and wait until it cleans up
           while (uint32_t owner = lock->owner) {
-              if (CM::mayKill(tx, owner - 1))
+              if (CM::mayKill( owner - 1))
                   threads[owner-1]->alive = TX_ABORTED;
               else
-                  tx->tmabort(tx);
+                  Self.tmabort();
               // NB: again, need liveness check
-              if (tx->alive == TX_ABORTED)
-                  tx->tmabort(tx);
+              if (Self.alive == TX_ABORTED)
+                  Self.tmabort();
           }
       }
 
@@ -231,8 +237,8 @@ namespace {
       CFENCE;
 
       // check for remote abort
-      if (tx->alive == TX_ABORTED)
-          tx->tmabort(tx);
+      if (Self.alive == TX_ABORTED)
+          Self.tmabort();
       return result;
   }
 
@@ -241,7 +247,7 @@ namespace {
    */
   template <class CM>
   void
-  ByEAU_Generic<CM>::write_ro(STM_WRITE_SIG(tx,addr,val,mask))
+  ByEAU_Generic<CM>::write_ro(STM_WRITE_SIG(addr,val,mask))
   {
       bytelock_t* lock = get_bytelock(addr);
 
@@ -250,41 +256,41 @@ namespace {
           // abort the owner if there is one
           if (uint32_t owner = lock->owner)
               // must get permission from CM, else abort self to prevent deadlock
-              if (CM::mayKill(tx, owner - 1))
+              if (CM::mayKill( owner - 1))
                   threads[owner-1]->alive = TX_ABORTED;
               else
-                  tx->tmabort(tx);
+                  Self.tmabort();
           // try to get ownership
-          else if (bcas32(&(lock->owner), 0u, tx->id))
+          else if (bcas32(&(lock->owner), 0u, Self.id))
               break;
           // liveness check
-          if (tx->alive == TX_ABORTED)
-              tx->tmabort(tx);
+          if (Self.alive == TX_ABORTED)
+              Self.tmabort();
       }
 
       // log the lock, drop any read locks I have
-      tx->w_bytelocks.insert(lock);
-      lock->reader[tx->id-1] = 0;
+      Self.w_bytelocks.insert(lock);
+      lock->reader[Self.id-1] = 0;
 
       // abort active readers
       for (int i = 0; i < 60; ++i)
           if (lock->reader[i] != 0) {
               // again, only abort readers with CM permission, else abort self
-              if (CM::mayKill(tx, i))
+              if (CM::mayKill( i))
                   threads[i]->alive = TX_ABORTED;
               else
-                  tx->tmabort(tx);
+                  Self.tmabort();
           }
 
       // add to undo log, do in-place write
-      tx->undo_log.insert(UndoLogEntry(STM_UNDO_LOG_ENTRY(addr, *addr, mask)));
+      Self.undo_log.insert(UndoLogEntry(STM_UNDO_LOG_ENTRY(addr, *addr, mask)));
       STM_DO_MASKED_WRITE(addr, val, mask);
 
       // check for remote abort
-      if (tx->alive == TX_ABORTED)
-          tx->tmabort(tx);
+      if (Self.alive == TX_ABORTED)
+          Self.tmabort();
 
-      OnFirstWrite(tx, read_rw, write_rw, commit_rw);
+      OnFirstWrite( read_rw, write_rw, commit_rw);
   }
 
   /**
@@ -292,50 +298,50 @@ namespace {
    */
   template <class CM>
   void
-  ByEAU_Generic<CM>::write_rw(STM_WRITE_SIG(tx,addr,val,mask))
+  ByEAU_Generic<CM>::write_rw(STM_WRITE_SIG(addr,val,mask))
   {
       bytelock_t* lock = get_bytelock(addr);
 
       // skip all this if I have the lock
-      if (lock->owner != tx->id) {
+      if (lock->owner != Self.id) {
           // abort current owner, wait for release, then acquire
           while (true) {
               // abort the owner if there is one
               if (uint32_t owner = lock->owner)
                   // need CM permission
-                  if (CM::mayKill(tx, owner-1))
+                  if (CM::mayKill( owner-1))
                       threads[owner-1]->alive = TX_ABORTED;
                   else
-                      tx->tmabort(tx);
+                      Self.tmabort();
               // try to get ownership
-              else if (bcas32(&(lock->owner), 0u, tx->id))
+              else if (bcas32(&(lock->owner), 0u, Self.id))
                   break;
               // liveness check
-              if (tx->alive == TX_ABORTED)
-                  tx->tmabort(tx);
+              if (Self.alive == TX_ABORTED)
+                  Self.tmabort();
           }
           // log the lock, drop any read locks I have
-          tx->w_bytelocks.insert(lock);
-          lock->reader[tx->id-1] = 0;
+          Self.w_bytelocks.insert(lock);
+          lock->reader[Self.id-1] = 0;
 
           // abort active readers
           for (int i = 0; i < 60; ++i)
               if (lock->reader[i] != 0) {
                   // get permission to abort reader
-                  if (CM::mayKill(tx, i))
+                  if (CM::mayKill( i))
                       threads[i]->alive = TX_ABORTED;
                   else
-                      tx->tmabort(tx);
+                      Self.tmabort();
               }
       }
 
       // add to undo log, do in-place write
-      tx->undo_log.insert(UndoLogEntry(STM_UNDO_LOG_ENTRY(addr, *addr, mask)));
+      Self.undo_log.insert(UndoLogEntry(STM_UNDO_LOG_ENTRY(addr, *addr, mask)));
       STM_DO_MASKED_WRITE(addr, val, mask);
 
       // check for remote abort
-      if (tx->alive == TX_ABORTED)
-          tx->tmabort(tx);
+      if (Self.alive == TX_ABORTED)
+          Self.tmabort();
   }
 
   /**
@@ -346,28 +352,28 @@ namespace {
    */
   template <class CM>
   stm::scope_t*
-  ByEAU_Generic<CM>::rollback(STM_ROLLBACK_SIG(tx, except, len))
+  ByEAU_Generic<CM>::rollback(STM_ROLLBACK_SIG( except, len))
   {
-      PreRollback(tx);
+      PreRollback();
 
       // Undo the writes, while at the same time watching out for the exception
       // object.
-      STM_UNDO(tx->undo_log, except, len);
+      STM_UNDO(Self.undo_log, except, len);
 
       // release write locks, then read locks
-      foreach (ByteLockList, j, tx->w_bytelocks)
+      foreach (ByteLockList, j, Self.w_bytelocks)
           (*j)->owner = 0;
-      foreach (ByteLockList, j, tx->r_bytelocks)
-          (*j)->reader[tx->id-1] = 0;
+      foreach (ByteLockList, j, Self.r_bytelocks)
+          (*j)->reader[Self.id-1] = 0;
 
       // reset lists
-      tx->r_bytelocks.reset();
-      tx->w_bytelocks.reset();
-      tx->undo_log.reset();
+      Self.r_bytelocks.reset();
+      Self.w_bytelocks.reset();
+      Self.undo_log.reset();
 
-      CM::onAbort(tx);
+      CM::onAbort();
 
-      return PostRollback(tx, read_ro, write_ro, commit_ro);
+      return PostRollback( read_ro, write_ro, commit_ro);
   }
 
   /**
@@ -375,7 +381,7 @@ namespace {
    */
   template <class CM>
   bool
-  ByEAU_Generic<CM>::irrevoc(TxThread*)
+  ByEAU_Generic<CM>::irrevoc()
   {
       return false;
   }
