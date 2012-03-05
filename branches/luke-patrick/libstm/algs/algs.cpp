@@ -17,7 +17,9 @@
  *  that that can be adapted into an otherwise sandboxed setting.
  */
 static bool
-opaque_validate_handler(stm::TxThread* tx) {
+opaque_validate_handler(stm::TxThread*) {
+    printf("validate\n");
+    __builtin_exit(-1);
     return true;
 }
 

@@ -112,3 +112,5 @@ if (CMAKE_USE_PTHREADS_INIT)
 else ()
   message (STATUS "Pthreads not found, will not build pthread apps.")
 endif ()
+
+configure_file (libitm.mk.cmake libitm.mk @ONLY)
