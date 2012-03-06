@@ -11,10 +11,14 @@
 /**
  *  CohortsLazy Implementation
  *
- *  Similiar to Cohorts, except that if I'm the last one in the cohort, I
- *  go to turbo mode, do in place read and write, and do turbo commit.
+ *  CohortsLazy has 4 stages. 1) Nobody is running. If anyone starts,
+ *  goes to 2) Everybody is running. If anyone is ready to commit,
+ *  goes to 3) Every rw tx gets an order, from now on, no one is
+ *  allowed to start a tx anymore. When everyone in this cohort is
+ *  ready to commit, goes to stage 4)Commit phase. Everyone commits
+ *  in an order that given in stage 3. When the last one finishes
+ *  its commit, it goes to stage 1. Now tx is allowed to start again.
  */
-
 #include "../profiling.hpp"
 #include "algs.hpp"
 #include "RedoRAWUtils.hpp"
@@ -24,8 +28,13 @@
 #define ADD __sync_add_and_fetch
 #define SUB __sync_sub_and_fetch
 
+#define COHORTS_COMMITTED 0
+#define COHORTS_STARTED   1
+#define COHORTS_CPENDING  2
+
 using stm::TxThread;
 using stm::threads;
+using stm::threadcount;
 using stm::last_complete;
 using stm::timestamp;
 using stm::timestamp_max;
@@ -35,13 +44,8 @@ using stm::UNRECOVERABLE;
 using stm::WriteSetEntry;
 using stm::orec_t;
 using stm::get_orec;
+using stm::gatekeeper;
 
-using stm::started;
-using stm::cpending;
-using stm::committed;
-using stm::last_order;
-
-volatile uint32_t inplace = 0;
 /**
  *  Declare the functions that we're going to implement, so that we can avoid
  *  circular dependencies.
@@ -51,18 +55,15 @@ namespace {
       static TM_FASTCALL bool begin(TxThread*);
       static TM_FASTCALL void* read_ro(STM_READ_SIG(,,));
       static TM_FASTCALL void* read_rw(STM_READ_SIG(,,));
-      static TM_FASTCALL void* read_turbo(STM_READ_SIG(,,));
       static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,,));
       static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void write_turbo(STM_WRITE_SIG(,,,));
       static TM_FASTCALL void commit_ro(TxThread* tx);
       static TM_FASTCALL void commit_rw(TxThread* tx);
-      static TM_FASTCALL void commit_turbo(TxThread* tx);
 
       static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
       static void onSwitchTo();
-      static NOINLINE void validate(TxThread* tx);
+      static NOINLINE bool validate(TxThread* tx);
   };
 
   /**
@@ -76,20 +77,22 @@ namespace {
   CohortsLazy::begin(TxThread* tx)
   {
     S1:
-      // wait until everyone is committed
-      while (cpending != committed);
+      // wait if I'm blocked
+      while(gatekeeper == 1);
 
-      // before tx begins, increase total number of tx
-      ADD(&started, 1);
+      // set started flag
+      tx->status = COHORTS_STARTED;
+      WBR;
 
-      // [NB] we must double check no one is ready to commit yet
-      // and no one entered in place write phase(turbo mode)
-      if (cpending > committed || inplace == 1){
-          SUB(&started, 1);
+      // double check no one is ready to commit
+      if (gatekeeper == 1){
+          tx->status = COHORTS_COMMITTED;
           goto S1;
       }
 
+      //begin
       tx->allocator.onTxBegin();
+
       // get time of last finished txn
       tx->ts_cache = last_complete.val;
 
@@ -102,8 +105,8 @@ namespace {
   void
   CohortsLazy::commit_ro(TxThread* tx)
   {
-      // decrease total number of tx started
-      SUB(&started, 1);
+      // mark end
+      tx->status = COHORTS_COMMITTED;
 
       // clean up
       tx->r_orecs.reset();
@@ -111,90 +114,70 @@ namespace {
   }
 
   /**
-   *  CohortsLazy commit (in place write commit): no validation, no write back
-   *  no other thread touches cpending
-   */
-  void
-  CohortsLazy::commit_turbo(TxThread* tx)
-  {
-      // increase # of tx waiting to commit, and use it as the order
-      cpending ++;
-
-      // clean up
-      tx->r_orecs.reset();
-      OnReadWriteCommit(tx, read_ro, write_ro, commit_ro);
-
-      // wait for my turn, in this case, cpending is my order
-      while (last_complete.val != (uintptr_t)(cpending - 1));
-
-      // reset in place write flag
-      inplace = 0;
-
-      // mark self as done
-      last_complete.val = cpending;
-
-      // increase # of committed
-      committed ++;
-      WBR;
-  }
-
-  /**
    *  CohortsLazy commit (writing context):
    *
-   *  RW commit is operated in turns. Transactions will be allowed to commit
-   *  in an order which is given at the beginning of commit.
    */
   void
   CohortsLazy::commit_rw(TxThread* tx)
   {
-      // increase # of tx waiting to commit, and use it as the order
-      tx->order = ADD(&cpending ,1);
+      // mark a global flag
+      gatekeeper = 1;
+
+      // mark self pending to commit
+      tx->status = COHORTS_CPENDING;
+
+      // increment num of tx ready to commit, and use it as the order
+      tx->order = 1 + faiptr(&timestamp.val);
+
+      // wait until all tx are in commit
+      for (uint32_t i = 0; i < threadcount.val; ++i)
+          while (threads[i]->status == COHORTS_STARTED);
 
       // Wait for my turn
       while (last_complete.val != (uintptr_t)(tx->order - 1));
 
-      // Wait until all tx are ready to commit
-      while (cpending < started);
+      //[TODO] if I'm the first one, no validation, else validate
+      bool val = validate(tx);
 
-      // If in place write occurred, all tx validate reads
-      // Otherwise, only first one skips validation
-      if (inplace == 1 || tx->order != last_order)
-          validate(tx);
-
-      foreach (WriteSet, i, tx->writes) {
-          // get orec
-          orec_t* o = get_orec(i->addr);
+      if (val)
           // mark orec
-          o->v.all = tx->order;
-          // do write back
-          *i->addr = i->val;
-      }
-
-      // increase total number of committed tx
-      // [NB] Using atomic instruction might be faster
-      // ADD(&committed, 1);
-      committed ++;
-      WBR;
-
-      // update last_order
-      last_order = started + 1;
+          foreach (WriteSet, i, tx->writes) {
+              // get orec
+              orec_t* o = get_orec(i->addr);
+              // mark orec
+              o->v.all = tx->order;
+              CFENCE;
+              *i->addr = i->val;
+          }
 
       // mark self as done
       last_complete.val = tx->order;
+      CFENCE;
 
+      // mark self status
+      tx->status = COHORTS_COMMITTED;
+      WBR;
+
+      // Am I the last one?
+      bool lastone = true;
+      for (uint32_t i = 0; i < threadcount.val; ++i)
+          if (threads[i]->status == COHORTS_CPENDING)
+              lastone = false;
+
+      // If I'm the last one, release blocked flag
+      if (lastone) {
+          gatekeeper = 0;
+          WBR;
+      }
+      // If validation failed
+      if (!val) {
+          tx->tmabort(tx);
+          return;
+      }
       // commit all frees, reset all lists
       tx->r_orecs.reset();
       tx->writes.reset();
       OnReadWriteCommit(tx, read_ro, write_ro, commit_ro);
-  }
-
-  /**
-   *  CohortsLazy read_turbo
-   */
-  void*
-  CohortsLazy::read_turbo(STM_READ_SIG(tx,addr,))
-  {
-      return *addr;
   }
 
   /**
@@ -233,39 +216,9 @@ namespace {
   void
   CohortsLazy::write_ro(STM_WRITE_SIG(tx,addr,val,mask))
   {
-      // If everyone else is ready to commit, do in place write
-      if (cpending + 1 == started) {
-          // set up flag indicating in place write starts
-          // [NB]When testing on MacOS, better use CAS
-          inplace = 1;
-          WBR;
-          // double check is necessary
-          if (cpending + 1 == started) {
-              // mark orec
-              orec_t* o = get_orec(addr);
-              o->v.all = started;
-              // in place write
-              *addr = val;
-              // go turbo mode
-              OnFirstWrite(tx, read_turbo, write_turbo, commit_turbo);
-              return;
-          }
-          // reset flag
-          inplace = 0;
-      }
+      // record the new value in a redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
       OnFirstWrite(tx, read_rw, write_rw, commit_rw);
-  }
-
-  /**
-   *  CohortsLazy write (in place write)
-   */
-  void
-  CohortsLazy::write_turbo(STM_WRITE_SIG(tx,addr,val,mask))
-  {
-      orec_t* o = get_orec(addr);
-      o->v.all = started; // mark orec
-      *addr = val; // in place write
   }
 
   /**
@@ -311,24 +264,17 @@ namespace {
   /**
    *  CohortsLazy validation for commit: check that all reads are valid
    */
-  void
+  bool
   CohortsLazy::validate(TxThread* tx)
   {
       foreach (OrecList, i, tx->r_orecs) {
           // read this orec
           uintptr_t ivt = (*i)->v.all;
-          // If orec changed , abort
-          if (ivt > tx->ts_cache) {
-              // increase total number of committed tx
-              // ADD(&committed, 1);
-              committed ++;
-              WBR;
-              // set self as completed
-              last_complete.val = tx->order;
-              // abort
-              tx->tmabort(tx);
-          }
+          // If orec changed, abort
+          if (ivt > tx->ts_cache)
+              return false;
       }
+      return true;
   }
 
   /**
@@ -343,7 +289,11 @@ namespace {
   CohortsLazy::onSwitchTo()
   {
       timestamp.val = MAXIMUM(timestamp.val, timestamp_max.val);
-      last_complete.val = 0;
+      last_complete.val = timestamp.val;
+      // when switching algs, mark all tx unblocking and not started
+      for (uint32_t i = 0; i < threadcount.val; ++i) {
+          threads[i]->status = COHORTS_COMMITTED;
+      }
   }
 }
 

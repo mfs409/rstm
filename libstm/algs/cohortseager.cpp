@@ -9,15 +9,10 @@
  */
 
 /**
- *  Cohorts Implementation
+ *  CohortsEager Implementation
  *
- *  Cohorts has 4 stages. 1) Nobody is running. If anyone starts,
- *  goes to 2) Everybody is running. If anyone is ready to commit,
- *  goes to 3) Every rw tx gets an order, from now on, no one is
- *  allowed to start a tx anymore. When everyone in this cohort is
- *  ready to commit, goes to stage 4)Commit phase. Everyone commits
- *  in an order that given in stage 3. When the last one finishes
- *  its commit, it goes to stage 1. Now tx is allowed to start again.
+ *  Similiar to Cohorts, except that if I'm the last one in the cohort, I
+ *  go to turbo mode, do in place read and write, and do turbo commit.
  */
 
 #include "../profiling.hpp"
@@ -45,19 +40,23 @@ using stm::cpending;
 using stm::committed;
 using stm::last_order;
 
+volatile uint32_t inplace = 0;
 /**
  *  Declare the functions that we're going to implement, so that we can avoid
  *  circular dependencies.
  */
 namespace {
-  struct Cohorts {
+  struct CohortsEager {
       static TM_FASTCALL bool begin(TxThread*);
       static TM_FASTCALL void* read_ro(STM_READ_SIG(,,));
       static TM_FASTCALL void* read_rw(STM_READ_SIG(,,));
+      static TM_FASTCALL void* read_turbo(STM_READ_SIG(,,));
       static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,,));
       static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,,));
+      static TM_FASTCALL void write_turbo(STM_WRITE_SIG(,,,));
       static TM_FASTCALL void commit_ro(TxThread* tx);
       static TM_FASTCALL void commit_rw(TxThread* tx);
+      static TM_FASTCALL void commit_turbo(TxThread* tx);
 
       static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
@@ -66,14 +65,14 @@ namespace {
   };
 
   /**
-   *  Cohorts begin:
-   *  Cohorts has a strict policy for transactions to begin. At first,
+   *  CohortsEager begin:
+   *  CohortsEager has a strict policy for transactions to begin. At first,
    *  every tx can start, until one of the tx is ready to commit. Then no
    *  tx is allowed to start until all the transactions finishes their
    *  commits.
    */
   bool
-  Cohorts::begin(TxThread* tx)
+  CohortsEager::begin(TxThread* tx)
   {
     S1:
       // wait until everyone is committed
@@ -82,14 +81,14 @@ namespace {
       // before tx begins, increase total number of tx
       ADD(&started, 1);
 
-      // [NB] we must double check no one is ready to commit yet!
-      if (cpending > committed) {
+      // [NB] we must double check no one is ready to commit yet
+      // and no one entered in place write phase(turbo mode)
+      if (cpending > committed || inplace == 1){
           SUB(&started, 1);
           goto S1;
       }
 
       tx->allocator.onTxBegin();
-
       // get time of last finished txn
       tx->ts_cache = last_complete.val;
 
@@ -97,10 +96,10 @@ namespace {
   }
 
   /**
-   *  Cohorts commit (read-only):
+   *  CohortsEager commit (read-only):
    */
   void
-  Cohorts::commit_ro(TxThread* tx)
+  CohortsEager::commit_ro(TxThread* tx)
   {
       // decrease total number of tx started
       SUB(&started, 1);
@@ -111,50 +110,76 @@ namespace {
   }
 
   /**
-   *  Cohorts commit (writing context):
+   *  CohortsEager commit (in place write commit): no validation, no write back
+   *  no other thread touches cpending
+   */
+  void
+  CohortsEager::commit_turbo(TxThread* tx)
+  {
+      // increase # of tx waiting to commit, and use it as the order
+      cpending ++;
+
+      // clean up
+      tx->r_orecs.reset();
+      OnReadWriteCommit(tx, read_ro, write_ro, commit_ro);
+
+      // wait for my turn, in this case, cpending is my order
+      while (last_complete.val != (uintptr_t)(cpending - 1));
+
+      // reset in place write flag
+      inplace = 0;
+
+      // mark self as done
+      last_complete.val = cpending;
+
+      // increase # of committed
+      committed ++;
+      WBR;
+  }
+
+  /**
+   *  CohortsEager commit (writing context):
    *
    *  RW commit is operated in turns. Transactions will be allowed to commit
    *  in an order which is given at the beginning of commit.
    */
   void
-  Cohorts::commit_rw(TxThread* tx)
+  CohortsEager::commit_rw(TxThread* tx)
   {
-      // increment num of tx ready to commit, and use it as the order
-      tx->order = ADD(&cpending, 1);
+      // increase # of tx waiting to commit, and use it as the order
+      tx->order = ADD(&cpending ,1);
 
       // Wait for my turn
       while (last_complete.val != (uintptr_t)(tx->order - 1));
 
-      // If I'm not the first one in a cohort to commit, validate read
-      if (tx->order != last_order)
+      // Wait until all tx are ready to commit
+      while (cpending < started);
+
+      // If in place write occurred, all tx validate reads
+      // Otherwise, only first one skips validation
+      if (inplace == 1 || tx->order != last_order)
           validate(tx);
 
-      // mark orec
       foreach (WriteSet, i, tx->writes) {
           // get orec
           orec_t* o = get_orec(i->addr);
           // mark orec
           o->v.all = tx->order;
+          // do write back
+          *i->addr = i->val;
       }
 
-      // Wait until all tx are ready to commit
-      while (cpending < started);
-
-      // do write back
-      foreach (WriteSet, i, tx->writes)
-          *i->addr = i->val;
+      // increase total number of committed tx
+      // [NB] Using atomic instruction might be faster
+      // ADD(&committed, 1);
+      committed ++;
+      WBR;
 
       // update last_order
       last_order = started + 1;
 
       // mark self as done
       last_complete.val = tx->order;
-
-      // increase total number of committed tx
-      // [NB] atomic increment is faster here
-      ADD(&committed, 1);
-      // committed++;
-      // WBR;
 
       // commit all frees, reset all lists
       tx->r_orecs.reset();
@@ -163,10 +188,19 @@ namespace {
   }
 
   /**
-   *  Cohorts read (read-only transaction)
+   *  CohortsEager read_turbo
    */
   void*
-  Cohorts::read_ro(STM_READ_SIG(tx,addr,))
+  CohortsEager::read_turbo(STM_READ_SIG(tx,addr,))
+  {
+      return *addr;
+  }
+
+  /**
+   *  CohortsEager read (read-only transaction)
+   */
+  void*
+  CohortsEager::read_ro(STM_READ_SIG(tx,addr,))
   {
       // log orec
       tx->r_orecs.insert(get_orec(addr));
@@ -174,10 +208,10 @@ namespace {
   }
 
   /**
-   *  Cohorts read (writing transaction)
+   *  CohortsEager read (writing transaction)
    */
   void*
-  Cohorts::read_rw(STM_READ_SIG(tx,addr,mask))
+  CohortsEager::read_rw(STM_READ_SIG(tx,addr,mask))
   {
       // check the log for a RAW hazard, we expect to miss
       WriteSetEntry log(STM_WRITE_SET_ENTRY(addr, NULL, mask));
@@ -193,31 +227,61 @@ namespace {
   }
 
   /**
-   *  Cohorts write (read-only context): for first write
+   *  CohortsEager write (read-only context): for first write
    */
   void
-  Cohorts::write_ro(STM_WRITE_SIG(tx,addr,val,mask))
+  CohortsEager::write_ro(STM_WRITE_SIG(tx,addr,val,mask))
   {
-      // record the new value in a redo log
+      // If everyone else is ready to commit, do in place write
+      if (cpending + 1 == started) {
+          // set up flag indicating in place write starts
+          // [NB]When testing on MacOS, better use CAS
+          inplace = 1;
+          WBR;
+          // double check is necessary
+          if (cpending + 1 == started) {
+              // mark orec
+              orec_t* o = get_orec(addr);
+              o->v.all = started;
+              // in place write
+              *addr = val;
+              // go turbo mode
+              OnFirstWrite(tx, read_turbo, write_turbo, commit_turbo);
+              return;
+          }
+          // reset flag
+          inplace = 0;
+      }
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
       OnFirstWrite(tx, read_rw, write_rw, commit_rw);
   }
 
   /**
-   *  Cohorts write (writing context)
+   *  CohortsEager write (in place write)
    */
   void
-  Cohorts::write_rw(STM_WRITE_SIG(tx,addr,val,mask))
+  CohortsEager::write_turbo(STM_WRITE_SIG(tx,addr,val,mask))
+  {
+      orec_t* o = get_orec(addr);
+      o->v.all = started; // mark orec
+      *addr = val; // in place write
+  }
+
+  /**
+   *  CohortsEager write (writing context)
+   */
+  void
+  CohortsEager::write_rw(STM_WRITE_SIG(tx,addr,val,mask))
   {
       // record the new value in a redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
   }
 
   /**
-   *  Cohorts unwinder:
+   *  CohortsEager unwinder:
    */
   stm::scope_t*
-  Cohorts::rollback(STM_ROLLBACK_SIG(tx, except, len))
+  CohortsEager::rollback(STM_ROLLBACK_SIG(tx, except, len))
   {
       PreRollback(tx);
 
@@ -234,28 +298,30 @@ namespace {
   }
 
   /**
-   *  Cohorts in-flight irrevocability:
+   *  CohortsEager in-flight irrevocability:
    */
   bool
-  Cohorts::irrevoc(TxThread*)
+  CohortsEager::irrevoc(TxThread*)
   {
-      UNRECOVERABLE("Cohorts Irrevocability not yet supported");
+      UNRECOVERABLE("CohortsEager Irrevocability not yet supported");
       return false;
   }
 
   /**
-   *  Cohorts validation for commit: check that all reads are valid
+   *  CohortsEager validation for commit: check that all reads are valid
    */
   void
-  Cohorts::validate(TxThread* tx)
+  CohortsEager::validate(TxThread* tx)
   {
       foreach (OrecList, i, tx->r_orecs) {
           // read this orec
           uintptr_t ivt = (*i)->v.all;
-          // If orec changed, abort
+          // If orec changed , abort
           if (ivt > tx->ts_cache) {
               // increase total number of committed tx
-              ADD(&committed, 1);
+              // ADD(&committed, 1);
+              committed ++;
+              WBR;
               // set self as completed
               last_complete.val = tx->order;
               // abort
@@ -265,7 +331,7 @@ namespace {
   }
 
   /**
-   *  Switch to Cohorts:
+   *  Switch to CohortsEager:
    *
    *    The timestamp must be >= the maximum value of any orec.  Some algs use
    *    timestamp as a zero-one mutex.  If they do, then they back up the
@@ -273,7 +339,7 @@ namespace {
    *
    */
   void
-  Cohorts::onSwitchTo()
+  CohortsEager::onSwitchTo()
   {
       timestamp.val = MAXIMUM(timestamp.val, timestamp_max.val);
       last_complete.val = 0;
@@ -282,22 +348,22 @@ namespace {
 
 namespace stm {
   /**
-   *  Cohorts initialization
+   *  CohortsEager initialization
    */
   template<>
-  void initTM<Cohorts>()
+  void initTM<CohortsEager>()
   {
       // set the name
-      stms[Cohorts].name      = "Cohorts";
+      stms[CohortsEager].name      = "CohortsEager";
       // set the pointers
-      stms[Cohorts].begin     = ::Cohorts::begin;
-      stms[Cohorts].commit    = ::Cohorts::commit_ro;
-      stms[Cohorts].read      = ::Cohorts::read_ro;
-      stms[Cohorts].write     = ::Cohorts::write_ro;
-      stms[Cohorts].rollback  = ::Cohorts::rollback;
-      stms[Cohorts].irrevoc   = ::Cohorts::irrevoc;
-      stms[Cohorts].switcher  = ::Cohorts::onSwitchTo;
-      stms[Cohorts].privatization_safe = true;
+      stms[CohortsEager].begin     = ::CohortsEager::begin;
+      stms[CohortsEager].commit    = ::CohortsEager::commit_ro;
+      stms[CohortsEager].read      = ::CohortsEager::read_ro;
+      stms[CohortsEager].write     = ::CohortsEager::write_ro;
+      stms[CohortsEager].rollback  = ::CohortsEager::rollback;
+      stms[CohortsEager].irrevoc   = ::CohortsEager::irrevoc;
+      stms[CohortsEager].switcher  = ::CohortsEager::onSwitchTo;
+      stms[CohortsEager].privatization_safe = true;
   }
 }
 
