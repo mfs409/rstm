@@ -73,6 +73,7 @@ namespace stm
   volatile int32_t cpending = 0;
   volatile int32_t committed = 0;
   volatile int32_t last_order = 1;
+  volatile uint32_t gatekeeper = 0;
 
   /*** Store descriptions of the STM algorithms */
   alg_t stms[ALG_MAX];

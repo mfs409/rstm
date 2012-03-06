@@ -45,7 +45,7 @@ namespace stm
       OrecEager, OrecEagerHour, OrecEagerBackoff, OrecEagerHB,
       OrecLazy,  OrecLazyHour,  OrecLazyBackoff,  OrecLazyHB,
       NOrec,     NOrecHour,     NOrecBackoff,     NOrecHB,
-      Wealth, Cohorts, Cohortsnoorder, Cohortsold, CohortsLazy,
+      Wealth, Cohorts, Cohortsnoorder, Cohortsold, CohortsLazy, CohortsEager,
       // ProfileTM support.  These are not true STMs
       ProfileTM, ProfileAppAvg, ProfileAppMax, ProfileAppAll,
       // end with a distinct value
@@ -99,6 +99,7 @@ namespace stm
   extern volatile int32_t cpending;   // number of tx waiting to commit
   extern volatile int32_t committed;  // number of tx committed
   extern volatile int32_t last_order; // order of last tx in a cohort + 1
+  extern volatile uint32_t gatekeeper;// indicating whether tx can start
 
   /**
    *  To describe an STM algorithm, we provide a name, a set of function
