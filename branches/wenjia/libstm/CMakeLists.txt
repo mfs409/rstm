@@ -60,6 +60,8 @@ set(sources
   algs/cohortsnoorder.cpp
   algs/cohortsold.cpp
   algs/cohortslazy.cpp
+  algs/cohortseager.cpp
+  algs/cohortsli.cpp               
   policies/cbr.cpp
   policies/policies.cpp
   policies/static.cpp
