@@ -16,7 +16,7 @@
  *  goes to 3) Every rw tx gets an order, from now on, no one is
  *  allowed to start a tx anymore. When everyone in this cohort is
  *  ready to commit, goes to stage 4)Commit phase. Everyone commits
- *  in an order that given in stage 3. When the last one finishes
+ *  in an order given in stage 3. When the last one finishes
  *  its commit, it goes to stage 1. Now tx is allowed to start again.
  */
 #include "../profiling.hpp"
@@ -45,6 +45,7 @@ using stm::WriteSetEntry;
 using stm::orec_t;
 using stm::get_orec;
 using stm::gatekeeper;
+using stm::last_order;
 
 /**
  *  Declare the functions that we're going to implement, so that we can avoid
@@ -63,7 +64,7 @@ namespace {
       static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
       static void onSwitchTo();
-      static NOINLINE bool validate(TxThread* tx);
+      static NOINLINE void validate(TxThread* tx);
   };
 
   /**
@@ -80,7 +81,7 @@ namespace {
       // wait if I'm blocked
       while(gatekeeper == 1);
 
-      // set started flag
+      // set started
       tx->status = COHORTS_STARTED;
       WBR;
 
@@ -105,7 +106,7 @@ namespace {
   void
   CohortsLazy::commit_ro(TxThread* tx)
   {
-      // mark end
+      // mark self status
       tx->status = COHORTS_COMMITTED;
 
       // clean up
@@ -120,60 +121,56 @@ namespace {
   void
   CohortsLazy::commit_rw(TxThread* tx)
   {
-      // mark a global flag
+      // Mark a global flag, no one is allowed to begin now
       gatekeeper = 1;
 
-      // mark self pending to commit
+      // Mark self pending to commit
       tx->status = COHORTS_CPENDING;
 
-      // increment num of tx ready to commit, and use it as the order
+      // Get an order
       tx->order = 1 + faiptr(&timestamp.val);
 
-      // wait until all tx are in commit
+      // For later use, indicates if I'm the last tx in this cohort
+      bool lastone = true;
+
+      // Wait until all tx are ready to commit
       for (uint32_t i = 0; i < threadcount.val; ++i)
           while (threads[i]->status == COHORTS_STARTED);
 
       // Wait for my turn
       while (last_complete.val != (uintptr_t)(tx->order - 1));
 
-      //[TODO] if I'm the first one, no validation, else validate
-      bool val = validate(tx);
+      // If I'm the first one in this cohort, no validation, else validate
+      if (tx->order != last_order)
+          validate(tx);
 
-      if (val)
-          // mark orec
-          foreach (WriteSet, i, tx->writes) {
-              // get orec
-              orec_t* o = get_orec(i->addr);
-              // mark orec
-              o->v.all = tx->order;
-              CFENCE;
-              *i->addr = i->val;
-          }
-
-      // mark self as done
-      last_complete.val = tx->order;
+      // mark orec, do write back
+      foreach (WriteSet, i, tx->writes) {
+          orec_t* o = get_orec(i->addr);
+          o->v.all = tx->order;
+          *i->addr = i->val;
+      }
       CFENCE;
+      // Mark self as done
+      last_complete.val = tx->order;
 
-      // mark self status
+      // Mark self status
       tx->status = COHORTS_COMMITTED;
       WBR;
 
       // Am I the last one?
-      bool lastone = true;
       for (uint32_t i = 0; i < threadcount.val; ++i)
-          if (threads[i]->status == COHORTS_CPENDING)
+          if (threads[i]->status == COHORTS_CPENDING){
               lastone = false;
+              break;
+          }
 
-      // If I'm the last one, release blocked flag
+      // If I'm the last one, release gatekeeper lock
       if (lastone) {
+          last_order = tx->order + 1;
           gatekeeper = 0;
-          WBR;
       }
-      // If validation failed
-      if (!val) {
-          tx->tmabort(tx);
-          return;
-      }
+
       // commit all frees, reset all lists
       tx->r_orecs.reset();
       tx->writes.reset();
@@ -264,17 +261,35 @@ namespace {
   /**
    *  CohortsLazy validation for commit: check that all reads are valid
    */
-  bool
+  void
   CohortsLazy::validate(TxThread* tx)
   {
       foreach (OrecList, i, tx->r_orecs) {
           // read this orec
           uintptr_t ivt = (*i)->v.all;
           // If orec changed, abort
-          if (ivt > tx->ts_cache)
-              return false;
+          if (ivt > tx->ts_cache) {
+              // Mark self as done
+              last_complete.val = tx->order;
+              // Mark self status
+              tx->status = COHORTS_COMMITTED;
+              WBR;
+
+              // Am I the last one?
+              bool l = true;
+              for (uint32_t i = 0; i < threadcount.val; ++i)
+                  if (threads[i]->status == COHORTS_CPENDING) {
+                      l = false;
+                      break;
+                  }
+              // If I'm the last one, release gatekeeper lock
+              if (l) {
+                  last_order = tx->order + 1;
+                  gatekeeper = 0;
+              }
+              tx->tmabort(tx);
+          }
       }
-      return true;
   }
 
   /**
@@ -290,7 +305,7 @@ namespace {
   {
       timestamp.val = MAXIMUM(timestamp.val, timestamp_max.val);
       last_complete.val = timestamp.val;
-      // when switching algs, mark all tx unblocking and not started
+      // when switching algs, mark all tx committed status
       for (uint32_t i = 0; i < threadcount.val; ++i) {
           threads[i]->status = COHORTS_COMMITTED;
       }
