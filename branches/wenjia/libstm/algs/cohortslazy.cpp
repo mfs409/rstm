@@ -159,11 +159,8 @@ namespace {
       WBR;
 
       // Am I the last one?
-      for (uint32_t i = 0; i < threadcount.val; ++i)
-          if (threads[i]->status == COHORTS_CPENDING){
-              lastone = false;
-              break;
-          }
+      for (uint32_t i = 0; lastone != false && i < threadcount.val; ++i)
+          lastone &= (threads[i]->status != COHORTS_CPENDING);
 
       // If I'm the last one, release gatekeeper lock
       if (lastone) {
@@ -277,11 +274,9 @@ namespace {
 
               // Am I the last one?
               bool l = true;
-              for (uint32_t i = 0; i < threadcount.val; ++i)
-                  if (threads[i]->status == COHORTS_CPENDING) {
-                      l = false;
-                      break;
-                  }
+              for (uint32_t i = 0; l != false && i < threadcount.val; ++i)
+                  l &= (threads[i]->status != COHORTS_CPENDING);
+
               // If I'm the last one, release gatekeeper lock
               if (l) {
                   last_order = tx->order + 1;

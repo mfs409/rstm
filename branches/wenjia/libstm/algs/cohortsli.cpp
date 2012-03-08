@@ -28,6 +28,7 @@
 #define ADD __sync_add_and_fetch
 #define SUB __sync_sub_and_fetch
 
+// define tx status
 #define COHORTS_COMMITTED 0
 #define COHORTS_STARTED   1
 #define COHORTS_CPENDING  2
@@ -85,7 +86,7 @@ namespace {
   {
     S1:
       // wait if I'm blocked
-      while(gatekeeper == 1);
+      while (gatekeeper == 1);
 
       // set started
       tx->status = COHORTS_STARTED;
@@ -130,6 +131,9 @@ namespace {
       // Mark self pending to commit
       tx->status = COHORTS_CPENDING;
 
+      // Get order
+      tx->order = 1 + faiptr(&timestamp.val);
+
       // Turbo tx can clean up first
       tx->r_orecs.reset();
       OnReadWriteCommit(tx, read_ro, write_ro, commit_ro);
@@ -137,18 +141,17 @@ namespace {
       // Wait for my turn
       while (last_complete.val != (uintptr_t)(tx->order - 1));
 
-      // Reset inplace write flag
-      in = 0;
-
       // Mark self as done
       last_complete.val = tx->order;
-
-      // Mark self status
-      tx->status = COHORTS_COMMITTED;
 
       // I must be the last one, so release gatekeeper lock
       last_order = tx->order + 1;
       gatekeeper = 0;
+      // Reset inplace write flag
+      in = 0;
+
+      // Mark self status
+      tx->status = COHORTS_COMMITTED;
   }
 
 
@@ -198,11 +201,8 @@ namespace {
       WBR;
 
       // Am I the last one?
-      for (uint32_t i = 0; i < threadcount.val; ++i)
-          if (threads[i]->status == COHORTS_CPENDING) {
-              lastone = false;
-              break;
-          }
+      for (uint32_t i = 0;lastone != false && i < threadcount.val; ++i)
+          lastone &= (threads[i]->status != COHORTS_CPENDING);
 
       // If I'm the last one, release gatekeeper lock
       if (lastone) {
@@ -261,29 +261,22 @@ namespace {
   void
   CohortsLI::write_ro(STM_WRITE_SIG(tx,addr,val,mask))
   {
-      uint32_t flag = 0;
-      uint32_t i = 0;
-      // check others' status
-      for (i = 0; i < threadcount.val; ++i)
-          if (threads[i]->status == COHORTS_STARTED)
-              flag ++;
+      uint32_t count = 0;
+      // scan to check others' status
+      for (uint32_t i = 0; i < threadcount.val && count < 2; ++i)
+          count += (threads[i]->status == COHORTS_STARTED);
 
       // If every one else is ready to commit, do in place write, go turbo mode
-      if (flag == 1) {
+      if (count == 1) {
           // setup in place write flag, indicating inplace write is going to happen
           in = 1;
           WBR;
           // double check
-          for (i = 0, flag = 0; i < threadcount.val; ++i)
-              if (threads[i]->status == COHORTS_STARTED)
-                  flag ++;
-          if (flag == 1) {
-              // Get an order now instead of in commit
-              tx->order = 1 + faiptr(&timestamp.val);
-              // do write back
-              orec_t* o = get_orec(addr);
-              o->v.all = tx->order;
-              *addr = val;
+          for (uint32_t i = 0; i < threadcount.val && count < 0; ++i)
+              count -= (threads[i]->status == COHORTS_STARTED);
+          if (count == 0) {
+              // write inplace
+              write_turbo(tx, addr, val);
               // go turbo
               OnFirstWrite(tx, read_turbo, write_turbo, commit_turbo);
               return;
@@ -302,7 +295,7 @@ namespace {
   CohortsLI::write_turbo(STM_WRITE_SIG(tx,addr,val,mask))
   {
       orec_t* o = get_orec(addr);
-      o->v.all = tx->order;
+      o->v.all = last_complete.val + 1;
       *addr = val;
   }
 
@@ -366,11 +359,9 @@ namespace {
 
               // Am I the last one?
               bool l = true;
-              for (uint32_t i = 0; i < threadcount.val; ++i)
-                  if (threads[i]->status == COHORTS_CPENDING) {
-                      l = false;
-                      break;
-                  }
+              for (uint32_t i = 0; l != false && i < threadcount.val; ++i)
+                  l &= (threads[i]->status != COHORTS_CPENDING);
+
               // If I'm the last one, release gatekeeper lock
               if (l) {
                   last_order = tx->order + 1;
