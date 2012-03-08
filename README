@@ -1,36 +1,13 @@
-RSTM Release 7 Notes
+RSTM Release 8 Notes
 
 The latest RSTM release features the following changes:
 
-- Support for the Intel Transactional C++ Compiler
-
-- Several new algorithms and performance improvements
-
-- Support for 64-bit environments
-
-- A simpler microbenchmark harness
-
-- New build system based on cmake
-
-- Support for dynamic profiling of transactions, and machine-learning-based
-  adaptivity policies
+- Native Support for the Intel Transactional C++ Compiler
 
 Important Build Notes
 
-- We strongly encourage you to build **outside** of the source tree.  The
-  following example assumes that you have this file located in
-  /home/yourname/rstm:
-
-  cd /home/yourname/
-  mkdir rstm_build
-  cd rstm_build
-  cmake ../rstm
-  make
-
-- If you want to specify build options (e.g., 32-vs-64-bit), you can do an
-  interactive configure by setting the '-i' flag when invoking cmake:
-
-  cmake ../rstm -i
+- The svn branch must be configured before being built. Run the 'autogen'
+  script from the root. This will generate the configure script.
 
 Please visit the RSTM Google code site for more information:
 
