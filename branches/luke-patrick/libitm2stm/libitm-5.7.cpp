@@ -22,36 +22,23 @@ using namespace itm2stm;
 // We depend on CGL having ID = 0
 static const int CGL = 0;
 
+uint32_t
+_ITM_transaction::enterFromCheckpoint(Node* const scope, const uint32_t flags)
+{
+    if (handle().sandboxing) {
+        scope->restoreMask_ = true;
+        pthread_sigmask(SIG_SETMASK, NULL, &scope->mask_);
+    }
+    else {
+        scope->restoreMask_ = false;
+    }
+
+    return enter(scope, flags);
+}
+
 /// We call the enter routine to begin a transaction. It is called both from an
 /// instance of _ITM_beginTransaction, and from _ITM_transaction::reenter during
 /// an abort-and-restart.
-uint32_t
-_ITM_transaction::enter_no_td(const uint32_t flags, void** regs) {
-    _ITM_transaction *td = _ITM_getTransaction();
-    _ITM_transaction::Node* scope = td->inner();
-
-    if (__builtin_expect(scope != NULL, false))
-        goto check_aborted;
-enter:
-    scope = (__builtin_expect(td->free_scopes_ != NULL, true)) ?
-                      td->free_scopes_ : td->NewNode();
-    td->free_scopes_ = scope->next_;
-
-    // Checkpoint saving
-    __builtin_memcpy(scope->checkpoint_, regs, CHECKPOINT_SIZE*sizeof(void*));
-
-    // ??? a_saveLiveVariables required?
-    return a_saveLiveVariables | td->enter(scope, flags);
-    
-check_aborted:
-    if (__builtin_expect(scope->getAborted(), false))
-        goto aborted;
-    goto enter;
-    
-aborted:
-    return a_abortTransaction;
-}
-
 uint32_t
 _ITM_transaction::enter(Node* const scope, const uint32_t flags) {
     // clear any abort reasons that are hanging around
@@ -94,7 +81,7 @@ _ITM_transaction::enter(Node* const scope, const uint32_t flags) {
 #ifdef STM_CPU_SPARC
         thread_handle_.scope = scope; WBR;
 #else
-        bcasptr(&thread_handle_.scope, (Node*)NULL, scope);
+        __sync_bool_compare_and_swap(&thread_handle_.scope, NULL, scope);
 #endif
 
         // Some adaptivity mechanisms need to know nontransactional and
@@ -199,6 +186,12 @@ _FAKE_beginTransaction(_ITM_transaction* td, uint32_t flags, _ITM_srcLocation*)
 
   enter:
     scope = td->getScope();
+
+    // Log the signal mask if we need to.
+    if (__builtin_expect(td->handle().sandboxing, 0))
+        goto checkpoint_mask;
+
+  checkpoint:
     _FAKE_checkpoint(scope); // attribte regparm(1) means that the scope is in
                              // the "right" place for the parameter
     return a_saveLiveVariables | td->enter(scope, flags);
@@ -207,6 +200,11 @@ _FAKE_beginTransaction(_ITM_transaction* td, uint32_t flags, _ITM_srcLocation*)
     if (__builtin_expect(scope->getAborted(), false))
         goto aborted;
     goto enter;
+
+  checkpoint_mask:
+    scope->restoreMask_ = true;
+    pthread_sigmask(SIG_SETMASK, NULL, &scope->mask_);
+    goto checkpoint;
 
   aborted:
     return a_abortTransaction;

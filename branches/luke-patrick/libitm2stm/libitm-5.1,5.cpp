@@ -45,6 +45,7 @@ tmabort(stm::TxThread* tx) {
     // boundary. If we leave it in the scope, the rollback will filter out
     // rollback behavior for it, which we don't want.
     Scope* scope = static_cast<Scope*>(tx->scope);
+    assert(scope && "Scope must be non-null during tmabort.");
     scope->clearThrownObject();
     scope->getOwner().restart();
 }

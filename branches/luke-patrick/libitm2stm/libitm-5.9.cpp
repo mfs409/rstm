@@ -28,6 +28,7 @@ _ITM_transaction::leave() {
 inline void
 _ITM_transaction::commit() {
     // This code was pilfered from <stm/api/library.hpp>.
+    stm::TxThread& stm = handle();
 
     // Don't commit anything if we're nested... just exit this scope, this
     // hopefully respects libstm's lack of closed nesting for the moment.
@@ -35,14 +36,10 @@ _ITM_transaction::commit() {
     // Don't pre-decerement the nesting depth, because the tmcommit call can
     // fail due to a conflict. This calls tmabort, and tmabort will fail if the
     // nesting depth is 0.
-    if (thread_handle_.nesting_depth == 1)
+    if (stm.nesting_depth == 1)
     {
         // dispatch to the appropriate end function
-        thread_handle_.tmcommit(&thread_handle_);
-
-        // zero scope (to indicate "not in tx")
-        CFENCE;
-        thread_handle_.scope = NULL;
+        stm.tmcommit(&stm);
 
 #ifdef _ITM_DTMC
         // Indicate that the stack area is now released
@@ -50,17 +47,21 @@ _ITM_transaction::commit() {
 #endif /* _ITM_DTMC */
 
         // clear the high/low stack marks.
-        thread_handle_.stack_high = 0x0;
-        thread_handle_.stack_low = (void**)~0x0;
+        stm.stack_high = 0x0;
+        stm.stack_low = (void**)~0x0;
 
         // record start of nontransactional time, this misses the itm2stm commit
         // and leave time for the outermost scope, but I think we're ok.
-        thread_handle_.end_txn_time = tick();
+        stm.end_txn_time = tick();
+
+        // zero scope (to indicate "not in tx")
+        CFENCE;
+        stm.scope = NULL;
     }
 
     // Decrement the nesting depth unconditionally here. It's needed on a nested
     // commit, as well as after the tmcommit succeeds for the outermost scope.
-    --thread_handle_.nesting_depth;
+    --stm.nesting_depth;
 
     inner()->commit();
     leave(); // don't care about the returned node during a commit

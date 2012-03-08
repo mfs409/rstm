@@ -1,6 +1,8 @@
 # -*- Makefile -*-*
-CC     := @CMAKE_C_COMPILER@
-CXX    := @CMAKE_CXX_COMPILER@
+CC.o   := gcc
+CXX.o  := g++
+CC.bc  := @CMAKE_C_COMPILER@ -fgnu-tm -emit-llvm
+CXX.bc := @CMAKE_CXX_COMPILER@ -fgnu-tm -emit-llvm
 TMLINK := tmlink
 VPATH  := @CMAKE_CURRENT_SOURCE_DIR@
 
@@ -8,26 +10,31 @@ STMLIB := @CMAKE_CURRENT_BINARY_DIR@/../libitm2stm
 STMSUPPORT := $(dir $(shell which ${TMLINK}))../lib
 
 CFLAGS   = -I@CMAKE_SOURCE_DIR@ -I@CMAKE_SOURCE_DIR@/include -I@CMAKE_BINARY_DIR@/include 
-CFLAGS  += -DSTM_API_DTMC -DSINGLE_SOURCE_BUILD
-CFLAGS  += -fgnu-tm -emit-llvm
+CFLAGS  += -DSTM_API_DTMC
 
-ifndef DEBUG
+ifdef DEBUG
+CFLAGS  += -O0 -g
+else
 CFLAGS  += -O3
 endif
 
 CXXFLAGS := ${CFLAGS} #-fno-exceptions
 
 LDFLAGS  = -stmlib=${STMLIB}
-LDFLAGS += -stmsupport=${STMSUPPORT}
 LDFLAGS += -tm-support-file=${STMLIB}/libtanger-stm.support
-LDFLAGS += -internalize-public-api-file=${STMLIB}/libtanger-stm.public-symbols
+LDFLAGS += -stmsupport=${STMSUPPORT}
+LDFLAGS += -tanger-add-shutdown-call
 LDFLAGS += -sandboxpass=sandbox-tm
 
-ifdef DEBUG
-LDFLAGS += -disable-opt
+ifdef NATIVE
+LDFLAGS += -n
 endif
 
-LDLIBS = -ldl -lrt
+ifdef DEBUG
+LDFLAGS += -disable-internalize
+endif
+
+LDLIBS  += -ldl -lrt
 
 all: HashBench TreeBench ListBench
 
@@ -39,20 +46,27 @@ clean:
 	@find . -name "TreeBench" | xargs rm -f
 	@find . -name "ListBench" | xargs rm -f
 
-HashBench: HashBench.bc
+HashBench: HashBench.bc bmharness.bc
 	${TMLINK} ${LDFLAGS} -o $@ $^ ${LDLIBS}
 
-TreeBench: TreeBench.bc
+TreeBench: TreeBench.bc bmharness.bc
 	${TMLINK} ${LDFLAGS} -o $@ $^ ${LDLIBS}
 
-ListBench: ListBench.bc
+ListBench: ListBench.bc bmharness.bc
 	${TMLINK} ${LDFLAGS} -o $@ $^ ${LDLIBS}
 
 %.bc: %.c
-	${CC} ${CFLAGS} -o $@ -c $<
+	${CC.bc} ${CFLAGS} -o $@ -c $<
 
 %.bc: %.cpp
-	${CXX} ${CXXFLAGS} -o $@ -c $<
+	${CXX.bc} ${CXXFLAGS} -o $@ -c $<
+
+%.o: %.c
+	${CC.o} ${CFLAGS} -g -o $@ -c $<
+
+%.o: %.cpp
+	${CXX.o} ${CXXFLAGS} -g -o $@ -c $<
+
 
 BITS   ?= 64
 TRIALS ?= 3

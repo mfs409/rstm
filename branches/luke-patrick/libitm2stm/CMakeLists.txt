@@ -30,6 +30,7 @@ endif ()
 
 
 set(cppsources
+  Checkpoint.cpp
   BlockOperations.cpp
   Scope.cpp
   Transaction.cpp
@@ -154,3 +155,6 @@ if (rstm_build_64-bit)
     gcc(64)
   endif ()
 endif ()
+
+configure_file (libtanger-stm.public-symbols libtanger-stm.public-symbols)
+configure_file (libtanger-stm.support libtanger-stm.support)

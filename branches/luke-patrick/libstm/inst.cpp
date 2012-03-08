@@ -30,6 +30,7 @@ namespace stm
       tx->tmread     = stms[new_alg].read;
       tx->tmwrite    = stms[new_alg].write;
       tx->tmcommit   = stms[new_alg].commit;
+      tx->sandboxing = stms[new_alg].sandbox_signals;
   }
 
   /**
@@ -76,6 +77,7 @@ namespace stm
           threads[i]->tmread     = stms[new_alg].read;
           threads[i]->tmwrite    = stms[new_alg].write;
           threads[i]->tmcommit   = stms[new_alg].commit;
+          threads[i]->sandboxing = stms[new_alg].sandbox_signals;
           threads[i]->consec_aborts  = 0;
       }
 

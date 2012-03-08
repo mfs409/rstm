@@ -135,11 +135,14 @@ struct _ITM_transaction {
     /// We give it an explicit asm label so that we can use it in our
     /// _ITM_beginTransaction.S implementation without relying on a particular
     /// C++ name-mangling implementation.
-    uint32_t enter(Node* const scope, const uint32_t flags)
+    uint32_t enter(Node* const scope, const uint32_t flags) GCC_FASTCALL;
+
+
+    uint32_t enterFromCheckpoint(Node* const scope, const uint32_t flags)
         asm("_stm_itm2stm_transaction_enter") GCC_FASTCALL;
 
-    static uint32_t enter_no_td(const uint32_t flags, void **regs)
-        asm("_stm_itm2stm_transaction_enter_no_td") GCC_FASTCALL;
+    // static uint32_t enter_no_td(const uint32_t flags, void **regs)
+    //     asm("_stm_itm2stm_transaction_enter_no_td") GCC_FASTCALL;
 
     /// Reentering a scope on restart is slightly different than entering a
     /// scope for the first time. This handles that difference.
@@ -207,7 +210,7 @@ struct _ITM_transaction {
         size_t data_size;
         void* stack_addr;
         size_t stack_size;
-        UserStack() 
+        UserStack()
             : data(0), data_size(0), stack_addr(0), stack_size(0) {}
         ~UserStack() {
             if (data)
@@ -231,7 +234,7 @@ struct _ITM_transaction {
         // Is the data big enough?
         if (stack.stack_size > stack.data_size) {
             // TODO round to 4096+
-            stack.data_size = stack.stack_size; 
+            stack.data_size = stack.stack_size;
             stack.data = realloc(stack.data, stack.data_size);
         }
         __builtin_memcpy(stack.data, stack.stack_addr, stack.stack_size);

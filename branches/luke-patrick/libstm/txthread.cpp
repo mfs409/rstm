@@ -85,6 +85,7 @@ namespace stm
         pthreadid(),
         validations(0),
         lazy_hashing_cursor(0),
+        sandboxing(false),
         tmcommit(NULL),
         tmread(NULL),
         tmwrite(NULL)

@@ -19,6 +19,10 @@ LDFLAGS += -tm-support-file=${STMLIB}/libtanger-stm.support
 LDFLAGS += -internalize-public-api-file=${STMLIB}/libtanger-stm.public-symbols
 LDFLAGS += -sandboxpass=sandbox-tm
 
+ifdef NATIVE
+LDFLAGS += -n
+endif
+
 TANGERFLAGS  = -tanger
 TANGERFLAGS += -tanger-whole-program
 TANGERFLAGS += -tanger-indirect-auto

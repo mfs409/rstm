@@ -74,7 +74,7 @@ do_lazy_hashes(TxThread& tx) {
     for (; cursor < reads.m_size; ++cursor)
         reads.m_elements[cursor] = get_orec(reads.m_elements[cursor]);
 
-    return false;
+    return true;
 }
 
 /**

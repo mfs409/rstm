@@ -20,7 +20,7 @@
 
 #define TRANSACTION_INNER_       16
 #define TRANSACTION_FREE_SCOPES_ 24
-#define SCOPE_ABORTED_           192
-#define NODE_NEXT_               304
+#define SCOPE_ABORTED_           200
+#define NODE_NEXT_               312
 
 #endif // ITM_LIBITM_ARCH_X86_64_OFFSETS_H

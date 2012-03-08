@@ -100,6 +100,7 @@ namespace stm
       pthread_t     pthreadid;           // used for sandbox validation
       uintptr_t     validations;         // counts sandbox validations
       size_t        lazy_hashing_cursor; // used in norecsandbox
+      bool          sandboxing;          // true iff the algorithm needs it
 
       /*** POINTERS TO INSTRUMENTATION */
 

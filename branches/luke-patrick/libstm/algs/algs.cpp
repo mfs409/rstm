@@ -18,11 +18,8 @@
  */
 static bool
 opaque_validate_handler(stm::TxThread*) {
-    printf("validate\n");
-    __builtin_exit(-1);
     return true;
 }
-
 
 namespace stm
 {
