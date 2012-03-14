@@ -11,13 +11,7 @@
 /**
  *  CohortsLI Implementation
  *
- *  CohortsLI has 4 stages. 1) Nobody is running. If anyone starts,
- *  goes to 2) Everybody is running. If anyone is ready to commit,
- *  goes to 3) Every rw tx gets an order, from now on, no one is
- *  allowed to start a tx anymore. When everyone in this cohort is
- *  ready to commit, goes to stage 4)Commit phase. Everyone commits
- *  in an order given in stage 3. When the last one finishes
- *  its commit, it goes to stage 1. Now tx is allowed to start again.
+ *  CohortsLazy with inplace write when tx is the last one in a cohort.
  */
 #include "../profiling.hpp"
 #include "algs.hpp"

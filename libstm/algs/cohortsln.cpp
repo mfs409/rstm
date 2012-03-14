@@ -9,10 +9,9 @@
  */
 
 /**
- *  CohortsLazy Implementation
+ *  CohortsLN Implementation
  *
- *  Cohorts with only one CAS in commit_rw to get an order. Using
- *  txn local status instead of 3 global accumulators. 
+ *  CohortsLazy Norec Version
  */
 #include "../profiling.hpp"
 #include "algs.hpp"
@@ -31,23 +30,23 @@ using stm::TxThread;
 using stm::threads;
 using stm::threadcount;
 using stm::last_complete;
+using stm::ValueList;
+using stm::ValueListEntry;
 using stm::timestamp;
-using stm::timestamp_max;
-using stm::WriteSet;
-using stm::OrecList;
 using stm::UNRECOVERABLE;
 using stm::WriteSetEntry;
-using stm::orec_t;
-using stm::get_orec;
 using stm::gatekeeper;
 using stm::last_order;
-
+using stm::cpending;
 /**
  *  Declare the functions that we're going to implement, so that we can avoid
  *  circular dependencies.
  */
 namespace {
-  struct CohortsLazy {
+  const uintptr_t VALIDATION_FAILED = 1;
+  NOINLINE uintptr_t validate(TxThread* tx);
+  
+  struct CohortsLN {
       static TM_FASTCALL bool begin(TxThread*);
       static TM_FASTCALL void* read_ro(STM_READ_SIG(,,));
       static TM_FASTCALL void* read_rw(STM_READ_SIG(,,));
@@ -59,18 +58,17 @@ namespace {
       static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
       static void onSwitchTo();
-      static NOINLINE void validate(TxThread* tx);
   };
 
   /**
-   *  CohortsLazy begin:
-   *  CohortsLazy has a strict policy for transactions to begin. At first,
+   *  CohortsLN begin:
+   *  CohortsLN has a strict policy for transactions to begin. At first,
    *  every tx can start, until one of the tx is ready to commit. Then no
    *  tx is allowed to start until all the transactions finishes their
    *  commits.
    */
   bool
-  CohortsLazy::begin(TxThread* tx)
+  CohortsLN::begin(TxThread* tx)
   {
     S1:
       // wait if I'm blocked
@@ -86,44 +84,44 @@ namespace {
           goto S1;
       }
 
+      // Sample the sequence lock, if it is even decrement by 1
+      tx->start_time = timestamp.val & ~(1L);
+      
       //begin
       tx->allocator.onTxBegin();
-
-      // get time of last finished txn
-      tx->ts_cache = last_complete.val;
 
       return true;
   }
 
   /**
-   *  CohortsLazy commit (read-only):
+   *  CohortsLN commit (read-only):
    */
   void
-  CohortsLazy::commit_ro(TxThread* tx)
+  CohortsLN::commit_ro(TxThread* tx)
   {
       // mark self status
       tx->status = COHORTS_COMMITTED;
 
       // clean up
-      tx->r_orecs.reset();
+      tx->vlist.reset();
       OnReadOnlyCommit(tx);
   }
 
   /**
-   *  CohortsLazy commit (writing context):
+   *  CohortsLN commit (writing context):
    *
    */
   void
-  CohortsLazy::commit_rw(TxThread* tx)
+  CohortsLN::commit_rw(TxThread* tx)
   {
-      // Mark a global flag, no one is allowed to begin now
+    // Mark a global flag, no one is allowed to begin now
       gatekeeper = 1;
 
-      // Mark self pending to commit
+      // Mark self status pending to commit
       tx->status = COHORTS_CPENDING;
 
       // Get an order
-      tx->order = 1 + faiptr(&timestamp.val);
+      tx->order = ADD(&cpending, 1);
 
       // For later use, indicates if I'm the last tx in this cohort
       bool lastone = true;
@@ -135,75 +133,89 @@ namespace {
       // Wait for my turn
       while (last_complete.val != (uintptr_t)(tx->order - 1));
 
-      // If I'm the first one in this cohort, no validation, else validate
-      if (tx->order != last_order)
-          validate(tx);
+      // get the lock and validate (use RingSTM obstruction-free
+      // technique)
+      while (!bcasptr(&timestamp.val, tx->start_time, tx->start_time + 1))
+	if ((tx->start_time = validate(tx)) == VALIDATION_FAILED) {
+	  // Mark self status
+	  tx->status = COHORTS_COMMITTED;
+	  WBR;
+	  // mark self as done
+	  last_complete.val = tx->order;
 
-      // mark orec, do write back
-      foreach (WriteSet, i, tx->writes) {
-          orec_t* o = get_orec(i->addr);
-          o->v.all = tx->order;
-          *i->addr = i->val;
-      }
+	  // Am I the last one?
+	  for (uint32_t i = 0; lastone != false && i < threadcount.val; ++i)
+	    lastone &= (threads[i]->status != COHORTS_CPENDING);
+	  
+	  // If I'm the last one, release gatekeeper lock
+	  if (lastone)
+	    gatekeeper = 0;
+	  
+	  tx->tmabort(tx);
+	}
+      
+      // do write back
+      tx->writes.writeback();
+      
+      // Release the sequence lock, then clean up
       CFENCE;
-      // Mark self as done
-      last_complete.val = tx->order;
+      timestamp.val = tx->start_time + 2;
 
       // Mark self status
       tx->status = COHORTS_COMMITTED;
       WBR;
 
+      // Mark self as done
+      last_complete.val = tx->order;
+      
       // Am I the last one?
       for (uint32_t i = 0; lastone != false && i < threadcount.val; ++i)
           lastone &= (threads[i]->status != COHORTS_CPENDING);
 
       // If I'm the last one, release gatekeeper lock
       if (lastone) {
-          last_order = tx->order + 1;
           gatekeeper = 0;
       }
 
-      // commit all frees, reset all lists
-      tx->r_orecs.reset();
+      // clean up
+      tx->vlist.reset();
       tx->writes.reset();
       OnReadWriteCommit(tx, read_ro, write_ro, commit_ro);
   }
 
   /**
-   *  CohortsLazy read (read-only transaction)
+   *  CohortsLN read (read-only transaction)
    */
   void*
-  CohortsLazy::read_ro(STM_READ_SIG(tx,addr,))
+  CohortsLN::read_ro(STM_READ_SIG(tx,addr,))
   {
-      // log orec
-      tx->r_orecs.insert(get_orec(addr));
-      return *addr;
+    void * tmp = *addr;
+    STM_LOG_VALUE(tx, addr, tmp, mask);
+    return tmp;
   }
 
   /**
-   *  CohortsLazy read (writing transaction)
+   *  CohortsLN read (writing transaction)
    */
   void*
-  CohortsLazy::read_rw(STM_READ_SIG(tx,addr,mask))
+  CohortsLN::read_rw(STM_READ_SIG(tx,addr,mask))
   {
       // check the log for a RAW hazard, we expect to miss
       WriteSetEntry log(STM_WRITE_SET_ENTRY(addr, NULL, mask));
       bool found = tx->writes.find(log);
       REDO_RAW_CHECK(found, log, mask);
 
-      // log orec
-      tx->r_orecs.insert(get_orec(addr));
-
       void* tmp = *addr;
+      STM_LOG_VALUE(tx, addr, tmp, mask);
       REDO_RAW_CLEANUP(tmp, found, log, mask);
       return tmp;
   }
 
   /**
-   *  CohortsLazy write (read-only context): for first write
+   *  CohortsLN write (read-only context): for first write
    */
   void
-  CohortsLazy::write_ro(STM_WRITE_SIG(tx,addr,val,mask))
+  CohortsLN::write_ro(STM_WRITE_SIG(tx,addr,val,mask))
   {
       // record the new value in a redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
@@ -211,20 +223,20 @@ namespace {
   }
 
   /**
-   *  CohortsLazy write (writing context)
+   *  CohortsLN write (writing context)
    */
   void
-  CohortsLazy::write_rw(STM_WRITE_SIG(tx,addr,val,mask))
+  CohortsLN::write_rw(STM_WRITE_SIG(tx,addr,val,mask))
   {
       // record the new value in a redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
   }
 
   /**
-   *  CohortsLazy unwinder:
+   *  CohortsLN unwinder:
    */
   stm::scope_t*
-  CohortsLazy::rollback(STM_ROLLBACK_SIG(tx, except, len))
+  CohortsLN::rollback(STM_ROLLBACK_SIG(tx, except, len))
   {
       PreRollback(tx);
 
@@ -234,56 +246,54 @@ namespace {
       STM_ROLLBACK(tx->writes, except, len);
 
       // reset all lists
-      tx->r_orecs.reset();
+      tx->vlist.reset();
       tx->writes.reset();
 
       return PostRollback(tx);
   }
 
   /**
-   *  CohortsLazy in-flight irrevocability:
+   *  CohortsLN in-flight irrevocability:
    */
   bool
-  CohortsLazy::irrevoc(TxThread*)
+  CohortsLN::irrevoc(TxThread*)
   {
-      UNRECOVERABLE("CohortsLazy Irrevocability not yet supported");
+      UNRECOVERABLE("CohortsLN Irrevocability not yet supported");
       return false;
   }
 
   /**
-   *  CohortsLazy validation for commit: check that all reads are valid
+   *  CohortsLN validation for commit: check that all reads are valid
    */
-  void
-  CohortsLazy::validate(TxThread* tx)
+  uintptr_t
+  validate(TxThread* tx)
   {
-      foreach (OrecList, i, tx->r_orecs) {
-          // read this orec
-          uintptr_t ivt = (*i)->v.all;
-          // If orec changed, abort
-          if (ivt > tx->ts_cache) {
-              // Mark self as done
-              last_complete.val = tx->order;
-              // Mark self status
-              tx->status = COHORTS_COMMITTED;
-              WBR;
+    while (true) {
+      // read the lock until it is even
+      uintptr_t s = timestamp.val;
+      if ((s & 1) == 1)
+	continue;
 
-              // Am I the last one?
-              bool l = true;
-              for (uint32_t i = 0; l != false && i < threadcount.val; ++i)
-                  l &= (threads[i]->status != COHORTS_CPENDING);
+      // check the read set
+      CFENCE;
+      // don't branch in the loop---consider it backoff if we fail
+      // validation early
+      bool valid = true;
+      foreach (ValueList, i, tx->vlist)
+	valid &= STM_LOG_VALUE_IS_VALID(i, tx);
 
-              // If I'm the last one, release gatekeeper lock
-              if (l) {
-                  last_order = tx->order + 1;
-                  gatekeeper = 0;
-              }
-              tx->tmabort(tx);
-          }
-      }
+      if (!valid)
+	return VALIDATION_FAILED;
+
+      // restart if timestamp changed during read set iteration
+      CFENCE;
+      if (timestamp.val == s)
+	return s;
+    }
   }
 
   /**
-   *  Switch to CohortsLazy:
+   *  Switch to CohortsLN:
    *
    *    The timestamp must be >= the maximum value of any orec.  Some algs use
    *    timestamp as a zero-one mutex.  If they do, then they back up the
@@ -291,35 +301,36 @@ namespace {
    *
    */
   void
-  CohortsLazy::onSwitchTo()
+  CohortsLN::onSwitchTo()
   {
-      timestamp.val = MAXIMUM(timestamp.val, timestamp_max.val);
-      last_complete.val = timestamp.val;
-      // when switching algs, mark all tx committed status
-      for (uint32_t i = 0; i < threadcount.val; ++i) {
-          threads[i]->status = COHORTS_COMMITTED;
-      }
+    last_complete.val = 0;
+    if (timestamp.val & 1)
+      ++timestamp.val;
+    // when switching algs, mark all tx committed status
+    for (uint32_t i = 0; i < threadcount.val; ++i) {
+      threads[i]->status = COHORTS_COMMITTED;
+    }
   }
 }
 
 namespace stm {
   /**
-   *  CohortsLazy initialization
+   *  CohortsLN initialization
    */
   template<>
-  void initTM<CohortsLazy>()
+  void initTM<CohortsLN>()
   {
       // set the name
-      stms[CohortsLazy].name      = "CohortsLazy";
+      stms[CohortsLN].name      = "CohortsLN";
       // set the pointers
-      stms[CohortsLazy].begin     = ::CohortsLazy::begin;
-      stms[CohortsLazy].commit    = ::CohortsLazy::commit_ro;
-      stms[CohortsLazy].read      = ::CohortsLazy::read_ro;
-      stms[CohortsLazy].write     = ::CohortsLazy::write_ro;
-      stms[CohortsLazy].rollback  = ::CohortsLazy::rollback;
-      stms[CohortsLazy].irrevoc   = ::CohortsLazy::irrevoc;
-      stms[CohortsLazy].switcher  = ::CohortsLazy::onSwitchTo;
-      stms[CohortsLazy].privatization_safe = true;
+      stms[CohortsLN].begin     = ::CohortsLN::begin;
+      stms[CohortsLN].commit    = ::CohortsLN::commit_ro;
+      stms[CohortsLN].read      = ::CohortsLN::read_ro;
+      stms[CohortsLN].write     = ::CohortsLN::write_ro;
+      stms[CohortsLN].rollback  = ::CohortsLN::rollback;
+      stms[CohortsLN].irrevoc   = ::CohortsLN::irrevoc;
+      stms[CohortsLN].switcher  = ::CohortsLN::onSwitchTo;
+      stms[CohortsLN].privatization_safe = true;
   }
 }
 

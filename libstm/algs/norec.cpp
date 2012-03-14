@@ -54,7 +54,7 @@ namespace {
   uintptr_t
   validate(TxThread* tx)
   {
-      while (true) {
+    while (true) {
           // read the lock until it is even
           uintptr_t s = timestamp.val;
           if ((s & 1) == 1)
