@@ -1,0 +1,29 @@
+#
+#  Copyright (C) 2011
+#  University of Rochester Department of Computer Science
+#    and
+#  Lehigh University Department of Computer Science and Engineering
+# 
+# License: Modified BSD
+#          Please see the file LICENSE.RSTM for licensing information
+
+#######################################################
+# Names of important tools.
+#
+# NB: These are hard-coded for Lehigh for now
+#
+# NB: We have both the pre-release Oracle compiler, and the special revised
+#     pre-release iropt.  The Qpath flag gets us the newer iropt, which is
+#     necessary to get things to build correctly
+#######################################################
+
+CXX = g++
+AR  = ar
+
+#######################################################
+# Platform-specific build flags
+#######################################################
+
+CXXFLAGS    = -O3 -ggdb -fgnu-tm -m32
+CXXFLAGS   += -DSINGLE_SOURCE_BUILD -I./$(ODIR) -I./include -I.
+LDFLAGS    += -lrt -lpthread -m32 -lmtmalloc
