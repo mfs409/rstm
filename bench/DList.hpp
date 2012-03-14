@@ -12,7 +12,6 @@
 #define DLIST_HPP__
 
 #include <limits.h>
-#include <api/api.hpp>
 
 // Doubly-Linked List workload
 class DList

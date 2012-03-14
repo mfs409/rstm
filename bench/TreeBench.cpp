@@ -8,7 +8,7 @@
  *          Please see the file LICENSE.RSTM for licensing information
  */
 
-#include <stm/config.h>
+#include <stm.h>
 #if defined(STM_CPU_SPARC)
 #include <sys/types.h>
 #endif
@@ -18,7 +18,7 @@
  *    Include the configuration code for the harness, and the API code.
  */
 #include <iostream>
-#include <api/api.hpp>
+#include <cassert>
 #include "bmconfig.hpp"
 
 /**

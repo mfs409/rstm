@@ -8,7 +8,7 @@
  *          Please see the file LICENSE.RSTM for licensing information
  */
 
-#include <stm/config.h>
+#include <stm.h>
 #if defined(STM_CPU_SPARC)
 #include <sys/types.h>
 #endif
@@ -19,7 +19,6 @@
  */
 #include <iostream>
 #include <vector>
-#include <api/api.hpp>
 #include "bmconfig.hpp"
 
 /**

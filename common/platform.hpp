@@ -23,7 +23,7 @@
 #ifndef PLATFORM_HPP__
 #define PLATFORM_HPP__
 
-#include <stm/config.h>
+#include <config.h>
 #include <stdint.h>
 #include <limits.h>
 

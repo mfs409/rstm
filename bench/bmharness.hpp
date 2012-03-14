@@ -15,7 +15,6 @@
 #include <iostream>
 #include <signal.h>
 #include <pthread.h>
-#include <api/api.hpp>
 #include <common/platform.hpp>
 #include <common/locks.hpp>
 #include "bmconfig.hpp"
