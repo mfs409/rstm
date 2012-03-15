@@ -10,11 +10,11 @@
 
 /**
  * This API file defines how a benchmark should be built when we are using
- * the CGL (no instrumentation) interface.
+ * the STM (no instrumentation) interface.
  */
 
-#ifndef CGLAPI_H__
-#define CGLAPI_H__
+#ifndef STMAPI_HPP__
+#define STMAPI_HPP__
 
 #include <limits.h>
 #include <setjmp.h>
@@ -68,6 +68,7 @@ namespace stm
 
 #define TM_READ(var)         stm::stm_read(&var)
 #define TM_WRITE(var, val)   stm::stm_write(&var, val)
+
 #define TM_THREAD_INIT()     stm::tm_thread_init()
 #define TM_THREAD_SHUTDOWN() stm::tm_thread_shutdown()
 #define TM_SYS_INIT()        stm::tm_sys_init()
@@ -83,7 +84,4 @@ namespace stm
 #define TM_WAIVER
 #define TM_PARAM_ALONE
 
-
-
-
-#endif // CGLAPI_H__
+#endif // STMAPI_HPP__

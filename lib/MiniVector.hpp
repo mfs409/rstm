@@ -88,6 +88,7 @@ namespace stm
 
   /*** double the size of a minivector */
   template <class T>
+  NOINLINE
   void MiniVector<T>::expand()
   {
       T* temp = m_elements;

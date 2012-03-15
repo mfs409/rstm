@@ -13,8 +13,8 @@
  * the CGL (no instrumentation) interface.
  */
 
-#ifndef CGLAPI_H__
-#define CGLAPI_H__
+#ifndef CGLAPI_HPP__
+#define CGLAPI_HPP__
 
 #include <limits.h>
 
@@ -29,14 +29,50 @@ namespace stm
   void tm_sys_shutdown();
   void* tm_alloc(size_t s);
   void tm_free(void* p);
+  void* tm_read(void** addr);
+  void tm_write(void** addr, void* val);
 }
-
 
 #define TM_BEGIN(x)          stm::tm_begin();
 #define TM_END               stm::tm_end()
+
 #define TM_GET_ALGNAME()     stm::tm_getalgname()
-#define TM_READ(var)         var
-#define TM_WRITE(var, val)   var = val
+
+/**
+ *  When LTO is available, there is no need to use these custom read/write
+ *  functions, because we can get the same performance with LTO.  We'll turn
+ *  them off by default, and worry about what to do for non-LTO compilers
+ *  later.
+ */
+#if 0
+#    define TM_READ(var)         var
+#    define TM_WRITE(var, val)   var = val
+#endif
+
+#include "library_inst.hpp"
+
+/**
+ *  Now we can make simple macros for reading and writing shared memory, by
+ *  using templates to dispatch to the right code:
+ */
+namespace stm
+{
+  template <typename T>
+  inline T stm_read(T* addr)
+  {
+      return DISPATCH<T, sizeof(T)>::read(addr);
+  }
+
+  template <typename T>
+  inline void stm_write(T* addr, T val)
+  {
+      DISPATCH<T, sizeof(T)>::write(addr, val);
+  }
+} // namespace stm
+
+#define TM_READ(var)         stm::stm_read(&var)
+#define TM_WRITE(var, val)   stm::stm_write(&var, val)
+
 #define TM_THREAD_INIT()     stm::tm_thread_init()
 #define TM_THREAD_SHUTDOWN() stm::tm_thread_shutdown()
 #define TM_SYS_INIT()        stm::tm_sys_init()
@@ -52,4 +88,4 @@ namespace stm
 #define TM_WAIVER
 #define TM_PARAM_ALONE
 
-#endif // CGLAPI_H__
+#endif // CGLAPI_HPP__

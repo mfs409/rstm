@@ -142,13 +142,9 @@ namespace stm
   void tm_free(void* p) { free(p); }
 
   /**
-   * Legacy stuff, may need eventually
-   */
-#if 0
-  /**
    *  CGL read
    */
-  void* CGL::read(STM_READ_SIG(,addr,))
+  void* tm_read(void** addr)
   {
       return *addr;
   }
@@ -156,10 +152,9 @@ namespace stm
   /**
    *  CGL write
    */
-  void CGL::write(STM_WRITE_SIG(,addr,val,mask))
+  void tm_write(void** addr, void* val)
   {
-      STM_DO_MASKED_WRITE(addr, val, mask);
+      *addr = val;
   }
-#endif
 
 }

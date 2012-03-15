@@ -22,6 +22,11 @@
  *  when we do not need to instrument reads and writes at all, TML, for when
  *  we inline read and write instrumentation via the TML algorithm, and STM,
  *  which uses standard function call instrumentation for reads and writes.
+ *
+ *  We might go two different ways from here: on the one hand, we might want
+ *  to consider offering /more/ APIs, particularly for boundary
+ *  instrumentation.  On the other hand, we might want to consider fewer
+ *  APIs, especially since LTO seems to work very nicely for CGL.
  */
 
 #if defined(STM_INST_CGL)
