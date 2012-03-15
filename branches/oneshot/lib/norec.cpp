@@ -338,15 +338,7 @@ namespace stm {
 #include "ValueList.hpp"
 #include "WriteSet.hpp"
 #include "WBMMPolicy.hpp"
-
-/**
- * C++ iterators can get so ugly without c++0x 'auto'.  These macros are not
- * a good idea, but it makes it much easier to write 79-column code
- */
-#define foreach(TYPE, VAR, COLLECTION)                  \
-    for (TYPE::iterator VAR = COLLECTION.begin(),       \
-         CEND = COLLECTION.end();                       \
-         VAR != CEND; ++VAR)
+#include "Macros.hpp"
 
 namespace stm
 {
@@ -376,10 +368,14 @@ namespace stm
       WBMMPolicy     allocator;     // buffer malloc/free
       uintptr_t      start_time;    // start time of transaction
 
-
       /*** constructor ***/
       TX();
   };
+
+  /**
+   *  [mfs] We should factor the next three declarations into some sort of
+   *        common cpp file
+   */
 
   /**
    *  Array of all threads
@@ -433,11 +429,6 @@ namespace stm
   }
 
   /**
-   *  Abort and roll back the transaction (e.g., on conflict)
-   */
-  NORETURN void tm_abort(TX* tx);
-
-  /**
    *  For querying to get the current algorithm name
    */
   const char* tm_getalgname() { return "NOrec"; }
@@ -463,6 +454,9 @@ namespace stm
 
   const uintptr_t VALIDATION_FAILED = 1;
 
+  /**
+   *  Validate a transaction by ensuring that its reads have not changed
+   */
   NOINLINE
   uintptr_t validate(TX* tx)
   {
@@ -490,6 +484,42 @@ namespace stm
       }
   }
 
+  /**
+   *  Abort and roll back the transaction (e.g., on conflict).
+   */
+  stm::scope_t* rollback(TX* tx)
+  {
+      ++tx->aborts;
+      tx->vlist.reset();
+      tx->writes.reset();
+      tx->allocator.onTxAbort();
+      tx->nesting_depth = 0;
+      stm::scope_t* scope = tx->scope;
+      tx->scope = NULL;
+      return scope;
+  }
+
+  /**
+   *  The default mechanism that libstm uses for an abort. An API environment
+   *  may also provide its own abort mechanism (see itm2stm for an example of
+   *  how the itm shim does this).
+   *
+   *  This is ugly because rollback has a configuration-dependent signature.
+   */
+  NOINLINE
+  NORETURN
+  void tm_abort(TX* tx)
+  {
+      jmp_buf* scope = (jmp_buf*)rollback(tx);
+      // need to null out the scope
+      longjmp(*scope, 1);
+  }
+
+  /**
+   *  Start a (possibly flat nested) transaction.
+   *
+   *  [mfs] Eventually need to inline setjmp into this method
+   */
   void tm_begin(scope_t* scope)
   {
       TX* tx = Self;
@@ -509,14 +539,14 @@ namespace stm
       tx->allocator.onTxBegin();
   }
 
+  /**
+   *  Commit a (possibly flat nested) transaction
+   */
   void tm_end()
   {
       TX* tx = Self;
       if (--tx->nesting_depth)
           return;
-
-      // From a valid state, the transaction increments the seqlock.  Then it
-      // does writeback and increments the seqlock again
 
       // read-only is trivially successful at last read
       if (!tx->writes.size()) {
@@ -525,6 +555,9 @@ namespace stm
           ++tx->commits_ro;
           return;
       }
+
+      // From a valid state, the transaction increments the seqlock.  Then it
+      // does writeback and increments the seqlock again
 
       // get the lock and validate (use RingSTM obstruction-free technique)
       while (!bcasptr(&timestamp.val, tx->start_time, tx->start_time + 1))
@@ -542,6 +575,9 @@ namespace stm
       ++tx->commits_rw;
   }
 
+  /**
+   *  Transactional read
+   */
   void* tm_read(void** addr)
   {
       TX* tx = Self;
@@ -578,8 +614,10 @@ namespace stm
 
   }
 
-  void
-  tm_write(void** addr, void* val)
+  /**
+   *  Simple buffered transactional write
+   */
+  void tm_write(void** addr, void* val)
   {
       TX* tx = Self;
       // just buffer the write
@@ -599,33 +637,10 @@ namespace stm
    */
   void tm_free(void* p) { Self->allocator.txFree(p); }
 
-  stm::scope_t* rollback(TX* tx)
-  {
-      ++tx->aborts;
-      tx->vlist.reset();
-      tx->writes.reset();
-      tx->allocator.onTxAbort();
-      tx->nesting_depth = 0;
-      stm::scope_t* scope = tx->scope;
-      tx->scope = NULL;
-      return scope;
-  }
-
   /**
-   *  The default mechanism that libstm uses for an abort. An API environment
-   *  may also provide its own abort mechanism (see itm2stm for an example of
-   *  how the itm shim does this).
-   *
-   *  This is ugly because rollback has a configuration-dependent signature.
+   * [mfs] We should factor the rest of this into a common.cpp file of some
+   *       sort
    */
-  NOINLINE
-  NORETURN
-  void tm_abort(TX* tx)
-  {
-      jmp_buf* scope = (jmp_buf*)rollback(tx);
-      // need to null out the scope
-      longjmp(*scope, 1);
-  }
 
   /**
    * We use malloc a couple of times here, and this makes it a bit easier
