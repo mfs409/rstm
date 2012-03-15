@@ -13,21 +13,10 @@
 #include <cstdlib>
 #include "../common/platform.hpp"
 #include "../common/locks.hpp"
+#include "metadata.hpp"
 
 namespace stm
 {
-  static const int MAX_THREADS = 256;
-
-  /**
-   *  Padded wrapper around a word to prevent false sharing
-   */
-  struct pad_word_t
-  {
-      volatile uintptr_t val;
-      char pad[CACHELINE_BYTES-sizeof(uintptr_t)];
-  } TM_ALIGN(64);
-
-
   /**
    *  Store per-thread metadata.  There isn't much for CGL...
    */
@@ -51,13 +40,13 @@ namespace stm
    */
   TX* threads[MAX_THREADS];
 
-  /*** Count of all threads ***/
-  pad_word_t threadcount = {0};
-
   /**
    *  Thread-local pointer to self
    */
   __thread TX* Self = NULL;
+
+  /*** Count of all threads ***/
+  pad_word_t threadcount = {0};
 
   /**
    *  Simple constructor for TX: zero all fields, get an ID

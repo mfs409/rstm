@@ -20,10 +20,7 @@ info:
 	@echo "  lib_gcc_solaris_ia32_opt"
 	@echo "      library API, gcc, solaris, x86, 32-bit, -O3"
 
-
-
 # dispatch to the various platforms
 lib_gcc_solaris_ia32_opt:
 	MAKEFILES=build/$@.mk $(MAKE) all
 
-#lib_suncc_solaris_x86_opt:

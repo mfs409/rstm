@@ -40,8 +40,6 @@
 
 #include "Tree.hpp"
 
-
-
 /**
  *  Step 3:
  *    Declare an instance of the data type, and provide init, test, and verify
@@ -56,6 +54,7 @@ void bench_init()
 {
     SET = new RBTree();
     // warm up the datastructure
+    // [mfs] need to do this without transactions...
     TM_BEGIN_FAST_INITIALIZATION();
     for (uint32_t w = 0; w < CFG.elements; w+=2)
         SET->insert(w TM_PARAM);
