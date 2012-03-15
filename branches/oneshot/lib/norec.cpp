@@ -17,6 +17,15 @@
  *    strong as Asymmetric Lock Atomicity (ALA).
  */
 
+
+/**
+ *  Warning: this has the entire old NOrec implementation (multiple templated
+ *  versions) in an #ifdef 0 block.  The current live code is present far
+ *  below, starting at #else.  Ultimately this will need to be templatized to
+ *  provide the desired NOrec variants
+ */
+
+#if 0
 #include "../cm.hpp"
 #include "algs.hpp"
 #include "RedoRAWUtils.hpp"
@@ -28,7 +37,6 @@ using stm::WriteSetEntry;
 using stm::ValueList;
 using stm::ValueListEntry;
 
-#if 0
 namespace {
 
   const uintptr_t VALIDATION_FAILED = 1;
@@ -321,25 +329,142 @@ namespace stm {
 
 
 #else
-namespace {
 
-  const uintptr_t VALIDATION_FAILED = 1;
-  NOINLINE uintptr_t validate(TxThread*);
-  bool irrevoc(TxThread*);
-  void onSwitchTo();
+#include <stdint.h>
+#include <iostream>
+#include <cassert>
+#include <setjmp.h> // factor this out into the API?
+#include "../common/platform.hpp"
+#include "ValueList.hpp"
+#include "WriteSet.hpp"
+#include "WBMMPolicy.hpp"
 
-  struct NOrec
+/**
+ * C++ iterators can get so ugly without c++0x 'auto'.  These macros are not
+ * a good idea, but it makes it much easier to write 79-column code
+ */
+#define foreach(TYPE, VAR, COLLECTION)                  \
+    for (TYPE::iterator VAR = COLLECTION.begin(),       \
+         CEND = COLLECTION.end();                       \
+         VAR != CEND; ++VAR)
+
+namespace stm
+{
+  /**
+   *  Store per-thread metadata.  There isn't much for CGL...
+   */
+  struct TX
   {
-      static TM_FASTCALL bool begin(TxThread*);
-      static TM_FASTCALL void commit(TxThread*);
-      static TM_FASTCALL void* read(STM_READ_SIG(,,));
-      static TM_FASTCALL void write(STM_WRITE_SIG(,,,));
-      static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
-      static void initialize(int id, const char* name);
+      /*** for flat nesting ***/
+      int nesting_depth;
+
+      /*** unique id for this thread ***/
+      int id;
+
+      /*** number of RO commits ***/
+      int commits_ro;
+
+      /*** number of RW commits ***/
+      int commits_rw;
+
+      int aborts;
+
+      scope_t* volatile scope;      // used to roll back; also flag for isTxnl
+
+      WriteSet       writes;        // write set
+      ValueList      vlist;         // NOrec read log
+      WBMMPolicy     allocator;     // buffer malloc/free
+      uintptr_t      start_time;    // start time of transaction
+
+
+      /*** constructor ***/
+      TX();
   };
 
-  uintptr_t
-  validate(TxThread* tx)
+  /**
+   *  Array of all threads
+   */
+  TX* threads[MAX_THREADS];
+
+  /**
+   *  Thread-local pointer to self
+   */
+  __thread TX* Self = NULL;
+
+  /*** Count of all threads ***/
+  pad_word_t threadcount = {0};
+
+  /**
+   *  Simple constructor for TX: zero all fields, get an ID
+   */
+  TX::TX() : nesting_depth(0), commits_ro(0), commits_rw(0), aborts(0),
+             scope(NULL), writes(64), vlist(64), allocator(), start_time(0)
+  {
+      id = faiptr(&threadcount.val);
+      threads[id] = this;
+      allocator.setID(id-1);
+  }
+
+  /*** The only metadata we need is a single global padded lock ***/
+  pad_word_t timestamp = {0};
+
+  /**
+   *  No system initialization is required, since the timestamp is already 0
+   */
+  void tm_sys_init() { }
+
+  /**
+   *  When the transactional system gets shut down, we call this to dump
+   *  stats for all threads
+   */
+  void tm_sys_shutdown()
+  {
+      static volatile unsigned int mtx = 0;
+      // while (!bcas32(&mtx, 0u, 1u)) { }
+      for (uint32_t i = 0; i < threadcount.val; i++) {
+          std::cout << "Thread: "       << threads[i]->id
+                    << "; RO Commits: " << threads[i]->commits_ro
+                    << "; RW Commits: " << threads[i]->commits_rw
+                    << "; Aborts: "     << threads[i]->aborts
+                    << std::endl;
+      }
+      CFENCE;
+      mtx = 0;
+  }
+
+  /**
+   *  Abort and roll back the transaction (e.g., on conflict)
+   */
+  NORETURN void tm_abort(TX* tx);
+
+  /**
+   *  For querying to get the current algorithm name
+   */
+  const char* tm_getalgname() { return "NOrec"; }
+
+  /**
+   *  To initialize the thread's TM support, we need only ensure it has a
+   *  descriptor.
+   */
+  void tm_thread_init()
+  {
+      // multiple inits from one thread do not cause trouble
+      if (Self) return;
+
+      // create a TxThread and save it in thread-local storage
+      Self = new TX();
+  }
+
+  /**
+   *  When a thread is done using the TM, we don't need to do anything
+   *  special.
+   */
+  void tm_thread_shutdown() { }
+
+  const uintptr_t VALIDATION_FAILED = 1;
+
+  NOINLINE
+  uintptr_t validate(TX* tx)
   {
       while (true) {
           // read the lock until it is even
@@ -365,36 +490,14 @@ namespace {
       }
   }
 
-  bool
-  irrevoc(TxThread* tx)
+  void tm_begin(scope_t* scope)
   {
-      while (!bcasptr(&timestamp.val, tx->start_time, tx->start_time + 1))
-          if ((tx->start_time = validate(tx)) == VALIDATION_FAILED)
-              return false;
+      TX* tx = Self;
+      if (++tx->nesting_depth > 1)
+          return;
 
-      // redo writes
-      tx->writes.writeback();
+      tx->scope = scope;
 
-      // Release the sequence lock, then clean up
-      CFENCE;
-      timestamp.val = tx->start_time + 2;
-      tx->vlist.reset();
-      tx->writes.reset();
-      return true;
-  }
-
-  void
-  onSwitchTo() {
-      // We just need to be sure that the timestamp is not odd, or else we
-      // will block.  For safety, increment the timestamp to make it even, in
-      // the event that it is odd.
-      if (timestamp.val & 1)
-          ++timestamp.val;
-  }
-
-  bool
-  NOrec::begin(TxThread* tx)
-  {
       // Originally, NOrec required us to wait until the timestamp is odd
       // before we start.  However, we can round down if odd, in which case
       // we don't need control flow here.
@@ -404,13 +507,14 @@ namespace {
 
       // notify the allocator
       tx->allocator.onTxBegin();
-
-      return false;
   }
 
-  void
-  NOrec::commit(TxThread* tx)
+  void tm_end()
   {
+      TX* tx = Self;
+      if (--tx->nesting_depth)
+          return;
+
       // From a valid state, the transaction increments the seqlock.  Then it
       // does writeback and increments the seqlock again
 
@@ -418,16 +522,14 @@ namespace {
       if (!tx->writes.size()) {
           tx->vlist.reset();
           tx->allocator.onTxCommit();
-          tx->abort_hist.onCommit(tx->consec_aborts);
-          tx->consec_aborts = 0;
-          ++tx->num_ro;
+          ++tx->commits_ro;
           return;
       }
 
       // get the lock and validate (use RingSTM obstruction-free technique)
       while (!bcasptr(&timestamp.val, tx->start_time, tx->start_time + 1))
           if ((tx->start_time = validate(tx)) == VALIDATION_FAILED)
-              tx->tmabort(tx);
+              tm_abort(tx);
 
       tx->writes.writeback();
 
@@ -437,14 +539,21 @@ namespace {
       tx->vlist.reset();
       tx->writes.reset();
       tx->allocator.onTxCommit();
-      tx->abort_hist.onCommit(tx->consec_aborts);
-      tx->consec_aborts = 0;
-      ++tx->num_commits;
+      ++tx->commits_rw;
   }
 
-  void*
-  read_ro(STM_READ_SIG(tx,addr,mask))
+  void* tm_read(void** addr)
   {
+      TX* tx = Self;
+
+      if (tx->writes.size()) {
+          // check the log for a RAW hazard, we expect to miss
+          WriteSetEntry log(STM_WRITE_SET_ENTRY(addr, NULL, mask));
+          bool found = tx->writes.find(log);
+          if (found)
+              return log.val;
+      }
+
       // A read is valid iff it occurs during a period where the seqlock does
       // not change and is even.  This code also polls for new changes that
       // might necessitate a validation.
@@ -457,7 +566,7 @@ namespace {
       // restart this read
       while (tx->start_time != timestamp.val) {
           if ((tx->start_time = validate(tx)) == VALIDATION_FAILED)
-              tx->tmabort(tx);
+              tm_abort(tx);
           tmp = *addr;
           CFENCE;
       }
@@ -466,83 +575,146 @@ namespace {
       // STM_PROTECT_STACK
       STM_LOG_VALUE(tx, addr, tmp, mask);
       return tmp;
-  }
 
-  void*
-  NOrec::read(STM_READ_SIG(tx,addr,mask))
-  {
-      if (!tx->writes.size()) {
-
-      // check the log for a RAW hazard, we expect to miss
-      WriteSetEntry log(STM_WRITE_SET_ENTRY(addr, NULL, mask));
-      bool found = tx->writes.find(log);
-      REDO_RAW_CHECK(found, log, mask);
-
-      // Use the code from the read-only read barrier. This is complicated by
-      // the fact that, when we are byte logging, we may have successfully read
-      // some bytes from the write log (if we read them all then we wouldn't
-      // make it here). In this case, we need to log the mask for the rest of the
-      // bytes that we "actually" need, which is computed as bytes in mask but
-      // not in log.mask. This is only correct because we know that a failed
-      // find also reset the log.mask to 0 (that's part of the find interface).
-      void* val = read_ro(tx, addr STM_MASK(mask & ~log.mask));
-      REDO_RAW_CLEANUP(val, found, log, mask);
-      return val;
-      }
-      else {
-          return read_ro(tx, addr STM_MASK(mask & ~log.mask));
-      }
   }
 
   void
-  NOrec::write(STM_WRITE_SIG(tx,addr,val,mask))
+  tm_write(void** addr, void* val)
   {
+      TX* tx = Self;
       // just buffer the write
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
   }
 
-  stm::scope_t*
-  NOrec::rollback(STM_ROLLBACK_SIG(tx, except, len))
+  /**
+   *  get a chunk of memory that will be automatically reclaimed if the caller
+   *  is a transaction that ultimately aborts
+   */
+  void* tm_alloc(size_t size) { return Self->allocator.txAlloc(size); }
+
+  /**
+   *  Free some memory.  If the caller is a transaction that ultimately aborts,
+   *  the free will not happen.  If the caller is a transaction that commits,
+   *  the free will happen at commit time.
+   */
+  void tm_free(void* p) { Self->allocator.txFree(p); }
+
+  stm::scope_t* rollback(TX* tx)
   {
-      ++tx->num_aborts;
-      ++tx->consec_aborts;
-
-      // Perform writes to the exception object if there were any... taking the
-      // branch overhead without concern because we're not worried about
-      // rollback overheads.
-      STM_ROLLBACK(tx->writes, except, len);
-
+      ++tx->aborts;
       tx->vlist.reset();
       tx->writes.reset();
-
       tx->allocator.onTxAbort();
       tx->nesting_depth = 0;
       stm::scope_t* scope = tx->scope;
       tx->scope = NULL;
       return scope;
-
   }
-} // (anonymous namespace)
 
-namespace stm
-{
-  template<>
-  void initTM<NOrec>()
+  /**
+   *  The default mechanism that libstm uses for an abort. An API environment
+   *  may also provide its own abort mechanism (see itm2stm for an example of
+   *  how the itm shim does this).
+   *
+   *  This is ugly because rollback has a configuration-dependent signature.
+   */
+  NOINLINE
+  NORETURN
+  void tm_abort(TX* tx)
   {
-      // set the name
-      stm::stms[NOrec].name = "NOrec";
-
-      // set the pointers
-      stm::stms[NOrec].begin     = NOrec::begin;
-      stm::stms[NOrec].commit    = NOrec::commit;
-      stm::stms[NOrec].read      = NOrec::read;
-      stm::stms[NOrec].write     = NOrec::write;
-      stm::stms[NOrec].irrevoc   = irrevoc;
-      stm::stms[NOrec].switcher  = onSwitchTo;
-      stm::stms[NOrec].privatization_safe = true;
-      stm::stms[NOrec].rollback  = NOrec::rollback;
+      jmp_buf* scope = (jmp_buf*)rollback(tx);
+      // need to null out the scope
+      longjmp(*scope, 1);
   }
-}
+
+  /**
+   * We use malloc a couple of times here, and this makes it a bit easier
+   */
+  template <typename T>
+  inline T* typed_malloc(size_t N)
+  {
+      return static_cast<T*>(malloc(sizeof(T) * N));
+  }
+
+  /**
+   * This doubles the size of the index. This *does not* do anything as
+   * far as actually doing memory allocation. Callers should delete[] the
+   * index table, increment the table size, and then reallocate it.
+   */
+  NOINLINE
+  size_t WriteSet::doubleIndexLength()
+  {
+      assert(shift != 0 &&
+             "ERROR: the writeset doesn't support an index this large");
+      shift   -= 1;
+      ilength  = 1 << (8 * sizeof(uint32_t) - shift);
+      return ilength;
+  }
+
+  /***  Writeset constructor.  Note that the version must start at 1. */
+  WriteSet::WriteSet(const size_t initial_capacity)
+      : index(NULL), shift(8 * sizeof(uint32_t)), ilength(0),
+        version(1), list(NULL), capacity(initial_capacity), lsize(0)
+  {
+      // Find a good index length for the initial capacity of the list.
+      while (ilength < 3 * initial_capacity)
+          doubleIndexLength();
+
+      index = new index_t[ilength];
+      list  = typed_malloc<WriteSetEntry>(capacity);
+  }
+
+  /***  Writeset destructor */
+  WriteSet::~WriteSet()
+  {
+      delete[] index;
+      free(list);
+  }
+
+  /***  Rebuild the writeset */
+  NOINLINE
+  void WriteSet::rebuild()
+  {
+      assert(version != 0 && "ERROR: the version should *never* be 0");
+
+      // extend the index
+      delete[] index;
+      index = new index_t[doubleIndexLength()];
+
+      for (size_t i = 0; i < lsize; ++i) {
+          const WriteSetEntry& l = list[i];
+          size_t h = hash(l.addr);
+
+          // search for the next available slot
+          while (index[h].version == version)
+              h = (h + 1) % ilength;
+
+          index[h].address = l.addr;
+          index[h].version = version;
+          index[h].index   = i;
+      }
+  }
+
+  /***  Resize the writeset */
+  NOINLINE
+  void WriteSet::resize()
+  {
+      WriteSetEntry* temp  = list;
+      capacity     *= 2;
+      list          = typed_malloc<WriteSetEntry>(capacity);
+      memcpy(list, temp, sizeof(WriteSetEntry) * lsize);
+      free(temp);
+  }
+
+  /***  Another writeset reset function that we don't want inlined */
+  NOINLINE
+  void WriteSet::reset_internal()
+  {
+      memset(index, 0, sizeof(index_t) * ilength);
+      version = 1;
+  }
+
+} // (anonymous namespace)
 
 #endif
 

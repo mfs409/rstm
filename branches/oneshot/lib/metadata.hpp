@@ -17,6 +17,27 @@
 #ifndef METADATA_HPP__
 #define METADATA_HPP__
 
+namespace stm
+{
+  static const int MAX_THREADS = 256;
+
+  /**
+   *  Padded wrapper around a word to prevent false sharing
+   */
+  struct pad_word_t
+  {
+      volatile uintptr_t val;
+      char pad[CACHELINE_BYTES-sizeof(uintptr_t)];
+  } TM_ALIGN(64);
+
+  /**
+   *  A scope_t is an opaque type used by an API to unwind.
+   */
+  typedef void scope_t;
+
+}
+
+#if 0
 #include <stm/config.h>
 #include "stm/MiniVector.hpp"
 #include "stm/BitFilter.hpp"
@@ -243,5 +264,6 @@ namespace stm
 #endif
 
 } // namespace stm
+#endif
 
 #endif // METADATA_HPP__
