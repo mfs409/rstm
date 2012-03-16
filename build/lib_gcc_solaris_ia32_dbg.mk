@@ -14,6 +14,9 @@
 # NB: corei7 may not be available on older versions of gcc.  This makefile
 # assumes a 4.7-ish gcc.  Please adjust accordingly.
 #
+# Warning: This won't work without also including Rules.mk, but to avoid
+# weird path issues, we include it from the invocation, not from this file.
+#
 
 ODIR        = obj.lib_gcc_solaris_ia32_dbg
 CONFIGH     = $(ODIR)/config.h
@@ -33,16 +36,15 @@ LDFLAGS    += -lrt -lpthread -m32 -lmtmalloc
 #
 
 LIBDIR      = lib
-LIBNAMES    = cgl norec tml cohortseager WBMMPolicy
+LIBNAMES    = cgl norec tml cohortseager cohorts
 LIBS        = $(patsubst %, $(ODIR)/%.o, $(LIBNAMES))
+SUPTNAMES   = WBMMPolicy
+SUPTS       = $(patsubst %, $(ODIR)/%.o, $(SUPTNAMES))
 BENCHDIR    = bench
 BENCHNAMES  = CounterBench DisjointBench DListBench ForestBench HashBench    \
               ListBench MCASBench ReadNWrite1Bench ReadWriteNBench TreeBench \
               TreeOverwriteBench TypeTest WWPathologyBench
-BENCHES     = $(patsubst %, $(ODIR)/%.cgl, $(BENCHNAMES)) \
-              $(patsubst %, $(ODIR)/%.norec, $(BENCHNAMES)) \
-              $(patsubst %, $(ODIR)/%.tml, $(BENCHNAMES)) \
-              $(patsubst %, $(ODIR)/%.cohortseager, $(BENCHNAMES))
+BENCHES     = $(foreach lib,$(LIBNAMES),$(foreach bench,$(BENCHNAMES),$(ODIR)/$(bench).$(lib)))
 
 #
 # [mfs] TODO - we should build each benchmark 3 times, with known suffixes,
@@ -70,46 +72,6 @@ $(CONFIGH):
 	@echo "#define STM_OPT_O0" >> $@
 	@echo "#define STM_WS_WORDLOG" >> $@
 
-$(ODIR)/%.o: $(LIBDIR)/%.cpp $(CONFIGH)
-	@echo [CXX] $< "-->" $@
-	@$(CXX) $(CXXFLAGS) -c -o $@ $<
-
-$(ODIR)/%.cgl: $(BENCHDIR)/%.cpp $(CONFIGH) $(ODIR)/cgl.o
-	@echo [CXX] $< "-->" $@ 
-	@$(CXX) $(CXXFLAGS) -o $@ $< $(LDFLAGS) -DSTM_INST_CGL $(ODIR)/cgl.o
-
-$(ODIR)/%.norec: $(BENCHDIR)/%.cpp $(CONFIGH) $(ODIR)/norec.o $(ODIR)/WBMMPolicy.o
-	@echo [CXX] $< "-->" $@ 
-	@$(CXX) $(CXXFLAGS) -o $@ $< $(LDFLAGS) -DSTM_INST_GENERIC $(ODIR)/norec.o $(ODIR)/WBMMPolicy.o
-
-$(ODIR)/%.tml: $(BENCHDIR)/%.cpp $(CONFIGH) $(ODIR)/tml.o $(ODIR)/WBMMPolicy.o
-	@echo [CXX] $< "-->" $@ 
-	@$(CXX) $(CXXFLAGS) -o $@ $< $(LDFLAGS) -DSTM_INST_GENERIC $(ODIR)/tml.o $(ODIR)/WBMMPolicy.o
-
-$(ODIR)/%.cohortseager: $(BENCHDIR)/%.cpp $(CONFIGH) $(ODIR)/cohortseager.o $(ODIR)/WBMMPolicy.o
-	@echo [CXX] $< "-->" $@ 
-	@$(CXX) $(CXXFLAGS) -o $@ $< $(LDFLAGS) -DSTM_INST_GENERIC $(ODIR)/cohortseager.o $(ODIR)/WBMMPolicy.o
-
 clean:
 	@rm -rf $(ODIR)
 	@echo $(ODIR) clean
-
-#
-# [mfs] ignore this; it's a playground for figuring out how to get everything
-#       to build without too many build lines.  This will go away once I put
-#       it in use
-#
-
-TEST  = $(foreach lib,$(LIBNAMES),$(foreach bench,$(BENCHNAMES),$(ODIR)/$(bench).$(lib)))
-TEST2 = $(ODIR)/CounterBench.cgl
-testit: $(TEST2)
-	@echo test=$(TEST)
-	@echo $(patsubst $(ODIR)/, , $(patsubst %., , $(TEST)))
-	@echo $(patsubst .%, , $(TEST))
-	@echo $(notdir $(TEST2))
-	@echo $(suffix $(TEST2))
-	@echo $(basename $(notdir $(TEST2)))
-	@echo $(subst ., , $(suffix $(TEST2)))
-	@echo $(ODIR)/$(basename $(notdir $(@))).instnone
-	@echo $(ODIR)/$(subst .,,$(suffix $(@))).o
-

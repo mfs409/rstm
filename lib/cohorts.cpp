@@ -11,8 +11,7 @@
 /**
  *  CohortsEager Implementation
  *
- *  Similiar to Cohorts, except that if I'm the last one in the cohort, I
- *  go to turbo mode, do in place read and write, and do turbo commit.
+ *  Original cohorts algorithm
  */
 
 #include <stdint.h>
@@ -74,7 +73,6 @@ namespace stm
   volatile int32_t committed = 0;  // number of tx committed
   volatile int32_t last_order = 0; // order of last tx in a cohort + 1
   volatile uint32_t gatekeeper = 0;// indicating whether tx can start
-  volatile uint32_t inplace = 0;
 
   pad_word_t last_complete = {0};
 
@@ -105,8 +103,6 @@ namespace stm
 
       uintptr_t      ts_cache;      // last validation time
       intptr_t       order;         // for stms that order txns eagerly
-
-      bool turbo;
 
       int aborts;
 
@@ -141,7 +137,7 @@ namespace stm
   /**
    *  Simple constructor for TX: zero all fields, get an ID
    */
-  TX::TX() : nesting_depth(0), commits_ro(0), commits_rw(0), r_orecs(64), ts_cache(0), order(-1), turbo(false),
+  TX::TX() : nesting_depth(0), commits_ro(0), commits_rw(0), r_orecs(64), ts_cache(0), order(-1),
              aborts(0), scope(NULL), writes(64), allocator()
   {
       id = faiptr(&threadcount.val);
@@ -259,9 +255,7 @@ namespace stm
           //       Should evaluate if that is faster here.
           if (ivt > tx->ts_cache) {
               // increase total number of committed tx
-              // ADD(&committed, 1);
-              committed++;
-              WBR;
+              ADD(&committed, 1);
               // set self as completed
               last_complete.val = tx->order;
               // abort
@@ -292,7 +286,7 @@ namespace stm
 
       // [NB] we must double check no one is ready to commit yet
       // and no one entered in place write phase(turbo mode)
-      if (cpending > committed || inplace == 1) {
+      if (cpending > committed) {
           SUB(&started, 1);
           goto S1;
       }
@@ -311,31 +305,6 @@ namespace stm
       if (--tx->nesting_depth)
           return;
 
-      if (tx->turbo) {
-          // increase # of tx waiting to commit, and use it as the order
-          cpending++;
-
-          // clean up
-          tx->r_orecs.reset();
-          tx->allocator.onTxCommit();
-          ++tx->commits_rw;
-
-          // wait for my turn, in this case, cpending is my order
-          while (last_complete.val != (uintptr_t)(cpending - 1));
-
-          // reset in place write flag
-          inplace = 0;
-
-          // mark self as done
-          last_complete.val = cpending;
-
-          // increase # of committed
-          committed ++;
-          WBR;
-          tx->turbo = false;
-          return;
-      }
-
       if (!tx->writes.size()) {
           // decrease total number of tx started
           SUB(&started, 1);
@@ -353,12 +322,8 @@ namespace stm
       // Wait for my turn
       while (last_complete.val != (uintptr_t)(tx->order - 1));
 
-      // Wait until all tx are ready to commit
-      while (cpending < started);
-
-      // If in place write occurred, all tx validate reads
-      // Otherwise, only first one skips validation
-      if (inplace == 1 || tx->order != last_order)
+      // If I'm not the first one in a cohort to commit, validate read
+      if (tx->order != last_order)
           validate(tx);
 
       foreach (WriteSet, i, tx->writes) {
@@ -366,21 +331,26 @@ namespace stm
           orec_t* o = get_orec(i->addr);
           // mark orec
           o->v.all = tx->order;
-          // do write back
-          *i->addr = i->val;
       }
 
-      // increase total number of committed tx
-      // [NB] Using atomic instruction might be faster
-      // ADD(&committed, 1);
-      committed ++;
-      WBR;
+      // Wait until all tx are ready to commit
+      while (cpending < started);
+
+      // do write back
+      foreach (WriteSet, i, tx->writes)
+          *i->addr = i->val;
 
       // update last_order
       last_order = started + 1;
 
       // mark self as done
       last_complete.val = tx->order;
+
+      // increase total number of committed tx
+      // [NB] atomic increment is faster here
+      ADD(&committed, 1);
+      // committed++;
+      // WBR;
 
       // commit all frees, reset all lists
       tx->r_orecs.reset();
@@ -395,10 +365,6 @@ namespace stm
   void* tm_read(void** addr)
   {
       TX* tx = Self;
-
-      if (tx->turbo) {
-          return *addr;
-      }
 
       if (tx->writes.size()) {
           // check the log for a RAW hazard, we expect to miss
@@ -419,38 +385,6 @@ namespace stm
   void tm_write(void** addr, void* val)
   {
       TX* tx = Self;
-
-      if (tx->turbo) {
-          orec_t* o = get_orec(addr);
-          o->v.all = started; // mark orec
-          *addr = val; // in place write
-          return;
-      }
-
-      if (!tx->writes.size() && 0) {
-          // If everyone else is ready to commit, do in place write
-          if (cpending + 1 == started) {
-              // set up flag indicating in place write starts
-              // [NB] When testing on MacOS, better use CAS
-              inplace = 1;
-              WBR;
-              // double check is necessary
-              if (cpending + 1 == started) {
-                  // mark orec
-                  orec_t* o = get_orec(addr);
-                  o->v.all = started;
-                  // in place write
-                  *addr = val;
-                  // go turbo mode
-                  tx->turbo = true;
-                  return;
-              }
-              // reset flag
-              inplace = 0;
-          }
-          tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
-          return;
-      }
 
       // record the new value in a redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
