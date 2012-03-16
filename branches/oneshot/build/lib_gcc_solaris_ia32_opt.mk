@@ -11,16 +11,19 @@
 # This makefile is for building the RSTM libraries and benchmarks using
 # library API, GCC, Solaris, ia32, -O3
 #
-# NB: corei7 and flto are options that may not be available on older versions
-# of gcc.  This makefile assumes a 4.7-ish gcc.  Please adjust accordingly.
+# NB: corei7 may not be available on older versions of gcc.  This makefile
+# assumes a 4.7-ish gcc.  Please adjust accordingly.
+#
+# Warning: This won't work without also including Rules.mk, but to avoid
+# weird path issues, we include it from the invocation, not from this file.
 #
 
 ODIR        = obj.lib_gcc_solaris_ia32_opt
 CONFIGH     = $(ODIR)/config.h
 CXX         = g++
 CXXFLAGS    = -O3 -ggdb -m32 -march=corei7 -mtune=corei7 -msse2 -mfpmath=sse
-CXXFLAGS   += -DSINGLE_SOURCE_BUILD -I./$(ODIR) -I./include -I./common 
-LDFLAGS    += -lrt -lpthread -m32 -lmtmalloc 
+CXXFLAGS   += -DSINGLE_SOURCE_BUILD -I./$(ODIR) -I./include -I./common
+LDFLAGS    += -lrt -lpthread -m32 -lmtmalloc
 
 #
 # NB: WBMMPolicy isn't really a lib, but if we don't list it somewhere, it
@@ -33,16 +36,15 @@ LDFLAGS    += -lrt -lpthread -m32 -lmtmalloc
 #
 
 LIBDIR      = lib
-LIBNAMES    = cgl norec tml cohortseager WBMMPolicy
+LIBNAMES    = cgl norec tml cohortseager cohorts
 LIBS        = $(patsubst %, $(ODIR)/%.o, $(LIBNAMES))
+SUPTNAMES   = WBMMPolicy
+SUPTS       = $(patsubst %, $(ODIR)/%.o, $(SUPTNAMES))
 BENCHDIR    = bench
 BENCHNAMES  = CounterBench DisjointBench DListBench ForestBench HashBench    \
               ListBench MCASBench ReadNWrite1Bench ReadWriteNBench TreeBench \
               TreeOverwriteBench TypeTest WWPathologyBench
-BENCHES     = $(patsubst %, $(ODIR)/%.cgl, $(BENCHNAMES)) \
-              $(patsubst %, $(ODIR)/%.norec, $(BENCHNAMES)) \
-              $(patsubst %, $(ODIR)/%.tml, $(BENCHNAMES)) \
-              $(patsubst %, $(ODIR)/%.cohortseager, $(BENCHNAMES))
+BENCHES     = $(foreach lib,$(LIBNAMES),$(foreach bench,$(BENCHNAMES),$(ODIR)/$(bench).$(lib)))
 
 #
 # [mfs] TODO - we should build each benchmark 3 times, with known suffixes,
@@ -53,7 +55,7 @@ BENCHES     = $(patsubst %, $(ODIR)/%.cgl, $(BENCHNAMES)) \
 #              We also need proper dependencies
 #
 
-all: $(ODIR) $(CONFIGH) $(LIBS) $(BENCHES)
+all: $(ODIR) $(CONFIGH) $(LIBS) $(SUPTS) $(BENCHES)
 	@echo "Build complete"
 
 $(ODIR):
@@ -70,26 +72,6 @@ $(CONFIGH):
 	@echo "#define STM_OPT_O3" >> $@
 	@echo "#define STM_WS_WORDLOG" >> $@
 
-$(ODIR)/%.o: $(LIBDIR)/%.cpp $(CONFIGH)
-	@echo [CXX] $< "-->" $@
-	@$(CXX) $(CXXFLAGS) -c -o $@ $<
-
-$(ODIR)/%.cgl: $(BENCHDIR)/%.cpp $(CONFIGH) $(ODIR)/cgl.o
-	@echo [CXX] $< "-->" $@ 
-	@$(CXX) $(CXXFLAGS) -o $@ $< $(LDFLAGS) -DSTM_INST_CGL $(ODIR)/cgl.o
-
-$(ODIR)/%.norec: $(BENCHDIR)/%.cpp $(CONFIGH) $(ODIR)/norec.o $(ODIR)/WBMMPolicy.o
-	@echo [CXX] $< "-->" $@ 
-	@$(CXX) $(CXXFLAGS) -o $@ $< $(LDFLAGS) -DSTM_INST_GENERIC $(ODIR)/norec.o $(ODIR)/WBMMPolicy.o
-
-$(ODIR)/%.tml: $(BENCHDIR)/%.cpp $(CONFIGH) $(ODIR)/tml.o $(ODIR)/WBMMPolicy.o
-	@echo [CXX] $< "-->" $@ 
-	@$(CXX) $(CXXFLAGS) -o $@ $< $(LDFLAGS) -DSTM_INST_GENERIC $(ODIR)/tml.o $(ODIR)/WBMMPolicy.o
-
-$(ODIR)/%.cohortseager: $(BENCHDIR)/%.cpp $(CONFIGH) $(ODIR)/cohortseager.o $(ODIR)/WBMMPolicy.o
-	@echo [CXX] $< "-->" $@ 
-	@$(CXX) $(CXXFLAGS) -o $@ $< $(LDFLAGS) -DSTM_INST_GENERIC $(ODIR)/cohortseager.o $(ODIR)/WBMMPolicy.o
-
 clean:
 	@rm -rf $(ODIR)
 	@echo $(ODIR) clean
@@ -100,7 +82,7 @@ clean:
 #       it in use
 #
 
-TEST  = $(foreach lib,$(LIBNAMES),$(foreach bench,$(BENCHNAMES),$(ODIR)/$(bench).$(lib)))
+TEST  = 
 TEST2 = $(ODIR)/CounterBench.cgl
 testit: $(TEST2)
 	@echo test=$(TEST)

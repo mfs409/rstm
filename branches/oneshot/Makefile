@@ -22,10 +22,7 @@ info:
 	@echo "  lib_gcc_solaris_ia32_dbg"
 	@echo "      library API, gcc, solaris, x86, 32-bit, -O0"
 
-# dispatch to the various platforms
-lib_gcc_solaris_ia32_opt:
-	MAKEFILES=build/$@.mk $(MAKE) all
-
-lib_gcc_solaris_ia32_dbg:
-	MAKEFILES=build/$@.mk $(MAKE) all
-
+# dispatch to the various platforms.  Make will error unless the platform's
+# corresponding definitions are in the build folder
+%: build/%.mk build/Rules.mk
+	MAKEFILES="build/$@.mk build/Rules.mk" $(MAKE) all
