@@ -25,4 +25,4 @@ info:
 # dispatch to the various platforms.  Make will error unless the platform's
 # corresponding definitions are in the build folder
 %: build/%.mk build/Rules.mk
-	MAKEFILES="build/$@.mk build/Rules.mk" $(MAKE) all
+	MAKEFILES="build/Targets.mk build/$@.mk build/Rules.mk" $(MAKE) all
