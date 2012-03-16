@@ -75,23 +75,3 @@ $(CONFIGH):
 clean:
 	@rm -rf $(ODIR)
 	@echo $(ODIR) clean
-
-#
-# [mfs] ignore this; it's a playground for figuring out how to get everything
-#       to build without too many build lines.  This will go away once I put
-#       it in use
-#
-
-TEST  = 
-TEST2 = $(ODIR)/CounterBench.cgl
-testit: $(TEST2)
-	@echo test=$(TEST)
-	@echo $(patsubst $(ODIR)/, , $(patsubst %., , $(TEST)))
-	@echo $(patsubst .%, , $(TEST))
-	@echo $(notdir $(TEST2))
-	@echo $(suffix $(TEST2))
-	@echo $(basename $(notdir $(TEST2)))
-	@echo $(subst ., , $(suffix $(TEST2)))
-	@echo $(ODIR)/$(basename $(notdir $(@))).instnone
-	@echo $(ODIR)/$(subst .,,$(suffix $(@))).o
-
