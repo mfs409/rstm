@@ -19,8 +19,13 @@ info:
 	@echo "Valid platforms are:"
 	@echo "  lib_gcc_solaris_ia32_opt"
 	@echo "      library API, gcc, solaris, x86, 32-bit, -O3"
+	@echo "  lib_gcc_solaris_ia32_dbg"
+	@echo "      library API, gcc, solaris, x86, 32-bit, -O0"
 
 # dispatch to the various platforms
 lib_gcc_solaris_ia32_opt:
+	MAKEFILES=build/$@.mk $(MAKE) all
+
+lib_gcc_solaris_ia32_dbg:
 	MAKEFILES=build/$@.mk $(MAKE) all
 
