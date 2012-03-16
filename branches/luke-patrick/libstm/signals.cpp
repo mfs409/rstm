@@ -114,7 +114,10 @@ prevalidate(int sig, siginfo_t* info, void* ctx, libc_sigaction_t cont)
 {
     itm2stm::Checkpoint* scope = NULL;
 
-    if (!stm::sandbox::in_lib && Self->scope && !Self->tmvalidate(Self)) {
+    if (stms[curr_policy.ALG_ID].sandbox_signals &&
+        !stm::sandbox::in_lib &&
+        Self->scope &&
+        !Self->tmvalidate(Self)) {
         // we're not valid.... we'll need to abort, but only for the signals
         // that we expect to be dealing with.
         switch (sig) {

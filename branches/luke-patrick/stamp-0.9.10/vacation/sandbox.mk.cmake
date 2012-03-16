@@ -18,7 +18,7 @@ LDFLAGS += -tm-support-file=${STMLIB}/libtanger-stm.support
 LDFLAGS += -stmsupport=${STMSUPPORT}
 LDFLAGS += -tanger-add-shutdown-call
 LDFLAGS += -tanger-whole-program
-LDFLAGS += =tanger-indirect-auto
+LDFLAGS += -tanger-indirect-auto
 LDFLAGS += -sandboxpass=sandbox-tm
 
 ifdef NATIVE

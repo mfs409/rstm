@@ -358,6 +358,6 @@ namespace stm {
       stm::stms[OrecELA].irrevoc  = ::OrecELA::irrevoc;
       stm::stms[OrecELA].switcher = ::OrecELA::onSwitchTo;
       stm::stms[OrecELA].privatization_safe = true;
-      stm::stms[OrecELA].sandbox_signals = true;
+      // stm::stms[OrecELA].sandbox_signals = true;
   }
 }

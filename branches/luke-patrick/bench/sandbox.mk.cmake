@@ -10,7 +10,7 @@ STMLIB := @CMAKE_CURRENT_BINARY_DIR@/../libitm2stm
 STMSUPPORT := $(dir $(shell which ${TMLINK}))../lib
 
 CFLAGS   = -I@CMAKE_SOURCE_DIR@ -I@CMAKE_SOURCE_DIR@/include -I@CMAKE_BINARY_DIR@/include 
-CFLAGS  += -DSTM_API_DTMC -fgnu-tm
+CFLAGS  += -DSTM_API_TANGER -fno-exceptions -fno-rtti
 
 CXXFLAGS := ${CFLAGS} #-fno-exceptions
 
@@ -19,7 +19,7 @@ LDFLAGS += -tm-support-file=${STMLIB}/libtanger-stm.support
 LDFLAGS += -stmsupport=${STMSUPPORT}
 LDFLAGS += -tanger-add-shutdown-call
 LDFLAGS += -tanger-whole-program
-LDFLAGS += =tanger-indirect-auto
+LDFLAGS += -tanger-indirect-auto
 LDFLAGS += -sandboxpass=sandbox-tm
 
 OPTFLAGS  = -load $(STMSUPPORT)/libtanger.so
@@ -49,17 +49,20 @@ clean:
 	@find . -name "TreeBench" | xargs rm -f
 	@find . -name "ListBench" | xargs rm -f
 
-# opt $(OPTFLAGS) -o $@.tx.bc $(filter %.bc,$^)
-# $(CXX.o) -O3 -flto -Wl,-plugin,/u/luked/pub/gcc/4.8/lib64/bfd-plugins/LLVMgold.so -L$(STMLIB) -pthread -o $@ $@.tx.bc $(STMSUPPORT)/stmsupport.bc $(filter-out %.bc,$^) -litm $(LDLIBS)
+HashBench: HashBench.bc bmharness.o
+	opt $(OPTFLAGS) -o $@.tx.bc $(filter %.bc,$^)
+	$(CXX.o) -O3 -flto -Wl,-plugin,/u/luked/pub/gcc/4.8/lib64/bfd-plugins/LLVMgold.so -L$(STMLIB) -pthread -o $@ $@.tx.bc $(STMSUPPORT)/stmsupport.bc $(filter-out %.bc,$^) -litm $(LDLIBS)
 
-HashBench: HashBench.bc bmharness.bc
-	${TMLINK} ${LDFLAGS} -o $@ $^ ${LDLIBS}
+# ${TMLINK} ${LDFLAGS} -o $@ $^ ${LDLIBS}
 
-TreeBench: TreeBench.bc bmharness.bc
-	${TMLINK} ${LDFLAGS} -o $@ $^ ${LDLIBS}
+TreeBench: TreeBench.bc bmharness.o
+	opt $(OPTFLAGS) -o $@.tx.bc $(filter %.bc,$^)
+	$(CXX.o) -O3 -flto -Wl,-plugin,/u/luked/pub/gcc/4.8/lib64/bfd-plugins/LLVMgold.so -L$(STMLIB) -pthread -o $@ $@.tx.bc $(STMSUPPORT)/stmsupport.bc $(filter-out %.bc,$^) -litm $(LDLIBS)
 
-ListBench: ListBench.bc bmharness.bc
-	${TMLINK} ${LDFLAGS} -o $@ $^ ${LDLIBS}
+ListBench: ListBench.bc bmharness.o
+	opt $(OPTFLAGS) -o $@.tx.bc $(filter %.bc,$^)
+	$(CXX.o) -O3 -flto -Wl,-plugin,/u/luked/pub/gcc/4.8/lib64/bfd-plugins/LLVMgold.so -L$(STMLIB) -pthread -o $@ $@.tx.bc $(STMSUPPORT)/stmsupport.bc $(filter-out %.bc,$^) -litm $(LDLIBS)
+
 
 %.bc: %.c
 	${CC.bc} ${CFLAGS} $(OPT_BC) -o $@ -c $<
@@ -115,8 +118,8 @@ RRS    := 100 80 50 34 0
 	done
 
 test: HashBench.cgl-test.set \
-               TreeBench.cgl-test.set \
-               ListBench.cgl-test.set \
-			   HashBench.parallel-test.set \
-               TreeBench.parallel-test.set \
-               ListBench.parallel-test.set
+      TreeBench.cgl-test.set \
+      ListBench.cgl-test.set \
+	  HashBench.parallel-test.set \
+      TreeBench.parallel-test.set \
+      ListBench.parallel-test.set
