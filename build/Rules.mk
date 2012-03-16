@@ -1,3 +1,30 @@
+#
+#  Copyright (C) 2011
+#  University of Rochester Department of Computer Science
+#    and
+#  Lehigh University Department of Computer Science and Engineering
+# 
+# License: Modified BSD
+#          Please see the file LICENSE.RSTM for licensing information
+#
+
+#
+# [mfs] TODO - we should build each benchmark 3 times, with known suffixes,
+#              and then just link to create executables.
+#
+#              We also need proper dependencies
+#
+
+all: $(ODIR) $(CONFIGH) $(LIBS) $(SUPTS) $(BENCHES)
+	@echo "Build complete"
+
+$(ODIR):
+	@mkdir $@
+
+clean:
+	@rm -rf $(ODIR)
+	@echo $(ODIR) clean
+
 $(ODIR)/%.o: $(LIBDIR)/%.cpp $(CONFIGH)
 	@echo [CXX] $< "-->" $@
 	@$(CXX) $(CXXFLAGS) -c -o $@ $<
@@ -22,6 +49,14 @@ $(ODIR)/%.cohorts: $(BENCHDIR)/%.cpp $(CONFIGH) $(ODIR)/cohorts.o $(ODIR)/WBMMPo
 	@echo [CXX] $< "-->" $@ 
 	@$(CXX) $(CXXFLAGS) -o $@ $< $(LDFLAGS) -DSTM_INST_GENERIC $(ODIR)/cohorts.o $(ODIR)/WBMMPolicy.o
 
+$(ODIR)/%.ctokenturbo: $(BENCHDIR)/%.cpp $(CONFIGH) $(ODIR)/ctokenturbo.o $(ODIR)/WBMMPolicy.o
+	@echo [CXX] $< "-->" $@ 
+	@$(CXX) $(CXXFLAGS) -o $@ $< $(LDFLAGS) -DSTM_INST_GENERIC $(ODIR)/ctokenturbo.o $(ODIR)/WBMMPolicy.o
+
+$(ODIR)/%.ctoken: $(BENCHDIR)/%.cpp $(CONFIGH) $(ODIR)/ctoken.o $(ODIR)/WBMMPolicy.o
+	@echo [CXX] $< "-->" $@ 
+	@$(CXX) $(CXXFLAGS) -o $@ $< $(LDFLAGS) -DSTM_INST_GENERIC $(ODIR)/ctoken.o $(ODIR)/WBMMPolicy.o
+
 
 #
 # [mfs] ignore this; it's a playground for figuring out how to get everything
@@ -39,4 +74,3 @@ testit: $(TEST2)
 	@echo $(subst ., , $(suffix $(TEST2)))
 	@echo $(ODIR)/$(basename $(notdir $(@))).instnone
 	@echo $(ODIR)/$(subst .,,$(suffix $(@))).o
-
