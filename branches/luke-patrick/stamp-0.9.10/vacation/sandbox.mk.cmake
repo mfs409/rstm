@@ -14,9 +14,11 @@ CFLAGS  += -O3
 CXXFLAGS := ${CFLAGS} #-fno-exceptions
 
 LDFLAGS  = -stmlib=${STMLIB}
-LDFLAGS += -stmsupport=${STMSUPPORT}
 LDFLAGS += -tm-support-file=${STMLIB}/libtanger-stm.support
-LDFLAGS += -internalize-public-api-file=${STMLIB}/libtanger-stm.public-symbols
+LDFLAGS += -stmsupport=${STMSUPPORT}
+LDFLAGS += -tanger-add-shutdown-call
+LDFLAGS += -tanger-whole-program
+LDFLAGS += =tanger-indirect-auto
 LDFLAGS += -sandboxpass=sandbox-tm
 
 ifdef NATIVE

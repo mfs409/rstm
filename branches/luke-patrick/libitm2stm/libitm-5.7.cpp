@@ -25,14 +25,18 @@ static const int CGL = 0;
 uint32_t
 _ITM_transaction::enterFromCheckpoint(Node* const scope, const uint32_t flags)
 {
-    if (handle().sandboxing) {
-        scope->restoreMask_ = true;
-        pthread_sigmask(SIG_SETMASK, NULL, &scope->mask_);
-    }
-    else {
-        scope->restoreMask_ = false;
-    }
+    // We're interposing anyway. Might as well interpose on pthread_sigmask to
+    // do this lazily.
+    //
+    // if (handle().sandboxing) {
+    //     scope->restoreMask_ = true;
+    //     pthread_sigmask(SIG_SETMASK, NULL, &scope->mask_);
+    // }
+    // else {
+    //     scope->restoreMask_ = false;
+    // }
 
+    scope->restoreMask_ = false;
     return enter(scope, flags);
 }
 

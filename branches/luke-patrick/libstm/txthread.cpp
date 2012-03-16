@@ -10,8 +10,8 @@
 
 #include <setjmp.h>
 #include <iostream>
-#include <stm/txthread.hpp>
 #include <stm/lib_globals.hpp>
+#include <stm/txthread.hpp>
 #include "policies/policies.hpp"
 #include "algs/tml_inline.hpp"
 #include "algs/algs.hpp"

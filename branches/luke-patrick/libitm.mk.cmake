@@ -3,15 +3,15 @@ CC    := gcc
 CXX   := g++
 VPATH := @CMAKE_CURRENT_SOURCE_DIR@/libstm:@CMAKE_CURRENT_SOURCE_DIR@/libstm/algs:@CMAKE_CURRENT_SOURCE_DIR@/libstm/policies:@CMAKE_CURRENT_SOURCE_DIR@/libitm2stm:@CMAKE_CURRENT_SOURCE_DIR@/libitm2stm/arch/x86_64
 
-CXXFLAGS = -Wall -m64 -fno-rtti -fno-exceptions -g
+CXXFLAGS = -I@CMAKE_SOURCE_DIR@ -I@CMAKE_SOURCE_DIR@/include -I@CMAKE_BINARY_DIR@/include -Wall -m64 -fno-rtti -fno-exceptions -g
 
 ifdef DEBUG
-OPT = -O0
+OPT_O = -O0
 else
-OPT = -O3
+OPT_O = -O3
 endif
 
-LIBSTM_OBJECTS := libstm/txthread.o \
+OBJECTS := libstm/txthread.o \
 	libstm/inst.o \
 	libstm/types.o \
 	libstm/profiling.o \
@@ -58,9 +58,8 @@ LIBSTM_OBJECTS := libstm/txthread.o \
 	libstm/tmllazy.o \
 	libstm/cbr.o \
 	libstm/policies.o \
-	libstm/static.o
-
-LIBITM2STM_OBJECTS = libitm2stm/BlockOperations.o \
+	libstm/static.o \
+	libitm2stm/BlockOperations.o \
 	libitm2stm/Scope.o \
 	libitm2stm/Transaction.o \
 	libitm2stm/libitm-5.1,5.o \
@@ -69,6 +68,7 @@ LIBITM2STM_OBJECTS = libitm2stm/BlockOperations.o \
 	libitm2stm/libitm-5.4.o \
 	libitm2stm/libitm-5.7.o \
 	libitm2stm/libitm-5.8.o \
+	libitm2stm/libitm-5.9.o \
 	libitm2stm/libitm-5.10.o \
 	libitm2stm/libitm-5.11.o \
 	libitm2stm/libitm-5.12.o \
@@ -84,27 +84,20 @@ LIBITM2STM_OBJECTS = libitm2stm/BlockOperations.o \
 all: libitm2stm/libitm.a
 
 clean:
-	@rm -f $(LIBSTM_OBJECTS)
-	@rm -f $(LIBITM2STM_OBJECTS)
-	@rm -f libitm2stm/libitm-5.9.o
+	@rm -f $(OBJECTS)
 	@rm -f libitm2stm/libitm.a
 
-libitm2stm/libitm.a: $(LIBSTM_OBJECTS) $(LIBITM2STM_OBJECTS) libitm2stm/libitm-5.9.o
+libitm2stm/libitm.a: $(OBJECTS)
 	$(AR) rcs $@ $^
 
 libstm/%.o: %.cpp
-	$(CXX) $(CXXFLAGS) -o $@ -c $<
+	$(CXX) $(CXXFLAGS) -msse2 $(OPT_O) -o $@ -c $<
 
 libitm2stm/%.o: %.cpp
-	$(CXX) $(CXXFLAGS) -o $@ -c $<
+	$(CXX) -D_ITM_DTMC -I@CMAKE_SOURCE_DIR@/libitm2stm/arch/x86_64 -Wno-invalid-offsetof -Wno-strict-aliasing $(CXXFLAGS) -msse4.2 $(OPT_O) -o $@ -c $<
 
 libitm2stm/%.o: %.S
-	$(CC) $(ASFLAGS) -o $@ -c $<
+	$(CC) -I@CMAKE_SOURCE_DIR@/libitm2stm/arch $(OPT_O) -o $@ -c $<
 
-$(LIBSTM_OBJECTS): CXXFLAGS := -I@CMAKE_SOURCE_DIR@ -I@CMAKE_SOURCE_DIR@/include -I@CMAKE_BINARY_DIR@/include -msse2 $(CXXFLAGS) $(OPT)
-
-$(LIBITM2STM_OBJECTS): CXXFLAGS := -D_ITM_DTMC -I@CMAKE_SOURCE_DIR@ -I@CMAKE_SOURCE_DIR@/include -I@CMAKE_BINARY_DIR@/include -I@CMAKE_SOURCE_DIR@/libitm2stm/arch/x86_64 $(CXXFLAGS) -msse4.2 -Wno-invalid-offsetof -Wno-strict-aliasing $(OPT)
-
-libitm2stm/libitm-5.9.o: CXXFLAGS := -D_ITM_DTMC -I@CMAKE_SOURCE_DIR@ -I@CMAKE_SOURCE_DIR@/include -I@CMAKE_BINARY_DIR@/include -I@CMAKE_SOURCE_DIR@/libitm2stm/arch/x86_64 $(CXXFLAGS) -msse4.2 -Wno-invalid-offsetof -Wno-strict-aliasing $(OPT_OTHER)
-
-$(LIBITM2STM_OBJECTS): ASFLAGS := -I@CMAKE_SOURCE_DIR@/libitm2stm/arch
+# hack
+libstm/signals.o: CXXFLAGS := -I@CMAKE_SOURCE_DIR@/libitm2stm/arch/x86_64 $(CXXFLAGS)

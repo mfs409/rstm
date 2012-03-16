@@ -1,8 +1,8 @@
 # -*- Makefile -*-*
 CC.o   := gcc
 CXX.o  := g++
-CC.bc  := @CMAKE_C_COMPILER@ -fgnu-tm -emit-llvm
-CXX.bc := @CMAKE_CXX_COMPILER@ -fgnu-tm -emit-llvm
+CC.bc  := @CMAKE_C_COMPILER@ -emit-llvm
+CXX.bc := @CMAKE_CXX_COMPILER@ -emit-llvm
 TMLINK := tmlink
 VPATH  := @CMAKE_CURRENT_SOURCE_DIR@
 
@@ -10,13 +10,7 @@ STMLIB := @CMAKE_CURRENT_BINARY_DIR@/../libitm2stm
 STMSUPPORT := $(dir $(shell which ${TMLINK}))../lib
 
 CFLAGS   = -I@CMAKE_SOURCE_DIR@ -I@CMAKE_SOURCE_DIR@/include -I@CMAKE_BINARY_DIR@/include 
-CFLAGS  += -DSTM_API_DTMC
-
-ifdef DEBUG
-CFLAGS  += -O0 -g
-else
-CFLAGS  += -O3
-endif
+CFLAGS  += -DSTM_API_DTMC -fgnu-tm
 
 CXXFLAGS := ${CFLAGS} #-fno-exceptions
 
@@ -24,15 +18,24 @@ LDFLAGS  = -stmlib=${STMLIB}
 LDFLAGS += -tm-support-file=${STMLIB}/libtanger-stm.support
 LDFLAGS += -stmsupport=${STMSUPPORT}
 LDFLAGS += -tanger-add-shutdown-call
+LDFLAGS += -tanger-whole-program
+LDFLAGS += =tanger-indirect-auto
 LDFLAGS += -sandboxpass=sandbox-tm
+
+OPTFLAGS  = -load $(STMSUPPORT)/libtanger.so
+OPTFLAGS += -tanger
+OPTFLAGS += -tanger-whole-program
+OPTFLAGS += -tanger-indirect-auto
+OPTFLAGS += -tanger-add-shutdown-call
+OPTFLAGS += -mem2reg
+OPTFLAGS += -sandbox-tm
 
 ifdef NATIVE
 LDFLAGS += -n
 endif
 
-ifdef DEBUG
-LDFLAGS += -disable-internalize
-endif
+OPT_BC ?= -O3
+OPT_O  ?= -O3
 
 LDLIBS  += -ldl -lrt
 
@@ -46,6 +49,9 @@ clean:
 	@find . -name "TreeBench" | xargs rm -f
 	@find . -name "ListBench" | xargs rm -f
 
+# opt $(OPTFLAGS) -o $@.tx.bc $(filter %.bc,$^)
+# $(CXX.o) -O3 -flto -Wl,-plugin,/u/luked/pub/gcc/4.8/lib64/bfd-plugins/LLVMgold.so -L$(STMLIB) -pthread -o $@ $@.tx.bc $(STMSUPPORT)/stmsupport.bc $(filter-out %.bc,$^) -litm $(LDLIBS)
+
 HashBench: HashBench.bc bmharness.bc
 	${TMLINK} ${LDFLAGS} -o $@ $^ ${LDLIBS}
 
@@ -56,17 +62,16 @@ ListBench: ListBench.bc bmharness.bc
 	${TMLINK} ${LDFLAGS} -o $@ $^ ${LDLIBS}
 
 %.bc: %.c
-	${CC.bc} ${CFLAGS} -o $@ -c $<
+	${CC.bc} ${CFLAGS} $(OPT_BC) -o $@ -c $<
 
 %.bc: %.cpp
-	${CXX.bc} ${CXXFLAGS} -o $@ -c $<
+	${CXX.bc} ${CXXFLAGS} $(OPT_BC) -o $@ -c $<
 
 %.o: %.c
-	${CC.o} ${CFLAGS} -g -o $@ -c $<
+	${CC.o} ${CFLAGS} $(OPT_O) -o $@ -c $<
 
 %.o: %.cpp
-	${CXX.o} ${CXXFLAGS} -g -o $@ -c $<
-
+	${CXX.o} ${CXXFLAGS} $(OPT_O) -o $@ -c $<
 
 BITS   ?= 64
 TRIALS ?= 3

@@ -27,6 +27,8 @@
 #  include <api/stamp.hpp>
 #elif defined(STM_API_DTMC)
 #  include <api/dtmc.hpp>
+#elif defined(STM_API_TANGER)
+#  include <api/tanger.hpp>
 #else // default
 #  include <api/library.hpp>
 #endif

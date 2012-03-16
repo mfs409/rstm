@@ -19,6 +19,9 @@
 #include "policies/policies.hpp"        // curr_policy
 #include "algs/algs.hpp"                // stms[]
 
+// Hack for this branch.
+#include "libitm2stm/Checkpoint.h"
+
 using stm::Self;
 using stm::TxThread;
 using stm::typed_memcpy;
@@ -109,6 +112,8 @@ dec_timer_period()
 static void
 prevalidate(int sig, siginfo_t* info, void* ctx, libc_sigaction_t cont)
 {
+    itm2stm::Checkpoint* scope = NULL;
+
     if (!stm::sandbox::in_lib && Self->scope && !Self->tmvalidate(Self)) {
         // we're not valid.... we'll need to abort, but only for the signals
         // that we expect to be dealing with.
@@ -121,6 +126,14 @@ prevalidate(int sig, siginfo_t* info, void* ctx, libc_sigaction_t cont)
           case SIGFPE:
           case SIGILL:
           case SIGABRT:
+            // We're going to longjmp from her. By setting the mask, and
+            // clearing the sig from the mask, we'll be ok.
+            scope = (itm2stm::Checkpoint*)Self->scope;
+            scope->restoreMask_ = true;
+            sigemptyset(&scope->mask_);
+            pthread_sigmask(SIG_SETMASK, NULL, &scope->mask_);
+            sigdelset(&scope->mask_, sig);
+            sigdelset(&scope->mask_, SIGUSR2);
             Self->tmabort(Self); // just abort... noreturn
           default:
             fprintf(stderr, "libstm: saw a signal we didn't expect %i", sig);
@@ -129,6 +142,26 @@ prevalidate(int sig, siginfo_t* info, void* ctx, libc_sigaction_t cont)
     // should be a tail call
     cont(sig, info, ctx);
 }
+
+static bool is_sig_set(int) __attribute__((used));
+static sigset_t* get_sigs() __attribute__((used));
+
+sigset_t*
+get_sigs() {
+    sigset_t* sigs = new sigset_t;
+    sigemptyset(sigs);
+    pthread_sigmask(SIG_SETMASK, NULL, sigs);
+    return sigs;
+}
+
+bool
+is_sig_set(int sig) {
+    sigset_t sigs;
+    pthread_sigmask(SIG_SETMASK, NULL, &sigs);
+    return sigismember(&sigs, sig);
+}
+
+
 
 static void
 ping_the_world(int)

@@ -23,6 +23,8 @@
 #include <string.h>
 #include <common/platform.hpp>
 
+extern "C" void stm_validation_full();
+
 namespace stm
 {
   /***  Self-growing array */
@@ -88,6 +90,7 @@ namespace stm
   template <class T>
   void MiniVector<T>::expand()
   {
+      stm_validation_full();
       T* temp = m_elements;
       m_cap *= 2;
       m_elements = static_cast<T*>(malloc(sizeof(T) * m_cap));

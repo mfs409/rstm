@@ -16,6 +16,7 @@
  *  compilation unit.
  */
 
+#include "stm/lib_globals.hpp"
 #include "stm/metadata.hpp"
 #include "stm/MiniVector.hpp"
 #include "stm/WriteSet.hpp"
@@ -97,6 +98,7 @@ namespace stm
   /***  Resize the writeset */
   void WriteSet::resize()
   {
+      stm_validation_full();
       WriteSetEntry* temp  = list;
       capacity     *= 2;
       list          = typed_malloc<WriteSetEntry>(capacity);

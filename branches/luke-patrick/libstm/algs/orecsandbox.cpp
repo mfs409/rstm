@@ -114,7 +114,8 @@ OrecSandbox::validate(TxThread* tx)
 
     // consistent snapshot is bracketed by last_complete, and we pick the
     // minimum to scale to
-    tx->start_time = minimum(newts, last_complete.val);
+    uintptr_t cs = last_complete.val;
+    tx->start_time = minimum(newts, cs);
     return true;
 }
 
