@@ -199,10 +199,8 @@ namespace {
   void*
   CohortsEF::read_ro(STM_READ_SIG(tx,addr,))
   {
-      void* val = *addr;
-      CFENCE;
       tx->rf->add(addr);
-      return val;
+      return *addr;
   }
 
   /**
@@ -216,9 +214,9 @@ namespace {
       bool found = tx->writes.find(log);
       REDO_RAW_CHECK(found, log, mask);
 
-      void* val = *addr;
-      CFENCE;
       tx->rf->add(addr);
+
+      void* val = *addr;
       REDO_RAW_CLEANUP(val, found, log, mask);
       return val;
   }
