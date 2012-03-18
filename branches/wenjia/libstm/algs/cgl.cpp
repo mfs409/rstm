@@ -21,19 +21,12 @@
 #include "../profiling.hpp"
 #include "algs.hpp"
 #include <stm/UndoLog.hpp> // STM_DO_MASKED_WRITE
-#include "RedoRAWUtils.hpp"
-
-#define ONE
 
 using stm::TxThread;
 using stm::timestamp;
 using stm::timestamp_max;
 using stm::UNRECOVERABLE;
-#ifdef ONE
-#else
-using stm::WriteSet;
-using stm::WriteSetEntry;
-#endif
+
 
 /**
  *  Declare the functions that we're going to implement, so that we can avoid
@@ -59,12 +52,6 @@ namespace
   void
   CGL::commit(TxThread* tx)
   {
-#ifdef ONE
-#else
-      foreach (WriteSet, i, tx->writes)
-	*i->addr = i->val;
-      tx->writes.reset();
-#endif
       // release the lock, finalize mm ops, and log the commit
       tatas_release(&timestamp.val);
       OnCGLCommit(tx);
@@ -74,32 +61,18 @@ namespace
    *  CGL read
    */
   void*
-  CGL::read(STM_READ_SIG(tx,addr,mask))
+  CGL::read(STM_READ_SIG(,addr,))
   {
-#ifdef ONE
-    void* tmp = *addr;
-#else
-    WriteSetEntry log(STM_WRITE_SET_ENTRY(addr, NULL, mask));
-    bool found = tx->writes.find(log);
-    REDO_RAW_CHECK(found, log, mask);
-
-    void* tmp = *addr;
-    REDO_RAW_CLEANUP(tmp,found,log,mask);
-#endif
-    return tmp;
+      return *addr;
   }
 
   /**
    *  CGL write
    */
   void
-  CGL::write(STM_WRITE_SIG(tx,addr,val,mask))
+  CGL::write(STM_WRITE_SIG(,addr,val,mask))
   {
-#ifdef ONE
-    STM_DO_MASKED_WRITE(addr, val, mask);
-#else
-    tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
-#endif
+      STM_DO_MASKED_WRITE(addr, val, mask);
   }
 
   /**
