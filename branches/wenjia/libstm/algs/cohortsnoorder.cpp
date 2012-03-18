@@ -74,12 +74,7 @@ namespace {
   {
     S1:
       // wait until everyone is committed
-      while (cpending != committed){
-          // check if an adaptivity action is underway
-          if (TxThread::tmbegin != begin){
-              tx->tmabort(tx);
-          }
-      }
+      while (cpending != committed);
 
       //before start, increase total number of tx in one cohort
       ADD(&started, 1);
@@ -123,9 +118,7 @@ namespace {
       ADD(&cpending, 1);
 
       // Wait until every tx is ready to commit
-      while (cpending < started)
-          if(TxThread::tmbegin != begin)
-              TxAbortWrapper(tx);
+      while (cpending < started);
 
       foreach (WriteSet, i, tx->writes) {
           // get orec, read its version#
@@ -153,7 +146,7 @@ namespace {
       if (end_time != (tx->start_time + 1))
           validate(tx);
 
-      // run the redo log
+      // write back
       tx->writes.writeback();
 
       // release locks
