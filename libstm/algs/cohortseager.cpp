@@ -40,12 +40,13 @@ using stm::cpending;
 using stm::committed;
 using stm::last_order;
 
-volatile uint32_t inplace = 0;
 /**
  *  Declare the functions that we're going to implement, so that we can avoid
  *  circular dependencies.
  */
 namespace {
+  volatile uint32_t inplace = 0;
+
   struct CohortsEager {
       static TM_FASTCALL bool begin(TxThread*);
       static TM_FASTCALL void* read_ro(STM_READ_SIG(,,));
@@ -160,20 +161,24 @@ namespace {
       if (inplace == 1 || tx->order != last_order)
           validate(tx);
 
-      foreach (WriteSet, i, tx->writes) {
-          // get orec
-          orec_t* o = get_orec(i->addr);
-          // mark orec
-          o->v.all = tx->order;
-          // do write back
-          *i->addr = i->val;
-      }
+      // Last one doesn't needs to mark orec
+      if (tx->order != started)
+          foreach (WriteSet, i, tx->writes) {
+              // get orec
+              orec_t* o = get_orec(i->addr);
+              // mark orec
+              o->v.all = tx->order;
+              // do write back
+              *i->addr = i->val;
+          }
+      else
+          tx->writes.writeback();
 
       // increase total number of committed tx
       // [NB] Using atomic instruction might be faster
-      // ADD(&committed, 1);
-      committed ++;
-      WBR;
+      ADD(&committed, 1);
+      // committed ++;
+      // WBR;
 
       // update last_order
       last_order = started + 1;
@@ -341,7 +346,6 @@ namespace {
   void
   CohortsEager::onSwitchTo()
   {
-      timestamp.val = MAXIMUM(timestamp.val, timestamp_max.val);
       last_complete.val = 0;
   }
 }
