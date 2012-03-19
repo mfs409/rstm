@@ -8,13 +8,6 @@
 #          Please see the file LICENSE.RSTM for licensing information
 #
 
-#
-# [mfs] TODO - we should build each benchmark 3 times, with known suffixes,
-#              and then just link to create executables.
-#
-#              We also need proper dependencies
-#
-
 all: $(ODIR) $(CONFIGH) $(LIBS) $(SUPTS) $(ORECS) $(PREBENCH) $(BENCHES) $(LAZYS)
 	@echo "Build complete"
 
@@ -55,52 +48,52 @@ $(BENCHES): $(CONFIGH)
 
 $(ODIR)/%.cgl: $(ODIR)/%.lockapi.o $(ODIR)/cgl.o $(SUPTS)
 	@echo [LD] $@ 
-	@$(CXX) $(CXXFLAGS) -o $@ $^ $(LDFLAGS)
+	@$(CXX) -o $@ $^ $(LDFLAGS)
 
 $(ODIR)/%.norec: $(ODIR)/%.genericapi.o $(ODIR)/norec.o $(SUPTS) $(LAZYS)
 	@echo [LD] $@ 
-	@$(CXX) $(CXXFLAGS) -o $@ $^ $(LDFLAGS) -DSTM_INST_GENERIC
+	@$(CXX) -o $@ $^ $(LDFLAGS) -DSTM_INST_GENERIC
 
 $(ODIR)/%.tml: $(ODIR)/%.genericapi.o $(ODIR)/tml.o $(SUPTS)
 	@echo [LD] $@ 
-	@$(CXX) $(CXXFLAGS) -o $@ $^ $(LDFLAGS) -DSTM_INST_GENERIC
+	@$(CXX) -o $@ $^ $(LDFLAGS) -DSTM_INST_GENERIC
 
 $(ODIR)/%.cohortseager: $(ODIR)/%.genericapi.o $(ODIR)/cohortseager.o $(SUPTS) $(LAZYS) $(ORECS)
 	@echo [LD] $@ 
-	@$(CXX) $(CXXFLAGS) -o $@ $^ $(LDFLAGS) -DSTM_INST_GENERIC
+	@$(CXX) -o $@ $^ $(LDFLAGS) -DSTM_INST_GENERIC
 
 $(ODIR)/%.cohorts: $(ODIR)/%.genericapi.o $(ODIR)/cohorts.o $(SUPTS) $(LAZYS) $(ORECS)
 	@echo [LD] $@ 
-	@$(CXX) $(CXXFLAGS) -o $@ $^ $(LDFLAGS) -DSTM_INST_GENERIC
+	@$(CXX) -o $@ $^ $(LDFLAGS) -DSTM_INST_GENERIC
 
 $(ODIR)/%.ctokenturbo: $(ODIR)/%.genericapi.o $(ODIR)/ctokenturbo.o $(SUPTS) $(LAZYS) $(ORECS)
 	@echo [LD] $@ 
-	@$(CXX) $(CXXFLAGS) -o $@ $^ $(LDFLAGS) -DSTM_INST_GENERIC
+	@$(CXX) -o $@ $^ $(LDFLAGS) -DSTM_INST_GENERIC
 
 $(ODIR)/%.ctoken: $(ODIR)/%.genericapi.o $(ODIR)/ctoken.o $(SUPTS) $(LAZYS) $(ORECS)
 	@echo [LD] $@ 
-	@$(CXX) $(CXXFLAGS) -o $@ $^ $(LDFLAGS) -DSTM_INST_GENERIC
+	@$(CXX) -o $@ $^ $(LDFLAGS) -DSTM_INST_GENERIC
 
 $(ODIR)/%.llt: $(ODIR)/%.genericapi.o $(ODIR)/llt.o $(SUPTS) $(LAZYS) $(ORECS)
 	@echo [LD] $@ 
-	@$(CXX) $(CXXFLAGS) -o $@ $^ $(LDFLAGS) -DSTM_INST_GENERIC
+	@$(CXX) -o $@ $^ $(LDFLAGS) -DSTM_INST_GENERIC
 
 $(ODIR)/%.oreceager: $(ODIR)/%.genericapi.o $(ODIR)/oreceager.o $(SUPTS) $(ORECS)
 	@echo [LD] $@ 
-	@$(CXX) $(CXXFLAGS) -o $@ $^ $(LDFLAGS) -DSTM_INST_GENERIC
+	@$(CXX) -o $@ $^ $(LDFLAGS) -DSTM_INST_GENERIC
 
 $(ODIR)/%.oreceagerredo: $(ODIR)/%.genericapi.o $(ODIR)/oreceagerredo.o $(SUPTS) $(LAZYS) $(ORECS)
 	@echo [LD] $@ 
-	@$(CXX) $(CXXFLAGS) -o $@ $^ $(LDFLAGS) -DSTM_INST_GENERIC
+	@$(CXX) -o $@ $^ $(LDFLAGS) -DSTM_INST_GENERIC
 
 $(ODIR)/%.oreclazy: $(ODIR)/%.genericapi.o $(ODIR)/oreclazy.o $(SUPTS) $(LAZYS) $(ORECS)
 	@echo [LD] $@ 
-	@$(CXX) $(CXXFLAGS) -o $@ $^ $(LDFLAGS) -DSTM_INST_GENERIC
+	@$(CXX) -o $@ $^ $(LDFLAGS) -DSTM_INST_GENERIC
 
 $(ODIR)/%.orecela: $(ODIR)/%.genericapi.o $(ODIR)/orecela.o $(SUPTS) $(LAZYS) $(ORECS)
 	@echo [LD] $@ 
-	@$(CXX) $(CXXFLAGS) -o $@ $^ $(LDFLAGS) -DSTM_INST_GENERIC
+	@$(CXX) -o $@ $^ $(LDFLAGS) -DSTM_INST_GENERIC
 
 $(ODIR)/%.orecala: $(ODIR)/%.genericapi.o $(ODIR)/orecala.o $(SUPTS) $(LAZYS) $(ORECS)
 	@echo [LD] $@
-	@$(CXX) $(CXXFLAGS) -o $@ $^ $(LDFLAGS) -DSTM_INST_GENERIC
+	@$(CXX) -o $@ $^ $(LDFLAGS) -DSTM_INST_GENERIC
