@@ -17,6 +17,9 @@
 #ifndef METADATA_HPP__
 #define METADATA_HPP__
 
+#include <stdint.h>
+#include "../common/platform.hpp"
+
 namespace stm
 {
   static const int MAX_THREADS = 256;
@@ -35,6 +38,70 @@ namespace stm
    */
   typedef void scope_t;
 
+  /**
+   *  id_version_t uses the msb as the lock bit.  If the msb is zero, treat
+   *  the word as a version number.  Otherwise, treat it as a struct with the
+   *  lower 8 bits giving the ID of the lock-holding thread.
+   */
+  union id_version_t
+  {
+      struct
+      {
+          // ensure msb is lock bit regardless of platform
+#if defined(STM_CPU_X86) /* little endian */
+          uintptr_t id:(8*sizeof(uintptr_t))-1;
+          uintptr_t lock:1;
+#else /* big endian (probably SPARC) */
+          uintptr_t lock:1;
+          uintptr_t id:(8*sizeof(uintptr_t))-1;
+#endif
+      } fields;
+      uintptr_t all; // read entire struct in a single load
+  };
+
+  /**
+   *  Forward declare the type holding per-thread transactional metadata
+   */
+  struct TX;
+
+  /**
+   *  Array of all threads
+   */
+  extern TX* threads[MAX_THREADS];
+
+  /**
+   *  Thread-local pointer to self
+   */
+  extern __thread TX* Self;
+
+  /*** Count of all threads ***/
+  extern pad_word_t threadcount;
+
+  /**
+   * When we acquire an orec, we may ultimately need to reset it to its old
+   * value (if we abort).  Saving the old value with the orec is an easy way to
+   * support this need without having exta logging in the descriptor.
+   */
+  struct orec_t
+  {
+      volatile id_version_t v; // current version number or lockBit + ownerId
+      volatile uintptr_t    p; // previous version number
+  };
+
+  static const uint32_t NUM_STRIPES   = 1048576;  // number of orecs
+
+  /*** the set of orecs (locks) */
+  extern orec_t orecs[NUM_STRIPES];
+
+  /**
+   *  Map addresses to orec table entries
+   */
+  TM_INLINE
+  inline orec_t* get_orec(void* addr)
+  {
+      uintptr_t index = reinterpret_cast<uintptr_t>(addr);
+      return &orecs[(index>>3) % NUM_STRIPES];
+  }
 }
 
 #if 0

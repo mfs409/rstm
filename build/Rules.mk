@@ -15,7 +15,7 @@
 #              We also need proper dependencies
 #
 
-all: $(ODIR) $(CONFIGH) $(LIBS) $(SUPTS) $(BENCHES)
+all: $(ODIR) $(CONFIGH) $(LIBS) $(SUPTS) $(ORECS) $(PREBENCH) $(BENCHES) $(LAZYS)
 	@echo "Build complete"
 
 $(ODIR):
@@ -25,52 +25,82 @@ clean:
 	@rm -rf $(ODIR)
 	@echo $(ODIR) clean
 
+#
+# Rule for building individual files in the lib folder
+#
 $(ODIR)/%.o: $(LIBDIR)/%.cpp $(CONFIGH)
 	@echo [CXX] $< "-->" $@
 	@$(CXX) $(CXXFLAGS) -c -o $@ $<
 
-$(ODIR)/%.cgl: $(BENCHDIR)/%.cpp $(CONFIGH) $(ODIR)/cgl.o
+#
+# Rule for building individual benchmarks according to the specified API
+#
+$(ODIR)/%.lockapi.o: $(BENCHDIR)/%.cpp
 	@echo [CXX] $< "-->" $@ 
-	@$(CXX) $(CXXFLAGS) -o $@ $< $(LDFLAGS) -DSTM_INST_CGL $(ODIR)/cgl.o
+	@$(CXX) $(CXXFLAGS) -o $@ -c $^ $(LDFLAGS) -DSTM_INST_CGL
 
-$(ODIR)/%.norec: $(BENCHDIR)/%.cpp $(CONFIGH) $(ODIR)/norec.o $(ODIR)/WBMMPolicy.o
+$(ODIR)/%.genericapi.o: $(BENCHDIR)/%.cpp
 	@echo [CXX] $< "-->" $@ 
-	@$(CXX) $(CXXFLAGS) -o $@ $< $(LDFLAGS) -DSTM_INST_GENERIC $(ODIR)/norec.o $(ODIR)/WBMMPolicy.o
-
-$(ODIR)/%.tml: $(BENCHDIR)/%.cpp $(CONFIGH) $(ODIR)/tml.o $(ODIR)/WBMMPolicy.o
-	@echo [CXX] $< "-->" $@ 
-	@$(CXX) $(CXXFLAGS) -o $@ $< $(LDFLAGS) -DSTM_INST_GENERIC $(ODIR)/tml.o $(ODIR)/WBMMPolicy.o
-
-$(ODIR)/%.cohortseager: $(BENCHDIR)/%.cpp $(CONFIGH) $(ODIR)/cohortseager.o $(ODIR)/WBMMPolicy.o
-	@echo [CXX] $< "-->" $@ 
-	@$(CXX) $(CXXFLAGS) -o $@ $< $(LDFLAGS) -DSTM_INST_GENERIC $(ODIR)/cohortseager.o $(ODIR)/WBMMPolicy.o
-
-$(ODIR)/%.cohorts: $(BENCHDIR)/%.cpp $(CONFIGH) $(ODIR)/cohorts.o $(ODIR)/WBMMPolicy.o
-	@echo [CXX] $< "-->" $@ 
-	@$(CXX) $(CXXFLAGS) -o $@ $< $(LDFLAGS) -DSTM_INST_GENERIC $(ODIR)/cohorts.o $(ODIR)/WBMMPolicy.o
-
-$(ODIR)/%.ctokenturbo: $(BENCHDIR)/%.cpp $(CONFIGH) $(ODIR)/ctokenturbo.o $(ODIR)/WBMMPolicy.o
-	@echo [CXX] $< "-->" $@ 
-	@$(CXX) $(CXXFLAGS) -o $@ $< $(LDFLAGS) -DSTM_INST_GENERIC $(ODIR)/ctokenturbo.o $(ODIR)/WBMMPolicy.o
-
-$(ODIR)/%.ctoken: $(BENCHDIR)/%.cpp $(CONFIGH) $(ODIR)/ctoken.o $(ODIR)/WBMMPolicy.o
-	@echo [CXX] $< "-->" $@ 
-	@$(CXX) $(CXXFLAGS) -o $@ $< $(LDFLAGS) -DSTM_INST_GENERIC $(ODIR)/ctoken.o $(ODIR)/WBMMPolicy.o
-
+	@$(CXX) $(CXXFLAGS) -o $@ -c $^ $(LDFLAGS) -DSTM_INST_GENERIC
 
 #
-# [mfs] ignore this; it's a playground for figuring out how to get everything
-#       to build without too many build lines.  This will go away once I put
-#       it in use
+# All executables depend on config.h.  Putting it here lets us use cleaner
+# autorules later
+#
+$(BENCHES): $(CONFIGH)
+
+#
+# Actual rules for linking to make executables
 #
 
-TEST2 = $(ODIR)/CounterBench.cgl
-testit: $(TEST2)
-	@echo $(patsubst $(ODIR)/, , $(patsubst %., , $(TEST)))
-	@echo $(patsubst .%, , $(TEST))
-	@echo $(notdir $(TEST2))
-	@echo $(suffix $(TEST2))
-	@echo $(basename $(notdir $(TEST2)))
-	@echo $(subst ., , $(suffix $(TEST2)))
-	@echo $(ODIR)/$(basename $(notdir $(@))).instnone
-	@echo $(ODIR)/$(subst .,,$(suffix $(@))).o
+$(ODIR)/%.cgl: $(ODIR)/%.lockapi.o $(ODIR)/cgl.o $(SUPTS)
+	@echo [LD] $@ 
+	@$(CXX) $(CXXFLAGS) -o $@ $^ $(LDFLAGS)
+
+$(ODIR)/%.norec: $(ODIR)/%.genericapi.o $(ODIR)/norec.o $(SUPTS) $(LAZYS)
+	@echo [LD] $@ 
+	@$(CXX) $(CXXFLAGS) -o $@ $^ $(LDFLAGS) -DSTM_INST_GENERIC
+
+$(ODIR)/%.tml: $(ODIR)/%.genericapi.o $(ODIR)/tml.o $(SUPTS)
+	@echo [LD] $@ 
+	@$(CXX) $(CXXFLAGS) -o $@ $^ $(LDFLAGS) -DSTM_INST_GENERIC
+
+$(ODIR)/%.cohortseager: $(ODIR)/%.genericapi.o $(ODIR)/cohortseager.o $(SUPTS) $(LAZYS) $(ORECS)
+	@echo [LD] $@ 
+	@$(CXX) $(CXXFLAGS) -o $@ $^ $(LDFLAGS) -DSTM_INST_GENERIC
+
+$(ODIR)/%.cohorts: $(ODIR)/%.genericapi.o $(ODIR)/cohorts.o $(SUPTS) $(LAZYS) $(ORECS)
+	@echo [LD] $@ 
+	@$(CXX) $(CXXFLAGS) -o $@ $^ $(LDFLAGS) -DSTM_INST_GENERIC
+
+$(ODIR)/%.ctokenturbo: $(ODIR)/%.genericapi.o $(ODIR)/ctokenturbo.o $(SUPTS) $(LAZYS) $(ORECS)
+	@echo [LD] $@ 
+	@$(CXX) $(CXXFLAGS) -o $@ $^ $(LDFLAGS) -DSTM_INST_GENERIC
+
+$(ODIR)/%.ctoken: $(ODIR)/%.genericapi.o $(ODIR)/ctoken.o $(SUPTS) $(LAZYS) $(ORECS)
+	@echo [LD] $@ 
+	@$(CXX) $(CXXFLAGS) -o $@ $^ $(LDFLAGS) -DSTM_INST_GENERIC
+
+$(ODIR)/%.llt: $(ODIR)/%.genericapi.o $(ODIR)/llt.o $(SUPTS) $(LAZYS) $(ORECS)
+	@echo [LD] $@ 
+	@$(CXX) $(CXXFLAGS) -o $@ $^ $(LDFLAGS) -DSTM_INST_GENERIC
+
+$(ODIR)/%.oreceager: $(ODIR)/%.genericapi.o $(ODIR)/oreceager.o $(SUPTS) $(ORECS)
+	@echo [LD] $@ 
+	@$(CXX) $(CXXFLAGS) -o $@ $^ $(LDFLAGS) -DSTM_INST_GENERIC
+
+$(ODIR)/%.oreceagerredo: $(ODIR)/%.genericapi.o $(ODIR)/oreceagerredo.o $(SUPTS) $(LAZYS) $(ORECS)
+	@echo [LD] $@ 
+	@$(CXX) $(CXXFLAGS) -o $@ $^ $(LDFLAGS) -DSTM_INST_GENERIC
+
+$(ODIR)/%.oreclazy: $(ODIR)/%.genericapi.o $(ODIR)/oreclazy.o $(SUPTS) $(LAZYS) $(ORECS)
+	@echo [LD] $@ 
+	@$(CXX) $(CXXFLAGS) -o $@ $^ $(LDFLAGS) -DSTM_INST_GENERIC
+
+$(ODIR)/%.orecela: $(ODIR)/%.genericapi.o $(ODIR)/orecela.o $(SUPTS) $(LAZYS) $(ORECS)
+	@echo [LD] $@ 
+	@$(CXX) $(CXXFLAGS) -o $@ $^ $(LDFLAGS) -DSTM_INST_GENERIC
+
+$(ODIR)/%.orecala: $(ODIR)/%.genericapi.o $(ODIR)/orecala.o $(SUPTS) $(LAZYS) $(ORECS)
+	@echo [LD] $@
+	@$(CXX) $(CXXFLAGS) -o $@ $^ $(LDFLAGS) -DSTM_INST_GENERIC
