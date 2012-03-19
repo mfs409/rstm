@@ -31,31 +31,16 @@ namespace stm
       /*** number of commits ***/
       int commits;
 
-      /*** constructor ***/
-      TX();
+      /**
+       *  Simple constructor for TX: zero all fields, get an ID
+       */
+      TX()
+          : nesting_depth(0), commits(0)
+      {
+          id = faiptr(&threadcount.val);
+          threads[id] = this;
+      }
   };
-
-  /**
-   *  Array of all threads
-   */
-  TX* threads[MAX_THREADS];
-
-  /**
-   *  Thread-local pointer to self
-   */
-  __thread TX* Self = NULL;
-
-  /*** Count of all threads ***/
-  pad_word_t threadcount = {0};
-
-  /**
-   *  Simple constructor for TX: zero all fields, get an ID
-   */
-  TX::TX() : nesting_depth(0), commits(0)
-  {
-      id = faiptr(&threadcount.val);
-      threads[id] = this;
-  }
 
   /*** The only metadata we need is a single global padded lock ***/
   pad_word_t timestamp = {0};

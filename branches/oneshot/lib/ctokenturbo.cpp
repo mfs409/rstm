@@ -32,38 +32,6 @@
  */
 namespace stm
 {
-  /**
-   *  id_version_t uses the msb as the lock bit.  If the msb is zero, treat
-   *  the word as a version number.  Otherwise, treat it as a struct with the
-   *  lower 8 bits giving the ID of the lock-holding thread.
-   */
-  union id_version_t
-  {
-      struct
-      {
-          // ensure msb is lock bit regardless of platform
-#if defined(STM_CPU_X86) /* little endian */
-          uintptr_t id:(8*sizeof(uintptr_t))-1;
-          uintptr_t lock:1;
-#else /* big endian (probably SPARC) */
-          uintptr_t lock:1;
-          uintptr_t id:(8*sizeof(uintptr_t))-1;
-#endif
-      } fields;
-      uintptr_t all; // read entire struct in a single load
-  };
-
-  /**
-   * When we acquire an orec, we may ultimately need to reset it to its old
-   * value (if we abort).  Saving the old value with the orec is an easy way to
-   * support this need without having exta logging in the descriptor.
-   */
-  struct orec_t
-  {
-      volatile id_version_t v; // current version number or lockBit + ownerId
-      volatile uintptr_t    p; // previous version number
-  };
-
   typedef MiniVector<orec_t*>      OrecList;     // vector of orecs
 
   /**
@@ -98,24 +66,6 @@ namespace stm
       /*** constructor ***/
       TX();
   };
-
-  /**
-   *  [mfs] We should factor the next three declarations into some sort of
-   *        common cpp file
-   */
-
-  /**
-   *  Array of all threads
-   */
-  TX* threads[MAX_THREADS];
-
-  /**
-   *  Thread-local pointer to self
-   */
-  __thread TX* Self = NULL;
-
-  /*** Count of all threads ***/
-  pad_word_t threadcount = {0};
 
   /*** The only metadata we need is a single global padded lock ***/
   pad_word_t timestamp = {0};
@@ -181,21 +131,6 @@ namespace stm
    *  special.
    */
   void tm_thread_shutdown() { }
-
-  static const uint32_t NUM_STRIPES   = 1048576;  // number of orecs
-
-  /*** the set of orecs (locks) */
-  orec_t orecs[NUM_STRIPES] = {{{{0}}}};
-
-  /**
-   *  Map addresses to orec table entries
-   */
-  TM_INLINE
-  inline orec_t* get_orec(void* addr)
-  {
-      uintptr_t index = reinterpret_cast<uintptr_t>(addr);
-      return &orecs[(index>>3) % NUM_STRIPES];
-  }
 
   /**
    *  CTokenTurbo unwinder:
@@ -501,92 +436,5 @@ namespace stm
    *  the free will happen at commit time.
    */
   void tm_free(void* p) { Self->allocator.txFree(p); }
-
-  /**
-   * We use malloc a couple of times here, and this makes it a bit easier
-   */
-  template <typename T>
-  inline T* typed_malloc(size_t N)
-  {
-      return static_cast<T*>(malloc(sizeof(T) * N));
-  }
-
-  /**
-   * This doubles the size of the index. This *does not* do anything as
-   * far as actually doing memory allocation. Callers should delete[] the
-   * index table, increment the table size, and then reallocate it.
-   */
-  NOINLINE
-  size_t WriteSet::doubleIndexLength()
-  {
-      assert(shift != 0 &&
-             "ERROR: the writeset doesn't support an index this large");
-      shift   -= 1;
-      ilength  = 1 << (8 * sizeof(uint32_t) - shift);
-      return ilength;
-  }
-
-  /***  Writeset constructor.  Note that the version must start at 1. */
-  WriteSet::WriteSet(const size_t initial_capacity)
-      : index(NULL), shift(8 * sizeof(uint32_t)), ilength(0),
-        version(1), list(NULL), capacity(initial_capacity), lsize(0)
-  {
-      // Find a good index length for the initial capacity of the list.
-      while (ilength < 3 * initial_capacity)
-          doubleIndexLength();
-
-      index = new index_t[ilength];
-      list  = typed_malloc<WriteSetEntry>(capacity);
-  }
-
-  /***  Writeset destructor */
-  WriteSet::~WriteSet()
-  {
-      delete[] index;
-      free(list);
-  }
-
-  /***  Rebuild the writeset */
-  NOINLINE
-  void WriteSet::rebuild()
-  {
-      assert(version != 0 && "ERROR: the version should *never* be 0");
-
-      // extend the index
-      delete[] index;
-      index = new index_t[doubleIndexLength()];
-
-      for (size_t i = 0; i < lsize; ++i) {
-          const WriteSetEntry& l = list[i];
-          size_t h = hash(l.addr);
-
-          // search for the next available slot
-          while (index[h].version == version)
-              h = (h + 1) % ilength;
-
-          index[h].address = l.addr;
-          index[h].version = version;
-          index[h].index   = i;
-      }
-  }
-
-  /***  Resize the writeset */
-  NOINLINE
-  void WriteSet::resize()
-  {
-      WriteSetEntry* temp  = list;
-      capacity     *= 2;
-      list          = typed_malloc<WriteSetEntry>(capacity);
-      memcpy(list, temp, sizeof(WriteSetEntry) * lsize);
-      free(temp);
-  }
-
-  /***  Another writeset reset function that we don't want inlined */
-  NOINLINE
-  void WriteSet::reset_internal()
-  {
-      memset(index, 0, sizeof(index_t) * ilength);
-      version = 1;
-  }
 
 }

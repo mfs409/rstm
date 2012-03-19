@@ -44,10 +44,10 @@ namespace stm
  *  them off by default, and worry about what to do for non-LTO compilers
  *  later.
  */
-#if 0
+#if 1
 #    define TM_READ(var)         var
 #    define TM_WRITE(var, val)   var = val
-#endif
+#else
 
 #include "library_inst.hpp"
 
@@ -72,6 +72,8 @@ namespace stm
 
 #define TM_READ(var)         stm::stm_read(&var)
 #define TM_WRITE(var, val)   stm::stm_write(&var, val)
+
+#endif
 
 #define TM_THREAD_INIT()     stm::tm_thread_init()
 #define TM_THREAD_SHUTDOWN() stm::tm_thread_shutdown()

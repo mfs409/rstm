@@ -9,44 +9,26 @@
  */
 
 /**
- *  CohortsEager Implementation
+ *  LLT Implementation
  *
- *  Original cohorts algorithm
+ *    This STM very closely resembles the GV1 variant of TL2.  That is, it uses
+ *    orecs and lazy acquire.  Its clock requires everyone to increment it to
+ *    commit writes, but this allows for read-set validation to be skipped at
+ *    commit time.  Most importantly, there is no in-flight validation: if a
+ *    timestamp is greater than when the transaction sampled the clock at begin
+ *    time, the transaction aborts.
  */
 
-#include <stdint.h>
 #include <iostream>
-#include <cassert>
-#include <setjmp.h> // factor this out into the API?
-#include "../common/platform.hpp"
+#include <setjmp.h>
+#include "MiniVector.hpp"
+#include "metadata.hpp"
 #include "WriteSet.hpp"
-#include "WBMMPolicy.hpp" // todo: remove this, use something simpler
+#include "WBMMPolicy.hpp"
 #include "Macros.hpp"
-
-// define atomic operations
-#define CAS __sync_val_compare_and_swap
-#define ADD __sync_add_and_fetch
-#define SUB __sync_sub_and_fetch
 
 namespace stm
 {
-  // Global variables for Cohorts
-  volatile uint32_t locks[9] = {0};  // a big lock at locks[0], and
-                                      // small locks from locks[1] to locks[8]
-  volatile int32_t started = 0;    // number of tx started
-  volatile int32_t cpending = 0;   // number of tx waiting to commit
-  volatile int32_t committed = 0;  // number of tx committed
-  volatile int32_t last_order = 0; // order of last tx in a cohort + 1
-  volatile uint32_t gatekeeper = 0;// indicating whether tx can start
-
-  pad_word_t last_complete = {0};
-
-  /**
-   *  This is the Orec Timestamp, the NOrec/TML seqlock, the CGL lock, and the
-   *  RingSW ring index
-   */
-  pad_word_t timestamp = {0};
-
   typedef MiniVector<orec_t*>      OrecList;     // vector of orecs
 
   /**
@@ -66,18 +48,17 @@ namespace stm
       /*** number of RW commits ***/
       int commits_rw;
 
-      OrecList       r_orecs;       // read set for orec STMs
-
-      uintptr_t      ts_cache;      // last validation time
-      intptr_t       order;         // for stms that order txns eagerly
+      id_version_t   my_lock;       // lock word for orec STMs
 
       int aborts;
 
       scope_t* volatile scope;      // used to roll back; also flag for isTxnl
 
       WriteSet       writes;        // write set
-
-      WBMMPolicy allocator;
+      WBMMPolicy     allocator;     // buffer malloc/free
+      uintptr_t      start_time;    // start time of transaction
+      OrecList       r_orecs;       // read set for orec STMs
+      OrecList       locks;         // list of all locks held by tx
 
       /*** constructor ***/
       TX();
@@ -86,12 +67,15 @@ namespace stm
   /**
    *  Simple constructor for TX: zero all fields, get an ID
    */
-  TX::TX() : nesting_depth(0), commits_ro(0), commits_rw(0), r_orecs(64), ts_cache(0), order(-1),
+  TX::TX() : nesting_depth(0), commits_ro(0), commits_rw(0), r_orecs(64), locks(64),
              aborts(0), scope(NULL), writes(64), allocator()
   {
       id = faiptr(&threadcount.val);
       threads[id] = this;
       allocator.setID(id-1);
+      // set up my lock word
+      my_lock.fields.lock = 1;
+      my_lock.fields.id = id;
   }
 
   /**
@@ -121,7 +105,7 @@ namespace stm
   /**
    *  For querying to get the current algorithm name
    */
-  const char* tm_getalgname() { return "Cohorts"; }
+  const char* tm_getalgname() { return "LLT"; }
 
   /**
    *  To initialize the thread's TM support, we need only ensure it has a
@@ -145,11 +129,18 @@ namespace stm
   /**
    *  Abort and roll back the transaction (e.g., on conflict).
    */
-  stm::scope_t* rollback(TX* tx)
+  scope_t* rollback(TX* tx)
   {
       ++tx->aborts;
+
+      // release the locks and restore version numbers
+      foreach (OrecList, i, tx->locks)
+          (*i)->v.all = (*i)->p;
+
+      // undo memory operations, reset lists
       tx->r_orecs.reset();
       tx->writes.reset();
+      tx->locks.reset();
       tx->allocator.onTxAbort();
       tx->nesting_depth = 0;
       scope_t* scope = tx->scope;
@@ -173,35 +164,11 @@ namespace stm
       longjmp(*scope, 1);
   }
 
-  /**
-   *  Validate a transaction by ensuring that its reads have not changed
-   */
-  NOINLINE
-  void validate(TX* tx)
-  {
-      foreach (OrecList, i, tx->r_orecs) {
-          // read this orec
-          uintptr_t ivt = (*i)->v.all;
-          // If orec changed , abort
-          //
-          // [mfs] norec recently switched to full validation, with a return
-          //       val of true or false depending on whether or not to abort.
-          //       Should evaluate if that is faster here.
-          if (ivt > tx->ts_cache) {
-              // increase total number of committed tx
-              ADD(&committed, 1);
-              // set self as completed
-              last_complete.val = tx->order;
-              // abort
-              tm_abort(tx);
-          }
-      }
-  }
+  /*** The only metadata we need is a single global padded lock ***/
+  pad_word_t timestamp = {0};
 
   /**
-   *  Start a (possibly flat nested) transaction.
-   *
-   *  [mfs] Eventually need to inline setjmp into this method
+   *  LLT begin:
    */
   void tm_begin(scope_t* scope)
   {
@@ -211,27 +178,28 @@ namespace stm
 
       tx->scope = scope;
 
-    S1:
-      // wait until everyone is committed
-      while (cpending != committed);
-
-      // before tx begins, increase total number of tx
-      ADD(&started, 1);
-
-      // [NB] we must double check no one is ready to commit yet
-      // and no one entered in place write phase(turbo mode)
-      if (cpending > committed) {
-          SUB(&started, 1);
-          goto S1;
-      }
-
       tx->allocator.onTxBegin();
-      // get time of last finished txn
-      tx->ts_cache = last_complete.val;
+      // get a start time
+      tx->start_time = timestamp.val;
   }
 
   /**
-   *  Commit a (possibly flat nested) transaction
+   *  LLT validation
+   */
+  NOINLINE
+  void validate(TX* tx)
+  {
+      // validate
+      foreach (OrecList, i, tx->r_orecs) {
+          uintptr_t ivt = (*i)->v.all;
+          // if unlocked and newer than start time, abort
+          if ((ivt > tx->start_time) && (ivt != tx->my_lock.all))
+              tm_abort(tx);
+      }
+  }
+
+  /**
+   *  LLT commit (read-only):
    */
   void tm_end()
   {
@@ -240,61 +208,62 @@ namespace stm
           return;
 
       if (!tx->writes.size()) {
-          // decrease total number of tx started
-          SUB(&started, 1);
-
-          // clean up
+          // read-only, so just reset lists
           tx->r_orecs.reset();
           tx->allocator.onTxCommit();
           ++tx->commits_ro;
           return;
       }
 
-      // increase # of tx waiting to commit, and use it as the order
-      tx->order = ADD(&cpending ,1);
-
-      // Wait for my turn
-      while (last_complete.val != (uintptr_t)(tx->order - 1));
-
-      // If I'm not the first one in a cohort to commit, validate read
-      if (tx->order != last_order)
-          validate(tx);
-
+      // acquire locks
       foreach (WriteSet, i, tx->writes) {
-          // get orec
+          // get orec, read its version#
           orec_t* o = get_orec(i->addr);
-          // mark orec
-          o->v.all = tx->order;
+          uintptr_t ivt = o->v.all;
+
+          // lock all orecs, unless already locked
+          if (ivt <= tx->start_time) {
+              // abort if cannot acquire
+              if (!bcasptr(&o->v.all, ivt, tx->my_lock.all))
+                  tm_abort(tx);
+              // save old version to o->p, remember that we hold the lock
+              o->p = ivt;
+              tx->locks.insert(o);
+          }
+          // else if we don't hold the lock abort
+          else if (ivt != tx->my_lock.all) {
+              tm_abort(tx);
+          }
       }
 
-      // Wait until all tx are ready to commit
-      while (cpending < started);
+      // increment the global timestamp since we have writes
+      uintptr_t end_time = 1 + faiptr(&timestamp.val);
 
-      // do write back
-      foreach (WriteSet, i, tx->writes)
-          *i->addr = i->val;
+      // skip validation if nobody else committed
+      if (end_time != (tx->start_time + 1))
+          validate(tx);
 
-      // update last_order
-      last_order = started + 1;
+      // run the redo log
+      tx->writes.writeback();
 
-      // mark self as done
-      last_complete.val = tx->order;
+      // release locks
+      CFENCE;
+      foreach (OrecList, i, tx->locks)
+          (*i)->v.all = end_time;
 
-      // increase total number of committed tx
-      // [NB] atomic increment is faster here
-      ADD(&committed, 1);
-      // committed++;
-      // WBR;
-
-      // commit all frees, reset all lists
+      // clean-up
       tx->r_orecs.reset();
       tx->writes.reset();
+      tx->locks.reset();
+
       tx->allocator.onTxCommit();
       ++tx->commits_rw;
   }
 
   /**
-   *  Transactional read
+   *  LLT read (read-only transaction)
+   *
+   *    We use "check twice" timestamps in LLT
    */
   void* tm_read(void** addr)
   {
@@ -308,19 +277,32 @@ namespace stm
               return log.val;
       }
 
-      // log orec
-      tx->r_orecs.insert(get_orec(addr));
-      return *addr;
+      // get the orec addr
+      orec_t* o = get_orec(addr);
+
+      // read orec, then val, then orec
+      uintptr_t ivt = o->v.all;
+      CFENCE;
+      void* tmp = *addr;
+      CFENCE;
+      uintptr_t ivt2 = o->v.all;
+      // if orec never changed, and isn't too new, the read is valid
+      if ((ivt <= tx->start_time) && (ivt == ivt2)) {
+          // log orec, return the value
+          tx->r_orecs.insert(o);
+          return tmp;
+      }
+      // unreachable
+      tm_abort(tx);
+      return NULL;
   }
 
   /**
-   *  Simple buffered transactional write
+   *  LLT write (read-only context)
    */
   void tm_write(void** addr, void* val)
   {
       TX* tx = Self;
-
-      // record the new value in a redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
   }
 
@@ -337,5 +319,4 @@ namespace stm
    */
   void tm_free(void* p) { Self->allocator.txFree(p); }
 
-} // namespace stm
-
+}
