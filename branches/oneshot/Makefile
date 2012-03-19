@@ -24,5 +24,13 @@ info:
 
 # dispatch to the various platforms.  Make will error unless the platform's
 # corresponding definitions are in the build folder
-%: build/%.mk build/Rules.mk
-	MAKEFILES="build/Targets.mk build/$@.mk build/Rules.mk" $(MAKE) all
+%: lib/%.mk lib/Rules.mk lib/Targets.mk bench/Rules.mk bench/Targets.mk 
+	MAKEFILES="lib/Targets.mk $@.mk lib/Rules.mk" $(MAKE) librstm
+	MAKEFILES="lib/Targets.mk bench/Targets.mk $@.mk bench/Rules.mk" $(MAKE) benchmarks
+
+#
+# The output directory
+#
+
+$(ODIR):
+	@mkdir $@

@@ -15,18 +15,16 @@
 # NB: corei7 may not be available on older versions of gcc.  This makefile
 #     assumes a 4.7-ish gcc.  Please adjust accordingly.
 #
-# Warning: This won't work without also including Rules.mk and Targets.mk,
-#          but to avoid weird path issues, we include it from the invocation,
-#          not from this file.
+# Warning: This just handles platform configuration.  Everything else is
+#          handled via per-folder Makefiles
 #
 
 ODIR        = obj.lib_gcc_solaris_ia32_opt
 CONFIGH     = $(ODIR)/config.h
 CXX         = g++
 CXXFLAGS    = -O3 -ggdb -m32 -march=corei7 -mtune=corei7 -msse2 -mfpmath=sse
-CXXFLAGS   += -DSINGLE_SOURCE_BUILD -I./$(ODIR) -I./include -I./common
+CXXFLAGS   += -DSINGLE_SOURCE_BUILD -I./$(ODIR) -I./include -I./common -MMD
 LDFLAGS    += -lrt -lpthread -m32 -lmtmalloc
-
 
 $(CONFIGH):
 	@echo "// This file was auto-generated on " `date` > $@

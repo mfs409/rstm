@@ -17,7 +17,8 @@
 LIBDIR      = lib
 LIBNAMES    = cgl norec tml cohortseager cohorts ctokenturbo ctoken   \
               llt oreceagerredo orecela orecala oreclazy oreceager
-LIBS        = $(patsubst %, $(ODIR)/%.o, $(LIBNAMES))
+LIBOS       = $(patsubst %, $(ODIR)/%.o, $(LIBNAMES))
+LIBAS       = $(patsubst %, $(ODIR)/%.a, $(LIBNAMES))
 
 #
 # .o files that are needed by all TM libraries (for now)
