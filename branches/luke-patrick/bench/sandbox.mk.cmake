@@ -1,6 +1,7 @@
 # -*- Makefile -*-*
 CC.o   := gcc
 CXX.o  := g++
+CXX.ld := g++ -Wl,-plugin,/u/luked/pub/gcc/4.8/lib64/bfd-plugins/LLVMgold.so
 CC.bc  := @CMAKE_C_COMPILER@ -emit-llvm
 CXX.bc := @CMAKE_CXX_COMPILER@ -emit-llvm
 TMLINK := tmlink
@@ -14,15 +15,16 @@ CFLAGS  += -DSTM_API_TANGER -fno-exceptions -fno-rtti
 
 CXXFLAGS := ${CFLAGS} #-fno-exceptions
 
-LDFLAGS  = -stmlib=${STMLIB}
-LDFLAGS += -tm-support-file=${STMLIB}/libtanger-stm.support
-LDFLAGS += -stmsupport=${STMSUPPORT}
-LDFLAGS += -tanger-add-shutdown-call
-LDFLAGS += -tanger-whole-program
-LDFLAGS += -tanger-indirect-auto
-LDFLAGS += -sandboxpass=sandbox-tm
+TMLINKFLAGS  = -stmlib=${STMLIB}
+TMLINKFLAGS += -tm-support-file=${STMLIB}/libtanger-stm.support
+TMLINKFLAGS += -stmsupport=${STMSUPPORT}
+TMLINKFLAGS += -tanger-add-shutdown-call
+TMLINKFLAGS += -tanger-whole-program
+TMLINKFLAGS += -tanger-indirect-auto
+TMLINKFLAGS += -sandboxpass=sandbox-tm
 
 OPTFLAGS  = -load $(STMSUPPORT)/libtanger.so
+OPTFLAGS += -link-as-library
 OPTFLAGS += -tanger
 OPTFLAGS += -tanger-whole-program
 OPTFLAGS += -tanger-indirect-auto
@@ -30,13 +32,17 @@ OPTFLAGS += -tanger-add-shutdown-call
 OPTFLAGS += -mem2reg
 OPTFLAGS += -sandbox-tm
 
-ifdef NATIVE
-LDFLAGS += -n
-endif
-
 OPT_BC ?= -O3
 OPT_O  ?= -O3
 
+ifdef NATIVE
+LDFLAGS = -L$(STMLIB)
+LDLIBS  = -litm
+else
+LDLIBS  = $(STMLIB)/libtanger-stm.bc $(STMLIB)/libtanger-stm.a
+endif
+
+LDFLAGS += -pthread
 LDLIBS  += -ldl -lrt
 
 all: HashBench TreeBench ListBench
@@ -50,19 +56,18 @@ clean:
 	@find . -name "ListBench" | xargs rm -f
 
 HashBench: HashBench.bc bmharness.o
-	opt $(OPTFLAGS) -o $@.tx.bc $(filter %.bc,$^)
-	$(CXX.o) -O3 -flto -Wl,-plugin,/u/luked/pub/gcc/4.8/lib64/bfd-plugins/LLVMgold.so -L$(STMLIB) -pthread -o $@ $@.tx.bc $(STMSUPPORT)/stmsupport.bc $(filter-out %.bc,$^) -litm $(LDLIBS)
+	llvm-ld $(OPTFLAGS) -o $@.tx.bc $(filter %.bc,$^)
+	$(CXX.ld) $(LDFLAGS) $(OPT_O) -o $@ $@.tx.bc $(STMSUPPORT)/stmsupport.bc $(filter-out %.bc,$^) $(LDLIBS)
 
 # ${TMLINK} ${LDFLAGS} -o $@ $^ ${LDLIBS}
 
 TreeBench: TreeBench.bc bmharness.o
-	opt $(OPTFLAGS) -o $@.tx.bc $(filter %.bc,$^)
-	$(CXX.o) -O3 -flto -Wl,-plugin,/u/luked/pub/gcc/4.8/lib64/bfd-plugins/LLVMgold.so -L$(STMLIB) -pthread -o $@ $@.tx.bc $(STMSUPPORT)/stmsupport.bc $(filter-out %.bc,$^) -litm $(LDLIBS)
+	llvm-ld $(OPTFLAGS) -o $@.tx.bc $(filter %.bc,$^)
+	$(CXX.ld) $(LDFLAGS) $(OPT_O) -o $@ $@.tx.bc $(STMSUPPORT)/stmsupport.bc $(filter-out %.bc,$^) $(LDLIBS)
 
 ListBench: ListBench.bc bmharness.o
-	opt $(OPTFLAGS) -o $@.tx.bc $(filter %.bc,$^)
-	$(CXX.o) -O3 -flto -Wl,-plugin,/u/luked/pub/gcc/4.8/lib64/bfd-plugins/LLVMgold.so -L$(STMLIB) -pthread -o $@ $@.tx.bc $(STMSUPPORT)/stmsupport.bc $(filter-out %.bc,$^) -litm $(LDLIBS)
-
+	llvm-ld $(OPTFLAGS) -o $@.tx.bc $(filter %.bc,$^)
+	$(CXX.ld) $(LDFLAGS) $(OPT_O) -o $@ $@.tx.bc $(STMSUPPORT)/stmsupport.bc $(filter-out %.bc,$^) $(LDLIBS)
 
 %.bc: %.c
 	${CC.bc} ${CFLAGS} $(OPT_BC) -o $@ -c $<
