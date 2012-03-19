@@ -23,6 +23,7 @@
 #include "stm/UndoLog.hpp"
 #include "stm/ValueList.hpp"
 #include "policies/policies.hpp"
+#include "sandboxing.hpp"
 
 namespace
 {
@@ -98,7 +99,7 @@ namespace stm
   /***  Resize the writeset */
   void WriteSet::resize()
   {
-      stm_validation_full();
+      stm::sandbox::InLib raii;
       WriteSetEntry* temp  = list;
       capacity     *= 2;
       list          = typed_malloc<WriteSetEntry>(capacity);

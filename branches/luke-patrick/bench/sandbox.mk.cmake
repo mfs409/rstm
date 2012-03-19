@@ -80,17 +80,14 @@ BITS   ?= 64
 TRIALS ?= 3
 CORES  ?= 6
 TIME   ?= 5
-ALGS   ?= OrecEager OrecELA
-#OrecSandbox
+ALGS   ?= OrecELA OrecSandbox
+RRS    ?= 100 80 50 34 0
 
 ifdef BIND
 CPUSET = 1,3,5,7,9,11,13,15,17,19,21,23
 else
 CPUSET = 1,3,5,7,9,11,13,15,17,19,21,23,0,2,4,6,8,10,12,14,16,18,20,22
 endif
-
-RRS    := 100 80 50 34 0
-
 %.cgl-test.set: %
 	for trials in {1..${TRIALS}}; \
 	do \
@@ -117,9 +114,14 @@ RRS    := 100 80 50 34 0
 		done \
 	done
 
-test: HashBench.cgl-test.set \
-      TreeBench.cgl-test.set \
-      ListBench.cgl-test.set \
-	  HashBench.parallel-test.set \
-      TreeBench.parallel-test.set \
+
+hash-test: HashBench.cgl-test.set \
+	  HashBench.parallel-test.set
+
+list-test: ListBench.cgl-test.set \
       ListBench.parallel-test.set
+
+tree-test: TreeBench.cgl-test.set \
+      TreeBench.parallel-test.set
+
+test: hash-test list-test tree-test
