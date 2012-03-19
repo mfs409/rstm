@@ -125,16 +125,19 @@ namespace {
       // Wait for my turn
       while (last_complete.val != (uintptr_t)(tx->order - 1));
 
-      // If I'm not the first one in a cohort to commit, validate read
+      // If I'm not the first one in a cohort to commit, validate reads
       if (tx->order != last_order)
           validate(tx);
 
-      // mark orec
-      foreach (WriteSet, i, tx->writes) {
-          // get orec
-          orec_t* o = get_orec(i->addr);
+      // Last one in cohort can pass the orec marking process
+      if (tx->order != started) {
           // mark orec
-          o->v.all = tx->order;
+          foreach (WriteSet, i, tx->writes) {
+              // get orec
+              orec_t* o = get_orec(i->addr);
+              // mark orec
+              o->v.all = tx->order;
+          }
       }
 
       // Wait until all tx are ready to commit
