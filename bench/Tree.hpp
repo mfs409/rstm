@@ -53,22 +53,22 @@ class RBTree
 
     // standard IntSet methods
     TM_CALLABLE
-    bool lookup(int val TM_ARG) const;
+    bool lookup(int val) const;
 
     TM_CALLABLE
-    void insert(int val TM_ARG);
+    void insert(int val);
 
     TM_CALLABLE
-    void remove(int val TM_ARG);
+    void remove(int val);
 
     TM_CALLABLE
-    void modify(int val TM_ARG);
+    void modify(int val);
 
     bool isSane() const;
 };
 
 // binary search for the node that has v as its value
-bool RBTree::lookup(int v TM_ARG) const
+bool RBTree::lookup(int v) const
 {
     // find v
     RBNode* x = TM_READ(sentinel->m_child[0]);
@@ -82,16 +82,16 @@ bool RBTree::lookup(int v TM_ARG) const
     return false;
 }
 
-void RBTree::modify(int v TM_ARG)
+void RBTree::modify(int v)
 {
-    if (lookup(v TM_PARAM))
-        remove(v TM_PARAM);
+    if (lookup(v))
+        remove(v);
     else
-        insert(v TM_PARAM);
+        insert(v);
 }
 
 // insert a node with v as its value if no such node exists in the tree
-void RBTree::insert(int v TM_ARG)
+void RBTree::insert(int v)
 {
     // find insertion point
     const RBNode* curr(sentinel);
@@ -210,7 +210,7 @@ void RBTree::insert(int v TM_ARG)
 }
 
 // remove the node with v as its value if it exists in the tree
-void RBTree::remove(int v TM_ARG)
+void RBTree::remove(int v)
 {
     // find v
     const RBNode* sentinel_r(sentinel);
