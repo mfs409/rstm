@@ -14,6 +14,7 @@
 #include "llvm/Module.h"
 #include "llvm/Value.h"
 #include "llvm/ADT/SmallPtrSet.h"
+#include "llvm/ADT/Statistic.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/Support/CallSite.h"
 #include "llvm/Support/CFG.h"
@@ -55,6 +56,7 @@ namespace llvm {
 
 
 namespace {
+  STATISTIC(validations, "Number of stm_validation_full barriers inserted.");
   // --------------------------------------------------------------------------
   // A utility that gets the target function of either a call or invoke
   // instruction.
@@ -327,12 +329,10 @@ SRVEPass::visit(BasicBlock* bb, int depth) {
 
         if (depth) {
             // read barriers introduce taint
-            if (isReadBarrier(i))
+            if (isReadBarrier(i)) {
                 tainted = true;
-
-            // function calls and invokes introduce taint
-            if (isa<CallInst>(i) || isa<InvokeInst>(i))
-                tainted = true;
+                continue;
+            }
 
             // dangerous operations cannot be executed from a potentially
             // tainted context
@@ -341,27 +341,32 @@ SRVEPass::visit(BasicBlock* bb, int depth) {
                     ir->SetInsertPoint(i);
                     ir->CreateCall(do_validate);
                     tainted = false;
+                    validations++;
+                    DEBUG(outs() << " INSTRUMENTED: " << validations << "\n");
                 } else {
-                    DEBUG(outs() << "Suppressing validation due to "
-                                 << "straightline optimization: " << *i
-                                 << "\n");
+                    DEBUG(outs() << " SRVE Suppressed.\n");
                 }
             }
+
+            // function calls and invokes introduce taint, but only after we
+            // have pre-validated them
+            if (isa<CallInst>(i) || isa<InvokeInst>(i))
+                tainted = true;
         }
     }
 
-    // Special case for blocks with begin transaction instructions.
+    // Special case for blocks with begin transaction instructions---mark the
+    // "default" target as visited. This is the serial-irrevocable block for
+    // tanger transactions.
+    //
+    // TODO: We should a) verify this is always the case and b) abstract this
+    //       into the TangerRecognizer class.
     if (had_begin) {
-        DEBUG(outs() << "saw begin-transaction in block, ");
-        if (SwitchInst* sw = dyn_cast<SwitchInst>(bb->getTerminator())) {
-            DEBUG(outs() << "eliding serial-irrevocable instrumentation\n");
-            visit(sw->getDefaultDest(), depth);
-            return;
-        }
-        else {
-            errs() << *bb->getTerminator();
-            // assert(false);
-        }
+        SwitchInst* sw = dyn_cast<SwitchInst>(bb->getTerminator());
+        assert(sw && "Expected a _ITM_beginTransaction block to terminate "
+                      "with a switch");
+        DEBUG(outs() << "eliding serial-irrevocable instrumentation\n");
+        blocks.insert(sw->getDefaultDest());
     }
 
     // Done this block, continue depth first search.
@@ -377,14 +382,14 @@ bool
 SRVEPass::isDangerous(Instruction* i) const {
     // stores are always dangerous
     if (isa<StoreInst>(i)) {
-        DEBUG(outs() << "instrumenting store: " << *i << "\n");
+        DEBUG(outs() << "dangerous store: " << *i << "... ");
         return true;
     }
 
     // dynamically sized allocas are dangerous
     if (AllocaInst* a = dyn_cast<AllocaInst>(i)) {
         if (a->isArrayAllocation() && !isa<Constant>(a->getArraySize())) {
-            DEBUG(outs() << "instrumenting alloca: " << *i << "\n");
+            DEBUG(outs() << "dangerous alloca: " << *i << "... ");
             return true;
         }
     }
@@ -393,32 +398,34 @@ SRVEPass::isDangerous(Instruction* i) const {
     // mapping instrumentation already does a check to see if the target is
     // transactional, and goes serial irrevocable (hence validates) if it
     // isn't.
-    //
-    // if (CallInst* call = dyn_cast<CallInst>(i)) {
-    //     if (!GetTarget(call)) {
-    //         // errs() << "instrumenting indirect call: " << *i << "\n";
-    //         return false;
-    //     }
-    // }
-    //
-    // if (InvokeInst* invoke = dyn_cast<InvokeInst>(i)) {
-    //     if (!GetTarget(invoke)) {
-    //         errs() << "instrumenting indirect call: " << *i << "\n";
-    //         return true;
-    //     }
-    // }
-
-    // Used to implement switches. Right now we consider these dangerous.
-    if (dyn_cast<IndirectBrInst>(i)) {
-        DEBUG(outs() << "instrumenting indirect branch: " << *i << "\n");
-        return true;
-    }
 
     if (CallInst* call = dyn_cast<CallInst>(i)) {
         if (call->isInlineAsm()) {
-            DEBUG(outs() << "instrumenting inline asm: " << *i << "\n");
+            DEBUG(outs() << "dangerous inline asm: " << *i << "... ");
             return true;
         }
+
+        if (!GetTarget(call)) {
+            // DEBUG(outs() << "indirect call: " << *i << "... ");
+            // return true;
+            DEBUG(outs() << "indirect call: " << *i << "... ELIDED\n");
+            return false;
+        }
+    }
+
+    if (InvokeInst* invoke = dyn_cast<InvokeInst>(i)) {
+        if (!GetTarget(invoke)) {
+            // DEBUG(outs() << "indirect call: " << *i << "... ");
+            // return true;
+            DEBUG(outs() << "indirect call: " << *i << "... ELIDED\n");
+            return false;
+        }
+    }
+
+    // Used to implement switches. Right now we consider these dangerous.
+    if (dyn_cast<IndirectBrInst>(i)) {
+        DEBUG(outs() << "dangerous indirect branch: " << *i << "... ");
+        return true;
     }
 
     return false;

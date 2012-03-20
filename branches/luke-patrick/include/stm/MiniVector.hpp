@@ -28,8 +28,11 @@ extern "C" void stm_validation_full();
 namespace stm
 {
   /***  Self-growing array */
+  template <class T, bool B = true>
+  struct MiniVector;
+
   template <class T>
-  struct MiniVector
+  struct MiniVector<T, true>
   {
       unsigned long m_cap;            // current vector capacity
       unsigned long m_size;           // current number of used elements
@@ -41,19 +44,21 @@ namespace stm
       /*** Construct a minivector with a default size */
       MiniVector(const unsigned long capacity)
           : m_cap(capacity), m_size(0),
-            m_elements(static_cast<T*>(malloc(sizeof(T)*m_cap)))
-      {
+            m_elements(static_cast<T*>(malloc(sizeof(T)*m_cap))) {
           assert(m_elements);
       }
 
-      ~MiniVector() { free(m_elements); }
+      ~MiniVector() {
+          free(m_elements);
+      }
 
       /*** Reset the vector without destroying the elements it holds */
-      TM_INLINE void reset() { m_size = 0; }
+      void reset() {
+          m_size = 0;
+      }
 
       /*** Insert an element into the minivector */
-      TM_INLINE void insert(T data)
-      {
+      void insert(T data) {
           // NB: There is a tradeoff here.  If we put the element into the list
           // first, we are going to have to copy one more object any time we
           // double the list.  However, by doing things in this order we avoid
@@ -73,28 +78,112 @@ namespace stm
       }
 
       /*** Simple getter to determine the array size */
-      TM_INLINE unsigned long size() const { return m_size; }
+      unsigned long size() const {
+          return m_size;
+      }
 
       /*** iterator interface, just use a basic pointer */
       typedef T* iterator;
 
       /*** iterator to the start of the array */
-      TM_INLINE iterator begin() const { return m_elements; }
+      iterator begin() const {
+          return m_elements;
+      }
 
       /*** iterator to the end of the array */
-      TM_INLINE iterator end() const { return m_elements + m_size; }
+      iterator end() const {
+          return m_elements + m_size;
+      }
+  };
 
+  // class MiniVector
+  template <class T>
+  struct MiniVector<T, false>
+  {
+      unsigned long m_cap;            // current vector capacity
+      unsigned long m_size;           // current number of used elements
+      T* m_elements;                  // the actual elements in the vector
+
+      /*** double the size of the minivector */
+      void expand();
+
+      /*** Construct a minivector with a default size */
+      MiniVector(const unsigned long capacity)
+          : m_cap(capacity), m_size(0),
+            m_elements(static_cast<T*>(malloc(sizeof(T)*m_cap))) {
+          assert(m_elements);
+      }
+
+      ~MiniVector() {
+          free(m_elements);
+      }
+
+      /*** Reset the vector without destroying the elements it holds */
+      void reset() {
+          m_size = 0;
+      }
+
+      /*** Insert an element into the minivector */
+      void insert(T data) {
+          // NB: There is a tradeoff here.  If we put the element into the list
+          // first, we are going to have to copy one more object any time we
+          // double the list.  However, by doing things in this order we avoid
+          // constructing /data/ on the stack if (1) it has a simple
+          // constructor and (2) /data/ isn't that big relative to the number
+          // of available registers.
+
+          // Push data onto the end of the array and increment the size
+          m_elements[m_size++] = data;
+
+          // If the list is full, double the list size, allocate a new array
+          // of elements, bitcopy the old array into the new array, and free
+          // the old array. No destructors are called.
+          if (m_size != m_cap)
+              return;
+          expand();
+      }
+
+      /*** Simple getter to determine the array size */
+      unsigned long size() const {
+          return m_size;
+      }
+
+      /*** iterator interface, just use a basic pointer */
+      typedef T* iterator;
+
+      /*** iterator to the start of the array */
+      iterator begin() const {
+          return m_elements;
+      }
+
+      /*** iterator to the end of the array */
+      iterator end() const {
+          return m_elements + m_size;
+      }
   }; // class MiniVector
 
   /*** double the size of a minivector */
   template <class T>
-  void MiniVector<T>::expand()
+  void MiniVector<T, true>::expand()
   {
       stm_validation_full();
       T* temp = m_elements;
       m_cap *= 2;
       m_elements = static_cast<T*>(malloc(sizeof(T) * m_cap));
-      assert(m_elements);
+      assert(m_elements && "Ran out of memory while allocating MiniVector");
+      memcpy(m_elements, temp, sizeof(T)*m_size);
+      free(temp);
+  }
+
+  template <class T>
+  void MiniVector<T, false>::expand()
+  {
+      T* temp = m_elements;
+      m_cap *= 2;
+      if (!(m_elements = static_cast<T*>(malloc(sizeof(T) * m_cap)))) {
+          stm_validation_full();
+      }
+      assert(m_elements && "Ran out of memory while allocating MiniVector");
       memcpy(m_elements, temp, sizeof(T)*m_size);
       free(temp);
   }

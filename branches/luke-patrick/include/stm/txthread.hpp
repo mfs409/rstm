@@ -67,7 +67,7 @@ namespace stm
       ValueList      vlist;         // NOrec read log
       WriteSet       writes;        // write set
       OrecList       r_orecs;       // read set for orec STMs
-      OrecList       locks;         // list of all locks held by tx
+      LockList       locks;         // list of all locks held by tx
       id_version_t   my_lock;       // lock word for orec STMs
       filter_t*      wf;            // write filter
       filter_t*      rf;            // read filter

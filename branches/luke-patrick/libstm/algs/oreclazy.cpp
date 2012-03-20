@@ -27,6 +27,7 @@ using stm::TxThread;
 using stm::get_orec;
 using stm::WriteSetEntry;
 using stm::OrecList;
+using stm::LockList;
 using stm::WriteSet;
 using stm::orec_t;
 using stm::timestamp;
@@ -147,7 +148,7 @@ namespace {
 
       // increment the global timestamp, release locks
       uintptr_t end_time = 1 + faiptr(&timestamp.val);
-      foreach (OrecList, i, tx->locks)
+      foreach (LockList, i, tx->locks)
           (*i)->v.all = end_time;
 
       // notify CM
@@ -265,7 +266,7 @@ namespace {
       STM_ROLLBACK(tx->writes, except, len);
 
       // release the locks and restore version numbers
-      foreach (OrecList, i, tx->locks)
+      foreach (LockList, i, tx->locks)
           (*i)->v.all = (*i)->p;
 
       // notify CM

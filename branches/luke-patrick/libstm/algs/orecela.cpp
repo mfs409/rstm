@@ -31,6 +31,7 @@ using stm::orec_t;
 using stm::get_orec;
 using stm::WriteSet;
 using stm::OrecList;
+using stm::LockList;
 using stm::WriteSetEntry;
 using stm::id_version_t;
 
@@ -139,7 +140,7 @@ namespace {
       tx->writes.writeback();
 
       // release locks
-      foreach (OrecList, i, tx->locks)
+      foreach (LockList, i, tx->locks)
           (*i)->v.all = tx->end_time;
 
       // now ensure that transactions depart from stm_end in the order that
@@ -270,7 +271,7 @@ namespace {
       STM_ROLLBACK(tx->writes, except, len);
 
       // release locks and restore version numbers
-      foreach (OrecList, i, tx->locks)
+      foreach (LockList, i, tx->locks)
           (*i)->v.all = (*i)->p;
       tx->r_orecs.reset();
       tx->writes.reset();

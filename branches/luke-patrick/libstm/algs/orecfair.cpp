@@ -39,6 +39,7 @@ using stm::rrec_t;
 using stm::get_rrec;
 using stm::WriteSet;
 using stm::OrecList;
+using stm::LockList;
 using stm::RRecList;
 using stm::id_version_t;
 using stm::MAX_THREADS;
@@ -451,7 +452,7 @@ namespace
       STM_ROLLBACK(tx->writes, except, len);
 
       // release the locks and restore version numbers
-      foreach (OrecList, i, tx->locks)
+      foreach (LockList, i, tx->locks)
           (*i)->v.all = (*i)->p;
 
       // If I had priority, release it
