@@ -24,6 +24,8 @@
 #define SUB __sync_sub_and_fetch
 
 using stm::TxThread;
+using stm::threads;
+using stm::threadcount;
 using stm::last_complete;
 using stm::UNRECOVERABLE;
 using stm::WriteSetEntry;
@@ -33,11 +35,14 @@ using stm::cpending;
 using stm::committed;
 using stm::last_order;
 
+
 /**
  *  Declare the functions that we're going to implement, so that we can avoid
  *  circular dependencies.
  */
 namespace {
+  volatile uint32_t master = 0;
+
   struct CohortsFilter {
       static TM_FASTCALL bool begin(TxThread*);
       static TM_FASTCALL void* read_ro(STM_READ_SIG(,,));
@@ -104,6 +109,7 @@ namespace {
   void
   CohortsFilter::commit_rw(TxThread* tx)
   {
+#ifdef OLD
       // increment num of tx ready to commit, and use it as the order
       tx->order = ADD(&cpending, 1);
 
@@ -137,7 +143,53 @@ namespace {
           last_order = started + 1;
           global_filter->clear();
       }
+#else
+      // mark self unknown
+      // 4 is unknown
+      // 5 is alive
+      // 6 is dead
+      tx->status = 4;
 
+      // increment num of tx ready to commit
+      ADD(&cpending, 1);
+
+      while (cpending < started)
+          spin64();
+
+      // acquire the master lock
+      if (bcas32(&master, 0, 1)) {
+          // look at all others' local filter
+          for (uint32_t i = 0; i < threadcount.val; ++i)
+              // status is unknown and no same entry in global filter
+              if (threads[i]->status == 4)
+                  if (global_filter->intersect(threads[i]->rf) == 0) {
+                      // you are alive
+                      threads[i]->status = 5;
+                      // union with global_filter
+                      global_filter->unionwith(*(threads[i]->wf));
+                      //WBR;
+                  }
+                  else
+                      // you are dead
+                      threads[i]->status = 6;
+
+          // clear the global filter
+          global_filter->clear();
+          WBR;
+          // release the master lock
+          CAS(&master, 1, 0);
+      }
+
+      // all threads spin for its own status
+      while (tx->status == 4);
+
+      if (tx->status == 5)
+          tx->writes.writeback();
+      else {
+          ADD(&committed, 1);
+          tx->tmabort(tx);
+      }
+#endif
       // increase total number of committed tx
       // [NB] atomic increment is faster here
       ADD(&committed, 1);
