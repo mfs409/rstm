@@ -57,7 +57,7 @@ void bench_init()
     // warm up the datastructure
     TM_BEGIN_FAST_INITIALIZATION();
     for (uint32_t w = 0; w < CFG.elements; w+=2)
-        SET->insert(w TM_PARAM);
+        SET->insert(w);
     TM_END_FAST_INITIALIZATION();
 }
 
@@ -66,7 +66,7 @@ void bench_test(uintptr_t, uint32_t* seed)
 {
     uint32_t val = rand_r(seed) % CFG.elements;
     TM_BEGIN(atomic) {
-        SET->modify(val TM_PARAM);
+        SET->modify(val);
     } TM_END();
 }
 

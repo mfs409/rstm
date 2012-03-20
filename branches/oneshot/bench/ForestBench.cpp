@@ -78,7 +78,7 @@ struct CustomForest
                 // NB: gross hack: we can cheat here to avoid
                 // instrumentation.  it's safe since we're in the
                 // constructor, but not advised in general.
-                trees[i]->insert(w TM_PARAM);
+                trees[i]->insert(w);
             }
         }
         TM_END_FAST_INITIALIZATION();
@@ -125,11 +125,11 @@ void bench_test(uintptr_t, uint32_t* seed)
                 uint32_t act = rand_r((uint32_t*)&local_seed) % 100;
                 // do a lookup?
                 if (act < SET->roratio)
-                    SET->trees[tree_idx]->lookup(val TM_PARAM);
+                    SET->trees[tree_idx]->lookup(val);
                 else if (act < SET->insratio)
-                    SET->trees[tree_idx]->insert(val TM_PARAM);
+                    SET->trees[tree_idx]->insert(val);
                 else
-                    SET->trees[tree_idx]->remove(val TM_PARAM);
+                    SET->trees[tree_idx]->remove(val);
             }
         }
     } TM_END();

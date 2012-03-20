@@ -75,13 +75,9 @@ namespace stm
 #define TM_SYS_SHUTDOWN()    stm::tm_sys_shutdown()
 #define TM_ALLOC(s)          stm::tm_alloc(s)
 #define TM_FREE(p)           stm::tm_free(p)
-#define TM_CALLABLE
-#define TM_ARG
-#define TM_PARAM
-#define TM_ARG_ALONE
 #define TM_BEGIN_FAST_INITIALIZATION() TM_BEGIN(atomic)
 #define TM_END_FAST_INITIALIZATION()   TM_END()
+#define TM_CALLABLE
 #define TM_WAIVER
-#define TM_PARAM_ALONE
 
 #endif // STMAPI_HPP__
