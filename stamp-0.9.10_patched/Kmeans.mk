@@ -1,9 +1,8 @@
-CFLAGS += -DLIST_NO_DUPLICATES
-CFLAGS += -DCHUNK_STEP1=12
+CFLAGS += -DOUTPUT_TO_STDOUT
 
-PROG      := genome
-BENCHNAMES = gene genome segments sequencer table
-LIBNAMES   = bitmap hash hashtable pair random list mt19937ar thread vector
+PROG      := kmeans
+BENCHNAMES = cluster common kmeans normal
+LIBNAMES   = mt19937ar random thread
 
 # simpy typing 'make' dumps a message, rather than trying to guess a default
 info:
@@ -17,7 +16,7 @@ info:
 # dispatch to the various platforms.  Make will error unless the platform's
 # corresponding definitions are in the build folder
 %: ../%.mk 
-	MAKEFILES="../$@.mk Genome.mk Rules.mk" $(MAKE) default
+	MAKEFILES="../$@.mk Kmeans.mk Rules.mk" $(MAKE) default
 
 #
 # Simple clean rule: kill all possible folders

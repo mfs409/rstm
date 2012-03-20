@@ -29,7 +29,7 @@ $(ODIR)/%.lockapi.o: $(BENCHDIR)/%.cpp
 
 $(ODIR)/%.genericapi.o: $(BENCHDIR)/%.cpp
 	@echo [CXX] $< "-->" $@ 
-	@$(CXX) $(CXXFLAGS) -o $@ -c $^ $(LDFLAGS) -DSTM_INST_GENERIC
+	@$(CXX) $(CXXFLAGS) -o $@ -c $^ $(LDFLAGS) -DSTM_INST_STM
 
 #
 # Actual rules for linking to make executables.  Unfortunately, this is a
