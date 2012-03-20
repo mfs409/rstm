@@ -17,7 +17,7 @@ info:
 # dispatch to the various platforms.  Make will error unless the platform's
 # corresponding definitions are in the build folder
 %: ../%.mk 
-	MAKEFILES="../$@.mk Vacation.mk Makefile.stm" $(MAKE) default
+	MAKEFILES="../$@.mk Vacation.mk Rules.mk" $(MAKE) default
 
 #
 # Simple clean rule: kill all possible folders

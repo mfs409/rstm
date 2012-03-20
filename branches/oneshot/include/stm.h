@@ -33,7 +33,7 @@
 #  include "cglapi.hpp"
 #elif defined(STM_INST_TML)
 #  include "tmlapi.hpp"
-#elif defined(STM_INST_GENERIC)
+#elif defined(STM_INST_STM)
 #  include "stmapi.hpp"
 #else
 #  error "Unrecognized STM instrumentation mode"

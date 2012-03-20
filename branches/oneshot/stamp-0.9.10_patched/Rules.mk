@@ -5,7 +5,7 @@
 include ../lib/Targets.mk
 
 #
-# [mfs] For now...
+# Update CFLAGS with RSTM locations
 #
 
 CFLAGS   += -Wall -I$(STMLIBDIR) -I$(STMINCLUDEDIR) -DSTM
@@ -22,6 +22,10 @@ STMINCLUDEDIR := ../include
 
 STMLIBDIR := ../$(ODIR)
 
+#
+# We build the program multiple times, for each STM alg
+#
+
 TARGETS     = $(foreach alg,$(ALGNAMES),$(ODIR)/$(PROG).$(alg))
 
 #
@@ -31,7 +35,8 @@ TARGETS     = $(foreach alg,$(ALGNAMES),$(ODIR)/$(PROG).$(alg))
 default: $(ODIR) $(TARGETS)
 
 #
-# Rules for building individual benchmarks according to the specified API
+# Rules for building individual benchmarks according to the specified API.
+# Note that the lock and stm apis are split out
 #
 
 $(ODIR)/%.$(PROG).lockapi.o: $(PROG)/%.c
@@ -40,13 +45,12 @@ $(ODIR)/%.$(PROG).lockapi.o: $(PROG)/%.c
 $(ODIR)/%.$(PROG).lockapi.o: lib/%.c
 	@echo [CC] $< "-->" $@ 
 	@$(CC) $(CFLAGS) -o $@ -c $< -DSTM_INST_CGL
-
 $(ODIR)/%.$(PROG).genericapi.o: $(PROG)/%.c
 	@echo [CC] $< "-->" $@
-	@$(CC) $(CFLAGS) -o $@ -c $< -DSTM_INST_GENERIC
+	@$(CC) $(CFLAGS) -o $@ -c $< -DSTM_INST_STM
 $(ODIR)/%.$(PROG).genericapi.o: lib/%.c
 	@echo [CC] $< "-->" $@
-	@$(CC) $(CFLAGS) -o $@ -c $< -DSTM_INST_GENERIC
+	@$(CC) $(CFLAGS) -o $@ -c $< -DSTM_INST_STM
 
 #
 # Actual rules for linking to make executables.  Unfortunately, this is a
