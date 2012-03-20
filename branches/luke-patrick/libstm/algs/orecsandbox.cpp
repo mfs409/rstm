@@ -342,7 +342,7 @@ OrecSandbox::rollback(STM_ROLLBACK_SIG(tx, except, len))
     }
 
     // we're going to longjmp from an abort---in_lib needs to be reset
-    stm::sandbox::in_lib = 0;
+    stm::sandbox::clear_in_lib();
     return PostRollback(tx, read_ro, write_ro, commit_ro);
 }
 

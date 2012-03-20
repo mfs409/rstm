@@ -39,12 +39,14 @@ void stop_timer();
  *  We need a way to prevent ourselves from getting interrupted for validation
  *  inside of the stm itself.
  */
-extern __thread int in_lib;
 class InLib {
   public:
     InLib();
     ~InLib();
 };
+
+  void clear_in_lib();
+  void set_in_lib();
 }
 }
 

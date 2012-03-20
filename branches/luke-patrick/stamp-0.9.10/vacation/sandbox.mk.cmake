@@ -1,8 +1,8 @@
 # -*- Makefile -*-*
-CC.o   := gcc
+CC.o   := g++
 CXX.o  := g++
 CXX.ld := g++ -Wl,-plugin,/u/luked/pub/gcc/4.8/lib64/bfd-plugins/LLVMgold.so
-CC.bc  := @CMAKE_C_COMPILER@ -emit-llvm -fgnu-tm
+CC.bc  := @CMAKE_CXX_COMPILER@ -emit-llvm -fgnu-tm
 CXX.bc := @CMAKE_CXX_COMPILER@ -emit-llvm -fgnu-tm
 TMLINK := tmlink
 VPATH  := @CMAKE_CURRENT_SOURCE_DIR@:@CMAKE_CURRENT_SOURCE_DIR@/../lib
@@ -11,7 +11,9 @@ STMLIB := @CMAKE_CURRENT_BINARY_DIR@/../../libitm2stm
 STMSUPPORT := $(dir $(shell which ${TMLINK}))../lib
 
 CFLAGS   = -I@CMAKE_CURRENT_SOURCE_DIR@/../lib
-CFLAGS  += -DLIST_NO_DUPLICATES -DMAP_USE_RBTREE -DDTMC -DSTM_API_DTMC
+CFLAGS  += -DLIST_NO_DUPLICATES -DMAP_USE_RBTREE -DDTMC
+# super-hack
+CFLAGS  += -include @CMAKE_CURRENT_SOURCE_DIR@/../../libstm/sandboxing.hpp
 
 CXXFLAGS := ${CFLAGS} # -fno-exceptions
 
@@ -38,8 +40,7 @@ OPT_O  ?= -O3
 ifdef NATIVE
 LDFLAGS = -L$(STMLIB)
 LDLIBS  = -litm
-else
-LDLIBS  = $(STMLIB)/libtanger-stm.bc $(STMLIB)/libtanger-stm.a
+TMLINKFLAGS += -n
 endif
 
 LDFLAGS += -pthread
@@ -53,10 +54,16 @@ clean:
 	@find . -name "*.o" | xargs rm -f
 	@find . -name "vacation" | xargs rm -f
 
+ifdef TMLINK
+vacation: pair.bc mt19937ar.bc random.bc thread.bc client.bc customer.bc \
+          manager.bc reservation.bc vacation.bc list.bc rbtree.bc
+	${TMLINK} ${LDFLAGS} -o $@ $^ ${LDLIBS}
+else
 vacation: pair.bc mt19937ar.bc random.bc thread.bc client.bc customer.bc \
           manager.bc reservation.bc vacation.bc list.bc rbtree.bc
 	llvm-ld $(OPTFLAGS) -o $@.tx.bc $(filter %.bc,$^)
 	$(CXX.ld) $(LDFLAGS) $(OPT_O) -o $@ $@.tx.bc $(STMSUPPORT)/stmsupport.bc $(filter-out %.bc,$^) $(LDLIBS)
+endif
 
 %.bc: %.c
 	${CC.bc} ${CFLAGS} $(OPT_BC) -o $@ -c $<
@@ -84,15 +91,15 @@ endif
 vacation.high.cgl: vacation
 	for trials in {1..${TRIALS}}; \
 	do \
-		echo "STM_CONFIG=CGL taskset -c ${CPUSET} ./$^ -Rhigh -p1"; \
-		STM_CONFIG=CGL taskset -c ${CPUSET} ./$^ -n4 -q60 -u90 -r1048576 -t4194304 -c1; \
+		echo "STM_CONFIG=CGL taskset -c ${CPUSET} ./$< -Rhigh -p1"; \
+		STM_CONFIG=CGL taskset -c ${CPUSET} ./$< -n4 -q60 -u90 -r1048576 -t4194304 -c1; \
 	done
 
 vacation.low.cgl: vacation
 	for trials in {1..${TRIALS}}; \
 	do \
-		echo "STM_CONFIG=CFG taskset -c ${CPUSET} ./$^ -Rlow -p1"; \
-		STM_CONFIG=CFG taskset -c ${CPUSET} ./$^ -n2 -q90 -u98 -r1048576 -t4194304 -c1; \
+		echo "STM_CONFIG=CGL taskset -c ${CPUSET} ./$< -Rlow -p1"; \
+		STM_CONFIG=CGL taskset -c ${CPUSET} ./$< -n2 -q90 -u98 -r1048576 -t4194304 -c1; \
 	done
 
 vacation.high: vacation vacation.high.cgl
@@ -102,8 +109,8 @@ vacation.high: vacation vacation.high.cgl
 		do \
 			for i in {1..${CORES}}; \
 			do \
-				echo "STM_CONFIG=$$stm taskset -c ${CPUSET} ./$^ -Rhigh -p$$i"; \
-				STM_CONFIG=$$stm taskset -c ${CPUSET} ./$^ -n4 -q60 -u90 -r1048576 -t4194304 -c$$i; \
+				echo "STM_CONFIG=$$stm taskset -c ${CPUSET} ./$< -Rhigh -p$$i"; \
+				STM_CONFIG=$$stm taskset -c ${CPUSET} ./$< -n4 -q60 -u90 -r1048576 -t4194304 -c$$i; \
 			done \
 		done \
 	done
@@ -115,8 +122,8 @@ vacation.low: vacation vacation.low.cgl
 		do \
 			for i in {1..${CORES}}; \
 			do \
-				echo "STM_CONFIG=$$stm taskset -c ${CPUSET} ./$^ -Rlow -p$$i"; \
-				STM_CONFIG=$$stm taskset -c ${CPUSET} ./$^ -n2 -q90 -u98 -r1048576 -t4194304 -c$$i; \
+				echo "STM_CONFIG=$$stm taskset -c ${CPUSET} ./$< -Rlow -p$$i"; \
+				STM_CONFIG=$$stm taskset -c ${CPUSET} ./$< -n2 -q90 -u98 -r1048576 -t4194304 -c$$i; \
 			done \
 		done \
 	done

@@ -39,14 +39,24 @@ using stm::sandbox::start_timer;
 /*** A thread local pointer to the stm-allocated alt stack. */
 static __thread uint8_t* my_stack = NULL;
 
-__thread int stm::sandbox::in_lib = 0;
+static __thread int in_lib = 0;
+
+void
+stm::sandbox::clear_in_lib() {
+    in_lib = 0;
+}
+
+void
+stm::sandbox::set_in_lib() {
+    in_lib = 1;
+}
 
 stm::sandbox::InLib::InLib() {
-    ++stm::sandbox::in_lib;
+    ++in_lib;
 }
 
 stm::sandbox::InLib::~InLib() {
-    --stm::sandbox::in_lib;
+    --in_lib;
 }
 
 // The validation timer (initialized in init_system)
@@ -115,7 +125,7 @@ prevalidate(int sig, siginfo_t* info, void* ctx, libc_sigaction_t cont)
     itm2stm::Checkpoint* scope = NULL;
 
     if (stms[curr_policy.ALG_ID].sandbox_signals &&
-        !stm::sandbox::in_lib &&
+        !in_lib &&
         Self->scope &&
         !Self->tmvalidate(Self)) {
         // we're not valid.... we'll need to abort, but only for the signals
