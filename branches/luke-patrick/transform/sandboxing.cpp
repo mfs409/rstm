@@ -59,7 +59,7 @@ namespace {
   // A utility that gets the target function of either a call or invoke
   // instruction.
   // --------------------------------------------------------------------------
-  static Function* get_target(CallSite call) {
+  static Function* GetTarget(CallSite call) {
       // Get the called function (NULL if this is an indirect call).
       Function* target = call.getCalledFunction();
 
@@ -86,15 +86,8 @@ namespace {
       if (call->isInlineAsm())
           return NULL;
 
-      return get_target(call);
+      return GetTarget(CallSite(call));
   }
-
-  // --------------------------------------------------------------------------
-  // Finds the called function for an invoke instruction.
-  // --------------------------------------------------------------------------
-  // static Function* GetTarget(InvokeInst* invoke) {
-  //     return (!invoke) ? NULL : get_target(invoke);
-  // }
 
   // --------------------------------------------------------------------------
   // Abstracts a transactional ABI. Pure-virtual superclass so that we can
@@ -292,6 +285,14 @@ SRVEPass::visit(BasicBlock* bb, int depth) {
     // We always assume that a basic block starts tainted.
     bool tainted = true;
 
+    // We want to know if this basic block had a begin-transaction in it,
+    // because we want to avoid instrumenting the serial-irrevocable code
+    // path, if possible.
+    bool had_begin = false;
+
+    // We want to use some domain-specific knowledge to avoid instrumentation
+    // on the serial-irrevocable path.
+
     for (BasicBlock::iterator i = bb->begin(), e = bb->end(); i != e; ++i) {
         // If we are terminating with a return, the depth should be 0 if we're
         // not processing a transactional clone. Otherwise, we're processing a
@@ -300,7 +301,7 @@ SRVEPass::visit(BasicBlock* bb, int depth) {
         if (isa<ReturnInst>(i)) {
             if (isTransactionalClone(bb->getParent())) {
                 if (depth != 1)
-                    report_fatal_error("Unmatched transaction end marker");
+                    report_fatal_error("Unmatched transaction begin marker");
             } else if (depth != 0) {
                 report_fatal_error("Unmatched transaction begin marker");
             }
@@ -313,6 +314,7 @@ SRVEPass::visit(BasicBlock* bb, int depth) {
             if (INT_MAX - depth < 1)
                 report_fatal_error("Nesting error in search (overflow).");
             ++depth;
+            had_begin = true;
         }
 
         // End marker decrements nesting depth. Underflow signifies unmatched
@@ -345,6 +347,20 @@ SRVEPass::visit(BasicBlock* bb, int depth) {
                                  << "\n");
                 }
             }
+        }
+    }
+
+    // Special case for blocks with begin transaction instructions.
+    if (had_begin) {
+        DEBUG(outs() << "saw begin-transaction in block, ");
+        if (SwitchInst* sw = dyn_cast<SwitchInst>(bb->getTerminator())) {
+            DEBUG(outs() << "eliding serial-irrevocable instrumentation\n");
+            visit(sw->getDefaultDest(), depth);
+            return;
+        }
+        else {
+            errs() << *bb->getTerminator();
+            // assert(false);
         }
     }
 

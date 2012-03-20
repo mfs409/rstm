@@ -1,21 +1,25 @@
 # -*- Makefile -*-*
-CC.o   := g++
+CC.o   := gcc
 CXX.o  := g++
 CXX.ld := g++ -Wl,-plugin,/u/luked/pub/gcc/4.8/lib64/bfd-plugins/LLVMgold.so
-CC.bc  := @CMAKE_CXX_COMPILER@ -emit-llvm -fgnu-tm
-CXX.bc := @CMAKE_CXX_COMPILER@ -emit-llvm -fgnu-tm
+CC.bc  := @CMAKE_C_COMPILER@ -emit-llvm
+CXX.bc := @CMAKE_CXX_COMPILER@ -emit-llvm
 TMLINK := tmlink
 VPATH  := @CMAKE_CURRENT_SOURCE_DIR@:@CMAKE_CURRENT_SOURCE_DIR@/../lib
+
+ifdef DTMC
+TMAPI  := -DDTMC -fgnu-tm
+else
+TMAPI  := -DTANGER
+endif
 
 STMLIB := @CMAKE_CURRENT_BINARY_DIR@/../../libitm2stm
 STMSUPPORT := $(dir $(shell which ${TMLINK}))../lib
 
-CFLAGS   = -I@CMAKE_CURRENT_SOURCE_DIR@/../lib
-CFLAGS  += -DLIST_NO_DUPLICATES -DMAP_USE_RBTREE -DDTMC
-# super-hack
-CFLAGS  += -include @CMAKE_CURRENT_SOURCE_DIR@/../../libstm/sandboxing.hpp
+CFLAGS   = -I@CMAKE_SOURCE_DIR@ -I@CMAKE_CURRENT_SOURCE_DIR@/../lib
+CFLAGS  += -DLIST_NO_DUPLICATES -DMAP_USE_RBTREE $(TMAPI)
 
-CXXFLAGS := ${CFLAGS} # -fno-exceptions
+CXXFLAGS := ${CFLAGS} -fno-exceptions
 
 TMLINKFLAGS  = -stmlib=${STMLIB}
 TMLINKFLAGS += -tm-support-file=${STMLIB}/libtanger-stm.support
@@ -54,16 +58,10 @@ clean:
 	@find . -name "*.o" | xargs rm -f
 	@find . -name "vacation" | xargs rm -f
 
-ifdef TMLINK
-vacation: pair.bc mt19937ar.bc random.bc thread.bc client.bc customer.bc \
-          manager.bc reservation.bc vacation.bc list.bc rbtree.bc
-	${TMLINK} ${LDFLAGS} -o $@ $^ ${LDLIBS}
-else
 vacation: pair.bc mt19937ar.bc random.bc thread.bc client.bc customer.bc \
           manager.bc reservation.bc vacation.bc list.bc rbtree.bc
 	llvm-ld $(OPTFLAGS) -o $@.tx.bc $(filter %.bc,$^)
 	$(CXX.ld) $(LDFLAGS) $(OPT_O) -o $@ $@.tx.bc $(STMSUPPORT)/stmsupport.bc $(filter-out %.bc,$^) $(LDLIBS)
-endif
 
 %.bc: %.c
 	${CC.bc} ${CFLAGS} $(OPT_BC) -o $@ -c $<

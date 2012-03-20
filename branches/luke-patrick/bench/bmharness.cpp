@@ -159,12 +159,13 @@ run(uintptr_t id)
     // wait until read of start timer finishes, then start transactios
     barrier(1);
 
+    uint32_t found = 0;
     uint32_t count = 0;
     uint32_t seed = id; // not everyone needs a seed, but we have to support it
     if (!CFG.execute) {
         // run txns until alarm fires
         while (CFG.running) {
-            bench_test(id, &seed);
+            found += (bench_test(id, &seed)) ? 1 : 0;
             ++count;
             nontxnwork(); // some nontx work between txns?
         }
@@ -172,7 +173,7 @@ run(uintptr_t id)
     else {
         // run fixed number of txns
         for (uint32_t e = 0; e < CFG.execute; e++) {
-            bench_test(id, &seed);
+            found += (bench_test(id, &seed)) ? 1 : 0;
             ++count;
             nontxnwork(); // some nontx work between txns?
         }
@@ -185,6 +186,7 @@ run(uintptr_t id)
 
     // add this thread's count to an accumulator
     faa32(&CFG.txcount, count);
+    faa32(&CFG.found, found);
 }
 
 /**
@@ -245,6 +247,7 @@ int main(int argc, char** argv) {
 
     bool v = bench_verify();
     std::cout << "Verification: " << (v ? "Passed" : "Failed") << "\n";
+    std::cout << "Lookups Found: " << CFG.found << "\n";
 
     dump_csv();
 

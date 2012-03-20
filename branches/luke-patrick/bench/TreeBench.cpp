@@ -65,13 +65,14 @@ void bench_init()
 }
 
 /*** Run a bunch of random transactions */
-void bench_test(uintptr_t, uint32_t* seed)
+bool bench_test(uintptr_t, uint32_t* seed)
 {
+    bool found = false;
     uint32_t val = rand_r_32(seed) % CFG.elements;
     uint32_t act = rand_r_32(seed) % 100;
     if (act < CFG.lookpct) {
         TM_BEGIN(atomic) {
-            SET->lookup(val TM_PARAM);
+            found = SET->lookup(val TM_PARAM);
         } TM_END;
     }
     else if (act < CFG.inspct) {
@@ -84,6 +85,7 @@ void bench_test(uintptr_t, uint32_t* seed)
             SET->remove(val TM_PARAM);
         } TM_END;
     }
+    return found;
 }
 
 /*** Ensure the final state of the benchmark satisfies all invariants */
