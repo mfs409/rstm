@@ -105,6 +105,13 @@
 #  define TM_SHARED_WRITE(var, val)     TM_WRITE((var), val)
 #  define TM_SHARED_WRITE_P(var, val)   TM_WRITE((var), val)
 #  define TM_SHARED_WRITE_F(var, val)   TM_WRITE((var), val)
+
+// [todo] yada fails for lazy STM.  It could be due to lack of
+//        instrumentation, or due to immediate free within a transaction.  We
+//        should explore by overriding malloc/free to ensure they are safe.
+// #  define malloc                        TM_ALLOC
+// #  define free                          TM_FREE
+
 #  define P_MALLOC(size)                malloc(size)
 #  define P_FREE(ptr)                   free(ptr)
 
@@ -121,6 +128,9 @@
 #  define TM_MALLOC                     TM_ALLOC
 
 #  define TM_PRINT0                     printf
+
+#  define TM_EARLY_RELEASE(var)         /* nothing */
+
 
 #else
 

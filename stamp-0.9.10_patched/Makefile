@@ -1,9 +1,3 @@
-CFLAGS += -DOUTPUT_TO_STDOUT
-
-PROG      := kmeans
-BENCHNAMES = cluster common kmeans normal
-LIBNAMES   = mt19937ar random thread
-
 # simpy typing 'make' dumps a message, rather than trying to guess a default
 info:
 	@echo "You must specify your platform as the build target."
@@ -15,8 +9,15 @@ info:
 
 # dispatch to the various platforms.  Make will error unless the platform's
 # corresponding definitions are in the build folder
-%: ../%.mk 
-	MAKEFILES="../$@.mk Kmeans.mk Rules.mk" $(MAKE) default
+%: ../%.mk $(ODIR)
+	MAKEFILES="../$@.mk bayes/Rules.mk Rules.mk" $(MAKE) default
+	MAKEFILES="../$@.mk genome/Rules.mk Rules.mk" $(MAKE) default
+	MAKEFILES="../$@.mk intruder/Rules.mk Rules.mk" $(MAKE) default
+	MAKEFILES="../$@.mk kmeans/Rules.mk Rules.mk" $(MAKE) default
+	MAKEFILES="../$@.mk labyrinth/Rules.mk Rules.mk" $(MAKE) default
+	MAKEFILES="../$@.mk ssca2/Rules.mk Rules.mk" $(MAKE) default
+	MAKEFILES="../$@.mk vacation/Rules.mk Rules.mk" $(MAKE) default
+	MAKEFILES="../$@.mk yada/Rules.mk Rules.mk" $(MAKE) default
 
 #
 # Simple clean rule: kill all possible folders
@@ -24,10 +25,3 @@ info:
 
 clean:
 	@rm -rf obj.lib_gcc_solaris_ia32_opt obj.lib_gcc_solaris_ia32_dbg
-
-#
-# The output directory
-#
-
-$(ODIR):
-	@mkdir $@

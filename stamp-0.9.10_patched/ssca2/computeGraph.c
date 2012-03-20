@@ -6,48 +6,48 @@
  *
  * For the license of bayes/sort.h and bayes/sort.c, please see the header
  * of the files.
- * 
+ *
  * ------------------------------------------------------------------------
- * 
+ *
  * For the license of kmeans, please see kmeans/LICENSE.kmeans
- * 
+ *
  * ------------------------------------------------------------------------
- * 
+ *
  * For the license of ssca2, please see ssca2/COPYRIGHT
- * 
+ *
  * ------------------------------------------------------------------------
- * 
+ *
  * For the license of lib/mt19937ar.c and lib/mt19937ar.h, please see the
  * header of the files.
- * 
+ *
  * ------------------------------------------------------------------------
- * 
+ *
  * For the license of lib/rbtree.h and lib/rbtree.c, please see
  * lib/LEGALNOTICE.rbtree and lib/LICENSE.rbtree
- * 
+ *
  * ------------------------------------------------------------------------
- * 
+ *
  * Unless otherwise noted, the following license applies to STAMP files:
- * 
+ *
  * Copyright (c) 2007, Stanford University
  * All rights reserved.
- * 
+ *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
  * met:
- * 
+ *
  *     * Redistributions of source code must retain the above copyright
  *       notice, this list of conditions and the following disclaimer.
- * 
+ *
  *     * Redistributions in binary form must reproduce the above copyright
  *       notice, this list of conditions and the following disclaimer in
  *       the documentation and/or other materials provided with the
  *       distribution.
- * 
+ *
  *     * Neither the name of Stanford University nor the names of its
  *       contributors may be used to endorse or promote products derived
  *       from this software without specific prior written permission.
- * 
+ *
  * THIS SOFTWARE IS PROVIDED BY STANFORD UNIVERSITY ``AS IS'' AND ANY
  * EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
@@ -71,9 +71,9 @@
 #include "createPartition.h"
 #include "defs.h"
 #include "globals.h"
-#include "thread.h"
-#include "utility.h"
-#include "tm.h"
+#include "../lib/thread.h"
+#include "../lib/utility.h"
+#include "../lib/tm.h"
 
 static ULONGINT_T*  global_p                 = NULL;
 static ULONGINT_T   global_maxNumVertices    = 0;
@@ -183,7 +183,7 @@ computeGraph (void* argPtr)
     TM_BEGIN();
     long tmp_maxNumVertices = (long)TM_SHARED_READ(global_maxNumVertices);
     long new_maxNumVertices = MAX(tmp_maxNumVertices, maxNumVertices) + 1;
-    TM_SHARED_WRITE(global_maxNumVertices, new_maxNumVertices);
+    TM_SHARED_WRITE(global_maxNumVertices, (ULONGINT_T)new_maxNumVertices);
     TM_END();
 
     thread_barrier_wait();
@@ -478,7 +478,7 @@ computeGraph (void* argPtr)
                 TM_SHARED_WRITE(GPtr->inDegree[v], (inDegree + 1));
                 if (inDegree < MAX_CLUSTER_SIZE) {
                     TM_SHARED_WRITE(impliedEdgeList[v*MAX_CLUSTER_SIZE+inDegree],
-                                    i);
+                                    (ULONGINT_T)i);
                 } else {
                     /* Use auxiliary array to store the implied edge */
                     /* Create an array if it's not present already */
@@ -491,7 +491,7 @@ computeGraph (void* argPtr)
                     } else {
                         a = auxArr[v];
                     }
-                    TM_SHARED_WRITE(a[inDegree % MAX_CLUSTER_SIZE], i);
+                    TM_SHARED_WRITE(a[inDegree % MAX_CLUSTER_SIZE], (ULONGINT_T)i);
                 }
                 TM_END();
             }

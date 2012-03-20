@@ -35,6 +35,13 @@ TARGETS     = $(foreach alg,$(ALGNAMES),$(ODIR)/$(PROG).$(alg))
 default: $(ODIR) $(TARGETS)
 
 #
+# The output directory
+#
+
+$(ODIR):
+	@mkdir $@
+
+#
 # Rules for building individual benchmarks according to the specified API.
 # Note that the lock and stm apis are split out
 #

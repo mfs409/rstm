@@ -11,48 +11,48 @@
  *
  * For the license of bayes/sort.h and bayes/sort.c, please see the header
  * of the files.
- * 
+ *
  * ------------------------------------------------------------------------
- * 
+ *
  * For the license of kmeans, please see kmeans/LICENSE.kmeans
- * 
+ *
  * ------------------------------------------------------------------------
- * 
+ *
  * For the license of ssca2, please see ssca2/COPYRIGHT
- * 
+ *
  * ------------------------------------------------------------------------
- * 
+ *
  * For the license of lib/mt19937ar.c and lib/mt19937ar.h, please see the
  * header of the files.
- * 
+ *
  * ------------------------------------------------------------------------
- * 
+ *
  * For the license of lib/rbtree.h and lib/rbtree.c, please see
  * lib/LEGALNOTICE.rbtree and lib/LICENSE.rbtree
- * 
+ *
  * ------------------------------------------------------------------------
- * 
+ *
  * Unless otherwise noted, the following license applies to STAMP files:
- * 
+ *
  * Copyright (c) 2007, Stanford University
  * All rights reserved.
- * 
+ *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
  * met:
- * 
+ *
  *     * Redistributions of source code must retain the above copyright
  *       notice, this list of conditions and the following disclaimer.
- * 
+ *
  *     * Redistributions in binary form must reproduce the above copyright
  *       notice, this list of conditions and the following disclaimer in
  *       the documentation and/or other materials provided with the
  *       distribution.
- * 
+ *
  *     * Neither the name of Stanford University nor the names of its
  *       contributors may be used to endorse or promote products derived
  *       from this software without specific prior written permission.
- * 
+ *
  * THIS SOFTWARE IS PROVIDED BY STANFORD UNIVERSITY ``AS IS'' AND ANY
  * EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
@@ -78,9 +78,9 @@
 #include "dictionary.h"
 #include "packet.h"
 #include "stream.h"
-#include "thread.h"
-#include "timer.h"
-#include "tm.h"
+#include "../lib/thread.h"
+#include "../lib/timer.h"
+#include "../lib/tm.h"
 
 enum param_types {
     PARAM_ATTACK = (unsigned char)'a',
@@ -98,6 +98,8 @@ enum param_defaults {
     PARAM_DEFAULT_THREAD = 1,
 };
 
+// [mfs] g++ does not allow non-trivial designated initializers
+#if 0
 long global_params[256] = { /* 256 = ascii limit */
     [PARAM_ATTACK] = PARAM_DEFAULT_ATTACK,
     [PARAM_LENGTH] = PARAM_DEFAULT_LENGTH,
@@ -105,6 +107,17 @@ long global_params[256] = { /* 256 = ascii limit */
     [PARAM_SEED]   = PARAM_DEFAULT_SEED,
     [PARAM_THREAD] = PARAM_DEFAULT_THREAD,
 };
+#else
+long global_params[256];
+void global_param_init()
+{
+    global_params[PARAM_ATTACK] = PARAM_DEFAULT_ATTACK;
+    global_params[PARAM_LENGTH] = PARAM_DEFAULT_LENGTH;
+    global_params[PARAM_NUM]    = PARAM_DEFAULT_NUM;
+    global_params[PARAM_SEED]   = PARAM_DEFAULT_SEED;
+    global_params[PARAM_THREAD] = PARAM_DEFAULT_THREAD;
+}
+#endif
 
 typedef struct arg {
   /* input: */
@@ -255,6 +268,8 @@ MAIN(argc, argv)
     /*
      * Initialization
      */
+    // [mfs] to initialize global params
+    global_param_init();
 
     parseArgs(argc, (char** const)argv);
     long numThread = global_params[PARAM_THREAD];
@@ -312,7 +327,7 @@ MAIN(argc, argv)
     {
         processPackets((void*)&arg);
     }
-    
+
 #else
     thread_start(processPackets, (void*)&arg);
 #endif
