@@ -103,7 +103,7 @@ void bench_test(uintptr_t id, uint32_t* seed)
             SET->ro_transaction(id, start TM_PARAM);
         else
             SET->r_rw_transaction(id, start TM_PARAM);
-    } TM_END;
+    } TM_END();
 }
 
 /*** Ensure the final state of the benchmark satisfies all invariants */

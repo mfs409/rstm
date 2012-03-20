@@ -72,7 +72,7 @@ void bench_test(uintptr_t, uint32_t* seed)
         for (uint32_t i = 0; i < CFG.ops; ++i) {
             TM_WRITE(matrix[loc[i]], 1 + snapshot[i]);
         }
-    } TM_END;
+    } TM_END();
     *seed = local_seed;
 }
 

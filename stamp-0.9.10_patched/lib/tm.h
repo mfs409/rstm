@@ -13,48 +13,48 @@
  *
  * For the license of bayes/sort.h and bayes/sort.c, please see the header
  * of the files.
- * 
+ *
  * ------------------------------------------------------------------------
- * 
+ *
  * For the license of kmeans, please see kmeans/LICENSE.kmeans
- * 
+ *
  * ------------------------------------------------------------------------
- * 
+ *
  * For the license of ssca2, please see ssca2/COPYRIGHT
- * 
+ *
  * ------------------------------------------------------------------------
- * 
+ *
  * For the license of lib/mt19937ar.c and lib/mt19937ar.h, please see the
  * header of the files.
- * 
+ *
  * ------------------------------------------------------------------------
- * 
+ *
  * For the license of lib/rbtree.h and lib/rbtree.c, please see
  * lib/LEGALNOTICE.rbtree and lib/LICENSE.rbtree
- * 
+ *
  * ------------------------------------------------------------------------
- * 
+ *
  * Unless otherwise noted, the following license applies to STAMP files:
- * 
+ *
  * Copyright (c) 2007, Stanford University
  * All rights reserved.
- * 
+ *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are
  * met:
- * 
+ *
  *     * Redistributions of source code must retain the above copyright
  *       notice, this list of conditions and the following disclaimer.
- * 
+ *
  *     * Redistributions in binary form must reproduce the above copyright
  *       notice, this list of conditions and the following disclaimer in
  *       the documentation and/or other materials provided with the
  *       distribution.
- * 
+ *
  *     * Neither the name of Stanford University nor the names of its
  *       contributors may be used to endorse or promote products derived
  *       from this software without specific prior written permission.
- * 
+ *
  * THIS SOFTWARE IS PROVIDED BY STANFORD UNIVERSITY ``AS IS'' AND ANY
  * EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
  * IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
@@ -73,6 +73,56 @@
 
 #ifndef TM_H
 #define TM_H 1
+
+
+#if 1 /* RSTM Override */
+
+#include <stm.h>
+
+#  define MAIN(argc, argv)              int main (int argc, char** argv)
+#  define GOTO_SIM()                    /* nothing */
+#  define GOTO_REAL()                   /* nothing */
+#  define MAIN_RETURN(val)              return val
+#  define IS_IN_SIM()                   (0)
+
+#  define SIM_GET_NUM_CPU(var)          /* nothing */
+#  define P_MEMORY_STARTUP(numThread)   /* nothing */
+#  define P_MEMORY_SHUTDOWN()           /* nothing */
+
+#  define TM_ARG                        /* nothing */
+#  define TM_ARG_ALONE                  /* nothing */
+#  define TM_ARGDECL                    /* nothing */
+#  define TM_ARGDECL_ALONE              /* nothing */
+#  define TM_CALLABLE                   /* nothing */
+
+#  define TM_THREAD_ENTER()             TM_THREAD_INIT()
+#  define TM_THREAD_EXIT()              TM_THREAD_SHUTDOWN()
+
+#  define TM_SHARED_READ(var)           TM_READ(var)
+#  define TM_SHARED_READ_P(var)         TM_READ(var)
+#  define TM_SHARED_READ_F(var)         TM_READ(var)
+
+#  define TM_SHARED_WRITE(var, val)     TM_WRITE((var), val)
+#  define TM_SHARED_WRITE_P(var, val)   TM_WRITE((var), val)
+#  define TM_SHARED_WRITE_F(var, val)   TM_WRITE((var), val)
+#  define P_MALLOC(size)                malloc(size)
+#  define P_FREE(ptr)                   free(ptr)
+
+#  define TM_BEGIN_RO()                 TM_BEGIN(x)
+#  define TM_RESTART()                  assert(false)
+
+#  define TM_STARTUP(numThread)         TM_SYS_INIT()
+#  define TM_SHUTDOWN()                 TM_SYS_SHUTDOWN()
+
+#  define TM_LOCAL_WRITE(var, val)      ({var = val;var;})
+#  define TM_LOCAL_WRITE_P(var, val)    ({var = val;var;})
+#  define TM_LOCAL_WRITE_F(var, val)    ({var = val;var;})
+
+#  define TM_MALLOC                     TM_ALLOC
+
+#  define TM_PRINT0                     printf
+
+#else
 
 #ifdef HAVE_CONFIG_H
 # include "STAMP_config.h"
@@ -564,7 +614,7 @@
 
 #endif /* TM_H */
 
-
+#endif /* RSTM Override */
 /* =============================================================================
  *
  * End of tm.h

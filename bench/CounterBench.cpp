@@ -65,7 +65,7 @@ bench_test(uintptr_t, uint32_t*)
     TM_BEGIN(atomic) {
         // increment the counter
         TM_WRITE(counter, 1 + TM_READ(counter));
-    } TM_END;
+    } TM_END();
 }
 
 /*** Ensure the final state of the benchmark satisfies all invariants */

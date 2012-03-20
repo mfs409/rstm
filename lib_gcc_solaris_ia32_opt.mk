@@ -25,6 +25,8 @@ CXX         = g++
 CXXFLAGS    = -O3 -ggdb -m32 -march=corei7 -mtune=corei7 -msse2 -mfpmath=sse
 CXXFLAGS   += -DSINGLE_SOURCE_BUILD -I./$(ODIR) -I./include -I./common -MMD
 LDFLAGS    += -lrt -lpthread -m32 -lmtmalloc
+CC          = g++
+CFLAGS      = $(CXXFLAGS)
 
 $(CONFIGH):
 	@echo "// This file was auto-generated on " `date` > $@

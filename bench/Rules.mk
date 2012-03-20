@@ -43,48 +43,48 @@ $(ODIR)/%.cgl: $(ODIR)/%.lockapi.o $(ODIR)/libcgl.a
 
 $(ODIR)/%.norec: $(ODIR)/%.genericapi.o $(ODIR)/libnorec.a
 	@echo [LD] $@ 
-	@$(CXX) -o $@ $^ $(LDFLAGS) -DSTM_INST_GENERIC
+	@$(CXX) -o $@ $^ $(LDFLAGS)
 
 $(ODIR)/%.tml: $(ODIR)/%.genericapi.o $(ODIR)/libtml.a
 	@echo [LD] $@ 
-	@$(CXX) -o $@ $^ $(LDFLAGS) -DSTM_INST_GENERIC
+	@$(CXX) -o $@ $^ $(LDFLAGS)
 
 $(ODIR)/%.cohortseager: $(ODIR)/%.genericapi.o $(ODIR)/libcohortseager.a
 	@echo [LD] $@ 
-	@$(CXX) -o $@ $^ $(LDFLAGS) -DSTM_INST_GENERIC
+	@$(CXX) -o $@ $^ $(LDFLAGS)
 
 $(ODIR)/%.cohorts: $(ODIR)/%.genericapi.o $(ODIR)/libcohorts.a
 	@echo [LD] $@ 
-	@$(CXX) -o $@ $^ $(LDFLAGS) -DSTM_INST_GENERIC
+	@$(CXX) -o $@ $^ $(LDFLAGS)
 
 $(ODIR)/%.ctokenturbo: $(ODIR)/%.genericapi.o $(ODIR)/libctokenturbo.a
 	@echo [LD] $@ 
-	@$(CXX) -o $@ $^ $(LDFLAGS) -DSTM_INST_GENERIC
+	@$(CXX) -o $@ $^ $(LDFLAGS)
 
 $(ODIR)/%.ctoken: $(ODIR)/%.genericapi.o $(ODIR)/libctoken.a
 	@echo [LD] $@ 
-	@$(CXX) -o $@ $^ $(LDFLAGS) -DSTM_INST_GENERIC
+	@$(CXX) -o $@ $^ $(LDFLAGS)
 
 $(ODIR)/%.llt: $(ODIR)/%.genericapi.o $(ODIR)/libllt.a
 	@echo [LD] $@ 
-	@$(CXX) -o $@ $^ $(LDFLAGS) -DSTM_INST_GENERIC
+	@$(CXX) -o $@ $^ $(LDFLAGS)
 
 $(ODIR)/%.oreceager: $(ODIR)/%.genericapi.o $(ODIR)/liboreceager.a
 	@echo [LD] $@ 
-	@$(CXX) -o $@ $^ $(LDFLAGS) -DSTM_INST_GENERIC
+	@$(CXX) -o $@ $^ $(LDFLAGS)
 
 $(ODIR)/%.oreceagerredo: $(ODIR)/%.genericapi.o $(ODIR)/liboreceagerredo.a
 	@echo [LD] $@ 
-	@$(CXX) -o $@ $^ $(LDFLAGS) -DSTM_INST_GENERIC
+	@$(CXX) -o $@ $^ $(LDFLAGS)
 
 $(ODIR)/%.oreclazy: $(ODIR)/%.genericapi.o $(ODIR)/liboreclazy.a
 	@echo [LD] $@ 
-	@$(CXX) -o $@ $^ $(LDFLAGS) -DSTM_INST_GENERIC
+	@$(CXX) -o $@ $^ $(LDFLAGS)
 
 $(ODIR)/%.orecela: $(ODIR)/%.genericapi.o $(ODIR)/liborecela.a
 	@echo [LD] $@ 
-	@$(CXX) -o $@ $^ $(LDFLAGS) -DSTM_INST_GENERIC
+	@$(CXX) -o $@ $^ $(LDFLAGS)
 
 $(ODIR)/%.orecala: $(ODIR)/%.genericapi.o $(ODIR)/liborecala.a
 	@echo [LD] $@
-	@$(CXX) -o $@ $^ $(LDFLAGS) -DSTM_INST_GENERIC
+	@$(CXX) -o $@ $^ $(LDFLAGS)

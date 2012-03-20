@@ -132,7 +132,7 @@ void bench_test(uintptr_t, uint32_t* seed)
                     SET->trees[tree_idx]->remove(val TM_PARAM);
             }
         }
-    } TM_END;
+    } TM_END();
     *seed = local_seed;
 }
 

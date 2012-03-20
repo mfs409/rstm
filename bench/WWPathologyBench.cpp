@@ -73,7 +73,7 @@ void bench_test(uintptr_t id, uint32_t*)
             else
                 list->increment_backward(TM_PARAM_ALONE);
         }
-    } TM_END;
+    } TM_END();
 }
 
 /*** Ensure the final state of the benchmark satisfies all invariants */

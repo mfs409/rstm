@@ -72,17 +72,17 @@ void bench_test(uintptr_t, uint32_t* seed)
     if (act < CFG.lookpct) {
         TM_BEGIN(atomic) {
             SET->lookup(val TM_PARAM);
-        } TM_END;
+        } TM_END();
     }
     else if (act < CFG.inspct) {
         TM_BEGIN(atomic) {
             SET->insert(val TM_PARAM);
-        } TM_END;
+        } TM_END();
     }
     else {
         TM_BEGIN(atomic) {
             SET->remove(val TM_PARAM);
-        } TM_END;
+        } TM_END();
     }
 }
 
