@@ -66,7 +66,7 @@ void bench_test(uintptr_t, uint32_t* seed)
             uint32_t loc = rand_r((uint32_t*)&local_seed) % CFG.elements;
             TM_WRITE(matrix[loc], 1 + TM_READ(matrix[loc]));
         }
-    } TM_END;
+    } TM_END();
     *seed = local_seed;
 }
 

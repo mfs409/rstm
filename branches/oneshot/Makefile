@@ -24,7 +24,7 @@ info:
 
 # dispatch to the various platforms.  Make will error unless the platform's
 # corresponding definitions are in the build folder
-%: lib/%.mk lib/Rules.mk lib/Targets.mk bench/Rules.mk bench/Targets.mk 
+%: %.mk lib/Rules.mk lib/Targets.mk bench/Rules.mk bench/Targets.mk 
 	MAKEFILES="lib/Targets.mk $@.mk lib/Rules.mk" $(MAKE) librstm
 	MAKEFILES="lib/Targets.mk bench/Targets.mk $@.mk bench/Rules.mk" $(MAKE) benchmarks
 
@@ -34,3 +34,10 @@ info:
 
 $(ODIR):
 	@mkdir $@
+
+#
+# Simple clean rule: kill all possible folders
+#
+
+clean:
+	@rm -rf obj.lib_gcc_solaris_ia32_opt obj.lib_gcc_solaris_ia32_dbg

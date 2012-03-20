@@ -40,7 +40,7 @@ namespace stm
                              setjmp(_jmpbuf);          \
                              stm::tm_begin(&_jmpbuf);
 
-#define TM_END               stm::tm_end();            \
+#define TM_END()             stm::tm_end();   \
                              }
 
 #define TM_GET_ALGNAME()     stm::tm_getalgname()
@@ -80,7 +80,7 @@ namespace stm
 #define TM_PARAM
 #define TM_ARG_ALONE
 #define TM_BEGIN_FAST_INITIALIZATION() TM_BEGIN(atomic)
-#define TM_END_FAST_INITIALIZATION()   TM_END
+#define TM_END_FAST_INITIALIZATION()   TM_END()
 #define TM_WAIVER
 #define TM_PARAM_ALONE
 

@@ -70,7 +70,7 @@ void bench_test(uintptr_t, uint32_t* seed)
             sum += TM_READ(matrix[loc]);
         }
         TM_WRITE(matrix[loc], sum);
-    } TM_END;
+    } TM_END();
     *seed = local_seed;
 }
 

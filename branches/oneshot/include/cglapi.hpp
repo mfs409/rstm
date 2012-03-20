@@ -34,7 +34,7 @@ namespace stm
 }
 
 #define TM_BEGIN(x)          stm::tm_begin();
-#define TM_END               stm::tm_end()
+#define TM_END()             stm::tm_end()
 
 #define TM_GET_ALGNAME()     stm::tm_getalgname()
 
