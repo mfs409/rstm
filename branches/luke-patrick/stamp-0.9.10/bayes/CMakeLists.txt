@@ -15,12 +15,12 @@ set(
   ../lib/queue.c
   ../lib/random.c
   ../lib/thread.cpp
-  ../lib/vector.c
-  adtree.c
-  bayes.c
-  data.c
-  learner.c
-  net.c
+  ../lib/vector.cpp
+  adtree.cpp
+  bayes.cpp
+  data.cpp
+  learner.cpp
+  net.cpp
   sort.c)
 
 # build the different executables

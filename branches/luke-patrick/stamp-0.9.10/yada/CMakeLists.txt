@@ -18,7 +18,7 @@ set(
   ../lib/random.c
   ../lib/rbtree.cpp
   ../lib/thread.cpp
-  ../lib/vector.c
+  ../lib/vector.cpp
   coordinate.c
   element.c
   mesh.c

@@ -15,7 +15,7 @@ set(
   ../lib/queue.c
   ../lib/random.c
   ../lib/thread.cpp
-  ../lib/vector.c
+  ../lib/vector.cpp
   coordinate.c
   grid.c
   labyrinth.c

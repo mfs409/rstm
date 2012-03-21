@@ -555,6 +555,7 @@
 
 #include <tanger-stm.h>
 #include <tanger-stm-std-math.h>
+#include <tanger-stm-std-string.h>
 
 #  define TM_ARG                        /* nothing */
 #  define TM_ARG_ALONE                  /* nothing */

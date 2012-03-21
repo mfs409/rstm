@@ -16,7 +16,7 @@ set(
   ../lib/random.c
   ../lib/rbtree.cpp
   ../lib/thread.cpp
-  ../lib/vector.c
+  ../lib/vector.cpp
   decoder.c
   detector.c
   dictionary.c
