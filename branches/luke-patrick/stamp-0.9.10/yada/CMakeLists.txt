@@ -20,10 +20,10 @@ set(
   ../lib/thread.cpp
   ../lib/vector.cpp
   coordinate.c
-  element.c
-  mesh.c
-  region.c
-  yada.c)
+  element.cpp
+  mesh.cpp
+  region.cpp
+  yada.cpp)
 
 # build the different executables
 foreach (arch ${rstm_archs})
