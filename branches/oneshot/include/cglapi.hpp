@@ -17,6 +17,7 @@
 #define CGLAPI_HPP__
 
 #include <limits.h>
+#include <cstdlib>
 
 namespace stm
 {

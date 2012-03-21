@@ -82,7 +82,7 @@
 #include "adtree.h"
 #include "data.h"
 #include "query.h"
-#include "utility.h"
+#include "../lib/utility.h"
 #include "../lib/vector.h"
 
 

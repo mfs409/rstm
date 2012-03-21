@@ -18,6 +18,7 @@
 
 #include <limits.h>
 #include <setjmp.h>
+#include <cstdlib>
 
 namespace stm
 {
