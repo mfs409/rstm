@@ -66,7 +66,7 @@ namespace stm
   {
       id = faiptr(&threadcount.val);
       threads[id] = this;
-      allocator.setID(id-1);
+      allocator.setID(id);
   }
 
   /*** The only metadata we need is a single global padded lock ***/

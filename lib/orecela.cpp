@@ -75,7 +75,7 @@ namespace stm
   {
       id = faiptr(&threadcount.val);
       threads[id] = this;
-      allocator.setID(id-1);
+      allocator.setID(id);
       // set up my lock word
       my_lock.fields.lock = 1;
       my_lock.fields.id = id;

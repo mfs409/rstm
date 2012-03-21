@@ -263,6 +263,9 @@ namespace stm
   };
 
 #elif defined(STM_BITS_64)
+
+#define STM_MASK(x)
+
   /*** standard dispatch for 8-byte types, since 8 bytes is the word size */
   template <typename T>
   struct DISPATCH<T, 8>
@@ -313,12 +316,6 @@ namespace stm
           union { double d;  void*  v; } v;
           v.v = tm_read((void**)addr STM_MASK(~0x0));
           return v.d;
-      }
-
-      TM_INLINE
-      static void write(const double*, double, TxThread*)
-      {
-          UNRECOVERABLE("You should not be writing a const double!");
       }
   };
 
@@ -452,12 +449,6 @@ namespace stm
           v.v2 = tm_read(a
                                 STM_MASK(0xffffffff << (32 * offset)));
           return v.v[offset];
-      }
-
-      TM_INLINE
-      static void write(const float*, float, TxThread*)
-      {
-          UNRECOVERABLE("You should not be writing a const float!");
       }
   };
 
