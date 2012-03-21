@@ -18,9 +18,9 @@ set(
   ../lib/vector.cpp
   coordinate.c
   grid.c
-  labyrinth.c
-  maze.c
-  router.c)
+  labyrinth.cpp
+  maze.cpp
+  router.cpp)
 
 # build the different executables
 foreach (arch ${rstm_archs})
@@ -28,3 +28,5 @@ foreach (arch ${rstm_archs})
   target_link_libraries(${exec} -lm)
   add_target_definitions(${exec} USE_EARLY_RELEASE)
 endforeach ()
+
+configure_file (sandbox.mk.cmake sandbox.mk @ONLY)

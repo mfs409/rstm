@@ -78,7 +78,8 @@
 #include "tm.h"
 #include "types.h"
 #include "vector.h"
-
+#include <stm/lib_globals.hpp>          /* direct stm_restart() call for
+                                           condition synchronization */
 
 const unsigned long CACHE_LINE_SIZE = 32UL;
 
@@ -316,7 +317,7 @@ TMgrid_addPath (TM_ARGDECL  grid_t* gridPtr, vector_t* pointVectorPtr)
         long* gridPointPtr = (long*)vector_at(pointVectorPtr, i);
         long value = (long)TM_SHARED_READ_L(*gridPointPtr);
         if (value != GRID_POINT_EMPTY) {
-            TODO_STM_RESTART_SPECIAL_CASE();
+            stm_restart();
         }
         TM_SHARED_WRITE_L(*gridPointPtr, (long)GRID_POINT_FULL);
     }
