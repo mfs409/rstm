@@ -524,8 +524,6 @@
  */
 #elif defined(DTMC)
 
-#include <stm/lib_globals.hpp>
-
 #  define TM_ARG                        /* nothing */
 #  define TM_ARG_ALONE                  /* nothing */
 #  define TM_ARGDECL                    /* nothing */
@@ -556,7 +554,6 @@
 #elif defined(TANGER)
 
 #include <tanger-stm.h>
-#include <stm/lib_globals.hpp>
 
 #  define TM_ARG                        /* nothing */
 #  define TM_ARG_ALONE                  /* nothing */

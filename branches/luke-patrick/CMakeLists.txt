@@ -114,3 +114,5 @@ else ()
 endif ()
 
 configure_file (libitm.mk.cmake libitm.mk @ONLY)
+configure_file (sandbox.mk.cmake sandbox.mk @ONLY)
+configure_file (sandbox.common.mk.cmake sandbox.common.mk @ONLY)

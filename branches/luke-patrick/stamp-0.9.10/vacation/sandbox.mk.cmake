@@ -1,103 +1,15 @@
 # -*- Makefile -*-*
-CC.o   := gcc
-CXX.o  := g++
-CXX.ld := g++ -Wl,-plugin,/u/luked/pub/gcc/4.8/lib64/bfd-plugins/LLVMgold.so
-CC.bc  := @CMAKE_C_COMPILER@ -emit-llvm
-CXX.bc := @CMAKE_CXX_COMPILER@ -emit-llvm
-TMLINK := tmlink
-VPATH  := @CMAKE_CURRENT_SOURCE_DIR@:@CMAKE_CURRENT_SOURCE_DIR@/../lib
-
-STMLIB := @CMAKE_CURRENT_BINARY_DIR@/../../libitm2stm
-STMSUPPORT := $(dir $(shell which ${TMLINK}))../lib
-
-ifdef DTMC
-CFLAGS    = -DDTMC -fgnu-tm
-else
-CFLAGS    = -DTANGER
-CXXFLAGS  = -fno-exceptions
-endif
-
-CFLAGS   += -I@CMAKE_SOURCE_DIR@/include -I@CMAKE_BINARY_DIR@/include -I@CMAKE_CURRENT_SOURCE_DIR@/../lib
+#
+# define EXECS and VPATH, and then include the support files.
+EXECS    := vacation
+VPATH     = @CMAKE_CURRENT_SOURCE_DIR@
+include ../../sandbox.common.mk
+include ../sandbox.stamp.mk
 CFLAGS   += -DLIST_NO_DUPLICATES -DMAP_USE_RBTREE
-
-CXXFLAGS += ${CFLAGS}
-
-TMLINKFLAGS  = -stmlib=${STMLIB}
-TMLINKFLAGS += -tm-support-file=${STMLIB}/libtanger-stm.support
-TMLINKFLAGS += -stmsupport=${STMSUPPORT}
-TMLINKFLAGS += -tanger-add-shutdown-call
-TMLINKFLAGS += -tanger-whole-program
-TMLINKFLAGS += -tanger-indirect-auto
-TMLINKFLAGS += -sandboxpass=sandbox-tm
-
-OPTFLAGS  = -load $(STMSUPPORT)/libtanger.so
-OPTFLAGS += -link-as-library
-OPTFLAGS += -tanger
-OPTFLAGS += -tanger-whole-program
-OPTFLAGS += -tanger-indirect-auto
-OPTFLAGS += -tanger-add-shutdown-call
-OPTFLAGS += -mem2reg
-OPTFLAGS += -sandbox-tm
-
-ifdef V
-OPTFLAGS += -debug-only=sandbox
-OPTFLAGS += -stats
-OPTFLAGS += -v
-endif
-
-ifdef DEBUG
-OPTFLAGS += -disable-opt
-OPT_BC ?= -O0
-OPT_O  ?= -O0 -g
-else
-OPT_BC ?= -O3
-OPT_O  ?= -O3
-endif
-
-ifdef NATIVE
-LDFLAGS = -L$(STMLIB)
-LDLIBS  = -litm
-TMLINKFLAGS += -n
-endif
-
-LDFLAGS += -pthread
-LDLIBS  += -ldl -lrt
-
-all: vacation
-
-clean:
-	@find . -name "*.bc" | xargs rm -f
-	@find . -name "*.ll" | xargs rm -f
-	@find . -name "*.o" | xargs rm -f
-	@find . -name "vacation" | xargs rm -f
+CXXFLAGS += -DLIST_NO_DUPLICATES -DMAP_USE_RBTREE
 
 vacation: pair.bc mt19937ar.bc random.bc thread.bc client.bc customer.bc \
           manager.bc reservation.bc vacation.bc list.bc rbtree.bc
-	llvm-ld $(OPTFLAGS) -o $@.tx.bc $(filter %.bc,$^)
-	$(CXX.ld) $(LDFLAGS) $(OPT_O) -o $@ $@.tx.bc $(STMSUPPORT)/stmsupport.bc $(filter-out %.bc,$^) $(LDLIBS)
-
-%.bc: %.c
-	${CC.bc} ${CFLAGS} $(OPT_BC) -o $@ -c $<
-
-%.bc: %.cpp
-	${CXX.bc} ${CXXFLAGS} $(OPT_BC) -o $@ -c $<
-
-%.o: %.c
-	${CC.o} ${CFLAGS} $(OPT_O) -o $@ -c $<
-
-%.o: %.cpp
-	${CXX.o} ${CXXFLAGS} $(OPT_O) -o $@ -c $<
-
-BITS   ?= 64
-TRIALS ?= 3
-CORES  ?= 12
-ALGS   ?= OrecELA OrecSandbox
-
-ifdef BIND
-CPUSET = 1,3,5,7,9,11,13,15,17,19,21,23
-else
-CPUSET = 1,3,5,7,9,11,13,15,17,19,21,23,0,2,4,6,8,10,12,14,16,18,20,22
-endif
 
 vacation.high.cgl: vacation
 	for trials in {1..${TRIALS}}; \
