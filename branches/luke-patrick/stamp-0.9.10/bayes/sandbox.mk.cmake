@@ -26,7 +26,7 @@ test: bayes test.cgl
 			for i in {1..${CORES}}; \
 			do \
 				echo "STM_CONFIG=$$stm taskset -c ${CPUSET} ./$< -R -p$$i"; \
-				STM_CONFIG=CGL taskset -c ${CPUSET} ./$< -v32 -r4096 -n10 -p40 -i2 -e8 -s1 -t$$i; \
+				STM_CONFIG=$$stm taskset -c ${CPUSET} ./$< -v32 -r4096 -n10 -p40 -i2 -e8 -s1 -t$$i; \
 			done \
 		done \
 	done

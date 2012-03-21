@@ -74,6 +74,10 @@
 
 #include "tm.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef struct packet {
     long flowId;
     long fragmentId;
@@ -107,6 +111,9 @@ packet_compareFragmentId (const void* aPtr, const void* bPtr);
 long
 TMpacket_compareFragmentId (TM_ARGDECL const void* aPtr, const void* bPtr);
 
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* PACKET_H */
 

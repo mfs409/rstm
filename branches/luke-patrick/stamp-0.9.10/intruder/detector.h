@@ -76,6 +76,10 @@
 #include "error.h"
 #include "preprocessor.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef struct detector detector_t;
 
 
@@ -132,6 +136,9 @@ detector_process (detector_t* detectorPtr, char* str);
 #define PDETECTOR_PROCESS(d, s)         detector_process(d, s)
 #define PDETECTOR_ADDPREPROCESSOR(d, s) detector_addPreprocessor(d, s)
 
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* DETECTOR_H */
 
