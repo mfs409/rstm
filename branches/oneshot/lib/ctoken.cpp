@@ -78,7 +78,7 @@ namespace stm
   {
       id = faiptr(&threadcount.val);
       threads[id] = this;
-      allocator.setID(id-1);
+      allocator.setID(id);
   }
 
   pad_word_t last_complete = {0};

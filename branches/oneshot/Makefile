@@ -13,14 +13,25 @@
 # to achieve this end without significant makefile wizardry
 #
 
+PLATFORMS = lib_gcc_linux_ia32_dbg lib_gcc_linux_ia32_opt lib_gcc_linux_x86_64_dbg lib_gcc_linux_x86_64_opt lib_gcc_solaris_ia32_dbg lib_gcc_solaris_ia32_opt
+OUTDIRS   = $(patsubst %, obj.%, $(PLATFORMS))
+
 # simpy typing 'make' dumps a message, rather than trying to guess a default
 info:
 	@echo "You must specify your platform as the build target."
 	@echo "Valid platforms are:"
-	@echo "  lib_gcc_solaris_ia32_opt"
-	@echo "      library API, gcc, solaris, x86, 32-bit, -O3"
+	@echo "  lib_gcc_linux_ia32_dbg"
+	@echo "      library API, gcc, Linux, x86, 32-bit, -O0"
+	@echo "  lib_gcc_linux_ia32_opt"
+	@echo "      library API, gcc, Linux, x86, 32-bit, -O3"
+	@echo "  lib_gcc_linux_x86_64_dbg"
+	@echo "      library API, gcc, Linux, x86, 64-bit, -O0"
+	@echo "  lib_gcc_linux_x86_64_opt"
+	@echo "      library API, gcc, Linux, x86, 64-bit, -O3"
 	@echo "  lib_gcc_solaris_ia32_dbg"
-	@echo "      library API, gcc, solaris, x86, 32-bit, -O0"
+	@echo "      library API, gcc, Solaris, x86, 32-bit, -O0"
+	@echo "  lib_gcc_solaris_ia32_opt"
+	@echo "      library API, gcc, Solaris, x86, 32-bit, -O0"
 
 # dispatch to the various platforms.  Make will error unless the platform's
 # corresponding definitions are in the build folder
@@ -40,4 +51,4 @@ $(ODIR):
 #
 
 clean:
-	@rm -rf obj.lib_gcc_solaris_ia32_opt obj.lib_gcc_solaris_ia32_dbg
+	@rm -rf $(PLATFORMS)
