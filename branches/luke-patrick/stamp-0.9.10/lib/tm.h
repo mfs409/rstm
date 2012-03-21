@@ -549,7 +549,7 @@
 #  define TM_BEGIN()                    __transaction {
 #  define TM_BEGIN_RO()                 __transaction {
 #  define TM_END()                      }
-#  define TM_RESTART()                  stm_restart()
+#  define TM_RESTART()                  /* stm_restart() */
 
 #  define TM_EARLY_RELEASE(var)         /* nothing */
 
@@ -581,7 +581,7 @@
 #  define TM_BEGIN()                    {tanger_begin();
 #  define TM_BEGIN_RO()                 {tanger_begin();
 #  define TM_END()                       tanger_commit();}
-#  define TM_RESTART()                  stm_restart()
+#  define TM_RESTART()                  /* stm_restart() */
 
 #  define TM_EARLY_RELEASE(var)         /* nothing */
 

@@ -316,7 +316,7 @@ TMgrid_addPath (TM_ARGDECL  grid_t* gridPtr, vector_t* pointVectorPtr)
         long* gridPointPtr = (long*)vector_at(pointVectorPtr, i);
         long value = (long)TM_SHARED_READ_L(*gridPointPtr);
         if (value != GRID_POINT_EMPTY) {
-            TM_RESTART();
+            TODO_STM_RESTART_SPECIAL_CASE();
         }
         TM_SHARED_WRITE_L(*gridPointPtr, (long)GRID_POINT_FULL);
     }
