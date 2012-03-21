@@ -3,12 +3,12 @@ CC    := gcc
 CXX   := g++
 VPATH := @CMAKE_CURRENT_SOURCE_DIR@/libstm:@CMAKE_CURRENT_SOURCE_DIR@/libstm/algs:@CMAKE_CURRENT_SOURCE_DIR@/libstm/policies:@CMAKE_CURRENT_SOURCE_DIR@/libitm2stm:@CMAKE_CURRENT_SOURCE_DIR@/libitm2stm/arch/x86_64
 
-CXXFLAGS = -I@CMAKE_SOURCE_DIR@ -I@CMAKE_SOURCE_DIR@/include -I@CMAKE_BINARY_DIR@/include -Wall -m64 -fno-rtti -fno-exceptions
+CXXFLAGS = -I@CMAKE_SOURCE_DIR@ -I@CMAKE_SOURCE_DIR@/include -I@CMAKE_BINARY_DIR@/include -Wall -msse2 -fno-exceptions
 
 ifdef DEBUG
 OPT_O = -O0 -g
 else
-OPT_O = -O3 -flto
+OPT_O = -O3 -flto -DNDEBUG
 endif
 
 OBJECTS := libstm/txthread.o \
@@ -91,10 +91,10 @@ libitm2stm/libitm.a: $(OBJECTS)
 	$(AR) rcs $@ $^
 
 libstm/%.o: %.cpp
-	$(CXX) $(CXXFLAGS) -msse2 $(OPT_O) -o $@ -c $<
+	$(CXX) $(CXXFLAGS) $(OPT_O) -o $@ -c $<
 
 libitm2stm/%.o: %.cpp
-	$(CXX) -D_ITM_DTMC -I@CMAKE_SOURCE_DIR@/libitm2stm/arch/x86_64 -Wno-invalid-offsetof -Wno-strict-aliasing $(CXXFLAGS) -msse4.2 $(OPT_O) -o $@ -c $<
+	$(CXX) -D_ITM_DTMC -I@CMAKE_SOURCE_DIR@/libitm2stm/arch/x86_64 -Wno-invalid-offsetof -Wno-strict-aliasing $(CXXFLAGS) -fno-rtti $(OPT_O) -o $@ -c $<
 
 libitm2stm/%.o: %.S
 	$(CC) -I@CMAKE_SOURCE_DIR@/libitm2stm/arch $(OPT_O) -o $@ -c $<

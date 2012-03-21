@@ -524,11 +524,13 @@
  */
 #elif defined(DTMC)
 
+#include <stm/lib_globals.hpp>
+
 #  define TM_ARG                        /* nothing */
 #  define TM_ARG_ALONE                  /* nothing */
 #  define TM_ARGDECL                    /* nothing */
 #  define TM_ARGDECL_ALONE              /* nothing */
-#  define TM_CALLABLE                   __attribute__((tm_callable))
+#  define TM_CALLABLE __attribute__((transaction_callable))
 
 #  define TM_STARTUP(numThread)         /* nothing */
 #  define TM_SHUTDOWN()                 /* nothing */
@@ -544,16 +546,17 @@
 #  define SEQ_MALLOC(size)              malloc(size)
 #  define SEQ_FREE(ptr)                 free(ptr)
 
-#  define TM_BEGIN()                    __tm_atomic {
-#  define TM_BEGIN_RO()                 __tm_atomic {
+#  define TM_BEGIN()                    __transaction {
+#  define TM_BEGIN_RO()                 __transaction {
 #  define TM_END()                      }
-#  define TM_RESTART()                  assert(0)
+#  define TM_RESTART()                  stm_restart()
 
 #  define TM_EARLY_RELEASE(var)         /* nothing */
 
 #elif defined(TANGER)
 
-#include "alt-license/tanger-stm.h"
+#include <tanger-stm.h>
+#include <stm/lib_globals.hpp>
 
 #  define TM_ARG                        /* nothing */
 #  define TM_ARG_ALONE                  /* nothing */
@@ -578,7 +581,7 @@
 #  define TM_BEGIN()                    {tanger_begin();
 #  define TM_BEGIN_RO()                 {tanger_begin();
 #  define TM_END()                       tanger_commit();}
-#  define TM_RESTART()                  assert(0)
+#  define TM_RESTART()                  stm_restart()
 
 #  define TM_EARLY_RELEASE(var)         /* nothing */
 

@@ -20,6 +20,10 @@
 
 using namespace stm;
 
+void stm_restart() {
+    stm::restart();
+}
+
 namespace
 {
   /**
@@ -214,7 +218,6 @@ namespace stm
       // call the abort code
       tx->tmabort(tx);
   }
-
 
   /**
    *  When the transactional system gets shut down, we call this to dump stats

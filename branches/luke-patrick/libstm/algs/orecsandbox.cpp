@@ -100,10 +100,10 @@ OrecSandbox::validate(TxThread* tx)
     if (!do_lazy_hashes(*tx))
         return true;
 
-    // We have read something since we were valid, and somone committed. Do a
-    // full validation loop and scale start_time if we succeed. This is sort
-    // of a consistent-snapshot validation thing, except that we deal with
-    // the commit-fence window between timestamp and last_complete.
+    // We have read something since we were valid, and someone committed. Do a
+    // full validation loop and scale start_time if we succeed. This is sort of
+    // a consistent-snapshot validation thing, except that we deal with the
+    // commit-fence window between timestamp and last_complete.
     uintptr_t newts = timestamp.val;
 
     // Fail validation if any of the orecs is locked or newer than my start
@@ -150,6 +150,8 @@ OrecSandbox::begin(TxThread* tx)
 void
 OrecSandbox::commit_ro(TxThread* tx)
 {
+    // stm::sandbox::InLib raii; validate blocks signals
+
     // have to validate because we might never have needed to --- this will
     // scale our timestamp unneccesarily... big deal
     if (!validate(tx))

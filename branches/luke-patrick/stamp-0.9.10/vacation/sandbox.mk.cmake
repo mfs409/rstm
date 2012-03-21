@@ -7,19 +7,20 @@ CXX.bc := @CMAKE_CXX_COMPILER@ -emit-llvm
 TMLINK := tmlink
 VPATH  := @CMAKE_CURRENT_SOURCE_DIR@:@CMAKE_CURRENT_SOURCE_DIR@/../lib
 
-ifdef DTMC
-TMAPI  := -DDTMC -fgnu-tm
-else
-TMAPI  := -DTANGER
-endif
-
 STMLIB := @CMAKE_CURRENT_BINARY_DIR@/../../libitm2stm
 STMSUPPORT := $(dir $(shell which ${TMLINK}))../lib
 
-CFLAGS   = -I@CMAKE_SOURCE_DIR@ -I@CMAKE_CURRENT_SOURCE_DIR@/../lib
-CFLAGS  += -DLIST_NO_DUPLICATES -DMAP_USE_RBTREE $(TMAPI)
+ifdef DTMC
+CFLAGS    = -DDTMC -fgnu-tm
+else
+CFLAGS    = -DTANGER
+CXXFLAGS  = -fno-exceptions
+endif
 
-CXXFLAGS := ${CFLAGS} -fno-exceptions
+CFLAGS   += -I@CMAKE_SOURCE_DIR@/include -I@CMAKE_BINARY_DIR@/include -I@CMAKE_CURRENT_SOURCE_DIR@/../lib
+CFLAGS   += -DLIST_NO_DUPLICATES -DMAP_USE_RBTREE
+
+CXXFLAGS += ${CFLAGS}
 
 TMLINKFLAGS  = -stmlib=${STMLIB}
 TMLINKFLAGS += -tm-support-file=${STMLIB}/libtanger-stm.support
@@ -38,8 +39,20 @@ OPTFLAGS += -tanger-add-shutdown-call
 OPTFLAGS += -mem2reg
 OPTFLAGS += -sandbox-tm
 
+ifdef V
+OPTFLAGS += -debug-only=sandbox
+OPTFLAGS += -stats
+OPTFLAGS += -v
+endif
+
+ifdef DEBUG
+OPTFLAGS += -disable-opt
+OPT_BC ?= -O0
+OPT_O  ?= -O0 -g
+else
 OPT_BC ?= -O3
 OPT_O  ?= -O3
+endif
 
 ifdef NATIVE
 LDFLAGS = -L$(STMLIB)

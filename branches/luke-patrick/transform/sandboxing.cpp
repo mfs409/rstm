@@ -334,6 +334,10 @@ SRVEPass::visit(BasicBlock* bb, int depth) {
                 continue;
             }
 
+            // other ABI calls are neutral
+            if (isABI(i))
+                continue;
+
             // dangerous operations cannot be executed from a potentially
             // tainted context
             if (isDangerous(i)) {
@@ -384,6 +388,11 @@ SRVEPass::isDangerous(Instruction* i) const {
     if (isa<StoreInst>(i)) {
         DEBUG(outs() << "dangerous store: " << *i << "... ");
         return true;
+    }
+
+    if (isa<LoadInst>(i)) {
+        DEBUG(outs() << "dangerous load: " << *i << "... ELIDED\n");
+        return false;
     }
 
     // dynamically sized allocas are dangerous

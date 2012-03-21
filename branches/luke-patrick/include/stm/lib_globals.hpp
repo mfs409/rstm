@@ -16,6 +16,13 @@
  *  to many parts of the STM library.
  */
 
+#ifdef __cplusplus
+extern "C" void stm_restart(void) __attribute__((tm_pure));
+#else
+void stm_restart(void) __attribute__((tm_pure));
+#endif
+
+#ifdef __cplusplus
 #include <stm/config.h>
 #include <stm/metadata.hpp>
 
@@ -37,5 +44,5 @@ namespace stm
 
 // used for sandboxing support
 extern "C" void stm_validation_full();
-
+#endif
 #endif // LIB_GLOBALS_HPP
