@@ -177,6 +177,10 @@ namespace {
       "_ITM_WU8"
   };
 
+  static const char* known_dangerous[] = {
+      "__assert_fail"
+  };
+
   // --------------------------------------------------------------------------
   // Implements the simple sandboxing pass from Transact. Looks for
   // transactionalize functions and top-level transactions to
@@ -199,6 +203,7 @@ namespace {
       set<Function*> funcs;             // populated with txnly interesting fs
       IRBuilder<>* ir;                  // used to inject instrumentation
       Constant* do_validate;            // the validation function we're using
+      SmallPtrSet<Function*, 1> dangerous; // set of functions we know are bad
   };
 
   char SRVEPass::ID = 0;
@@ -242,6 +247,13 @@ SRVEPass::doInitialization(Module& m) {
     ir = new IRBuilder<>(m.getContext());
     do_validate = m.getOrInsertFunction("stm_validation_full",
         TypeBuilder<typeof(stm_validation_full), false>::get(m.getContext()));
+
+    // See if there are any of the known dangerous functions in the module.
+    // Find markers that we don't care about.
+    for (int i = 0, e = array_lengthof(known_dangerous); i < e; ++i)
+        if (Function* f = m.getFunction(known_dangerous[i]))
+            dangerous.insert(f);
+
     return true;
 }
 
@@ -414,20 +426,35 @@ SRVEPass::isDangerous(Instruction* i) const {
             return true;
         }
 
-        if (!GetTarget(call)) {
+        Function* target = GetTarget(call);
+
+        if (!target) {
             // DEBUG(outs() << "indirect call: " << *i << "... ");
             // return true;
             DEBUG(outs() << "indirect call: " << *i << "... ELIDED\n");
             return false;
         }
+
+        if (dangerous.count(target)) {
+            DEBUG(outs() << "dangerous call to: " << target->getName()
+                         << "... ");
+            return true;
+        }
     }
 
     if (InvokeInst* invoke = dyn_cast<InvokeInst>(i)) {
-        if (!GetTarget(invoke)) {
+        Function* target = GetTarget(invoke);
+        if (!target) {
             // DEBUG(outs() << "indirect call: " << *i << "... ");
             // return true;
             DEBUG(outs() << "indirect call: " << *i << "... ELIDED\n");
             return false;
+        }
+
+        if (dangerous.count(target)) {
+            DEBUG(outs() << "dangerous invoke to: " << target->getName()
+                         << "... ");
+            return true;
         }
     }
 
