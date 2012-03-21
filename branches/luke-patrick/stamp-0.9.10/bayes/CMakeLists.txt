@@ -29,3 +29,5 @@ foreach (arch ${rstm_archs})
   add_target_definitions(${exec}
     LIST_NO_DUPLICATES LEARNER_TRY_REMOVE LEARNER_TRY_REVERSE) 
 endforeach ()
+
+configure_file (sandbox.mk.cmake sandbox.mk @ONLY)
