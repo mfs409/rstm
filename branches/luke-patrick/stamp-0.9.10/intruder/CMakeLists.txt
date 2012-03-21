@@ -17,13 +17,13 @@ set(
   ../lib/rbtree.cpp
   ../lib/thread.cpp
   ../lib/vector.cpp
-  decoder.c
+  decoder.cpp
   detector.c
   dictionary.c
   intruder.c
   packet.c
   preprocessor.c
-  stream.c)
+  stream.cpp)
 
 # build the different executables
 foreach (arch ${rstm_archs})
