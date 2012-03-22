@@ -25,7 +25,6 @@
 #define WBMMPOLICY_HPP__
 
 #include <stdlib.h>
-#include <config.h>
 #include "MiniVector.hpp"
 #include "metadata.hpp"
 

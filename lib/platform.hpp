@@ -23,7 +23,6 @@
 #ifndef PLATFORM_HPP__
 #define PLATFORM_HPP__
 
-#include <config.h>
 #include <stdint.h>
 #include <limits.h>
 
@@ -50,14 +49,14 @@
 #define USED            __attribute__((used))
 #define REGPARM(N)      __attribute__((regparm(N)))
 
-/**
- *  Pick up the BITS define from the __LP64__ token.
- */
-#if defined(__LP64__)
-#define STM_BITS_64
-#else
-#define STM_BITS_32
-#endif
+// /**
+//  *  Pick up the BITS define from the __LP64__ token.
+//  */
+// #if defined(__LP64__)
+// #define STM_BITS_64
+// #else
+// #define STM_BITS_32
+// #endif
 
 /**
  *  GCC's fastcall attribute causes a warning on x86_64, so we don't use it

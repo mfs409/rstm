@@ -21,7 +21,7 @@
 #include <cassert>
 #include <setjmp.h>
 #include <unistd.h>
-#include "../common/platform.hpp"
+#include "platform.hpp"
 #include "WriteSet.hpp"
 #include "WBMMPolicy.hpp"
 #include "Macros.hpp"

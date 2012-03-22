@@ -13,7 +13,7 @@
 
 #include <stdint.h>
 #include <iostream>
-#include "../common/platform.hpp"
+#include <platform.hpp>
 
 /**
  * Standard benchmark configuration globals
