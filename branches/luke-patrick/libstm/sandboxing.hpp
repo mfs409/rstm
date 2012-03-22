@@ -45,8 +45,8 @@ class InLib {
     ~InLib();
 };
 
-  void clear_in_lib();
-  void set_in_lib();
+  void clear_in_lib() asm("stm_sandbox_clear_in_lib") __attribute__((used));
+  void set_in_lib() asm("stm_sandbox_set_in_lib") __attribute__((used));
 }
 }
 

@@ -39,6 +39,8 @@ using std::set;
 // archive.
 // ----------------------------------------------------------------------------
 extern "C" void stm_validation_full(void);
+extern "C" void enter_waiver(void);
+extern "C" void leave_waiver(void);
 
 // ----------------------------------------------------------------------------
 // Provide some template specializations needed by TypeBuilder. These need to
@@ -57,6 +59,7 @@ namespace llvm {
 
 namespace {
   STATISTIC(validations, "Number of stm_validation_full barriers inserted.");
+  STATISTIC(waivers, "Number of waivers handled.");
   // --------------------------------------------------------------------------
   // A utility that gets the target function of either a call or invoke
   // instruction.
@@ -107,7 +110,10 @@ namespace {
       virtual bool isWriteBarrier(Instruction*) const = 0;
       virtual bool isABI(Instruction*) const = 0;
       virtual bool isTransactionalClone(Function*) const = 0;
+      virtual bool isWaiver(Function*) const = 0;
       virtual Function* getGetTx() const = 0;
+
+      bool isWaiverCall(Instruction*) const;
   };
 
   // --------------------------------------------------------------------------
@@ -205,6 +211,8 @@ namespace {
       set<Function*> funcs;             // populated with txnly interesting fs
       IRBuilder<>* ir;                  // used to inject instrumentation
       Constant* do_validate;            // the validation function we're using
+      Constant* do_enter_waiver;
+      Constant* do_leave_waiver;
       SmallPtrSet<Function*, 1> dangerous; // set of functions we know are bad
       // (including things that we've waivered)
   };
@@ -216,7 +224,8 @@ namespace {
 
 SRVEPass::SRVEPass()
   : FunctionPass(ID), TangerRecognizer(),
-    blocks(), funcs(), ir(NULL), do_validate(NULL) {
+    blocks(), funcs(), ir(NULL),
+    do_validate(NULL), do_enter_waiver(NULL), do_leave_waiver(NULL) {
 }
 
 // ----------------------------------------------------------------------------
@@ -250,6 +259,12 @@ SRVEPass::doInitialization(Module& m) {
     ir = new IRBuilder<>(m.getContext());
     do_validate = m.getOrInsertFunction("stm_validation_full",
         TypeBuilder<typeof(stm_validation_full), false>::get(m.getContext()));
+
+    do_enter_waiver = m.getOrInsertFunction("stm_sandbox_set_in_lib",
+        TypeBuilder<typeof(enter_waiver), false>::get(m.getContext()));
+
+    do_leave_waiver = m.getOrInsertFunction("stm_sandbox_clear_in_lib",
+        TypeBuilder<typeof(leave_waiver), false>::get(m.getContext()));
 
     // See if there are any of the known dangerous functions in the module.
     // Find markers that we don't care about.
@@ -365,6 +380,19 @@ SRVEPass::visit(BasicBlock* bb, int depth) {
                 } else {
                     DEBUG(outs() << " SRVE Suppressed.\n");
                 }
+            }
+
+            // Waivers need special handling.
+            if (isWaiverCall(i)) {
+                ir->SetInsertPoint(i);
+                ir->CreateCall(do_enter_waiver);
+                BasicBlock::iterator n = i;
+                ir->SetInsertPoint(++n);
+                ir->CreateCall(do_leave_waiver);
+                waivers++;
+                // don't process the call to do_leave_waiver
+                ++i;
+                continue;               // waivers do not introduce taint
             }
 
             // function calls and invokes introduce taint, but only after we
@@ -485,6 +513,12 @@ SRVEPass::isDangerous(Instruction* i) const {
 TransactionRecognizer::~TransactionRecognizer() {
 }
 
+bool
+TransactionRecognizer::isWaiverCall(Instruction* i) const {
+    return isWaiver(GetTarget(dyn_cast<CallInst>(i)));
+}
+
+
 TangerRecognizer::TangerRecognizer()
   : TransactionRecognizer(),
     get_tx(NULL), begins(), ends(), reads(), writes(), all() {
@@ -571,11 +605,15 @@ TangerRecognizer::isABI(llvm::Instruction* i) const {
 
 bool
 TangerRecognizer::isTransactionalClone(Function* f) const {
+    if (!f)
+        return false;
     return f->getName().startswith(clone_prefix);
 }
 
 bool
 TangerRecognizer::isWaiver(Function* f) const {
+    if (!f)
+        return false;
     return f->getName().startswith(waiver_prefix);
 }
 
