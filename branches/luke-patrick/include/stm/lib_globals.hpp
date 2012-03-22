@@ -17,9 +17,13 @@
  */
 
 #ifdef __cplusplus
-extern "C" void stm_restart(void) __attribute__((tm_pure));
+extern "C" void stm_restart(void) __attribute__((transaction_pure));
+extern "C" void stm_enter_waiver(void);
+extern "C" void stm_leave_waiver(void);
 #else
-void stm_restart(void) __attribute__((tm_pure));
+extern void stm_restart(void) __attribute__((transaction_pure));
+extern void stm_enter_waiver(void);
+extern void stm_leave_waiver(void);
 #endif
 
 #ifdef __cplusplus

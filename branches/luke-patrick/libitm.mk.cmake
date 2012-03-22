@@ -22,6 +22,7 @@ OBJECTS := libstm/txthread.o \
 	libstm/shadow-signals.o \
 	libstm/signals.o \
 	libstm/validation.o \
+    libstm/WriteSet.o \
 	libstm/algs.o \
 	libstm/biteager.o \
 	libstm/biteagerredo.o \

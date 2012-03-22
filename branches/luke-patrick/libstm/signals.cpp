@@ -18,6 +18,7 @@
 #include "interposition.hpp"            // stm::lazy_load_symbol
 #include "policies/policies.hpp"        // curr_policy
 #include "algs/algs.hpp"                // stms[]
+#include "stm/lib_globals.hpp"
 
 // Hack for this branch.
 #include "libitm2stm/Checkpoint.h"
@@ -49,6 +50,16 @@ stm::sandbox::clear_in_lib() {
 void
 stm::sandbox::set_in_lib() {
     in_lib = 1;
+}
+
+void
+stm_enter_waiver() {
+    stm::sandbox::set_in_lib();
+}
+
+void
+stm_leave_waiver() {
+    stm::sandbox::clear_in_lib();
 }
 
 stm::sandbox::InLib::InLib() {

@@ -20,6 +20,7 @@
 #include "llvm/Support/CFG.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/ErrorHandling.h"
+#include "llvm/Support/InstIterator.h"
 #include "llvm/Support/IRBuilder.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/TypeBuilder.h"
@@ -284,11 +285,28 @@ SRVEPass::doFinalization(Module& m) {
     return false;
 }
 
+
+
 // ----------------------------------------------------------------------------
 // Process a function---called for every function in the module.
 // ----------------------------------------------------------------------------
 bool
 SRVEPass::runOnFunction(Function& f) {
+    if (isWaiver(&f)) {
+        ir->SetInsertPoint(f.getEntryBlock().begin());
+        ir->CreateCall(do_validate);
+        ir->CreateCall(do_enter_waiver);
+
+        for (inst_iterator i = inst_begin(f), e = inst_end(f); i != e; ++i) {
+            if (isa<ReturnInst>(*i)) {
+                ir->SetInsertPoint(&*i);
+                ir->CreateCall(do_leave_waiver);
+            }
+        }
+        waivers++;
+        DEBUG(outs() << "handled waiverd function: " << f.getName() << "\n");
+    }
+
     // do we care about this function?
     if (funcs.find(&f) == funcs.end())
         return false;
@@ -382,18 +400,18 @@ SRVEPass::visit(BasicBlock* bb, int depth) {
                 }
             }
 
-            // Waivers need special handling.
-            if (isWaiverCall(i)) {
-                ir->SetInsertPoint(i);
-                ir->CreateCall(do_enter_waiver);
-                BasicBlock::iterator n = i;
-                ir->SetInsertPoint(++n);
-                ir->CreateCall(do_leave_waiver);
-                waivers++;
-                // don't process the call to do_leave_waiver
-                ++i;
-                continue;               // waivers do not introduce taint
-            }
+            // // Waivers need special handling.
+            // if (isWaiverCall(i)) {
+            //     ir->SetInsertPoint(i);
+            //     ir->CreateCall(do_enter_waiver);
+            //     BasicBlock::iterator n = i;
+            //     ir->SetInsertPoint(++n);
+            //     ir->CreateCall(do_leave_waiver);
+            //     waivers++;
+            //     // don't process the call to do_leave_waiver
+            //     ++i;
+            //     continue;               // waivers do not introduce taint
+            // }
 
             // function calls and invokes introduce taint, but only after we
             // have pre-validated them
@@ -472,11 +490,11 @@ SRVEPass::isDangerous(Instruction* i) const {
             return true;
         }
 
-        if (isWaiver(target)) {
-            DEBUG(outs() << "waivered call to: " << target->getName()
-                         << "... ");
-            return true;
-        }
+        // if (isWaiver(target)) {
+        //     DEBUG(outs() << "waivered call to: " << target->getName()
+        //                  << "... ");
+        //     return true;
+        // }
     }
 
     if (InvokeInst* invoke = dyn_cast<InvokeInst>(i)) {
@@ -494,11 +512,11 @@ SRVEPass::isDangerous(Instruction* i) const {
             return true;
         }
 
-        if (isWaiver(target)) {
-            DEBUG(outs() << "waivered call to: " << target->getName()
-                         << "... ");
-            return true;
-        }
+        // if (isWaiver(target)) {
+        //     DEBUG(outs() << "waivered call to: " << target->getName()
+        //                  << "... ");
+        //     return true;
+        // }
     }
 
     // Used to implement switches. Right now we consider these dangerous.

@@ -23,6 +23,7 @@ set(sources
   shadow-signals.cpp
   signals.cpp
   validation.cpp
+  WriteSet.cpp
   algs/algs.cpp
   algs/biteager.cpp
   algs/biteagerredo.cpp

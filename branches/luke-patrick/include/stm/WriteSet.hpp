@@ -371,11 +371,7 @@ namespace stm
        *  modifications to lots of STMs when we need to change writeback for a
        *  particular compiler.
        */
-      TM_INLINE void writeback()
-      {
-          for (iterator i = begin(), e = end(); i != e; ++i)
-              i->writeback();
-      }
+      void writeback();
 
       /**
        *  Inserts an entry in the write set.  Coalesces writes, which can
@@ -428,16 +424,7 @@ namespace stm
       /**
        *  We use the version number to reset in O(1) time in the common case
        */
-      void reset()
-      {
-          lsize    = 0;
-          version += 1;
-
-          // check overflow
-          if (version != 0)
-              return;
-          reset_internal();
-      }
+      void reset();
 
       /*** Iterator interface: iterate over the list, not the index */
       typedef WriteSetEntry* iterator;
