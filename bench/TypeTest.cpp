@@ -79,7 +79,7 @@ TypeTestObject* tto;
 static TM_CALLABLE
 void DataTypeTest()
 {
-#if !defined(STM_API_CXXTM)
+#if !defined(STM_API_GCCTM)
     TM_WAIVER {
         std::cout << "----------------------------\n";
     }
@@ -94,7 +94,7 @@ void DataTypeTest()
     TM_WRITE(tto->m_ucfield, uc2);
     c2 = TM_READ(tto->m_cfield);
     uc2 = TM_READ(tto->m_ucfield);
-#if !defined(STM_API_CXXTM)
+#if !defined(STM_API_GCCTM)
     TM_WAIVER {
         std::cout << "(c,uc) from ("
              << (int)c << "," << (int)uc << ") to ("
@@ -119,7 +119,7 @@ void DataTypeTest()
     ui2 = TM_READ(tto->m_uifield);
     l2 = TM_READ(tto->m_lfield);
     ul2 = TM_READ(tto->m_ulfield);
-#if !defined(STM_API_CXXTM)
+#if !defined(STM_API_GCCTM)
     TM_WAIVER {
         std::cout << "(i,ui,l,ul) from ("
              << i << "," << ui << "," << l << "," << ul
@@ -137,7 +137,7 @@ void DataTypeTest()
     TM_WRITE(tto->m_ullfield, ull2);
     ll2 = TM_READ(tto->m_llfield);
     ull2 = TM_READ(tto->m_ullfield);
-#if !defined(STM_API_CXXTM)
+#if !defined(STM_API_GCCTM)
     TM_WAIVER {
         std::cout << "(ll,ull) from ("
              << ll << "," << ull << ") to ("
@@ -153,7 +153,7 @@ void DataTypeTest()
     TM_WRITE(tto->m_dfield, d2);
     f2 = TM_READ(tto->m_ffield);
     d2 = TM_READ(tto->m_dfield);
-#if !defined(STM_API_CXXTM)
+#if !defined(STM_API_GCCTM)
     TM_WAIVER {
         std::cout << "(f,d) from ("
              << f << "," << d << ") to ("

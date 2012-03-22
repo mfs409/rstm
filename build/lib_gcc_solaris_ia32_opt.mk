@@ -12,9 +12,6 @@
 # This makefile is for building the RSTM libraries and benchmarks using
 # library API, GCC, Solaris, ia32, -O3
 #
-# NB: corei7 may not be available on older versions of gcc.  This makefile
-#     assumes a 4.7-ish gcc.  Please adjust accordingly.
-#
 # Warning: This just handles platform configuration.  Everything else is
 #          handled via per-folder Makefiles
 #
@@ -22,9 +19,9 @@
 #
 # Compiler config
 #
-PLATFORM  = obj.lib_gcc_solaris_ia32_opt
+PLATFORM  = lib_gcc_solaris_ia32_opt
 CXX       = g++
-CXXFLAGS += -O3 -ggdb -m32 -march=corei7 -mtune=corei7 -msse2 -mfpmath=sse
+CXXFLAGS += -O3 -ggdb -m32 -march=native -mtune=native -msse2 -mfpmath=sse
 LDFLAGS  += -lrt -lpthread -m32 -lmtmalloc
 
 #

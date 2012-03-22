@@ -28,7 +28,7 @@ ODIR ?= obj.$(PLATFORM)
 # The names of the STM algorithms are in a separate file, so that other
 # Makefiles can include them
 #
-include Algs.mk
+include $(MKFOLDER)/algs.mk
 
 #
 # Names of the supporting files that we need to build

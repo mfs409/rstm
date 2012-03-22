@@ -11,9 +11,8 @@
 # Location of helper build files
 #
 MKFOLDER = ../build
-LIBFOLDER = ../lib
 include $(MKFOLDER)/info.mk
-include $(LIBFOLDER)/Algs.mk
+include $(MKFOLDER)/algs.mk
 
 #
 # Output folder: we build in-tree, unless this is overridden
@@ -28,6 +27,7 @@ STMINCLUDEDIR := ../include
 #
 # Path to the stm libXYZ.a files
 #
+LIBFOLDER = ../lib
 STMLIBDIR := $(LIBFOLDER)/$(ODIR)
 
 #
@@ -57,7 +57,7 @@ OUTDIRS = $(patsubst %, obj.%, $(PLATFORMS))
 # dispatch to the various platforms.  Make will error unless the platform's
 # corresponding definitions are in the build folder
 #
-%: $(MKFOLDER)/%.mk $(ODIR)
+%: $(MKFOLDER)/%.mk
 	MAKEFILES="$(MKFOLDER)/$@.mk bayes/Rules.mk" $(MAKE) benchmark
 	MAKEFILES="$(MKFOLDER)/$@.mk genome/Rules.mk" $(MAKE) benchmark
 	MAKEFILES="$(MKFOLDER)/$@.mk intruder/Rules.mk" $(MAKE) benchmark
