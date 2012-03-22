@@ -19,9 +19,9 @@
 #
 # Compiler config
 #
-PLATFORM  = obj.lib_gcc_linux_x86_64_opt
+PLATFORM  = lib_gcc_linux_x86_64_opt
 CXX       = g++
-CXXFLAGS += -O3 -ggdb -m64 -march=core2 -mtune=core2 -msse2 -mfpmath=sse
+CXXFLAGS += -O3 -ggdb -m64 -march=native -mtune=native -msse2 -mfpmath=sse
 LDFLAGS  += -lrt -lpthread -m64
 
 #

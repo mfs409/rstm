@@ -72,7 +72,7 @@
 /**
  *  We rely on the configured parameters here (no cross platform building yet)
  */
-#if !defined(STM_CC_GCC) || !defined(STM_CPU_SPARC)
+#if (!defined(STM_CC_GCC) || !defined(STM_CPU_SPARC)) && !defined(STM_API_GCCTM)
 #define TM_INLINE       ALWAYS_INLINE
 #else
 #define TM_INLINE

@@ -59,7 +59,10 @@ void bench_test(uintptr_t, uint32_t* seed)
     // NB: volatile needed because using a non-volatile local in conjunction
     //     with a setjmp-longjmp control transfer is undefined, and gcc won't
     //     allow it with -Wall -Werror.
-    volatile uint32_t local_seed = *seed;
+#ifndef STM_API_GCCTM
+    volatile
+#endif
+    uint32_t local_seed = *seed;
 
     TM_BEGIN(atomic) {
         for (uint32_t i = 0; i < CFG.ops; ++i) {

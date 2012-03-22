@@ -28,15 +28,24 @@
  *  instrumentation.  On the other hand, we might want to consider fewer
  *  APIs, especially since LTO seems to work very nicely for CGL.
  */
+#if defined(STM_API_GCCTM)
 
-#if defined(STM_INST_CGL)
-#  include "cglapi.hpp"
-#elif defined(STM_INST_TML)
-#  include "tmlapi.hpp"
-#elif defined(STM_INST_STM)
-#  include "stmapi.hpp"
+#  include "gcctmapi.hpp"
+
+#elif defined(STM_API_LIB)
+
+#  if defined(STM_INST_CGL)
+#    include "cglapi.hpp"
+#  elif defined(STM_INST_STM)
+#    include "stmapi.hpp"
+#  else
+#    error "Unrecognized STM instrumentation mode"
+#  endif // STM_INST_XXX
+
 #else
+
 #  error "Unrecognized STM instrumentation mode"
-#endif
+
+#endif // STM_API_XXX
 
 #endif // STM_H__

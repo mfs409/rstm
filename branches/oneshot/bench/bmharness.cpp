@@ -11,6 +11,9 @@
 #ifndef BMHARNESS_HPP__
 #define BMHARNESS_HPP__
 
+// gross hack to ensure that all benchmarks use a rand_r with 32-bit range
+#include "../alt-license/rand_r.cpp"
+
 #include <cstdlib>
 #include <iostream>
 #include <signal.h>

@@ -12,10 +12,14 @@
 # Pull in the 'info' target, which is the default if a platform isn't
 # specified
 #
-LIBFOLDER = ../lib
 MKFOLDER  = ../build
 include $(MKFOLDER)/info.mk
-include $(LIBFOLDER)/Algs.mk
+include $(MKFOLDER)/algs.mk
+
+#
+# Location of RSTM
+#
+LIBFOLDER = ../lib
 
 #
 # Updates to flags: we want support for dependencies, and for building

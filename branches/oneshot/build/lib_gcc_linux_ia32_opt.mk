@@ -19,9 +19,9 @@
 #
 # Compiler config
 #
-PLATFORM  = obj.lib_gcc_linux_ia32_opt
+PLATFORM  = lib_gcc_linux_ia32_opt
 CXX       = g++
-CXXFLAGS += -O3 -ggdb -m32 -march=core2 -mtune=core2 -msse2 -mfpmath=sse
+CXXFLAGS += -O3 -ggdb -m32 -march=native -mtune=native -msse2 -mfpmath=sse
 LDFLAGS  += -lrt -lpthread -m32
 
 #
