@@ -102,6 +102,7 @@ namespace stm
   extern volatile int32_t last_order; // order of last tx in a cohort + 1
   extern volatile uint32_t gatekeeper;// indicating whether tx can start
   extern filter_t* global_filter;     // global filter
+  extern filter_t* temp_filter;     // temp filter
 
   /**
    *  To describe an STM algorithm, we provide a name, a set of function
