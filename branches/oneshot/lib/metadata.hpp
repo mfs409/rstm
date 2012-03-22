@@ -18,7 +18,7 @@
 #define METADATA_HPP__
 
 #include <stdint.h>
-#include "../common/platform.hpp"
+#include "platform.hpp"
 
 namespace stm
 {

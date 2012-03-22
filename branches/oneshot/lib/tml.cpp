@@ -23,7 +23,7 @@
 #include <iostream>
 #include <cassert>
 #include <setjmp.h> // factor this out into the API?
-#include "../common/platform.hpp"
+#include "platform.hpp"
 #include "WBMMPolicy.hpp"
 
 namespace stm

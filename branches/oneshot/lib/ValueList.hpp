@@ -38,7 +38,6 @@
  *  This file implements the value log given the current configuration settings
  *  in stm/config.h.
  */
-#include <config.h>
 #include "MiniVector.hpp"
 
 namespace stm {

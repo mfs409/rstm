@@ -2,7 +2,7 @@
 # Pull in the RSTM declarations
 #
 
-include ../lib/Targets.mk
+include ../lib/Algs.mk
 
 #
 # Update CFLAGS with RSTM locations

@@ -11,8 +11,7 @@
 #ifndef API_LIBRARY_INST_HPP__
 #define API_LIBRARY_INST_HPP__
 
-#include <config.h>
-#include "../common/platform.hpp"
+#include <platform.hpp>
 /**
  *  In the LIBRARY api, the transformation of reads and writes of addresses
  *  into correctly formed calls to the tmread and tmwrite functions is

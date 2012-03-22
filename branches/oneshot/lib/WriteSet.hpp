@@ -17,8 +17,6 @@
 #ifndef WRITESET_HPP__
 #define WRITESET_HPP__
 
-#include <config.h>
-
 #ifdef STM_CC_SUN
 #include <string.h>
 #include <stdlib.h>

@@ -11,8 +11,8 @@
 #include <stdint.h>
 #include <iostream>
 #include <cstdlib>
-#include "../common/platform.hpp"
-#include "../common/locks.hpp"
+#include "platform.hpp"
+#include "locks.hpp"
 #include "metadata.hpp"
 
 namespace stm

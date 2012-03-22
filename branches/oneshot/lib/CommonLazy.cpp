@@ -1,5 +1,5 @@
 #include <cstdlib>
-#include "../common/platform.hpp"
+#include "platform.hpp"
 #include "WriteSet.hpp"
 
 namespace stm

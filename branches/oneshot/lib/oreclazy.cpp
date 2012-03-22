@@ -351,7 +351,7 @@ namespace stm {
 #include "WriteSet.hpp"
 #include "WBMMPolicy.hpp"
 #include "Macros.hpp"
-#include "../common/locks.hpp"
+#include "locks.hpp"
 
 namespace stm
 {
