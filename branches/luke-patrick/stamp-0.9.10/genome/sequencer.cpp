@@ -137,12 +137,19 @@ hashString (char* str)
  * -- For hashtable
  * =============================================================================
  */
-static ulong_t
+static ulong_t __attribute__((tm_wrapper("rstm_waiver_hashSegment")))
 hashSegment (const void* keyPtr)
 {
     return (ulong_t)hash_sdbm((char*)keyPtr); /* can be any "good" hash function */
 }
 
+extern "C" {
+static ulong_t __attribute__((used))
+rstm_waiver_hashSegment (const void* keyPtr)
+{
+    return hashSegment(keyPtr);
+}
+}
 
 /* =============================================================================
  * compareSegment
