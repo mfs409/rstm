@@ -126,9 +126,15 @@ builtin_memcpy_wrapper(void* to, const void* from, size_t n) {
 void
 _ITM_memcpyRnWt(_ITM_TD_PARAMS void* to, const void* from, size_t n)
 {
-    _ITM_TD_GET;
-    BlockWriter writer(td->handle());
-    memcpy(to, from, n, builtin_memcpy_wrapper, writer);
+    // Sanity check, just do byte-at-a-time.
+    uint8_t* tob = reinterpret_cast<uint8_t*>(to);
+    const uint8_t* fromb = reinterpret_cast<const uint8_t*>(from);
+    for (size_t i = 0; i < n; ++i)
+        _ITM_WU1(tob + i, fromb[i]);
+
+    // _ITM_TD_GET;
+    // BlockWriter writer(td->handle());
+    // memcpy(to, from, n, builtin_memcpy_wrapper, writer);
 }
 
 void
@@ -150,9 +156,15 @@ _ITM_memcpyRnWtaW(_ITM_TD_PARAMS void* to, const void* from, size_t n)
 void
 _ITM_memcpyRtWn(_ITM_TD_PARAMS void* to, const void* from, size_t n)
 {
-    _ITM_TD_GET;
-    BlockReader reader(td->handle());
-    memcpy(to, from, n, reader, builtin_memcpy_wrapper);
+    // Sanity check, just do byte-at-a-time.
+    uint8_t* tob = reinterpret_cast<uint8_t*>(to);
+    const uint8_t* fromb = reinterpret_cast<const uint8_t*>(from);
+    for (size_t i = 0; i < n; ++i)
+        tob[i] = _ITM_RU1(fromb + i);
+
+    // _ITM_TD_GET;
+    // BlockReader reader(td->handle());
+    // memcpy(to, from, n, reader, builtin_memcpy_wrapper);
 }
 
 void

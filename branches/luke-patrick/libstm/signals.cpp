@@ -233,7 +233,9 @@ static void
 checktimer(int sig, siginfo_t* info, void* ctx, libc_sigaction_t cont)
 {
     ping_the_world(sig);
-    cont(sig, info, ctx);
+    // this is a hack right now---we'd normally be worried about demultiplexing
+    // timers.
+    // cont(sig, info, ctx);
 }
 
 /**

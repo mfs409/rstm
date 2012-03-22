@@ -63,6 +63,7 @@ static void do_shadowed_signal(int);
 static void do_shadowed_signal_cont(int, siginfo_t*, void*);
 static void do_shadowed_sigaction(int, siginfo_t*, void*);
 static void do_shadowed_sigaction_cont(int, siginfo_t*, void*);
+static void do_default(int);
 
 namespace {
 /// ---------------------------------------------------------------------------
@@ -170,12 +171,10 @@ struct Record {
     void callShadowedSigaction(int sig, siginfo_t* info, void* ctx) const {
         assert(shadowed.sa_sigaction && "no shadowed sigaction installed");
         assert(shadowed.sa_flags & SA_SIGINFO && "used signal as sigaction");
-        // if (shadowed.sa_sigaction == SIG_IGN)
-        //     return;
-        // if (shadowed.sa_sigaction == SIG_DFL) {
-        //     // TODO: can't just ignore this
-        //     return;
-        // }
+        if (shadowed.sa_handler == SIG_IGN)
+            return;
+        if (shadowed.sa_handler == SIG_DFL)
+            do_default(sig);
         pthread_sigmask(SIG_SETMASK, &shadowed.sa_mask, NULL);
         shadowed.sa_sigaction(sig, info, ctx);
     }
@@ -186,11 +185,8 @@ struct Record {
         // note no mask set for signal
         if (shadowed.sa_handler == SIG_IGN)
             return;
-        if (shadowed.sa_handler == SIG_DFL) {
-            fprintf(stderr, "shadowed handler SIG_DFL needs to be emulated for "
-                            "%d\n", sig);
-            __builtin_exit(1);
-        }
+        if (shadowed.sa_handler == SIG_DFL)
+            do_default(sig);
         shadowed.sa_handler(sig);
     }
 
@@ -383,6 +379,19 @@ do_shadowed_sigaction(int sig, siginfo_t* info, void* ctx)
     Snapshot snap(sig);
     const Record& r = snap.get();
     r.callInstalled(sig, info, ctx);
+}
+
+/// ---------------------------------------------------------------------------
+/// This should perform the default actions for a signal.
+/// ---------------------------------------------------------------------------
+void
+do_default(int sig)
+{
+    switch (sig) {
+      default:
+        fprintf(stderr, "SIG_DFL needs to be emulated for %d\n", sig);
+        abort();
+    }
 }
 
 /// ---------------------------------------------------------------------------
