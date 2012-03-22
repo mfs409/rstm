@@ -184,7 +184,7 @@ namespace stm
   typedef MiniVector<bitlock_t*>   BitLockList;  // vector of bitlocks
   typedef BitFilter<1024>          filter_t;     // flat 1024-bit Bloom filter
   typedef MiniVector<nanorec_t>    NanorecList;  // <orec,val> pairs
-  typedef MiniVector<void*>        AddressList;  // for the mmpolicy
+  typedef MiniVector<void*, false> AddressList;  // for the mmpolicy
 
   /**
    *  These are for counting consecutive aborts in a histogram.  We use them

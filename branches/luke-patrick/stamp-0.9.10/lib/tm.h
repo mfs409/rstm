@@ -524,6 +524,26 @@
  */
 #elif defined(DTMC)
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#ifdef strncmp
+# undef strncmp
+#endif
+extern __attribute__((transaction_pure))
+int strncmp(const char *s1, const char *s2, size_t n);
+
+#ifdef strcmp
+# undef strcmp
+#endif
+extern __attribute__((transaction_pure))
+int strcmp(const char *s1, const char *s2);
+
+#ifdef __cplusplus
+}
+#endif
+
 #  define TM_ARG                        /* nothing */
 #  define TM_ARG_ALONE                  /* nothing */
 #  define TM_ARGDECL                    /* nothing */
@@ -556,6 +576,27 @@
 #include <tanger-stm.h>
 #include <tanger-stm-std-math.h>
 #include <tanger-stm-std-string.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#ifdef strncmp
+# undef strncmp
+#endif
+extern __attribute__((transaction_pure))
+int strncmp(const char *s1, const char *s2, size_t n);
+
+#ifdef strcmp
+# undef strcmp
+#endif
+extern __attribute__((transaction_pure))
+int strcmp(const char *s1, const char *s2);
+
+
+#ifdef __cplusplus
+}
+#endif
 
 #  define TM_ARG                        /* nothing */
 #  define TM_ARG_ALONE                  /* nothing */

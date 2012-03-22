@@ -125,6 +125,7 @@ namespace {
       bool isWriteBarrier(Instruction*) const;
       bool isABI(Instruction*) const;
       bool isTransactionalClone(Function*) const;
+      bool isWaiver(Function*) const;
       Function* getGetTx() const;
 
     private:
@@ -146,6 +147,7 @@ namespace {
   // Hardcode some strings that I need to deal with tanger-transactified code.
   // --------------------------------------------------------------------------
   static const char* clone_prefix = "tanger_txnal_";
+  static const char* waiver_prefix = "rstm_waiver_";
 
   static const char* get_transaction_marker = "tanger_stm_get_tx";
 
@@ -204,6 +206,7 @@ namespace {
       IRBuilder<>* ir;                  // used to inject instrumentation
       Constant* do_validate;            // the validation function we're using
       SmallPtrSet<Function*, 1> dangerous; // set of functions we know are bad
+      // (including things that we've waivered)
   };
 
   char SRVEPass::ID = 0;
@@ -440,6 +443,12 @@ SRVEPass::isDangerous(Instruction* i) const {
                          << "... ");
             return true;
         }
+
+        if (isWaiver(target)) {
+            DEBUG(outs() << "waivered call to: " << target->getName()
+                         << "... ");
+            return true;
+        }
     }
 
     if (InvokeInst* invoke = dyn_cast<InvokeInst>(i)) {
@@ -453,6 +462,12 @@ SRVEPass::isDangerous(Instruction* i) const {
 
         if (dangerous.count(target)) {
             DEBUG(outs() << "dangerous invoke to: " << target->getName()
+                         << "... ");
+            return true;
+        }
+
+        if (isWaiver(target)) {
+            DEBUG(outs() << "waivered call to: " << target->getName()
                          << "... ");
             return true;
         }
@@ -557,6 +572,11 @@ TangerRecognizer::isABI(llvm::Instruction* i) const {
 bool
 TangerRecognizer::isTransactionalClone(Function* f) const {
     return f->getName().startswith(clone_prefix);
+}
+
+bool
+TangerRecognizer::isWaiver(Function* f) const {
+    return f->getName().startswith(waiver_prefix);
 }
 
 Function*

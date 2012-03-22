@@ -187,8 +187,9 @@ struct Record {
         if (shadowed.sa_handler == SIG_IGN)
             return;
         if (shadowed.sa_handler == SIG_DFL) {
-            // TODO: can't just ignore this
-            return;
+            fprintf(stderr, "shadowed handler SIG_DFL needs to be emulated for "
+                            "%d\n", sig);
+            __builtin_exit(1);
         }
         shadowed.sa_handler(sig);
     }

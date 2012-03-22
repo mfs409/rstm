@@ -698,6 +698,29 @@ computeLocalLogLikelihood (long id,
                            net_t* netPtr,
                            query_t* queries,
                            vector_t* queryVectorPtr,
+                           vector_t* parentQueryVectorPtr);
+//     __attribute__((tm_wrapper("rstm_waiver_computeLocalLogLikelihood")));
+
+// extern "C" {
+// static float __attribute__((used))
+// rstm_waiver_computeLocalLogLikelihood (long id,
+//                                   adtree_t* adtreePtr,
+//                                   net_t* netPtr,
+//                                   query_t* queries,
+//                                   vector_t* queryVectorPtr,
+//                                   vector_t* parentQueryVectorPtr) {
+//     computeLocalLogLikelihood(id, adtreePtr, netPtr, queries, queryVectorPtr,
+//                               parentQueryVectorPtr);
+// }
+// }
+
+
+float
+computeLocalLogLikelihood (long id,
+                           adtree_t* adtreePtr,
+                           net_t* netPtr,
+                           query_t* queries,
+                           vector_t* queryVectorPtr,
                            vector_t* parentQueryVectorPtr)
 {
     long numParent = vector_getSize(parentQueryVectorPtr);

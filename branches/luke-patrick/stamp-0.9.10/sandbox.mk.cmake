@@ -1,5 +1,5 @@
 # -*- Makefile -*-
-BENCHMARKS := bayes genome intruder labyrinth kmeans ssca2 vacation yada
+BENCHMARKS := bayes labyrinth kmeans ssca2 vacation yada # genome intruder
 CLEANS     := $(addsuffix _clean,$(BENCHMARKS))
 
 .PHONY: all clean $(BENCHMARKS) $(CLEANS)
