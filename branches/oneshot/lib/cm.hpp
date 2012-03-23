@@ -11,10 +11,10 @@
 #ifndef CM_HPP__
 #define CM_HPP__
 
-#include <stm/config.h>
-#include <limits.h>
-#include "stm/txthread.hpp"
-#include "algs/algs.hpp"     // for exp_backoff
+// #include <stm/config.h>
+// #include <limits.h>
+// #include "stm/txthread.hpp"
+// #include "algs/algs.hpp"     // for exp_backoff
 
 /**
  *  Timeouts, thresholds, and states
@@ -29,19 +29,48 @@
  */
 namespace stm
 {
+  extern pad_word_t    fcm_timestamp;                  // for FCM
+  extern pad_word_t    epochs[MAX_THREADS];            // for coarse-grained CM
+
+  /**
+   *  A simple implementation of randomized exponential backoff.
+   *
+   *  NB: This uses getElapsedTime, which is slow compared to a granularity
+   *      of 64 nops.  However, we can't switch to tick(), because sometimes
+   *      two successive tick() calls return the same value?
+   */
+  static const uint32_t BACKOFF_MIN   = 4;        // min backoff exponent
+  static const uint32_t BACKOFF_MAX   = 16;       // max backoff exponent
+  TM_INLINE
+  inline void exp_backoff(TX* tx)
+  {
+      // how many bits should we use to pick an amount of time to wait?
+      uint32_t bits = tx->consec_aborts + BACKOFF_MIN - 1;
+      bits = (bits > BACKOFF_MAX) ? BACKOFF_MAX : bits;
+      // get a random amount of time to wait, bounded by an exponentially
+      // increasing limit
+      int32_t delay = rand_r(&tx->seed);
+      delay &= ((1 << bits)-1);
+      // wait until at least that many ns have passed
+      unsigned long long start = getElapsedTime();
+      unsigned long long stop_at = start + delay;
+      while (getElapsedTime() < stop_at) { spin64(); }
+  }
+
   /**
    *  Backoff CM policy: On abort, perform randomized exponential backoff
    */
   struct BackoffCM
   {
-      static void onAbort(TxThread* tx)
+      static void onAbort(TX* tx)
       {
+          ++tx->consec_aborts;
           // randomized exponential backoff
           exp_backoff(tx);
       }
-      static void onBegin(TxThread*)  { }
-      static void onCommit(TxThread*) { }
-      static bool mayKill(TxThread*, uint32_t) { return true; }
+      static void onBegin(TX*)  { }
+      static void onCommit(TX* tx) { tx->consec_aborts = 0; }
+      static bool mayKill(TX*, uint32_t) { return true; }
   };
 
   /**
@@ -49,10 +78,10 @@ namespace stm
    */
   struct HyperAggressiveCM
   {
-      static void onAbort(TxThread*) { }
-      static void onBegin(TxThread*)  { }
-      static void onCommit(TxThread*) { }
-      static bool mayKill(TxThread*, uint32_t) { return true; }
+      static void onAbort(TX*) { }
+      static void onBegin(TX*)  { }
+      static void onCommit(TX*) { }
+      static bool mayKill(TX*, uint32_t) { return true; }
   };
 
   /**
@@ -63,14 +92,14 @@ namespace stm
    */
   struct FCM
   {
-      static void onAbort(TxThread*) { }
-      static void onCommit(TxThread*) { }
+      static void onAbort(TX*) { }
+      static void onCommit(TX*) { }
 
       /**
        *  On begin, we must get a timestamp.  For now, we use a global
        *  counter, which is a bottleneck but ensures uniqueness.
        */
-      static void onBegin(TxThread* tx)
+      static void onBegin(TX* tx)
       {
           // acquire timestamp when transaction begins
           epochs[tx->id-1].val = faiptr(&fcm_timestamp.val);
@@ -81,7 +110,7 @@ namespace stm
        *  Permission to kill the other is granted when this transaction's
        *  timestamp is less than the other transaction's timestamp
        */
-      static bool mayKill(TxThread* tx, uint32_t other)
+      static bool mayKill(TX* tx, uint32_t other)
       {
           return (threads[tx->id-1]->alive == TX_ACTIVE)
               && (epochs[tx->id-1].val < epochs[other].val);
@@ -100,24 +129,26 @@ namespace stm
       /**
        *  On begin, block if there is a distinguished transaction
        */
-      static void onBegin(TxThread* tx)
+      static void onBegin(TX* tx)
       {
           if (!tx->strong_HG)
-              while (fcm_timestamp.val)
-                  if (TxThread::tmbegin == begin_blocker)
+              while (fcm_timestamp.val) { }
+          /*
+                  if (TX::tmbegin == begin_blocker)
                       tx->tmabort(tx);
+          */
       }
 
       /**
        *  On abort, get a timestamp if I exceed some threshold
        */
-      static void onAbort(TxThread* tx)
+      static void onAbort(TX* tx)
       {
           // if I'm already in the hourglass, just return
-          if (tx->strong_HG) {
-              tx->abort_hist.onHGAbort();
+          if (tx->strong_HG)
               return;
-          }
+
+          ++tx->consec_aborts;
 
           // acquire a timestamp if consecutive aborts exceed a threshold
           if (tx->consec_aborts > ABORT_THRESHOLD) {
@@ -129,27 +160,24 @@ namespace stm
                   while (fcm_timestamp.val) { }
               }
           }
-          // NB: It would be good to explore what happens if I have a
-          //     strong_HG already?  Can we count how many times I abort with
-          //     strong_HG?
       }
 
       /**
        *  On commit, release my timestamp
        */
-      static void onCommit(TxThread* tx)
+      static void onCommit(TX* tx)
       {
           if (tx->strong_HG) {
               fcm_timestamp.val = 0;
               tx->strong_HG = false;
-              tx->abort_hist.onHGCommit();
           }
+          tx->consec_aborts = 0;
       }
 
       /**
        *  During the transaction, always abort conflicting transactions
        */
-      static bool mayKill(TxThread*, uint32_t) { return true; }
+      static bool mayKill(TX*, uint32_t) { return true; }
   };
 
   /**
@@ -162,48 +190,51 @@ namespace stm
       /**
        *  On begin, block if there is a distinguished transaction
        */
-      static void onBegin(TxThread* tx)
+      static void onBegin(TX* tx)
       {
           if (!tx->strong_HG)
-              while (fcm_timestamp.val)
-                  if (TxThread::tmbegin == begin_blocker)
+              while (fcm_timestamp.val) { }
+          /*
+                  if (TX::tmbegin == begin_blocker)
                       tx->tmabort(tx);
+          */
       }
 
       /**
        *  On abort, get a timestamp if I exceed some threshold
        */
-      static void onAbort(TxThread* tx)
+      static void onAbort(TX* tx)
       {
           // if I'm already in the hourglass, just return
           if (tx->strong_HG) {
-              tx->abort_hist.onHGAbort();
               return;
           }
 
+          ++tx->consec_aborts;
+
           // acquire a timestamp if consecutive aborts exceed a threshold
           if (tx->consec_aborts > ABORT_THRESHOLD)
-              if (bcasptr(&fcm_timestamp.val, 0ul, 1ul))
+              if (bcasptr(&fcm_timestamp.val, 0ul, 1ul)) {
                   tx->strong_HG = true;
-          // NB: as before, some counting opportunities here
+              }
       }
 
       /**
        *  On commit, release my timestamp
        */
-      static void onCommit(TxThread* tx)
+      static void onCommit(TX* tx)
       {
           if (tx->strong_HG) {
               fcm_timestamp.val = 0;
               tx->strong_HG = false;
-              tx->abort_hist.onHGCommit();
           }
+          tx->consec_aborts = 0;
       }
 
       /**
        *  During the transaction, always abort conflicting transactions
        */
-      static bool mayKill(TxThread*, uint32_t) { return true; }
+      static bool mayKill(TX*, uint32_t) { return true; }
   };
 
   /**
@@ -216,24 +247,27 @@ namespace stm
       /**
        *  On begin, block if there is a distinguished transaction
        */
-      static void onBegin(TxThread* tx)
+      static void onBegin(TX* tx)
       {
           if (!tx->strong_HG)
-              while (fcm_timestamp.val)
-                  if (TxThread::tmbegin == begin_blocker)
+              while (fcm_timestamp.val) { }
+          /*
+                  if (TX::tmbegin == begin_blocker)
                       tx->tmabort(tx);
+          */
       }
 
       /**
        *  On abort, get a timestamp if I exceed some threshold
        */
-      static void onAbort(TxThread* tx)
+      static void onAbort(TX* tx)
       {
           // if I'm already in the hourglass, just return
           if (tx->strong_HG) {
-              tx->abort_hist.onHGAbort();
               return;
           }
+
+          ++tx->consec_aborts;
 
           // acquire a timestamp if consecutive aborts exceed a threshold
           if (tx->consec_aborts > ABORT_THRESHOLD) {
@@ -249,19 +283,19 @@ namespace stm
       /**
        *  On commit, release my timestamp
        */
-      static void onCommit(TxThread* tx)
+      static void onCommit(TX* tx)
       {
           if (tx->strong_HG) {
               fcm_timestamp.val = 0;
               tx->strong_HG = false;
-              tx->abort_hist.onHGCommit();
           }
+          tx->consec_aborts = 0;
       }
 
       /**
        *  During the transaction, always abort conflicting transactions
        */
-      static bool mayKill(TxThread*, uint32_t) { return true; }
+      static bool mayKill(TX*, uint32_t) { return true; }
   };
 
 }

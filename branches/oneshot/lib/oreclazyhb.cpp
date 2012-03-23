@@ -9,10 +9,11 @@
  */
 
 /**
- * OrecLazy is the name for the oreclazy algorithm when instantiated with no
- * CM.  Virtually all of the code is in the oreclazy.hpp file, but we need to
- * instantiate in order to use the "HyperAggressiveCM", which is nops on all
- * transaction boundaries.
+ * OrecLazyHB is the name for the oreclazy algorithm when instantiated with
+ * HourglassBackoffCM.  Virtually all of the code is in the oreclazy.hpp
+ * file, but we need to instantiate in order to use the "HourglassBackoffCM"
+ * object, which employs both backoff and the "Hourglass" (from the "Toxic
+ * Transactions" paper).
  */
 
 #include "oreclazy.hpp"
@@ -25,7 +26,7 @@ namespace stm
    */
   scope_t* rollback(TX* tx)
   {
-      return rollback_generic<HyperAggressiveCM>(tx);
+      return rollback_generic<HourglassBackoffCM>(tx);
   }
 
   /**
@@ -33,7 +34,7 @@ namespace stm
    */
   void tm_begin(scope_t* scope)
   {
-      tm_begin_generic<HyperAggressiveCM>(scope);
+      tm_begin_generic<HourglassBackoffCM>(scope);
   }
 
   /**
@@ -41,12 +42,12 @@ namespace stm
    */
   void tm_end()
   {
-      tm_end_generic<HyperAggressiveCM>();
+      tm_end_generic<HourglassBackoffCM>();
   }
 
   /**
    *  For querying to get the current algorithm name
    */
-  const char* tm_getalgname() { return "OrecLazy"; }
+  const char* tm_getalgname() { return "OrecLazyHB"; }
 
 }
