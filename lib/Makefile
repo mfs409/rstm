@@ -60,19 +60,22 @@ DEPS = $(patsubst %, $(ODIR)/%.d, $(ALGNAMES) $(COMMONNAMES) $(ORECNAMES)    \
 #
 # Dependencies when building .a files
 #
-$(ODIR)/libcgl.a:           $(ODIR)/cgl.o $(COMMONOFILES)
-$(ODIR)/libnorec.a:         $(ODIR)/norec.o $(COMMONOFILES) $(LAZYOFILES)
-$(ODIR)/libtml.a:           $(ODIR)/tml.o $(COMMONOFILES)
-$(ODIR)/libcohortseager.a:  $(ODIR)/cohortseager.o $(COMMONOFILES) $(LAZYOFILES) $(ORECOFILES)
-$(ODIR)/libcohorts.a:       $(ODIR)/cohorts.o $(COMMONOFILES) $(LAZYOFILES) $(ORECOFILES)
-$(ODIR)/libctokenturbo.a:   $(ODIR)/ctokenturbo.o $(COMMONOFILES) $(LAZYOFILES) $(ORECOFILES)
-$(ODIR)/libctoken.a:        $(ODIR)/ctoken.o $(COMMONOFILES) $(LAZYOFILES) $(ORECOFILES)
-$(ODIR)/libllt.a:           $(ODIR)/llt.o $(COMMONOFILES) $(LAZYOFILES) $(ORECOFILES)
-$(ODIR)/liboreceager.a:     $(ODIR)/oreceager.o $(COMMONOFILES) $(ORECOFILES)
-$(ODIR)/liboreceagerredo.a: $(ODIR)/oreceagerredo.o $(COMMONOFILES) $(LAZYOFILES) $(ORECOFILES)
-$(ODIR)/liboreclazy.a:      $(ODIR)/oreclazy.o $(COMMONOFILES) $(LAZYOFILES) $(ORECOFILES)
-$(ODIR)/liborecela.a:       $(ODIR)/orecela.o $(COMMONOFILES) $(LAZYOFILES) $(ORECOFILES)
-$(ODIR)/liborecala.a:       $(ODIR)/orecala.o $(COMMONOFILES) $(LAZYOFILES) $(ORECOFILES)
+$(ODIR)/libcgl.a:             $(ODIR)/cgl.o $(COMMONOFILES)
+$(ODIR)/libnorec.a:           $(ODIR)/norec.o $(COMMONOFILES) $(LAZYOFILES)
+$(ODIR)/libtml.a:             $(ODIR)/tml.o $(COMMONOFILES)
+$(ODIR)/libcohortseager.a:    $(ODIR)/cohortseager.o $(COMMONOFILES) $(LAZYOFILES) $(ORECOFILES)
+$(ODIR)/libcohorts.a:         $(ODIR)/cohorts.o $(COMMONOFILES) $(LAZYOFILES) $(ORECOFILES)
+$(ODIR)/libctokenturbo.a:     $(ODIR)/ctokenturbo.o $(COMMONOFILES) $(LAZYOFILES) $(ORECOFILES)
+$(ODIR)/libctoken.a:          $(ODIR)/ctoken.o $(COMMONOFILES) $(LAZYOFILES) $(ORECOFILES)
+$(ODIR)/libllt.a:             $(ODIR)/llt.o $(COMMONOFILES) $(LAZYOFILES) $(ORECOFILES)
+$(ODIR)/liboreceager.a:       $(ODIR)/oreceager.o $(COMMONOFILES) $(ORECOFILES)
+$(ODIR)/liboreceagerredo.a:   $(ODIR)/oreceagerredo.o $(COMMONOFILES) $(LAZYOFILES) $(ORECOFILES)
+$(ODIR)/liboreclazy.a:        $(ODIR)/oreclazy.o $(COMMONOFILES) $(LAZYOFILES) $(ORECOFILES)
+$(ODIR)/liborecela.a:         $(ODIR)/orecela.o $(COMMONOFILES) $(LAZYOFILES) $(ORECOFILES)
+$(ODIR)/liborecala.a:         $(ODIR)/orecala.o $(COMMONOFILES) $(LAZYOFILES) $(ORECOFILES)
+$(ODIR)/liboreclazybackoff.a: $(ODIR)/orecala.o $(COMMONOFILES) $(LAZYOFILES) $(ORECOFILES)
+$(ODIR)/liboreclazyhb.a:      $(ODIR)/orecala.o $(COMMONOFILES) $(LAZYOFILES) $(ORECOFILES)
+$(ODIR)/liboreclazyhour.a:    $(ODIR)/orecala.o $(COMMONOFILES) $(LAZYOFILES) $(ORECOFILES)
 
 #
 # For convenience, here are all of the .o files.  Since this is a research

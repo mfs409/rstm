@@ -143,3 +143,12 @@ $(ODIR)/%.orecela: $(ODIR)/%.genericapi.o $(LIBFOLDER)/$(ODIR)/liborecela.a
 $(ODIR)/%.orecala: $(ODIR)/%.genericapi.o $(LIBFOLDER)/$(ODIR)/liborecala.a
 	@echo [LD] $@
 	@$(CXX) -o $@ $^ $(LDFLAGS)
+$(ODIR)/%.oreclazybackoff: $(ODIR)/%.genericapi.o $(LIBFOLDER)/$(ODIR)/liboreclazybackoff.a
+	@echo [LD] $@
+	@$(CXX) -o $@ $^ $(LDFLAGS)
+$(ODIR)/%.oreclazyhb: $(ODIR)/%.genericapi.o $(LIBFOLDER)/$(ODIR)/liboreclazyhb.a
+	@echo [LD] $@
+	@$(CXX) -o $@ $^ $(LDFLAGS)
+$(ODIR)/%.oreclazyhour: $(ODIR)/%.genericapi.o $(LIBFOLDER)/$(ODIR)/liboreclazyhour.a
+	@echo [LD] $@
+	@$(CXX) -o $@ $^ $(LDFLAGS)

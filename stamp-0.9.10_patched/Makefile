@@ -157,6 +157,6 @@ $(ODIR)/$(PROG).oreclazy: $(STMFILES) $(STMLIBDIR)/liboreclazy.a
 $(ODIR)/$(PROG).orecela: $(STMFILES) $(STMLIBDIR)/liborecela.a
 	@echo [LD] $@ 
 	@$(CXX) -o $@ $^ $(LDFLAGS) 
-$(ODIR)/$(PROG).orecala: $(STMFILES) $(STMLIBDIR)/liborecala.a
+$(ODIR)/$(PROG).%: $(STMFILES) $(STMLIBDIR)/lib$(%).a
 	@echo [LD] $@
 	@$(CXX) -o $@ $^ $(LDFLAGS)
