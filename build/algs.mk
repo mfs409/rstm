@@ -19,5 +19,6 @@ APIS = lockapi genericapi
 # The names of the STM algorithms, and of all supporting compilable files
 #
 ALGNAMES = cgl norec tml cohortseager cohorts ctokenturbo ctoken llt \
-           oreceagerredo orecela orecala oreclazy oreceager          \
-           oreclazybackoff oreclazyhb oreclazyhour
+           oreceagerredo orecela orecala oreclazy oreceager norechb  \
+           oreclazybackoff oreclazyhb oreclazyhour norecbackoff      \
+           norechour

@@ -14,4 +14,5 @@ namespace stm
 
   /*** Count of all threads ***/
   pad_word_t threadcount = {0};
+
 }
