@@ -100,55 +100,60 @@ $(ODIR)/%.genericapi.o: %.cpp
 	@$(CXX) $(CXXFLAGS) -o $@ -c $< $(LDFLAGS) -DSTM_INST_STM
 
 #
-# Rules for linking to make executables.  Unfortunately, this is a little bit
-# brittle, because the rules incorporate knowledge of which APIs are required
-# by whigh libraries
+# Rules for linking to make executables.  genericapi builds are easier.  lockapi
+# builds are harder
+#
+
+#
+# lockapi builds are likely to be less common, so for each lockapi target, we
+# need a rule of the following form:
 #
 $(ODIR)/%.cgl: $(ODIR)/%.lockapi.o $(LIBFOLDER)/$(ODIR)/libcgl.a
 	@echo [LD] $@ 
 	@$(CXX) -o $@ $^ $(LDFLAGS)
-$(ODIR)/%.norec: $(ODIR)/%.genericapi.o $(LIBFOLDER)/$(ODIR)/libnorec.a
-	@echo [LD] $@ 
-	@$(CXX) -o $@ $^ $(LDFLAGS)
-$(ODIR)/%.tml: $(ODIR)/%.genericapi.o $(LIBFOLDER)/$(ODIR)/libtml.a
-	@echo [LD] $@ 
-	@$(CXX) -o $@ $^ $(LDFLAGS)
-$(ODIR)/%.cohortseager: $(ODIR)/%.genericapi.o $(LIBFOLDER)/$(ODIR)/libcohortseager.a
-	@echo [LD] $@ 
-	@$(CXX) -o $@ $^ $(LDFLAGS)
-$(ODIR)/%.cohorts: $(ODIR)/%.genericapi.o $(LIBFOLDER)/$(ODIR)/libcohorts.a
-	@echo [LD] $@ 
-	@$(CXX) -o $@ $^ $(LDFLAGS)
-$(ODIR)/%.ctokenturbo: $(ODIR)/%.genericapi.o $(LIBFOLDER)/$(ODIR)/libctokenturbo.a
-	@echo [LD] $@ 
-	@$(CXX) -o $@ $^ $(LDFLAGS)
-$(ODIR)/%.ctoken: $(ODIR)/%.genericapi.o $(LIBFOLDER)/$(ODIR)/libctoken.a
-	@echo [LD] $@ 
-	@$(CXX) -o $@ $^ $(LDFLAGS)
-$(ODIR)/%.llt: $(ODIR)/%.genericapi.o $(LIBFOLDER)/$(ODIR)/libllt.a
-	@echo [LD] $@ 
-	@$(CXX) -o $@ $^ $(LDFLAGS)
-$(ODIR)/%.oreceager: $(ODIR)/%.genericapi.o $(LIBFOLDER)/$(ODIR)/liboreceager.a
-	@echo [LD] $@ 
-	@$(CXX) -o $@ $^ $(LDFLAGS)
-$(ODIR)/%.oreceagerredo: $(ODIR)/%.genericapi.o $(LIBFOLDER)/$(ODIR)/liboreceagerredo.a
-	@echo [LD] $@ 
-	@$(CXX) -o $@ $^ $(LDFLAGS)
-$(ODIR)/%.oreclazy: $(ODIR)/%.genericapi.o $(LIBFOLDER)/$(ODIR)/liboreclazy.a
-	@echo [LD] $@ 
-	@$(CXX) -o $@ $^ $(LDFLAGS)
-$(ODIR)/%.orecela: $(ODIR)/%.genericapi.o $(LIBFOLDER)/$(ODIR)/liborecela.a
-	@echo [LD] $@ 
-	@$(CXX) -o $@ $^ $(LDFLAGS)
-$(ODIR)/%.orecala: $(ODIR)/%.genericapi.o $(LIBFOLDER)/$(ODIR)/liborecala.a
+
+#
+# genericapi builds are more common, since there are a lot more ways to do an
+# genericapi TM than a lockapi TM.  To that end, we make a single build
+# target for each /benchmark/, and we infer the right library to link from
+# the exe name
+#
+$(ODIR)/CounterBench.%: $(ODIR)/CounterBench.genericapi.o $(LIBFOLDER)/$(ODIR)/lib%.a
 	@echo [LD] $@
 	@$(CXX) -o $@ $^ $(LDFLAGS)
-$(ODIR)/%.oreclazybackoff: $(ODIR)/%.genericapi.o $(LIBFOLDER)/$(ODIR)/liboreclazybackoff.a
-	@echo [LD] $@
+$(ODIR)/DisjointBench.%: $(ODIR)/DisjointBench.genericapi.o $(LIBFOLDER)/$(ODIR)/lib%.a
+	@echo [LD] $@ 
 	@$(CXX) -o $@ $^ $(LDFLAGS)
-$(ODIR)/%.oreclazyhb: $(ODIR)/%.genericapi.o $(LIBFOLDER)/$(ODIR)/liboreclazyhb.a
-	@echo [LD] $@
+$(ODIR)/DListBench.%: $(ODIR)/DListBench.genericapi.o $(LIBFOLDER)/$(ODIR)/lib%.a
+	@echo [LD] $@ 
 	@$(CXX) -o $@ $^ $(LDFLAGS)
-$(ODIR)/%.oreclazyhour: $(ODIR)/%.genericapi.o $(LIBFOLDER)/$(ODIR)/liboreclazyhour.a
-	@echo [LD] $@
+$(ODIR)/ForestBench.%: $(ODIR)/ForestBench.genericapi.o $(LIBFOLDER)/$(ODIR)/lib%.a
+	@echo [LD] $@ 
+	@$(CXX) -o $@ $^ $(LDFLAGS)
+$(ODIR)/HashBench.%: $(ODIR)/HashBench.genericapi.o $(LIBFOLDER)/$(ODIR)/lib%.a
+	@echo [LD] $@ 
+	@$(CXX) -o $@ $^ $(LDFLAGS)
+$(ODIR)/ListBench.%: $(ODIR)/ListBench.genericapi.o $(LIBFOLDER)/$(ODIR)/lib%.a
+	@echo [LD] $@ 
+	@$(CXX) -o $@ $^ $(LDFLAGS)
+$(ODIR)/MCASBench.%: $(ODIR)/MCASBench.genericapi.o $(LIBFOLDER)/$(ODIR)/lib%.a
+	@echo [LD] $@ 
+	@$(CXX) -o $@ $^ $(LDFLAGS)
+$(ODIR)/ReadNWrite1Bench.%: $(ODIR)/ReadNWrite1Bench.genericapi.o $(LIBFOLDER)/$(ODIR)/lib%.a
+	@echo [LD] $@ 
+	@$(CXX) -o $@ $^ $(LDFLAGS)
+$(ODIR)/ReadWriteNBench.%: $(ODIR)/ReadWriteNBench.genericapi.o $(LIBFOLDER)/$(ODIR)/lib%.a
+	@echo [LD] $@ 
+	@$(CXX) -o $@ $^ $(LDFLAGS)
+$(ODIR)/TreeBench.%: $(ODIR)/TreeBench.genericapi.o $(LIBFOLDER)/$(ODIR)/lib%.a
+	@echo [LD] $@ 
+	@$(CXX) -o $@ $^ $(LDFLAGS)
+$(ODIR)/TreeOverwriteBench.%: $(ODIR)/TreeOverwriteBench.genericapi.o $(LIBFOLDER)/$(ODIR)/lib%.a
+	@echo [LD] $@ 
+	@$(CXX) -o $@ $^ $(LDFLAGS)
+$(ODIR)/TypeTest.%: $(ODIR)/TypeTest.genericapi.o $(LIBFOLDER)/$(ODIR)/lib%.a
+	@echo [LD] $@ 
+	@$(CXX) -o $@ $^ $(LDFLAGS)
+$(ODIR)/WWPathologyBench.%: $(ODIR)/WWPathologyBench.genericapi.o $(LIBFOLDER)/$(ODIR)/lib%.a
+	@echo [LD] $@ 
 	@$(CXX) -o $@ $^ $(LDFLAGS)

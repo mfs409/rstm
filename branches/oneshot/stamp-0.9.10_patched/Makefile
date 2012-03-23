@@ -108,6 +108,7 @@ $(ODIR)/%.$(PROG).genericapi.o: lib/%.c
 #
 CGLFILES = $(patsubst %, $(ODIR)/%.$(PROG).lockapi.o, $(BENCHNAMES) $(LIBNAMES))
 STMFILES = $(patsubst %, $(ODIR)/%.$(PROG).genericapi.o, $(BENCHNAMES) $(LIBNAMES))
+.PRECIOUS: $(CGLFILES) $(STMFILES)
 
 #
 # Dependencies.  Note that we put a dummy file in the list to prevent
@@ -117,46 +118,22 @@ DEPS = $(patsubst %.o, %.d, $(CGLFILES) $(STMFILES)) dummy.d
 -include $(DEPS)
 
 #
-# Rules for linking to make executables.  Unfortunately, this is a little bit
-# brittle, because the rules incorporate knowledge of which APIs are required
-# by whigh libraries
+# Rules for linking to make executables.  stmapi builds are easier.  lockapi
+# builds are harder
+#
+
+#
+# lockapi builds are likely to be less common, so for each lockapi target, we
+# need a rule of the following form:
 #
 $(ODIR)/$(PROG).cgl: $(CGLFILES) $(STMLIBDIR)/libcgl.a
 	@echo [LD] $@ 
 	@$(CXX) -o $@ $^ $(LDFLAGS)
-$(ODIR)/$(PROG).norec: $(STMFILES) $(STMLIBDIR)/libnorec.a
+
+#
+# genericapi builds are more common, so we provide a single rule that builds
+# any genericapi target
+#
+$(ODIR)/$(PROG).%: $(STMFILES) $(STMLIBDIR)/lib%.a
 	@echo [LD] $@ 
 	@$(CXX) -o $@ $^ $(LDFLAGS) 
-$(ODIR)/$(PROG).tml: $(STMFILES) $(STMLIBDIR)/libtml.a
-	@echo [LD] $@ 
-	@$(CXX) -o $@ $^ $(LDFLAGS) 
-$(ODIR)/$(PROG).cohortseager: $(STMFILES) $(STMLIBDIR)/libcohortseager.a
-	@echo [LD] $@ 
-	@$(CXX) -o $@ $^ $(LDFLAGS) 
-$(ODIR)/$(PROG).cohorts: $(STMFILES) $(STMLIBDIR)/libcohorts.a
-	@echo [LD] $@ 
-	@$(CXX) -o $@ $^ $(LDFLAGS) 
-$(ODIR)/$(PROG).ctokenturbo: $(STMFILES) $(STMLIBDIR)/libctokenturbo.a
-	@echo [LD] $@ 
-	@$(CXX) -o $@ $^ $(LDFLAGS) 
-$(ODIR)/$(PROG).ctoken: $(STMFILES) $(STMLIBDIR)/libctoken.a
-	@echo [LD] $@ 
-	@$(CXX) -o $@ $^ $(LDFLAGS) 
-$(ODIR)/$(PROG).llt: $(STMFILES) $(STMLIBDIR)/libllt.a
-	@echo [LD] $@ 
-	@$(CXX) -o $@ $^ $(LDFLAGS) 
-$(ODIR)/$(PROG).oreceager: $(STMFILES) $(STMLIBDIR)/liboreceager.a
-	@echo [LD] $@ 
-	@$(CXX) -o $@ $^ $(LDFLAGS) 
-$(ODIR)/$(PROG).oreceagerredo: $(STMFILES) $(STMLIBDIR)/liboreceagerredo.a
-	@echo [LD] $@ 
-	@$(CXX) -o $@ $^ $(LDFLAGS) 
-$(ODIR)/$(PROG).oreclazy: $(STMFILES) $(STMLIBDIR)/liboreclazy.a
-	@echo [LD] $@ 
-	@$(CXX) -o $@ $^ $(LDFLAGS) 
-$(ODIR)/$(PROG).orecela: $(STMFILES) $(STMLIBDIR)/liborecela.a
-	@echo [LD] $@ 
-	@$(CXX) -o $@ $^ $(LDFLAGS) 
-$(ODIR)/$(PROG).%: $(STMFILES) $(STMLIBDIR)/lib$(%).a
-	@echo [LD] $@
-	@$(CXX) -o $@ $^ $(LDFLAGS)
