@@ -62,6 +62,9 @@ DEPS = $(patsubst %, $(ODIR)/%.d, $(ALGNAMES) $(COMMONNAMES) $(ORECNAMES)    \
 #
 $(ODIR)/libcgl.a:             $(ODIR)/cgl.o $(COMMONOFILES)
 $(ODIR)/libnorec.a:           $(ODIR)/norec.o $(COMMONOFILES) $(LAZYOFILES)
+$(ODIR)/libnorechb.a:         $(ODIR)/norechb.o $(COMMONOFILES) $(LAZYOFILES)
+$(ODIR)/libnorecbackoff.a:    $(ODIR)/norecbackoff.o $(COMMONOFILES) $(LAZYOFILES)
+$(ODIR)/libnorechour.a:       $(ODIR)/norechour.o $(COMMONOFILES) $(LAZYOFILES)
 $(ODIR)/libtml.a:             $(ODIR)/tml.o $(COMMONOFILES)
 $(ODIR)/libcohortseager.a:    $(ODIR)/cohortseager.o $(COMMONOFILES) $(LAZYOFILES) $(ORECOFILES)
 $(ODIR)/libcohorts.a:         $(ODIR)/cohorts.o $(COMMONOFILES) $(LAZYOFILES) $(ORECOFILES)

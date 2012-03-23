@@ -9,7 +9,7 @@
  */
 
 /**
- * NOrec with HyperAggressiveCM (no backoff)
+ * NOrec with HourglassCM
  */
 
 #include "norec.hpp"
@@ -22,7 +22,7 @@ namespace stm
    */
   scope_t* rollback(TX* tx)
   {
-      return rollback_generic<HyperAggressiveCM>(tx);
+      return rollback_generic<HourglassCM>(tx);
   }
 
   /**
@@ -30,7 +30,7 @@ namespace stm
    */
   void tm_begin(scope_t* scope)
   {
-      tm_begin_generic<HyperAggressiveCM>(scope);
+      tm_begin_generic<HourglassCM>(scope);
   }
 
   /**
@@ -38,12 +38,12 @@ namespace stm
    */
   void tm_end()
   {
-      tm_end_generic<HyperAggressiveCM>();
+      tm_end_generic<HourglassCM>();
   }
 
   /**
    *  For querying to get the current algorithm name
    */
-  const char* tm_getalgname() { return "NOrec"; }
+  const char* tm_getalgname() { return "NOrecHour"; }
 
 }

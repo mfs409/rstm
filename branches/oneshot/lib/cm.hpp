@@ -11,16 +11,13 @@
 #ifndef CM_HPP__
 #define CM_HPP__
 
-// #include <stm/config.h>
-// #include <limits.h>
-// #include "stm/txthread.hpp"
-// #include "algs/algs.hpp"     // for exp_backoff
-
 /**
  *  Timeouts, thresholds, and states
  */
 #define TX_ACTIVE     0
 #define TX_ABORTED    1
+
+#include "locks.hpp" // for spin64()
 
 /**
  *  Define the CM policies that can be plugged into our framework.  For the
