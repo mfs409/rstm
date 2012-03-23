@@ -25,63 +25,12 @@
 #include "WriteSet.hpp"
 #include "WBMMPolicy.hpp"
 #include "Macros.hpp"
+#include "tx.hpp"
 
-/**
- *  Declare the functions that we're going to implement, so that we can avoid
- *  circular dependencies.
- */
 namespace stm
 {
-  typedef MiniVector<orec_t*>      OrecList;     // vector of orecs
-
-  /**
-   *  Store per-thread metadata.  There isn't much for CGL...
-   */
-  struct TX
-  {
-      /*** for flat nesting ***/
-      int nesting_depth;
-
-      /*** unique id for this thread ***/
-      int id;
-
-      /*** number of RO commits ***/
-      int commits_ro;
-
-      /*** number of RW commits ***/
-      int commits_rw;
-
-      int aborts;
-
-      scope_t* volatile scope;      // used to roll back; also flag for isTxnl
-
-      WriteSet       writes;        // write set
-      WBMMPolicy     allocator;     // buffer malloc/free
-      uintptr_t      start_time;    // start time of transaction
-      uintptr_t      ts_cache;      // last validation time
-      intptr_t       order;         // for stms that order txns eagerly
-      bool turbo;
-      OrecList       r_orecs;       // read set for orec STMs
-
-      /*** constructor ***/
-      TX();
-  };
-
   /*** The only metadata we need is a single global padded lock ***/
   pad_word_t timestamp = {0};
-
-  /**
-   *  Simple constructor for TX: zero all fields, get an ID
-   */
-  TX::TX() : nesting_depth(0), commits_ro(0), commits_rw(0), aborts(0),
-             scope(NULL), writes(64), allocator(), start_time(0),
-             ts_cache(0), order(-1), turbo(false), r_orecs(64)
-  {
-      id = faiptr(&threadcount.val);
-      threads[id] = this;
-      allocator.setID(id);
-  }
-
   pad_word_t last_complete = {0};
 
   /**

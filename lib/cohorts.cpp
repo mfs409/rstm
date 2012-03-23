@@ -19,9 +19,9 @@
 #include <cassert>
 #include <setjmp.h> // factor this out into the API?
 #include "platform.hpp"
-#include "WriteSet.hpp"
 #include "WBMMPolicy.hpp" // todo: remove this, use something simpler
 #include "Macros.hpp"
+#include "tx.hpp"
 
 // define atomic operations
 #define CAS __sync_val_compare_and_swap
@@ -46,53 +46,6 @@ namespace stm
    *  RingSW ring index
    */
   pad_word_t timestamp = {0};
-
-  typedef MiniVector<orec_t*>      OrecList;     // vector of orecs
-
-  /**
-   *  Store per-thread metadata.  There isn't much for CGL...
-   */
-  struct TX
-  {
-      /*** for flat nesting ***/
-      int nesting_depth;
-
-      /*** unique id for this thread ***/
-      int id;
-
-      /*** number of RO commits ***/
-      int commits_ro;
-
-      /*** number of RW commits ***/
-      int commits_rw;
-
-      OrecList       r_orecs;       // read set for orec STMs
-
-      uintptr_t      ts_cache;      // last validation time
-      intptr_t       order;         // for stms that order txns eagerly
-
-      int aborts;
-
-      scope_t* volatile scope;      // used to roll back; also flag for isTxnl
-
-      WriteSet       writes;        // write set
-
-      WBMMPolicy allocator;
-
-      /*** constructor ***/
-      TX();
-  };
-
-  /**
-   *  Simple constructor for TX: zero all fields, get an ID
-   */
-  TX::TX() : nesting_depth(0), commits_ro(0), commits_rw(0), r_orecs(64), ts_cache(0), order(-1),
-             aborts(0), scope(NULL), writes(64), allocator()
-  {
-      id = faiptr(&threadcount.val);
-      threads[id] = this;
-      allocator.setID(id-1);
-  }
 
   /**
    *  No system initialization is required, since the timestamp is already 0

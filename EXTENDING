@@ -35,14 +35,8 @@ visible to benchmarks (see step 4).
 
 * Step 3: Update lib/Makefile
 
-To build your implementation as a libXXX.a file, you need to update the
-lib/Makefile.  There is a section labeled "Dependencies when building .a
-files", which lists all of the .o files that are needed to build a particular
-.a file.  You should add a line for your new implementation.  Note that the
-.a file names correspond directly to the names of the implementation files.
-Also note that common things, like WBMMPolicy, Orec stuff, or the write set
-code, are in makefile defines, so that you don't need to re-type too much
-nonsense.
+Unless you added additional cpp files that must be built, you should not need
+to update lib/Makefile.
 
 * Step 4: Update bench/Makefile
 
