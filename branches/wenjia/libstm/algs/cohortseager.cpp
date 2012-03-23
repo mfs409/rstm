@@ -40,6 +40,9 @@ using stm::cpending;
 using stm::committed;
 using stm::last_order;
 
+// use old implementation
+//#define OLD
+
 /**
  *  Declare the functions that we're going to implement, so that we can avoid
  *  circular dependencies.
@@ -118,10 +121,11 @@ namespace {
   CohortsEager::commit_turbo(TxThread* tx)
   {
       // increase # of tx waiting to commit, and use it as the order
-      cpending ++;
+      ADD(&cpending, 1);
 
       // clean up
       tx->r_orecs.reset();
+      tx->writes.reset();
       OnReadWriteCommit(tx, read_ro, write_ro, commit_ro);
 
       // wait for my turn, in this case, cpending is my order
@@ -134,8 +138,7 @@ namespace {
       last_complete.val = cpending;
 
       // increase # of committed
-      committed ++;
-      WBR;
+      ADD(&committed, 1);
   }
 
   /**
@@ -180,11 +183,11 @@ namespace {
       // committed ++;
       // WBR;
 
-      // update last_order
-      last_order = started + 1;
-
       // mark self as done
       last_complete.val = tx->order;
+
+      // update last_order
+      last_order = started + 1;
 
       // commit all frees, reset all lists
       tx->r_orecs.reset();
@@ -237,6 +240,7 @@ namespace {
   void
   CohortsEager::write_ro(STM_WRITE_SIG(tx,addr,val,mask))
   {
+#ifdef OLD
       // If everyone else is ready to commit, do in place write
       if (cpending + 1 == started) {
           // set up flag indicating in place write starts
@@ -259,6 +263,23 @@ namespace {
       }
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
       OnFirstWrite(tx, read_rw, write_rw, commit_rw);
+#else
+      if (cpending + 1 == started && bcas32(&inplace, 0 , 1)) {
+          // wait
+          while (cpending + 1 != started);
+          // mark orec
+          orec_t* o = get_orec(addr);
+          o->v.all = started;
+          // in place write
+          *addr = val;
+          // go turbo mode
+          OnFirstWrite(tx, read_turbo, write_turbo, commit_turbo);
+          return;
+      }
+      tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
+      OnFirstWrite(tx, read_rw, write_rw, commit_rw);
+
+#endif
   }
 
   /**
@@ -280,6 +301,23 @@ namespace {
   {
       // record the new value in a redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
+#ifndef OLD
+      if (cpending + 1 == started && bcas32(&inplace, 0 , 1)) {
+          // wait
+          while (cpending + 1 != started);
+          // write previous write set back
+          foreach (WriteSet, i, tx->writes) {
+              // get orec
+              orec_t* o = get_orec(i->addr);
+              // mark orec
+              o->v.all = started;
+              // do write back
+              *i->addr = i->val;
+          }
+          // go turbo mode
+          OnFirstWrite(tx, read_turbo, write_turbo, commit_turbo);
+      }
+#endif
   }
 
   /**

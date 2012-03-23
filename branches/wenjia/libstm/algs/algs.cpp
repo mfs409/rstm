@@ -76,6 +76,7 @@ namespace stm
   volatile uint32_t gatekeeper = 0;
   filter_t* global_filter = (filter_t*)FILTER_ALLOC(sizeof(filter_t));
   filter_t* temp_filter = (filter_t*)FILTER_ALLOC(sizeof(filter_t));
+  AddressList addrs = AddressList (64);
 
   /*** Store descriptions of the STM algorithms */
   alg_t stms[ALG_MAX];
