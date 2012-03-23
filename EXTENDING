@@ -49,20 +49,22 @@ nonsense.
 This is an annoying step.  We currently have two different library APIs: one
 for CGL, where the loads and stores are inlined, and one for everything else,
 where the loads and stores are not inlined.  Thus for a given benchmark, we
-must compile twice: once to build with CGL-style instrumentation, and once to
-compile with non-CGL instrumentation.  We also must link S times, where S is
-the number of different TM libraries in the ALGNAMES define (see step 2).
-
-In reality, what this means is that you must create an entire 3-line build
-rule to create the microbenchmark exes for your new algorithm.  This rule
-should go at the end of the Makefile.  You'll notice that in the bench/
-folder, we build each thing as a single .o, and then link it to the right TM
-library.  Thus you need only indicate whether the "lockapi" or "genericapi"
-is needed (lockapi is for CGL and any other TM that does not require
+must compile twice: once to build with lockapi instrumentation, and once to
+compile with genericapi instrumentation.  We also must link S times, where S
+is the number of different TM libraries in the ALGNAMES define (see step 2).
+(Remember: lockapi is for CGL and any other TM that does not require
 instrumentation on loads/stores; genericapi is for everything else).
+
+In reality, what this means is that one api is favored, and the other isn't.
+If your TM uses the lockapi, you need to add a 3-line build rule to create
+the microbenchmark exes for your new algorithm.  This rule should follow the
+cgl build (search for "lockapi builds are likely to be less common").
+
+If you are building to the genericapi, then you don't need to edit the
+bench/Makefile at all.
 
 * Step 5: Update stamp-xxx/Makefile
 
 The same annoying and brittle mechanism is needed in the STAMP Makefile,
 where a 3-line target and build rule is needed to indicate how to link a
-STAMP benchmark to your library .a file.
+STAMP benchmark to your library .a file if your library uses lockapi.
