@@ -19,55 +19,14 @@
  *        probably add ro/rw functions
  */
 
-#include <stdint.h>
 #include <iostream>
 #include <cassert>
 #include <setjmp.h> // factor this out into the API?
+#include "tx.hpp"
 #include "platform.hpp"
-#include "WBMMPolicy.hpp"
 
 namespace stm
 {
-  /**
-   *  Store per-thread metadata.  There isn't much for CGL...
-   */
-  struct TX
-  {
-      /*** for flat nesting ***/
-      int nesting_depth;
-
-      bool tmlHasLock;    // is tml thread holding the lock
-
-      /*** unique id for this thread ***/
-      int id;
-
-      /*** number of RO commits ***/
-      int commits_ro;
-
-      /*** number of RW commits ***/
-      int commits_rw;
-
-      int aborts;
-
-      scope_t* volatile scope;      // used to roll back; also flag for isTxnl
-
-      WBMMPolicy     allocator;     // buffer malloc/free
-      uintptr_t      start_time;    // start time of transaction
-
-      /*** constructor ***/
-      TX();
-  };
-
-  /**
-   *  Simple constructor for TX: zero all fields, get an ID
-   */
-  TX::TX() : nesting_depth(0), tmlHasLock(false), commits_ro(0), commits_rw(0), aborts(0),
-             scope(NULL), allocator(), start_time(0)
-  {
-      id = faiptr(&threadcount.val);
-      threads[id] = this;
-      allocator.setID(id);
-  }
 
   /*** The only metadata we need is a single global padded lock ***/
   pad_word_t timestamp = {0};
@@ -167,7 +126,7 @@ namespace stm
       if (!bcasptr(&timestamp.val, tx->start_time, tx->start_time + 1))
           tm_abort(tx);
       ++tx->start_time;
-      tx->tmlHasLock = true;
+      tx->turbo = true;
   }
 
   /**
@@ -203,9 +162,9 @@ namespace stm
           return;
 
       // writing context: release lock, free memory, remember commit
-      if (tx->tmlHasLock) {
+      if (tx->turbo) {
           ++timestamp.val;
-          tx->tmlHasLock = false;
+          tx->turbo = false;
           tx->allocator.onTxCommit();
           ++tx->commits_rw;
       }
@@ -223,7 +182,7 @@ namespace stm
   {
       TX* tx = Self;
       void* val = *addr;
-      if (tx->tmlHasLock)
+      if (tx->turbo)
           return val;
       // NB:  afterread_tml includes a CFENCE
       afterread_TML(tx);
@@ -236,7 +195,7 @@ namespace stm
   void tm_write(void** addr, void* val)
   {
       TX* tx = Self;
-      if (tx->tmlHasLock) {
+      if (tx->turbo) {
           *addr = val;
           return;
       }

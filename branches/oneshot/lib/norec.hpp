@@ -26,61 +26,14 @@
 #include "WriteSet.hpp"
 #include "WBMMPolicy.hpp"
 #include "Macros.hpp"
+#include "tx.hpp"
 
 namespace stm
 {
-  /**
-   *  Store per-thread metadata.  There isn't much for CGL...
-   */
-  struct TX
-  {
-      /*** for flat nesting ***/
-      int nesting_depth;
-
-      /*** unique id for this thread ***/
-      int id;
-
-      /*** number of RO commits ***/
-      int commits_ro;
-
-      /*** number of RW commits ***/
-      int commits_rw;
-
-      int aborts;
-
-      scope_t* volatile scope;      // used to roll back; also flag for isTxnl
-
-      WriteSet       writes;        // write set
-      ValueList      vlist;         // NOrec read log
-      WBMMPolicy     allocator;     // buffer malloc/free
-      uintptr_t      start_time;    // start time of transaction
-
-      /*** CM STUFF ***/
-      uint32_t       consec_aborts; // count consec aborts
-      uint32_t       seed;          // for randomized backoff
-      volatile uint32_t alive;      // for STMs that allow remote abort
-      bool           strong_HG;     // for strong hourglass
-
-      /*** constructor ***/
-      TX();
-  };
 
   // for CM
   pad_word_t fcm_timestamp = {0};
   pad_word_t epochs[MAX_THREADS] = {{0}};
-
-  /**
-   *  Simple constructor for TX: zero all fields, get an ID
-   */
-  TX::TX() : nesting_depth(0), commits_ro(0), commits_rw(0), aborts(0),
-             scope(NULL), writes(64), vlist(64), allocator(), start_time(0),
-             consec_aborts(0), seed((unsigned long)&id), alive(1),
-             strong_HG(false)
-  {
-      id = faiptr(&threadcount.val);
-      threads[id] = this;
-      allocator.setID(id);
-  }
 
   /*** The only metadata we need is a single global padded lock ***/
   pad_word_t timestamp = {0};

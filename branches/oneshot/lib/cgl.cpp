@@ -11,6 +11,7 @@
 #include <stdint.h>
 #include <iostream>
 #include <cstdlib>
+#include "tx.hpp"
 #include "platform.hpp"
 #include "locks.hpp"
 #include "metadata.hpp"
@@ -18,31 +19,8 @@
 namespace stm
 {
   /**
-   *  Store per-thread metadata.  There isn't much for CGL...
+   * The only metadata we need is a single global padded lock
    */
-  struct TX
-  {
-      /*** for flat nesting ***/
-      int nesting_depth;
-
-      /*** unique id for this thread ***/
-      int id;
-
-      /*** number of commits ***/
-      int commits;
-
-      /**
-       *  Simple constructor for TX: zero all fields, get an ID
-       */
-      TX()
-          : nesting_depth(0), commits(0)
-      {
-          id = faiptr(&threadcount.val);
-          threads[id] = this;
-      }
-  };
-
-  /*** The only metadata we need is a single global padded lock ***/
   pad_word_t timestamp = {0};
 
   /**
@@ -60,7 +38,7 @@ namespace stm
       while (!bcas32(&mtx, 0u, 1u)) { }
       for (uint32_t i = 0; i < threadcount.val; i++) {
           std::cout << "Thread: "    << threads[i]->id
-                    << "; Commits: " << threads[i]->commits
+                    << "; Commits: " << threads[i]->commits_rw
                     << std::endl;
       }
       CFENCE;
@@ -94,7 +72,7 @@ namespace stm
       if (--tx->nesting_depth)
           return;
       tatas_release(&timestamp.val);
-      ++tx->commits;
+      ++tx->commits_rw;
   }
 
   /**

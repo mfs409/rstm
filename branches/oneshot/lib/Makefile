@@ -3,16 +3,17 @@
 #  University of Rochester Department of Computer Science
 #    and
 #  Lehigh University Department of Computer Science and Engineering
-# 
+#
 # License: Modified BSD
 #          Please see the file LICENSE.RSTM for licensing information
 
 #
 # Pull in the 'info' target, which is the default if a platform isn't
-# specified
+# specified, and the names of the TM algorithms
 #
 MKFOLDER = ../build
 include $(MKFOLDER)/info.mk
+include $(MKFOLDER)/algs.mk
 
 #
 # Updates to flags: we want support for dependencies
@@ -25,25 +26,16 @@ CXXFLAGS += -MMD
 ODIR ?= obj.$(PLATFORM)
 
 #
-# The names of the STM algorithms are in a separate file, so that other
-# Makefiles can include them
-#
-include $(MKFOLDER)/algs.mk
-
-#
 # Names of the supporting files that we need to build
 #
-COMMONNAMES = WBMMPolicy Common
-ORECNAMES   = CommonOrec
-LAZYNAMES   = CommonLazy
+COMMONNAMES = WBMMPolicy Common CommonLazy CommonOrec
 
 #
 # Transform all source names to .o files in the output directory
 #
 ALGOFILES    = $(patsubst %, $(ODIR)/%.o, $(ALGNAMES))
 COMMONOFILES = $(patsubst %, $(ODIR)/%.o, $(COMMONNAMES))
-ORECOFILES   = $(patsubst %, $(ODIR)/%.o, $(ORECNAMES))
-LAZYOFILES   = $(patsubst %, $(ODIR)/%.o, $(LAZYNAMES))
+.PRECIOUS: $(ALGOFILES) $(COMMONOFILES)
 
 #
 # The algorithm names indicate the names of the libXYZ.a files to build
@@ -53,39 +45,8 @@ LIBS = $(patsubst %, $(ODIR)/lib%.a, $(ALGNAMES))
 #
 # Dependencies when building .o files
 #
-DEPS = $(patsubst %, $(ODIR)/%.d, $(ALGNAMES) $(COMMONNAMES) $(ORECNAMES)    \
-       $(LAZYNAMES))
+DEPS = $(patsubst %, $(ODIR)/%.d, $(ALGNAMES) $(COMMONNAMES))
 -include $(DEPS)
-
-#
-# Dependencies when building .a files
-#
-$(ODIR)/libcgl.a:             $(ODIR)/cgl.o $(COMMONOFILES)
-$(ODIR)/libnorec.a:           $(ODIR)/norec.o $(COMMONOFILES) $(LAZYOFILES)
-$(ODIR)/libnorechb.a:         $(ODIR)/norechb.o $(COMMONOFILES) $(LAZYOFILES)
-$(ODIR)/libnorecbackoff.a:    $(ODIR)/norecbackoff.o $(COMMONOFILES) $(LAZYOFILES)
-$(ODIR)/libnorechour.a:       $(ODIR)/norechour.o $(COMMONOFILES) $(LAZYOFILES)
-$(ODIR)/libtml.a:             $(ODIR)/tml.o $(COMMONOFILES)
-$(ODIR)/libcohortseager.a:    $(ODIR)/cohortseager.o $(COMMONOFILES) $(LAZYOFILES) $(ORECOFILES)
-$(ODIR)/libcohorts.a:         $(ODIR)/cohorts.o $(COMMONOFILES) $(LAZYOFILES) $(ORECOFILES)
-$(ODIR)/libctokenturbo.a:     $(ODIR)/ctokenturbo.o $(COMMONOFILES) $(LAZYOFILES) $(ORECOFILES)
-$(ODIR)/libctoken.a:          $(ODIR)/ctoken.o $(COMMONOFILES) $(LAZYOFILES) $(ORECOFILES)
-$(ODIR)/libllt.a:             $(ODIR)/llt.o $(COMMONOFILES) $(LAZYOFILES) $(ORECOFILES)
-$(ODIR)/liboreceager.a:       $(ODIR)/oreceager.o $(COMMONOFILES) $(ORECOFILES)
-$(ODIR)/liboreceagerredo.a:   $(ODIR)/oreceagerredo.o $(COMMONOFILES) $(LAZYOFILES) $(ORECOFILES)
-$(ODIR)/liboreclazy.a:        $(ODIR)/oreclazy.o $(COMMONOFILES) $(LAZYOFILES) $(ORECOFILES)
-$(ODIR)/liborecela.a:         $(ODIR)/orecela.o $(COMMONOFILES) $(LAZYOFILES) $(ORECOFILES)
-$(ODIR)/liborecala.a:         $(ODIR)/orecala.o $(COMMONOFILES) $(LAZYOFILES) $(ORECOFILES)
-$(ODIR)/liboreclazybackoff.a: $(ODIR)/orecala.o $(COMMONOFILES) $(LAZYOFILES) $(ORECOFILES)
-$(ODIR)/liboreclazyhb.a:      $(ODIR)/orecala.o $(COMMONOFILES) $(LAZYOFILES) $(ORECOFILES)
-$(ODIR)/liboreclazyhour.a:    $(ODIR)/orecala.o $(COMMONOFILES) $(LAZYOFILES) $(ORECOFILES)
-
-#
-# For convenience, here are all of the .o files.  Since this is a research
-# project, it's nice to keep them around when building/rebuilding
-#
-LIBOFILES = $(ALGOFILES) $(COMMONOFILES) $(ORECOFILES) $(LAZYOFILES)
-.PRECIOUS: $(LIBOFILES)
 
 #
 # simply typing 'make' dumps a message, rather than trying to guess a default
@@ -125,8 +86,9 @@ $(ODIR)/%.o: %.cpp
 	@$(CXX) $(CXXFLAGS) -c -o $@ $<
 
 #
-# Rule for making libXYZ.a files
+# Rule for building .a files.  Since we use the same TX definition in all
+# TMs, we have the same commonfiles, and this is very simple
 #
-$(ODIR)/%.a:
-	@echo [AR] $@ 
+$(ODIR)/lib%.a: $(ODIR)/%.o $(COMMONOFILES)
+	@echo [AR] $@
 	@$(AR) cru $@ $^

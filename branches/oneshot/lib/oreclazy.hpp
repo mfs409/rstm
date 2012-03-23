@@ -26,70 +26,13 @@
 #include "WBMMPolicy.hpp"
 #include "Macros.hpp"
 #include "locks.hpp"
+#include "tx.hpp"
 
 namespace stm
 {
-  typedef MiniVector<orec_t*>      OrecList;     // vector of orecs
-
-  /**
-   *  Store per-thread metadata.  There isn't much for CGL...
-   */
-  struct TX
-  {
-      /*** for flat nesting ***/
-      int nesting_depth;
-
-      /*** unique id for this thread ***/
-      int id;
-
-      /*** number of RO commits ***/
-      int commits_ro;
-
-      /*** number of RW commits ***/
-      int commits_rw;
-
-      id_version_t   my_lock;       // lock word for orec STMs
-
-      int aborts;
-
-      scope_t* volatile scope;      // used to roll back; also flag for isTxnl
-
-      WriteSet       writes;        // write set
-      WBMMPolicy     allocator;     // buffer malloc/free
-      uintptr_t      start_time;    // start time of transaction
-      OrecList       r_orecs;       // read set for orec STMs
-      OrecList       locks;         // list of all locks held by tx
-
-      /*** CM STUFF ***/
-      uint32_t       consec_aborts; // count consec aborts
-      uint32_t       seed;          // for randomized backoff
-      volatile uint32_t alive;      // for STMs that allow remote abort
-      bool           strong_HG;     // for strong hourglass
-
-      /*** constructor ***/
-      TX();
-  };
-
   // for CM
   pad_word_t fcm_timestamp = {0};
   pad_word_t epochs[MAX_THREADS] = {{0}};
-
-  /**
-   *  Simple constructor for TX: zero all fields, get an ID
-   */
-  TX::TX() : nesting_depth(0), commits_ro(0), commits_rw(0), r_orecs(64), locks(64),
-             aborts(0), scope(NULL), writes(64), allocator(),
-             consec_aborts(0), seed((unsigned long)&id), alive(1),
-             strong_HG(false)
-
-  {
-      id = faiptr(&threadcount.val);
-      threads[id] = this;
-      allocator.setID(id);
-      // set up my lock word
-      my_lock.fields.lock = 1;
-      my_lock.fields.id = id;
-  }
 
   /**
    *  No system initialization is required, since the timestamp is already 0
@@ -150,12 +93,12 @@ namespace stm
           (*i)->v.all = (*i)->p;
 
       // undo memory operations, reset lists
+      CM::onAbort(tx);
       tx->r_orecs.reset();
       tx->writes.reset();
       tx->locks.reset();
       tx->allocator.onTxAbort();
       tx->nesting_depth = 0;
-      CM::onAbort(tx);
       scope_t* scope = tx->scope;
       tx->scope = NULL;
       return scope;

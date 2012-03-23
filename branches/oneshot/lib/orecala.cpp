@@ -26,60 +26,10 @@
 #include "WBMMPolicy.hpp"
 #include "Macros.hpp"
 #include "locks.hpp"
+#include "tx.hpp"
 
 namespace stm
 {
-  typedef MiniVector<orec_t*>      OrecList;     // vector of orecs
-
-  /**
-   *  Store per-thread metadata.  There isn't much for CGL...
-   */
-  struct TX
-  {
-      /*** for flat nesting ***/
-      int nesting_depth;
-
-      /*** unique id for this thread ***/
-      int id;
-
-      /*** number of RO commits ***/
-      int commits_ro;
-
-      /*** number of RW commits ***/
-      int commits_rw;
-
-      id_version_t   my_lock;       // lock word for orec STMs
-
-      int aborts;
-
-      scope_t* volatile scope;      // used to roll back; also flag for isTxnl
-
-      WriteSet       writes;        // write set
-      WBMMPolicy     allocator;     // buffer malloc/free
-      OrecList       r_orecs;       // read set for orec STMs
-      OrecList       locks;         // list of all locks held by tx
-
-      uintptr_t      start_time;    // start time of transaction
-      uintptr_t      end_time;
-      uintptr_t      ts_cache;
-
-      /*** constructor ***/
-      TX();
-  };
-
-  /**
-   *  Simple constructor for TX: zero all fields, get an ID
-   */
-  TX::TX() : nesting_depth(0), commits_ro(0), commits_rw(0), r_orecs(64), locks(64),
-             aborts(0), scope(NULL), writes(64), allocator()
-  {
-      id = faiptr(&threadcount.val);
-      threads[id] = this;
-      allocator.setID(id);
-      // set up my lock word
-      my_lock.fields.lock = 1;
-      my_lock.fields.id = id;
-  }
 
   /**
    *  No system initialization is required, since the timestamp is already 0
