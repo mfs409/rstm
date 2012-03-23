@@ -163,6 +163,10 @@ prevalidate(int sig, siginfo_t* info, void* ctx, libc_sigaction_t cont)
             fprintf(stderr, "libstm: saw a signal we didn't expect %i", sig);
         }
     }
+    // SIGUSR2 is always for me!
+    if (sig == SIGUSR2)
+        return;
+
     // should be a tail call
     cont(sig, info, ctx);
 }

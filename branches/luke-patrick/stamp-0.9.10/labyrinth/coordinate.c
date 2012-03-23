@@ -166,6 +166,12 @@ coordinate_comparePair (const void* aPtr, const void* bPtr)
     return 0;
 }
 
+static long __attribute__((used))
+rstm_waiver_coordinate_comparePair (const void* aPtr, const void* bPtr) {
+    return coordinate_comparePair(aPtr, bPtr);
+}
+
+
 
 /* =============================================================================
  * coordinate_areAdjacent

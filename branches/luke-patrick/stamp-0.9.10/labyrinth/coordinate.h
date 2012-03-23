@@ -116,7 +116,7 @@ coordinate_isEqual (coordinate_t* aPtr, coordinate_t* bPtr);
  * -- For sorting in list of source/destination pairs
  * =============================================================================
  */
-long
+long __attribute__((tm_wrapper("rstm_waiver_coordinate_comparePair")))
 coordinate_comparePair (const void* aPtr, const void* bPtr);
 
 

@@ -130,7 +130,7 @@ Pgrid_free (grid_t* gridPtr);
  * grid_copy
  * =============================================================================
  */
-void
+void __attribute__((tm_wrapper("rstm_waiver_grid_copy")))
 grid_copy (grid_t* dstGridPtr, grid_t* srcGridPtr);
 
 
@@ -204,7 +204,7 @@ grid_addPath (grid_t* gridPtr, vector_t* pointVectorPtr);
  * =============================================================================
  */
 TM_CALLABLE
-void
+void __attribute__((noinline))
 TMgrid_addPath (TM_ARGDECL  grid_t* gridPtr, vector_t* pointVectorPtr);
 
 

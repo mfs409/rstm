@@ -166,7 +166,7 @@ PexpandToNeighbor (grid_t* myGridPtr,
  * PdoExpansion
  * =============================================================================
  */
-static bool_t
+static bool_t __attribute__((tm_wrapper("rstm_waiver_PdoExpansion")))
 PdoExpansion (router_t* routerPtr, grid_t* myGridPtr, queue_t* queuePtr,
               coordinate_t* srcPtr, coordinate_t* dstPtr)
 {
@@ -227,6 +227,14 @@ PdoExpansion (router_t* routerPtr, grid_t* myGridPtr, queue_t* queuePtr,
   return isPathFound;
 }
 
+extern "C" {
+static bool_t __attribute__((used))
+rstm_waiver_PdoExpansion (router_t* routerPtr, grid_t* myGridPtr,
+                          queue_t* queuePtr,
+                          coordinate_t* srcPtr, coordinate_t* dstPtr) {
+    return PdoExpansion (routerPtr, myGridPtr, queuePtr, srcPtr, dstPtr);
+}
+}
 
 /* =============================================================================
  * traceToNeighbor
@@ -268,7 +276,7 @@ traceToNeighbor (grid_t* myGridPtr,
  * PdoTraceback
  * =============================================================================
  */
-static vector_t*
+static vector_t* __attribute__((tm_wrapper("rstm_waiver_PdoTraceback")))
 PdoTraceback (grid_t* gridPtr, grid_t* myGridPtr,
               coordinate_t* dstPtr, long bendCost)
 {
@@ -345,6 +353,13 @@ PdoTraceback (grid_t* gridPtr, grid_t* myGridPtr,
   return pointVectorPtr;
 }
 
+extern "C" {
+static vector_t* __attribute__((used))
+rstm_waiver_PdoTraceback (grid_t* gridPtr, grid_t* myGridPtr,
+              coordinate_t* dstPtr, long bendCost) {
+    return PdoTraceback (gridPtr, myGridPtr, dstPtr, bendCost);
+}
+}
 
 /* =============================================================================
  * router_solve

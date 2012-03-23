@@ -168,6 +168,11 @@ Pgrid_free (grid_t* gridPtr)
  * grid_copy
  * =============================================================================
  */
+static void __attribute__((used))
+rstm_waiver_grid_copy (grid_t* dstGridPtr, grid_t* srcGridPtr) {
+    grid_copy (dstGridPtr, srcGridPtr);
+}
+
 void
 grid_copy (grid_t* dstGridPtr, grid_t* srcGridPtr)
 {

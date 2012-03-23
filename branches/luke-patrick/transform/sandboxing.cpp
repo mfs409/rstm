@@ -144,10 +144,10 @@ namespace {
       SmallPtrSet<Function*, 2> begins;
       SmallPtrSet<Function*, 2> ends;
 
-      SmallPtrSet<Function*, 16> reads;
-      SmallPtrSet<Function*, 16> writes;
+      SmallPtrSet<Function*, 64> reads;
+      SmallPtrSet<Function*, 64> writes;
 
-      SmallPtrSet<Function*, 8> all;
+      SmallPtrSet<Function*, 128> all;
   };
 
   // --------------------------------------------------------------------------
@@ -163,27 +163,159 @@ namespace {
   };
 
   static const char* end_transaction_markers[] = {
-      "_ITM_commitTransaction"
+      "_ITM_commitTransaction",
+      "_ITM_commitTransactionToId"
   };
 
   static const char* other_abi_markers[] = {
+      "tanger_stm_constructor",
+      "tanger_stm_destructor",
+      "tanger_stm_get_tx",
+      "tanger_stm_indirect_nb_targets_max_multi",
+      "tanger_stm_indirect_nb_targets_multi",
+      "tanger_stm_indirect_nb_versions.b",
       "tanger_stm_indirect_resolve_multiple",
+      "tanger_stm_indirect_target_pairs_multi",
+      "tanger_stm_save_restore_stack",
+      "tanger_stm_std_memmove",
+      "tanger_stm_std_memset",
+      "tanger_stm_std_qsort",
+      "_ITM_abortTransaction",
+      "_ITM_beginTransaction",
+      "_ITM_calloc",
+      "_ITM_changeTransactionMode",
+      "_ITM_commitTransaction",
+      "_ITM_finalizeProcess",
+      "_ITM_finalizeThread",
+      "_ITM_free",
+      "_ITM_getTransaction",
+      "_ITM_getTransactionId",
+      "_ITM_initializeProcess",
+      "_ITM_initializeThread",
       "_ITM_malloc",
-      "_ITM_free"
+      "_ITM_memcpyRnWt",
+      "_ITM_memcpyRnWtaR",
+      "_ITM_memcpyRnWtaW",
+      "_ITM_memcpyRtWn",
+      "_ITM_memcpyRtWt",
+      "_ITM_memcpyRtWtaR",
+      "_ITM_memcpyRtWtaW",
+      "_ITM_memcpyRtaRWn",
+      "_ITM_memcpyRtaRWt",
+      "_ITM_memcpyRtaRWtaR",
+      "_ITM_memcpyRtaRWtaW",
+      "_ITM_memcpyRtaWWn",
+      "_ITM_memcpyRtaWWt",
+      "_ITM_memcpyRtaWWtaR",
+      "_ITM_memcpyRtaWWtaW",
+      "_ITM_memmoveRnWt",
+      "_ITM_memmoveRnWtaR",
+      "_ITM_memmoveRnWtaW",
+      "_ITM_memmoveRtWn",
+      "_ITM_memmoveRtWt",
+      "_ITM_memmoveRtWtaR",
+      "_ITM_memmoveRtWtaW",
+      "_ITM_memmoveRtaRWn",
+      "_ITM_memmoveRtaRWt",
+      "_ITM_memmoveRtaRWtaR",
+      "_ITM_memmoveRtaRWtaW",
+      "_ITM_memmoveRtaWWn",
+      "_ITM_memmoveRtaWWt",
+      "_ITM_memmoveRtaWWtaR",
+      "_ITM_memmoveRtaWWtaW",
+      "_ITM_memsetW",
+      "_ITM_memsetWaR",
+      "_ITM_memsetWaW"
   };
 
   static const char* read_barriers[] = {
+      "_ITM_RCD",
+      "_ITM_RCE",
+      "_ITM_RCF",
+      "_ITM_RD",
+      "_ITM_RE",
+      "_ITM_RF",
+      "_ITM_RM128",
+      "_ITM_RM64",
       "_ITM_RU1",
       "_ITM_RU2",
       "_ITM_RU4",
-      "_ITM_RU8"
+      "_ITM_RU8",
+      "_ITM_RaRCD",
+      "_ITM_RaRCE",
+      "_ITM_RaRCF",
+      "_ITM_RaRD",
+      "_ITM_RaRE",
+      "_ITM_RaRF",
+      "_ITM_RaRM128",
+      "_ITM_RaRM64",
+      "_ITM_RaRU1",
+      "_ITM_RaRU2",
+      "_ITM_RaRU4",
+      "_ITM_RaRU8",
+      "_ITM_RaWCD",
+      "_ITM_RaWCE",
+      "_ITM_RaWCF",
+      "_ITM_RaWD",
+      "_ITM_RaWE",
+      "_ITM_RaWF",
+      "_ITM_RaWM128",
+      "_ITM_RaWM64",
+      "_ITM_RaWU1",
+      "_ITM_RaWU2",
+      "_ITM_RaWU4",
+      "_ITM_RaWU8",
+      "_ITM_RfWCD",
+      "_ITM_RfWCE",
+      "_ITM_RfWCF",
+      "_ITM_RfWD",
+      "_ITM_RfWE",
+      "_ITM_RfWF",
+      "_ITM_RfWM128",
+      "_ITM_RfWM64",
+      "_ITM_RfWU1",
+      "_ITM_RfWU2",
+      "_ITM_RfWU4",
+      "_ITM_RfWU8"
   };
 
   static const char* write_barriers[] = {
+      "_ITM_WCD",
+      "_ITM_WCE",
+      "_ITM_WCF",
+      "_ITM_WD",
+      "_ITM_WE",
+      "_ITM_WF",
+      "_ITM_WM128",
+      "_ITM_WM64",
       "_ITM_WU1",
       "_ITM_WU2",
       "_ITM_WU4",
-      "_ITM_WU8"
+      "_ITM_WU8",
+      "_ITM_WaRCD",
+      "_ITM_WaRCE",
+      "_ITM_WaRCF",
+      "_ITM_WaRD",
+      "_ITM_WaRE",
+      "_ITM_WaRF",
+      "_ITM_WaRM128",
+      "_ITM_WaRM64",
+      "_ITM_WaRU1",
+      "_ITM_WaRU2",
+      "_ITM_WaRU4",
+      "_ITM_WaRU8",
+      "_ITM_WaWCD",
+      "_ITM_WaWCE",
+      "_ITM_WaWCF",
+      "_ITM_WaWD",
+      "_ITM_WaWE",
+      "_ITM_WaWF",
+      "_ITM_WaWM128",
+      "_ITM_WaWM64",
+      "_ITM_WaWU1",
+      "_ITM_WaWU2",
+      "_ITM_WaWU4",
+      "_ITM_WaWU8"
   };
 
   static const char* known_dangerous[] = {
@@ -571,7 +703,7 @@ TangerRecognizer::init(Module& m) {
     }
 
     // Find the read barriers that are used in the module.
-    for (int i = 0, e = array_lengthof(write_barriers); i < e; ++i) {
+    for (int i = 0, e = array_lengthof(read_barriers); i < e; ++i) {
         if (Function* read = m.getFunction(read_barriers[i])) {
             reads.insert(read);
             all.insert(read);
@@ -579,7 +711,7 @@ TangerRecognizer::init(Module& m) {
     }
 
     // Find the write barriers that are used in the module.
-    for (int i = 0, e = array_lengthof(read_barriers); i < e; ++i) {
+    for (int i = 0, e = array_lengthof(write_barriers); i < e; ++i) {
         if (Function* write = m.getFunction(write_barriers[i])) {
             writes.insert(write);
             all.insert(write);

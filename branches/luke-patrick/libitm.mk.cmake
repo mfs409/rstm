@@ -9,8 +9,13 @@ ifdef DEBUG
 CFLAGS.o   = -O0 -g
 CXXFLAGS.o = -O0 -g
 else
-CFLAGS.o   = -O3 -flto -DNDEBUG
-CXXFLAGS.o = -O3 -flto -DNDEBUG
+CFLAGS.o   = -O3
+CXXFLAGS.o = -O3
+endif
+
+ifdef PROF
+CFLAGS.o   = -pg
+CXXFLAGS.o = -pg
 endif
 
 OBJECTS := libstm/txthread.o \

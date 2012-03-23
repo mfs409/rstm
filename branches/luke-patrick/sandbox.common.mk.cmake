@@ -45,9 +45,9 @@ CXXFLAGS.o    = -O0 -g
 LDFLAGS.o     = -O0
 else
 CFLAGS.bc     = -O3 
-CFLAGS.o      = -O3 -DNDEBUG
+CFLAGS.o      = -O3
 CXXFLAGS.bc   = -O3 
-CXXFLAGS.o    = -O3 -DNDEBUG
+CXXFLAGS.o    = -O3
 LDFLAGS.o     = -O3
 endif
 
@@ -56,6 +56,14 @@ LDFLAGS.o    += -L$(STMLIB)
 LDLIBS        = -litm
 else
 LDLIBS        = $(STMLIB)/libtanger-stm.bc $(STMLIB)/libtanger-stm.a
+endif
+
+ifdef PROF
+CFLAGS.bc     += -pg
+CFLAGS.o      += -pg
+CXXFLAGS.bc   += -pg
+CXXFLAGS.o    += -pg
+LDFLAGS.o     += -pg
 endif
 
 LDFLAGS.o    += -pthread
