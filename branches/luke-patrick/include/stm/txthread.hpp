@@ -101,6 +101,7 @@ namespace stm
       uintptr_t     validations;         // counts sandbox validations
       size_t        lazy_hashing_cursor; // used in norecsandbox
       bool          sandboxing;          // true iff the algorithm needs it
+      uintptr_t     full_validations;    // counts the number of full
 
       /*** POINTERS TO INSTRUMENTATION */
 

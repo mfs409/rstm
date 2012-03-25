@@ -56,8 +56,13 @@ namespace {
       static scope_t* rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
       static void onSwitchTo();
-      static NOINLINE bool validate(TxThread*);
+      static bool validate(TxThread*);
   };
+}
+
+static bool
+check_tainted(TxThread& tx) {
+    return (tx.lazy_hashing_cursor != tx.r_orecs.m_size);
 }
 
 // This is super hacky and the moment. It violates all sorts of encapsulation
@@ -86,11 +91,19 @@ do_lazy_hashes(TxThread& tx) {
 bool
 OrecSandbox::validate(TxThread* tx)
 {
-    stm::sandbox::InLib raii;
+    ++tx->validations;
+
+    // Check tainted first, since it's purely local.
+    if (!check_tainted(*tx))
+        return true;
 
     // skip validation entirely if no one has committed
     if (tx->start_time == timestamp.val)
         return true;
+
+    // We're ok for re-entrancy up to here, as long as we check the result from
+    // do_lazy_hashes.
+    stm::sandbox::InLib raii;
 
     // We're using lazy read log hashing. We need to go through and clean up
     // all of the addresses that we've logged-but-not-hashed. If we haven't
@@ -99,6 +112,8 @@ OrecSandbox::validate(TxThread* tx)
     // consistent now (as if we were opaque).
     if (!do_lazy_hashes(*tx))
         return true;
+
+    ++tx->full_validations;
 
     // We have read something since we were valid, and someone committed. Do a
     // full validation loop and scale start_time if we succeed. This is sort of

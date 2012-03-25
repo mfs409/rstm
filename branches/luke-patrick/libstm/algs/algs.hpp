@@ -39,7 +39,7 @@ namespace stm
       OrecELA, TMLLazy, NOrecPrio, OrecFair, CToken, CTokenTurbo, Pipeline,
       BitLazy, LLT, TLI, ByteEager, MCS, Serial, BitEager, ByteLazy,
       ByEAR, OrecEagerRedo, ByteEagerRedo, BitEagerRedo,
-      RingALA, Nano, Swiss,
+      RingALA, Nano, NanoSandbox, Swiss,
 
       ByEAUBackoff, ByEAUFCM, ByEAUNoBackoff, ByEAUHour,
       OrEAUBackoff, OrEAUFCM, OrEAUNoBackoff, OrEAUHour,

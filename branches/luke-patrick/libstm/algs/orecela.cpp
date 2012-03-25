@@ -167,6 +167,8 @@ namespace {
   void*
   OrecELA::read_ro(STM_READ_SIG(tx,addr,))
   {
+      ++tx->validations;
+
       // get the orec addr, read the orec's version#
       orec_t* o = get_orec(addr);
       while (true) {
@@ -195,6 +197,8 @@ namespace {
               spin64();
               continue;
           }
+
+          ++tx->full_validations;
 
           // unlocked but too new... validate and scale forward
           uintptr_t newts = timestamp.val;
@@ -310,6 +314,8 @@ namespace {
   void
   OrecELA::privtest(TxThread* tx, uintptr_t ts)
   {
+      ++tx->full_validations;
+
       // optimized validation since we don't hold any locks
       foreach (OrecList, i, tx->r_orecs) {
           // if orec locked or newer than start time, abort

@@ -90,6 +90,7 @@ namespace stm
         validations(0),
         lazy_hashing_cursor(0),
         sandboxing(false),
+        full_validations(0),
         tmcommit(NULL),
         tmread(NULL),
         tmwrite(NULL)
@@ -232,23 +233,28 @@ namespace stm
       uint32_t txn_count    = 0;                // total txns
       uint32_t rw_txns      = 0;                // rw commits
       uint32_t ro_txns      = 0;                // ro commits
+      uintptr_t validations  = 0;
+      uintptr_t full_validations = 0;
       for (uint32_t i = 0; i < threadcount.val; i++) {
           std::cout << "Thread: "       << threads[i]->id
                     << "; RW Commits: " << threads[i]->num_commits
                     << "; RO Commits: " << threads[i]->num_ro
                     << "; Aborts: "     << threads[i]->num_aborts
                     << "; Restarts: "   << threads[i]->num_restarts
-                    << "; Validations: " << threads[i]->validations
                     << std::endl;
           threads[i]->abort_hist.dump();
           rw_txns += threads[i]->num_commits;
           ro_txns += threads[i]->num_ro;
           nontxn_count += threads[i]->total_nontxn_time;
+          validations += threads[i]->validations;
+          full_validations += threads[i]->full_validations;
       }
       txn_count = rw_txns + ro_txns;
       pct_ro = (!txn_count) ? 0 : (100 * ro_txns) / txn_count;
 
-      std::cout << "Total nontxn work:\t" << nontxn_count << std::endl;
+      std::cout << "Total nontxn work:\t" << nontxn_count << "\n";
+      std::cout << "Total validation barriers:\t" << validations << "\n";
+      std::cout << "Total full validations:\t" << full_validations << "\n";
 
       // if we ever switched to ProfileApp, then we should print out the
       // ProfileApp custom output.

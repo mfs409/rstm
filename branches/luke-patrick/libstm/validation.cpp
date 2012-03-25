@@ -10,10 +10,18 @@
 
 #include "stm/lib_globals.hpp"
 #include "stm/txthread.hpp"
+#include "algs/algs.hpp"
+#include "policies/policies.hpp"
+
+using stm::Self;
+using stm::stms;
+using stm::curr_policy;
 
 void
 stm_validation_full() {
-    ++stm::Self->validations;
-    if (!stm::Self->tmvalidate(stm::Self))
-        stm::Self->tmabort(stm::Self);
+    if (!stms[curr_policy.ALG_ID].sandbox_signals)
+        return;
+
+    if (!Self->tmvalidate(Self))
+        Self->tmabort(Self);
 }

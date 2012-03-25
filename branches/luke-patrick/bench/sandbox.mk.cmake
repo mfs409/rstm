@@ -13,10 +13,8 @@ TreeBench: TreeBench.bc bmharness.o
 
 ListBench: ListBench.bc bmharness.o
 
-BITS   ?= 64
-TRIALS ?= 3
-CORES  ?= 6
-ALGS   ?= OrecELA OrecSandbox
+TIME ?= 5
+RRS  ?= 100 75 50 25 0
 
 %.cgl-test.set: %
 	for trials in {1..${TRIALS}}; \
@@ -50,4 +48,4 @@ list-test: ListBench.cgl-test.set ListBench.parallel-test.set
 
 tree-test: TreeBench.cgl-test.set TreeBench.parallel-test.set
 
-test: hash-test list-test tree-test
+test: hash-test list-test tree-test email

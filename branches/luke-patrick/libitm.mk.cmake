@@ -43,6 +43,7 @@ OBJECTS := libstm/txthread.o \
 	libstm/llt.o \
 	libstm/mcs.o \
 	libstm/nano.o \
+	libstm/nanosandbox.o \
 	libstm/norec.o \
 	libstm/norecprio.o \
 	libstm/oreau.o \

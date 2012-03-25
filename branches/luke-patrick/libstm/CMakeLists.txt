@@ -39,6 +39,7 @@ set(sources
   algs/llt.cpp
   algs/mcs.cpp
   algs/nano.cpp
+  algs/nanosandbox.cpp
   algs/norec.cpp
   algs/norecprio.cpp
   algs/oreau.cpp
