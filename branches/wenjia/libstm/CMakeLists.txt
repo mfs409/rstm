@@ -67,6 +67,7 @@ set(sources
   algs/cohortsfilter.cpp
   algs/cohortslf.cpp
   algs/cohortsef.cpp
+  algs/fastlane.cpp
   policies/cbr.cpp
   policies/policies.cpp
   policies/static.cpp
