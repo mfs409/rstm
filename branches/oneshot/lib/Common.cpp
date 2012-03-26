@@ -1,4 +1,5 @@
 #include "metadata.hpp"
+#include "UndoLog.hpp"
 
 namespace stm
 {
@@ -14,5 +15,12 @@ namespace stm
 
   /*** Count of all threads ***/
   pad_word_t threadcount = {0};
+
+  NOINLINE
+  void UndoLog::undo()
+  {
+      for (iterator i = end() - 1, e = begin(); i >= e; --i)
+          i->undo();
+  }
 
 }

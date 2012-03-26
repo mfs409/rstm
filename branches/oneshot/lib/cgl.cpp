@@ -24,28 +24,6 @@ namespace stm
   pad_word_t timestamp = {0};
 
   /**
-   *  No system initialization is required, since the timestamp is already 0
-   */
-  void tm_sys_init() { }
-
-  /**
-   *  When the transactional system gets shut down, we call this to dump
-   *  stats for all threads
-   */
-  void tm_sys_shutdown()
-  {
-      static volatile unsigned int mtx = 0;
-      while (!bcas32(&mtx, 0u, 1u)) { }
-      for (uint32_t i = 0; i < threadcount.val; i++) {
-          std::cout << "Thread: "    << threads[i]->id
-                    << "; Commits: " << threads[i]->commits_rw
-                    << std::endl;
-      }
-      CFENCE;
-      mtx = 0;
-  }
-
-  /**
    *  For querying to get the current algorithm name
    */
   const char* tm_getalgname() { return "CGL"; }
@@ -76,25 +54,6 @@ namespace stm
   }
 
   /**
-   *  To initialize the thread's TM support, we need only ensure it has a
-   *  descriptor.
-   */
-  void tm_thread_init()
-  {
-      // multiple inits from one thread do not cause trouble
-      if (Self) return;
-
-      // create a TxThread and save it in thread-local storage
-      Self = new TX();
-  }
-
-  /**
-   *  When a thread is done using the TM, we don't need to do anything
-   *  special.
-   */
-  void tm_thread_shutdown() { }
-
-  /**
    *  In CGL, malloc doesn't need any special care
    */
   void* tm_alloc(size_t s) { return malloc(s); }
@@ -107,6 +66,7 @@ namespace stm
   /**
    *  CGL read
    */
+  TM_FASTCALL
   void* tm_read(void** addr)
   {
       return *addr;
@@ -115,9 +75,16 @@ namespace stm
   /**
    *  CGL write
    */
+  TM_FASTCALL
   void tm_write(void** addr, void* val)
   {
       *addr = val;
   }
 
+  scope_t* rollback(TX* tx)
+  {
+      assert(0 && "Rollback not supported in CGL");
+      exit(-1);
+      return NULL;
+  }
 }

@@ -79,22 +79,29 @@ namespace stm
 
       /*** constructor ***/
       TX()
-      : nesting_depth(0), commits_ro(0),
-        commits_rw(0), aborts(0), scope(NULL), allocator(),
-        start_time(0), writes(64), locks(64), vlist(64),
-        r_orecs(64), ts_cache(0), order(-1), turbo(false),
-        end_time(0), undo_log(64)
-  {
-      id = faiptr(&threadcount.val);
-      threads[id] = this;
-      // set up my lock word
-      my_lock.fields.lock = 1;
-      my_lock.fields.id = id;
-      // NB: unused by CGL
-      allocator.setID(id);
-  }
-
+          : nesting_depth(0), commits_ro(0),
+            commits_rw(0), aborts(0), scope(NULL), allocator(),
+            start_time(0), writes(64), locks(64), vlist(64),
+            r_orecs(64), ts_cache(0), order(-1), turbo(false),
+            end_time(0), undo_log(64)
+      {
+          id = faiptr(&threadcount.val);
+          threads[id] = this;
+          // set up my lock word
+          my_lock.fields.lock = 1;
+          my_lock.fields.id = id;
+          // NB: unused by CGL
+          allocator.setID(id);
+      }
   };
+
+  /**
+   *  Need to forward-declare the fact of the tm_abort function, since
+   *  virtually very tm implementation will use it to abort
+   */
+  NORETURN
+  void tm_abort(TX* tx);
+
 }
 
 #endif // TX_HPP__
