@@ -8,12 +8,9 @@
  *          Please see the file LICENSE.RSTM for licensing information
  */
 
-/**
- * NOrec with HourglassCM
- */
-
-#include "norec.hpp"
+#include "OrecEager.hpp"
 #include "cm.hpp"
+#include "adaptivity.hpp"
 
 namespace stm
 {
@@ -38,6 +35,11 @@ namespace stm
   /**
    *  For querying to get the current algorithm name
    */
-  const char* tm_getalgname() { return "NOrecHour"; }
+  const char* tm_getalgname() { return "OrecEagerHour"; }
+
+  /**
+   *  Register the TM for adaptivity
+   */
+  REGISTER_TM_FOR_ADAPTIVITY(OrecEagerHour);
 
 }

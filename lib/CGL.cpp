@@ -15,6 +15,8 @@
 #include "platform.hpp"
 #include "locks.hpp"
 #include "metadata.hpp"
+#include "adaptivity.hpp"
+#include "adaptivity.hpp"
 
 namespace stm
 {
@@ -87,4 +89,19 @@ namespace stm
       exit(-1);
       return NULL;
   }
+
+  /**
+   * Dummy begin with the appropriate signature for adaptivity
+   */
+  void tm_begin(scope_t*)
+  {
+      tm_begin();
+  }
+
+
+  /**
+   *  Register the TM for adaptivity
+   */
+  REGISTER_TM_FOR_ADAPTIVITY(CGL);
+
 }

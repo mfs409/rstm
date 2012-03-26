@@ -22,6 +22,7 @@
 #include <cassert>
 #include "tx.hpp"
 #include "platform.hpp"
+#include "adaptivity.hpp"
 
 namespace stm
 {
@@ -161,4 +162,10 @@ namespace stm
    */
   void tm_free(void* p) { Self->allocator.txFree(p); }
 
-} // namespace tml
+  /**
+   *  Register the TM for adaptivity
+   */
+  REGISTER_TM_FOR_ADAPTIVITY(TML);
+
+} // namespace stm
+

@@ -16,19 +16,20 @@ include $(MKFOLDER)/info.mk
 include $(MKFOLDER)/algs.mk
 
 #
-# Updates to flags: we want support for dependencies
-#
-CXXFLAGS += -MMD
-
-#
 # Output folder: we build in-tree, unless this is overridden
 #
 ODIR ?= obj.$(PLATFORM)
 
 #
+# Updates to flags: we want support for dependencies, and we build an .h file
+#                   in the ODIR that we need to have on the include path
+#
+CXXFLAGS += -MMD -I$(ODIR)
+
+#
 # Names of the supporting files that we need to build
 #
-COMMONNAMES = WBMMPolicy Common CommonLazy CommonOrec tx
+COMMONNAMES = WBMMPolicy Common CommonLazy CommonOrec tx adaptivity
 
 #
 # Transform all source names to .o files in the output directory
@@ -41,6 +42,11 @@ COMMONOFILES = $(patsubst %, $(ODIR)/%.o, $(COMMONNAMES))
 # The algorithm names indicate the names of the libXYZ.a files to build
 #
 LIBS = $(patsubst %, $(ODIR)/lib%.a, $(ALGNAMES))
+
+#
+# Auto-generated header file
+#
+ADAPTHEAD = $(ODIR)/tmnames.autobuild.h
 
 #
 # Dependencies when building .o files
@@ -76,7 +82,7 @@ $(ODIR):
 # be rebuilt every time the contents of ODIR change.  Instead, ODIR is the
 # first thing to build.
 #
-librstm: $(ODIR) $(LIBS)
+librstm: $(ODIR) $(ADAPTHEAD) $(LIBS)
 
 #
 # Rule for building individual files in the lib folder
@@ -92,3 +98,13 @@ $(ODIR)/%.o: %.cpp
 $(ODIR)/lib%.a: $(ODIR)/%.o $(COMMONOFILES)
 	@echo [AR] $@
 	@$(AR) cru $@ $^
+
+#
+# Adaptivity requires that we know the names of all TM algorithms
+#
+$(ADAPTHEAD): $(MKFOLDER)/algs.mk
+	@echo $(ALGNAMES) TM_NAMES_MAX | sed -e 's/ /, /g' -e 's/^/enum TM_NAMES {/' -e 's/MAX/MAX};/' > $@.tmp
+	@echo "namespace stm {" > $@
+	@cat $@.tmp >> $@
+	@echo "}" >> $@
+	@rm $@.tmp

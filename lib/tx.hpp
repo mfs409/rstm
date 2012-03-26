@@ -101,7 +101,6 @@ namespace stm
    */
   NORETURN
   void tm_abort(TX* tx);
-
 }
 
 #endif // TX_HPP__

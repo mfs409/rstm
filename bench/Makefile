@@ -108,7 +108,7 @@ $(ODIR)/%.genericapi.o: %.cpp
 # lockapi builds are likely to be less common, so for each lockapi target, we
 # need a rule of the following form:
 #
-$(ODIR)/%.cgl: $(ODIR)/%.lockapi.o $(LIBFOLDER)/$(ODIR)/libcgl.a
+$(ODIR)/%.CGL: $(ODIR)/%.lockapi.o $(LIBFOLDER)/$(ODIR)/libCGL.a
 	@echo [LD] $@ 
 	@$(CXX) -o $@ $^ $(LDFLAGS)
 
