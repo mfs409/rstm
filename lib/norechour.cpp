@@ -20,26 +20,20 @@ namespace stm
   /**
    * Instantiate rollback with the appropriate CM for this TM algorithm
    */
-  scope_t* rollback(TX* tx)
-  {
-      return rollback_generic<HourglassCM>(tx);
-  }
+  template scope_t* rollback_generic<HourglassCM>(TX*);
+  scope_t* rollback(TX* tx) __attribute__((weak, alias("_ZN3stm16rollback_genericINS_11HourglassCMEEEPvPNS_2TXE")));
 
   /**
    * Instantiate tm_begin with the appropriate CM for this TM algorithm
    */
-  void tm_begin(scope_t* scope)
-  {
-      tm_begin_generic<HourglassCM>(scope);
-  }
+  template void tm_begin_generic<HourglassCM>(scope_t*);
+  void tm_begin(scope_t *) __attribute__((weak, alias("_ZN3stm16tm_begin_genericINS_11HourglassCMEEEvPv")));
 
   /**
    * Instantiate tm_end with the appropriate CM for this TM algorithm
    */
-  void tm_end()
-  {
-      tm_end_generic<HourglassCM>();
-  }
+  template void tm_end_generic<HourglassCM>();
+  void tm_end() __attribute__((weak, alias("_ZN3stm14tm_end_genericINS_11HourglassCMEEEvv")));
 
   /**
    *  For querying to get the current algorithm name

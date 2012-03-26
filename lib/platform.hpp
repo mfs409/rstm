@@ -78,10 +78,12 @@
 #define TM_INLINE
 #endif
 
-#if defined(STM_CPU_X86) && !defined(STM_CC_SUN)
-#define TM_FASTCALL     REGPARM(3)
-#else
-#define TM_FASTCALL
+#ifndef TM_FASTCALL
+# if defined(STM_CPU_X86) && !defined(STM_CC_SUN)
+#  define TM_FASTCALL     REGPARM(3)
+# else
+#  define TM_FASTCALL
+# endif
 #endif
 
 #define TM_ALIGN(N)     __attribute__((aligned(N)))

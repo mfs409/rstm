@@ -56,49 +56,6 @@ namespace stm
   pad_word_t epochs[MAX_THREADS] = {{0}};
 
   /**
-   *  No system initialization is required, since the timestamp is already 0
-   */
-  void tm_sys_init() { }
-
-  /**
-   *  When the transactional system gets shut down, we call this to dump
-   *  stats for all threads
-   */
-  void tm_sys_shutdown()
-  {
-      static volatile unsigned int mtx = 0;
-      // while (!bcas32(&mtx, 0u, 1u)) { }
-      for (uint32_t i = 0; i < threadcount.val; i++) {
-          std::cout << "Thread: "       << threads[i]->id
-                    << "; RO Commits: " << threads[i]->commits_ro
-                    << "; RW Commits: " << threads[i]->commits_rw
-                    << "; Aborts: "     << threads[i]->aborts
-                    << std::endl;
-      }
-      CFENCE;
-      mtx = 0;
-  }
-
-  /**
-   *  To initialize the thread's TM support, we need only ensure it has a
-   *  descriptor.
-   */
-  void tm_thread_init()
-  {
-      // multiple inits from one thread do not cause trouble
-      if (Self) return;
-
-      // create a TxThread and save it in thread-local storage
-      Self = new TX();
-  }
-
-  /**
-   *  When a thread is done using the TM, we don't need to do anything
-   *  special.
-   */
-  void tm_thread_shutdown() { }
-
-  /**
    *  OrecEager rollback:
    *
    *    Run the redo log, possibly bump timestamp
@@ -108,7 +65,6 @@ namespace stm
   pad_word_t timestamp = {0};
 
   template <class CM>
-  __attribute__((always_inline))
   scope_t* rollback_generic(TX* tx)
   {
       ++tx->aborts;
@@ -144,30 +100,7 @@ namespace stm
       return scope;
   }
 
-  /**
-   *  Forward-declare rollback so that we can call it from tm_abort
-   */
-  scope_t* rollback(TX* tx);
-
-  /**
-   *  The default mechanism that libstm uses for an abort. An API environment
-   *  may also provide its own abort mechanism (see itm2stm for an example of
-   *  how the itm shim does this).
-   *
-   *  This is ugly because rollback has a configuration-dependent signature.
-   */
-  NOINLINE
-  NORETURN
-  void tm_abort(TX* tx)
-  {
-      jmp_buf* scope = (jmp_buf*)rollback(tx);
-      // need to null out the scope
-      longjmp(*scope, 1);
-  }
-
-
   template <class CM>
-  __attribute__((always_inline))
   void tm_begin_generic(scope_t* scope)
   {
       TX* tx = Self;
@@ -222,7 +155,6 @@ namespace stm
    *    locks
    */
   template <class CM>
-  __attribute__((always_inline))
   void tm_end_generic()
   {
       TX* tx = Self;
@@ -263,6 +195,7 @@ namespace stm
    *
    *    Must check orec twice, and may need to validate
    */
+  TM_FASTCALL
   void* tm_read(void** addr)
   {
       TX* tx = Self;
@@ -308,6 +241,7 @@ namespace stm
    *
    *    Lock the orec, log the old value, do the write
    */
+  TM_FASTCALL
   void tm_write(void** addr, void* val)
   {
       TX* tx = Self;
@@ -364,12 +298,5 @@ namespace stm
    *  the free will happen at commit time.
    */
   void tm_free(void* p) { Self->allocator.txFree(p); }
-
-  NOINLINE
-  void UndoLog::undo()
-  {
-      for (iterator i = end() - 1, e = begin(); i >= e; --i)
-          i->undo();
-  }
 
 } // (anonymous namespace)

@@ -28,7 +28,7 @@ ODIR ?= obj.$(PLATFORM)
 #
 # Names of the supporting files that we need to build
 #
-COMMONNAMES = WBMMPolicy Common CommonLazy CommonOrec
+COMMONNAMES = WBMMPolicy Common CommonLazy CommonOrec tx
 
 #
 # Transform all source names to .o files in the output directory

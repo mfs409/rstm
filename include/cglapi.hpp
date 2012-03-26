@@ -19,6 +19,12 @@
 #include <limits.h>
 #include <cstdlib>
 
+#if defined(STM_CPU_X86) && defined(STM_CC_GCC)
+#    define TM_FASTCALL __attribute__((regparm(3)))
+#else
+#    define TM_FASTCALL
+#endif
+
 namespace stm
 {
   void tm_begin();
@@ -30,7 +36,9 @@ namespace stm
   void tm_sys_shutdown();
   void* tm_alloc(size_t s);
   void tm_free(void* p);
+  TM_FASTCALL
   void* tm_read(void** addr);
+  TM_FASTCALL
   void tm_write(void** addr, void* val);
 }
 
