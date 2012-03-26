@@ -31,7 +31,9 @@
 #define ADD __sync_add_and_fetch
 #define SUB __sync_sub_and_fetch
 
-namespace stm
+using namespace stm;
+
+namespace cohortseager
 {
   // Global variables for Cohorts
   volatile uint32_t locks[9] = {0};  // a big lock at locks[0], and
@@ -299,11 +301,11 @@ namespace stm
    */
   void tm_free(void* p) { Self->allocator.txFree(p); }
 
-  /**
-   *  Register the TM for adaptivity
-   */
-  REGISTER_TM_FOR_ADAPTIVITY(CohortsEager);
+} // namespace cohortseager
 
-} // namespace stm
-
+/**
+ *  Register the TM for adaptivity and for use as a standalone library
+ */
+REGISTER_TM_FOR_ADAPTIVITY(CohortsEager, cohortseager);
+REGISTER_TM_FOR_STANDALONE(cohortseager, 12);
 

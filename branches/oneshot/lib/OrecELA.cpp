@@ -30,7 +30,9 @@
 #include "tx.hpp"
 #include "adaptivity.hpp"
 
-namespace stm
+using namespace stm;
+
+namespace orecela
 {
   /**
    *  For querying to get the current algorithm name
@@ -299,9 +301,10 @@ namespace stm
    */
   void tm_free(void* p) { Self->allocator.txFree(p); }
 
-  /**
-   *  Register the TM for adaptivity
-   */
-  REGISTER_TM_FOR_ADAPTIVITY(OrecELA);
-
 }
+
+/**
+ * Register the TM for adaptivity and for use as a standalone library
+ */
+REGISTER_TM_FOR_ADAPTIVITY(OrecELA, orecela);
+REGISTER_TM_FOR_STANDALONE(orecela, 7);

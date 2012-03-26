@@ -19,34 +19,49 @@
 #include "cm.hpp"
 #include "adaptivity.hpp"
 
-namespace stm
+using namespace stm;
+
+/**
+ * Instantiate rollback with the appropriate CM for this TM algorithm
+ */
+template scope_t* oreclazy_generic::rollback_generic<HourglassCM>(TX*);
+
+/**
+ * Instantiate tm_begin with the appropriate CM for this TM algorithm
+ */
+template void oreclazy_generic::tm_begin_generic<HourglassCM>(scope_t*);
+
+/**
+ * Instantiate tm_end with the appropriate CM for this TM algorithm
+ */
+template void oreclazy_generic::tm_end_generic<HourglassCM>();
+
+namespace oreclazyhour
 {
   /**
-   * Instantiate rollback with the appropriate CM for this TM algorithm
+   * Create aliases to the oreclazy_generic functions or instantiations that
+   * we shall use for oreclazy
    */
-  template scope_t* rollback_generic<HourglassCM>(TX*);
-  scope_t* rollback(TX* tx) __attribute__((weak, alias("_ZN3stm16rollback_genericINS_11HourglassCMEEEPvPNS_2TXE")));
+  scope_t* rollback(TX* tx) __attribute__((weak, alias("_ZN16oreclazy_generic16rollback_genericIN3stm11HourglassCMEEEPvPNS1_2TXE")));
 
-  /**
-   * Instantiate tm_begin with the appropriate CM for this TM algorithm
-   */
-  template void tm_begin_generic<HourglassCM>(scope_t*);
-  void tm_begin(scope_t *) __attribute__((weak, alias("_ZN3stm16tm_begin_genericINS_11HourglassCMEEEvPv")));
-
-  /**
-   * Instantiate tm_end with the appropriate CM for this TM algorithm
-   */
-  template void tm_end_generic<HourglassCM>();
-  void tm_end() __attribute__((weak, alias("_ZN3stm14tm_end_genericINS_11HourglassCMEEEvv")));
+  void tm_begin(scope_t *) __attribute__((weak, alias("_ZN16oreclazy_generic16tm_begin_genericIN3stm11HourglassCMEEEvPv")));
+  void tm_end() __attribute__((weak, alias("_ZN16oreclazy_generic14tm_end_genericIN3stm11HourglassCMEEEvv")));
+  TM_FASTCALL
+  void* tm_read(void**) __attribute__((weak, alias("_ZN16oreclazy_generic7tm_readEPPv")));
+  TM_FASTCALL
+  void tm_write(void**, void*) __attribute__((weak, alias("_ZN16oreclazy_generic8tm_writeEPPvS0_")));
+  void* tm_alloc(size_t) __attribute__((weak, alias("_ZN16oreclazy_generic8tm_allocEj")));
+  void tm_free(void*) __attribute__((weak, alias("_ZN16oreclazy_generic7tm_freeEPv")));
 
   /**
    *  For querying to get the current algorithm name
    */
   const char* tm_getalgname() { return "OrecLazyHour"; }
 
-  /**
-   *  Register the TM for adaptivity
-   */
-  REGISTER_TM_FOR_ADAPTIVITY(OrecLazyHour);
-
 }
+
+/**
+ * Register the TM for adaptivity and for use as a standalone library
+ */
+REGISTER_TM_FOR_ADAPTIVITY(OrecLazyHour, oreclazyhour);
+REGISTER_TM_FOR_STANDALONE(oreclazyhour, 12);

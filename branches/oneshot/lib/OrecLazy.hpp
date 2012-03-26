@@ -28,7 +28,9 @@
 #include "locks.hpp"
 #include "tx.hpp"
 
-namespace stm
+using namespace stm;
+
+namespace oreclazy_generic
 {
   // for CM
   pad_word_t fcm_timestamp = {0};
