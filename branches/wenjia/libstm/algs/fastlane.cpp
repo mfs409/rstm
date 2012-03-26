@@ -33,6 +33,10 @@ using stm::WriteSetEntry;
 using stm::orec_t;
 using stm::get_orec;
 
+// Choose your commit implementation, according to the paper, OPT2 is better
+//#define OPT1
+#define OPT2
+
 /**
  *  Declare the functions that we're going to implement, so that we can avoid
  *  circular dependencies.
@@ -40,6 +44,7 @@ using stm::get_orec;
 namespace {
   const uint32_t MSB = 0x80000000;
   volatile uint32_t cntr = 0;
+  volatile uint32_t helper = 0;
 
   struct Fastlane {
       static TM_FASTCALL bool begin(TxThread*);
@@ -68,6 +73,7 @@ namespace {
   bool
   Fastlane::begin(TxThread* tx)
   {
+      // threads[1] is master
       if (tx->id == 1) {
           // master request priority access
           OR(&cntr, MSB);
@@ -87,8 +93,8 @@ namespace {
       // helpers get even counter (discard LSD & MSB)
       tx->start_time = cntr & ~1 & ~MSB;
 
+      // starts
       tx->allocator.onTxBegin();
-
       return true;
   }
 
@@ -126,6 +132,8 @@ namespace {
   Fastlane::commit_rw(TxThread* tx)
   {
       volatile uint32_t c;
+
+#ifdef OPT1
       // Try to acquiring counter
       // Attempt to CAS only after counter seen even
       do {
@@ -147,7 +155,41 @@ namespace {
 
       // Release counter by making it even again
       ADD(&cntr, 1);
+#endif
 
+#ifdef OPT2
+      // Only one helper at a time (FIFO lock)
+      while (!bcas32(&helper, 0, 1));
+
+      c = WaitForEvenCounter();
+      // Pre-validate before acquiring counter
+      if (!validate(tx)) {
+          CFENCE;
+          // Release lock upon failed validation
+          helper = 0;
+          tx->tmabort(tx);
+      }
+      // Remember validation time
+      uint32_t t = c + 1;
+
+      // Likely commit: try acquiring counter
+      while (!bcas32(&cntr, c, c+ 1))
+          c = WaitForEvenCounter();
+
+      // Check that validation still holds
+      if (cntr > t && !validate(tx)) {
+          // Release locks upon failed validation
+          SUB(&cntr, 1);
+          helper = 0;
+          tx->tmabort(tx);
+      }
+
+      // Write updates to memory
+      EmitWriteSet(tx, c+1);
+      // Release locks
+      ADD(&cntr, 1);
+      helper = 0;
+#endif
       // commit all frees, reset all lists
       tx->r_orecs.reset();
       tx->writes.reset();
