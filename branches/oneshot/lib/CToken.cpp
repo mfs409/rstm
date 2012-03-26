@@ -26,6 +26,7 @@
 #include "WBMMPolicy.hpp"
 #include "Macros.hpp"
 #include "tx.hpp"
+#include "adaptivity.hpp"
 
 namespace stm
 {
@@ -214,5 +215,10 @@ namespace stm
    *  the free will happen at commit time.
    */
   void tm_free(void* p) { Self->allocator.txFree(p); }
+
+  /**
+   *  Register the TM for adaptivity
+   */
+  REGISTER_TM_FOR_ADAPTIVITY(CToken);
 
 }

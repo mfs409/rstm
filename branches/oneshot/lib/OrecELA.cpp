@@ -9,13 +9,14 @@
  */
 
 /**
- *  OrecALA Implementation
+ *  OrecELA Implementation
  *
  *    This is similar to the Detlefs algorithm for privatization-safe STM,
  *    TL2-IP, and [Marathe et al. ICPP 2008].  We use commit time ordering to
- *    ensure that there are no delayed cleanup problems, and we poll the
- *    timestamp variable to address doomed transactions.  By using TL2-style
- *    timestamps, we also achieve ALA publication safety
+ *    ensure that there are no delayed cleanup problems, we poll the timestamp
+ *    variable to address doomed transactions, but unlike the above works, we
+ *    use TinySTM-style extendable timestamps instead of TL2-style timestamps,
+ *    which sacrifices some publication safety.
  */
 
 #include <iostream>
@@ -27,20 +28,21 @@
 #include "Macros.hpp"
 #include "locks.hpp"
 #include "tx.hpp"
+#include "adaptivity.hpp"
 
 namespace stm
 {
   /**
    *  For querying to get the current algorithm name
    */
-  const char* tm_getalgname() { return "OrecALA"; }
+  const char* tm_getalgname() { return "OrecELA"; }
 
   /*** The only metadata we need is a single global padded lock ***/
   pad_word_t timestamp = {0};
   pad_word_t last_complete = {0};
 
   /**
-   *  OrecALA rollback:
+   *  OrecELA unwinder:
    *
    *    This is a standard orec unwind function.  The only catch is that if a
    *    transaction aborted after incrementing the timestamp, it must wait its
@@ -51,8 +53,7 @@ namespace stm
   {
       ++tx->aborts;
 
-
-      // release the locks and restore version numbers
+      // release locks and restore version numbers
       foreach (OrecList, i, tx->locks)
           (*i)->v.all = (*i)->p;
       tx->r_orecs.reset();
@@ -64,6 +65,7 @@ namespace stm
       // if we aborted after incrementing the timestamp, then we have to
       // participate in the global cleanup order to support our solution to
       // the deferred update half of the privatization problem.
+      //
       // NB:  Note that end_time is always zero for restarts and retrys
       if (tx->end_time != 0) {
           while (last_complete.val < (tx->end_time - 1))
@@ -80,16 +82,13 @@ namespace stm
   }
 
   /**
-   *  OrecALA begin:
+   *  OrecELA begin:
    *
    *    We need a starting point for the transaction.  If an in-flight
    *    transaction is committed, but still doing writeback, we can either start
    *    at the point where that transaction had not yet committed, or else we can
    *    wait for it to finish writeback.  In this code, we choose the former
    *    option.
-   *
-   *    NB: the latter option might be better, since there is no timestamp
-   *        scaling
    */
   void tm_begin(scope_t* scope)
   {
@@ -102,10 +101,10 @@ namespace stm
       // Start after the last cleanup, instead of after the last commit, to
       // avoid spinning in begin()
       tx->start_time = last_complete.val;
-      tx->ts_cache = tx->start_time;
       tx->end_time = 0;
   }
 
+  NOINLINE
   void validate_commit(TX* tx)
   {
       foreach (OrecList, i, tx->r_orecs) {
@@ -117,7 +116,7 @@ namespace stm
   }
 
   /**
-   *  OrecALA commit (read-only):
+   *  OrecELA commit (read-only):
    *
    *    RO commit is trivial
    */
@@ -146,29 +145,28 @@ namespace stm
               // abort if cannot acquire
               if (!bcasptr(&o->v.all, ivt, tx->my_lock.all))
                   tm_abort(tx);
-              // save old version to o->p, remember that we hold the lock
+              // save old version to o->p, log lock
               o->p = ivt;
               tx->locks.insert(o);
           }
+          // else if we don't hold the lock abort
           else if (ivt != tx->my_lock.all) {
               tm_abort(tx);
           }
       }
       CFENCE;
-
-      // increment the global timestamp
+      // increment the global timestamp if we have writes
       tx->end_time = 1 + faiptr(&timestamp.val);
       CFENCE;
-      // skip validation if nobody committed since my last validation
-      if (tx->end_time != (tx->ts_cache + 1)) {
+      // skip validation if possible
+      if (tx->end_time != (tx->start_time + 1)) {
           validate_commit(tx);
       }
       CFENCE;
       // run the redo log
       tx->writes.writeback();
-
-      // release locks
       CFENCE;
+      // release locks
       foreach (OrecList, i, tx->locks)
           (*i)->v.all = tx->end_time;
       CFENCE;
@@ -188,32 +186,36 @@ namespace stm
   }
 
   /**
-   *  OrecALA validation
+   *  OrecELA validation
    *
    *    an in-flight transaction must make sure it isn't suffering from the
    *    "doomed transaction" half of the privatization problem.  We can get that
-   *    effect by calling this after every transactional read.
+   *    effect by calling this after every transactional read (actually every
+   *    read that detects that some new transaction has committed).
    */
   NOINLINE
   void privtest(TX* tx, uintptr_t ts)
   {
       // optimized validation since we don't hold any locks
       foreach (OrecList, i, tx->r_orecs) {
-          // if orec unlocked and newer than start time, it changed, so abort.
-          // if locked, it's not locked by me so abort
+          // if orec locked or newer than start time, abort
           if ((*i)->v.all > tx->start_time)
               tm_abort(tx);
       }
-
-      // remember that we validated at this time
-      tx->ts_cache = ts;
+      // careful here: we can't scale the start time past last_complete.val,
+      // unless we want to re-introduce the need for prevalidation on every
+      // read.
+      CFENCE;
+      uintptr_t cs = last_complete.val;
+      tx->start_time = (ts < cs) ? ts : cs;
   }
 
   /**
-   *  OrecALA read (read-only transaction)
+   *  OrecELA read (read-only transaction)
    *
-   *    Standard tl2-style read, but then we poll for potential privatization
-   *    conflicts
+   *    This is a traditional orec read for systems with extendable timestamps.
+   *    However, we also poll the timestamp counter and validate any time a new
+   *    transaction has committed, in order to catch doomed transactions.
    */
   TM_FASTCALL
   void* tm_read(void** addr)
@@ -228,28 +230,54 @@ namespace stm
               return log.val;
       }
 
-      // read the location, log the orec
-      void* tmp = *addr;
+      // get the orec addr, read the orec's version#
       orec_t* o = get_orec(addr);
-      tx->r_orecs.insert(o);
-      CFENCE;
+      while (true) {
+          // read the location
+          void* tmp = *addr;
+          CFENCE;
+          // check the orec.  Note: we don't need prevalidation because we
+          // have a global clean state via the last_complete.val field.
+          id_version_t ivt;
+          ivt.all = o->v.all;
 
-      // make sure this location isn't locked or too new
-      if (o->v.all > tx->start_time)
-          tm_abort(tx);
+          // common case: new read to uncontended location
+          if (ivt.all <= tx->start_time) {
+              tx->r_orecs.insert(o);
+              // privatization safety: avoid the "doomed transaction" half
+              // of the privatization problem by polling a global and
+              // validating if necessary
+              uintptr_t ts = timestamp.val;
+              CFENCE;
+              if (ts != tx->start_time)
+                  privtest(tx, ts);
+              return tmp;
+          }
 
-      // privatization safety: poll the timestamp, maybe validate
-      uintptr_t ts = timestamp.val;
-      if (ts != tx->ts_cache)
-          privtest(tx, ts);
-      // return the value we read
-      return tmp;
+          // if lock held, spin and retry
+          if (ivt.fields.lock) {
+              spin64();
+              continue;
+          }
+
+          // unlocked but too new... validate and scale forward
+          uintptr_t newts = timestamp.val;
+          foreach (OrecList, i, tx->r_orecs) {
+              // if orec locked or newer than start time, abort
+              if ((*i)->v.all > tx->start_time)
+                  tm_abort(tx);
+          }
+          CFENCE;
+          uintptr_t cs = last_complete.val;
+          // need to pick cs or newts
+          tx->start_time = (newts < cs) ? newts : cs;
+      }
   }
 
   /**
-   *  OrecALA write (read-only context)
+   *  OrecELA write (read-only context)
    *
-   *    Buffer the write, and switch to a writing context.
+   *    Simply buffer the write and switch to a writing context
    */
   TM_FASTCALL
   void tm_write(void** addr, void* val)
@@ -270,5 +298,10 @@ namespace stm
    *  the free will happen at commit time.
    */
   void tm_free(void* p) { Self->allocator.txFree(p); }
+
+  /**
+   *  Register the TM for adaptivity
+   */
+  REGISTER_TM_FOR_ADAPTIVITY(OrecELA);
 
 }

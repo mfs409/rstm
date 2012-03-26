@@ -12,8 +12,9 @@
  * NOrec with BackoffCM
  */
 
-#include "norec.hpp"
+#include "NOrec.hpp"
 #include "cm.hpp"
+#include "adaptivity.hpp"
 
 namespace stm
 {
@@ -39,5 +40,10 @@ namespace stm
    *  For querying to get the current algorithm name
    */
   const char* tm_getalgname() { return "NOrecBackoff"; }
+
+  /**
+   *  Register the TM for adaptivity
+   */
+  REGISTER_TM_FOR_ADAPTIVITY(NOrecBackoff);
 
 }

@@ -24,6 +24,7 @@
 #include "WBMMPolicy.hpp" // todo: remove this, use something simpler
 #include "Macros.hpp"
 #include "tx.hpp"
+#include "adaptivity.hpp"
 
 // define atomic operations
 #define CAS __sync_val_compare_and_swap
@@ -298,5 +299,11 @@ namespace stm
    */
   void tm_free(void* p) { Self->allocator.txFree(p); }
 
+  /**
+   *  Register the TM for adaptivity
+   */
+  REGISTER_TM_FOR_ADAPTIVITY(CohortsEager);
+
 } // namespace stm
+
 

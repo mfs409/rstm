@@ -8,15 +8,9 @@
  *          Please see the file LICENSE.RSTM for licensing information
  */
 
-/**
- * OrecLazyBackoff is the name for the oreclazy algorithm when instantiated
- * backoff on abort.  Virtually all of the code is in the oreclazy.hpp file,
- * but we need to instantiate in order to use the "BackoffCM", which does
- * randomized exponential backoff.
- */
-
-#include "oreclazy.hpp"
+#include "OrecEager.hpp"
 #include "cm.hpp"
+#include "adaptivity.hpp"
 
 namespace stm
 {
@@ -41,6 +35,11 @@ namespace stm
   /**
    *  For querying to get the current algorithm name
    */
-  const char* tm_getalgname() { return "OrecLazyBackoff"; }
+  const char* tm_getalgname() { return "OrecEagerBackoff"; }
+
+  /**
+   *  Register the TM for adaptivity
+   */
+  REGISTER_TM_FOR_ADAPTIVITY(OrecEagerBackoff);
 
 }

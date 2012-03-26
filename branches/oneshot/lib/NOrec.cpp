@@ -8,8 +8,13 @@
  *          Please see the file LICENSE.RSTM for licensing information
  */
 
-#include "oreceager.hpp"
+/**
+ * NOrec with HyperAggressiveCM (no backoff)
+ */
+
+#include "NOrec.hpp"
 #include "cm.hpp"
+#include "adaptivity.hpp"
 
 namespace stm
 {
@@ -34,6 +39,11 @@ namespace stm
   /**
    *  For querying to get the current algorithm name
    */
-  const char* tm_getalgname() { return "OrecEager"; }
+  const char* tm_getalgname() { return "NOrec"; }
+
+  /**
+   *  Register the TM for adaptivity
+   */
+  REGISTER_TM_FOR_ADAPTIVITY(NOrec);
 
 }
