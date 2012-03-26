@@ -53,10 +53,6 @@ using namespace stm;
 
 namespace oreceager_generic
 {
-  // for CM
-  pad_word_t fcm_timestamp = {0};
-  pad_word_t epochs[MAX_THREADS] = {{0}};
-
   /**
    *  OrecEager rollback:
    *
@@ -64,6 +60,7 @@ namespace oreceager_generic
    */
 
   /*** The only metadata we need is a single global padded lock ***/
+  __attribute__((weak))
   pad_word_t timestamp = {0};
 
   template <class CM>
@@ -118,6 +115,7 @@ namespace oreceager_generic
   }
 
   NOINLINE
+  __attribute__((weak))
   void validate_commit(TX* tx)
   {
       foreach (OrecList, i, tx->r_orecs) {
@@ -137,6 +135,7 @@ namespace oreceager_generic
    *    be OK.
    */
   NOINLINE
+  __attribute__((weak))
   void validate(TX* tx)
   {
       foreach (OrecList, i, tx->r_orecs) {
@@ -198,6 +197,7 @@ namespace oreceager_generic
    *    Must check orec twice, and may need to validate
    */
   TM_FASTCALL
+  __attribute__((weak))
   void* tm_read(void** addr)
   {
       TX* tx = Self;
@@ -244,6 +244,7 @@ namespace oreceager_generic
    *    Lock the orec, log the old value, do the write
    */
   TM_FASTCALL
+  __attribute__((weak))
   void tm_write(void** addr, void* val)
   {
       TX* tx = Self;
@@ -292,6 +293,7 @@ namespace oreceager_generic
    *  get a chunk of memory that will be automatically reclaimed if the caller
    *  is a transaction that ultimately aborts
    */
+  __attribute__((weak))
   void* tm_alloc(size_t size) { return Self->allocator.txAlloc(size); }
 
   /**
@@ -299,6 +301,7 @@ namespace oreceager_generic
    *  the free will not happen.  If the caller is a transaction that commits,
    *  the free will happen at commit time.
    */
+  __attribute__((weak))
   void tm_free(void* p) { Self->allocator.txFree(p); }
 
 } // namespace oreceager_generic
