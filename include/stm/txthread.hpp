@@ -95,6 +95,7 @@ namespace stm
 
       /*** FOR COHORTS USE */
       volatile uint32_t status;     // tx status
+      AddressList r_addrs;          // tx read addresses
 
       /*** PER-THREAD FIELDS FOR ENABLING ADAPTIVITY POLICIES */
       uint64_t      end_txn_time;      // end of non-transactional work
