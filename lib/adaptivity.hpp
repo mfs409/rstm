@@ -23,7 +23,7 @@ namespace stm
   /**
    * Use this function to register your TM algorithm implementation.  It
    * takes a bunch of function pointers and an identifier from the TM_NAMES
-   * enum.
+   * enum.  This should be called by the initTM<> method.
    */
   void registerTMAlg(int identifier,
                      void (*tm_begin)(scope_t*),
@@ -37,14 +37,40 @@ namespace stm
 
   /**
    *  We don't want to have to declare an init function for each of the STM
-   *  algorithms that exist, because there are very many of them and they vary
-   *  dynamically.  Instead, we have a templated init function in namespace stm,
-   *  and we instantiate it once per algorithm, in the algorithm's .cpp, using
-   *  the ALGS enum.  Then we can just call the templated functions from this
-   *  code, and the linker will find the corresponding instantiation.
+   *  algorithms that exist, because there are very many of them.  Instead,
+   *  we have a templated init function in namespace stm, and we instantiate
+   *  it once per algorithm, in the algorithm's .cpp, using the TM_NAMES
+   *  enum.  Then we can just call the templated functions from this code,
+   *  and the linker will find the corresponding instantiation.
    */
   template <int I>
   void initTM();
+
+  /**
+   *  Type for storing all the information we need to define an STM algorithm
+   */
+  struct alg_t
+  {
+      int identifier;
+      void (*tm_begin)(scope_t*);
+      void (*tm_end)();
+      void* (* TM_FASTCALL tm_read)(void**);
+      void (* TM_FASTCALL tm_write)(void**, void*);
+      scope_t* (*rollback)(TX*);
+      const char* (*tm_getalgname)();
+      void* (*tm_alloc)(size_t);
+      void (*tm_free)(void*);
+
+      // [TODO]
+      // bool (* irrevoc)(TxThread*);
+      // void (* switcher) ();
+      // bool privatization_safe;
+  };
+
+  /**
+   *  Collection of all known algorithms
+   */
+  extern alg_t tm_info[TM_NAMES_MAX];
 }
 
 /**

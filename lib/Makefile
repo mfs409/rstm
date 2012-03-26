@@ -46,12 +46,17 @@ LIBS = $(patsubst %, $(ODIR)/lib%.a, $(ALGNAMES))
 #
 # Auto-generated header file
 #
-ADAPTHEAD = $(ODIR)/tmnames.autobuild.h
+ADAPTHEADER = $(ODIR)/tmnames.autobuild.h
+
+ADAPTNAMES  = adaptm WBMMPolicy Common CommonLazy CommonOrec adaptivity
+ADAPTOFILES = $(patsubst %, $(ODIR)/%.o, $(ADAPTNAMES))
+.PRECIOUS: $(ADAPTOFILES)
+ADAPTLIB    = $(ODIR)/libadaptm.a
 
 #
 # Dependencies when building .o files
 #
-DEPS = $(patsubst %, $(ODIR)/%.d, $(ALGNAMES) $(COMMONNAMES))
+DEPS = $(patsubst %, $(ODIR)/%.d, $(ALGNAMES) $(COMMONNAMES) $(ADAPTNAMES))
 -include $(DEPS)
 
 #
@@ -82,7 +87,7 @@ $(ODIR):
 # be rebuilt every time the contents of ODIR change.  Instead, ODIR is the
 # first thing to build.
 #
-librstm: $(ODIR) $(ADAPTHEAD) $(LIBS)
+librstm: $(ODIR) $(ADAPTHEADER) $(LIBS) $(ADAPTLIB)
 
 #
 # Rule for building individual files in the lib folder
@@ -100,9 +105,16 @@ $(ODIR)/lib%.a: $(ODIR)/%.o $(COMMONOFILES)
 	@$(AR) cru $@ $^
 
 #
+# Custom rule for libadaptm.a
+#
+$(ADAPTLIB): $(ADAPTOFILES) $(ALGOFILES)
+	@echo [AR] $@
+	@$(AR) cru $@ $^
+
+#
 # Adaptivity requires that we know the names of all TM algorithms
 #
-$(ADAPTHEAD): $(MKFOLDER)/algs.mk
+$(ADAPTHEADER): $(MKFOLDER)/algs.mk
 	@echo $(ALGNAMES) TM_NAMES_MAX | sed -e 's/ /, /g' -e 's/^/enum TM_NAMES {/' -e 's/MAX/MAX};/' > $@.tmp
 	@echo "namespace stm {" > $@
 	@cat $@.tmp >> $@

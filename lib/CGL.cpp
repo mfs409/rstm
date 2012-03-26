@@ -16,7 +16,6 @@
 #include "locks.hpp"
 #include "metadata.hpp"
 #include "adaptivity.hpp"
-#include "adaptivity.hpp"
 
 using namespace stm;
 

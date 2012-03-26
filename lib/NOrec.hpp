@@ -33,6 +33,7 @@ using namespace stm;
 namespace norec_generic
 {
   /*** The only metadata we need is a single global padded lock ***/
+  __attribute__((weak))
   pad_word_t timestamp = {0};
 
   const uintptr_t VALIDATION_FAILED = 1;
@@ -41,6 +42,7 @@ namespace norec_generic
    *  Validate a transaction by ensuring that its reads have not changed
    */
   NOINLINE
+  __attribute__((weak))
   uintptr_t validate(TX* tx)
   {
       while (true) {
@@ -154,6 +156,7 @@ namespace norec_generic
    *  Transactional read
    */
   TM_FASTCALL
+  __attribute__((weak))
   void* tm_read(void** addr)
   {
       TX* tx = Self;
@@ -194,6 +197,7 @@ namespace norec_generic
    *  Simple buffered transactional write
    */
   TM_FASTCALL
+  __attribute__((weak))
   void tm_write(void** addr, void* val)
   {
       TX* tx = Self;
@@ -205,6 +209,7 @@ namespace norec_generic
    *  get a chunk of memory that will be automatically reclaimed if the caller
    *  is a transaction that ultimately aborts
    */
+  __attribute__((weak))
   void* tm_alloc(size_t size) { return Self->allocator.txAlloc(size); }
 
   /**
@@ -212,6 +217,7 @@ namespace norec_generic
    *  the free will not happen.  If the caller is a transaction that commits,
    *  the free will happen at commit time.
    */
+  __attribute__((weak))
   void tm_free(void* p) { Self->allocator.txFree(p); }
 
 } // (anonymous namespace)

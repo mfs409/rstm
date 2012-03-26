@@ -32,10 +32,6 @@ using namespace stm;
 
 namespace oreclazy_generic
 {
-  // for CM
-  pad_word_t fcm_timestamp = {0};
-  pad_word_t epochs[MAX_THREADS] = {{0}};
-
   /**
    *  OrecLazy unwinder:
    *
@@ -63,6 +59,7 @@ namespace oreclazy_generic
   }
 
   /*** The only metadata we need is a single global padded lock ***/
+  __attribute__((weak))
   pad_word_t timestamp = {0};
 
   /**
@@ -91,6 +88,7 @@ namespace oreclazy_generic
    *    timestamps older than our start time, unless we locked those orecs.
    */
   NOINLINE
+  __attribute__((weak))
   void validate(TX* tx)
   {
       foreach (OrecList, i, tx->r_orecs)
@@ -172,6 +170,7 @@ namespace oreclazy_generic
    *  OrecLazy read
    */
   TM_FASTCALL
+  __attribute__((weak))
   void* tm_read(void** addr)
   {
       TX* tx = Self;
@@ -217,6 +216,7 @@ namespace oreclazy_generic
    *  OrecLazy write
    */
   TM_FASTCALL
+  __attribute__((weak))
   void tm_write(void** addr, void* val)
   {
       TX* tx = Self;
@@ -228,6 +228,7 @@ namespace oreclazy_generic
    *  get a chunk of memory that will be automatically reclaimed if the caller
    *  is a transaction that ultimately aborts
    */
+  __attribute__((weak))
   void* tm_alloc(size_t size) { return Self->allocator.txAlloc(size); }
 
   /**
@@ -235,6 +236,7 @@ namespace oreclazy_generic
    *  the free will not happen.  If the caller is a transaction that commits,
    *  the free will happen at commit time.
    */
+  __attribute__((weak))
   void tm_free(void* p) { Self->allocator.txFree(p); }
 
 } // namespace stm
