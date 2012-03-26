@@ -9,7 +9,7 @@
  */
 
 /**
- *  CohortsEager Implementation
+ *  Cohorts Implementation
  *
  *  Original cohorts algorithm
  */
@@ -22,13 +22,16 @@
 #include "WBMMPolicy.hpp" // todo: remove this, use something simpler
 #include "Macros.hpp"
 #include "tx.hpp"
+#include "adaptivity.hpp"
 
 // define atomic operations
 #define CAS __sync_val_compare_and_swap
 #define ADD __sync_add_and_fetch
 #define SUB __sync_sub_and_fetch
 
-namespace stm
+using namespace stm;
+
+namespace cohorts
 {
   // Global variables for Cohorts
   volatile uint32_t locks[9] = {0};  // a big lock at locks[0], and
@@ -233,5 +236,10 @@ namespace stm
    */
   void tm_free(void* p) { Self->allocator.txFree(p); }
 
-} // namespace stm
+} // namespace cohorts
 
+/**
+ *  Register the TM for adaptivity and for use as a standalone library
+ */
+REGISTER_TM_FOR_ADAPTIVITY(Cohorts, cohorts);
+REGISTER_TM_FOR_STANDALONE(cohorts, 7);

@@ -24,7 +24,9 @@
 #include "platform.hpp"
 #include "adaptivity.hpp"
 
-namespace stm
+using namespace stm;
+
+namespace tml
 {
   /*** The only metadata we need is a single global padded lock ***/
   pad_word_t timestamp = {0};
@@ -162,10 +164,10 @@ namespace stm
    */
   void tm_free(void* p) { Self->allocator.txFree(p); }
 
-  /**
-   *  Register the TM for adaptivity
-   */
-  REGISTER_TM_FOR_ADAPTIVITY(TML);
+} // namespace tml
 
-} // namespace stm
-
+/**
+ *  Register the TM for adaptivity
+ */
+REGISTER_TM_FOR_ADAPTIVITY(TML, tml);
+REGISTER_TM_FOR_STANDALONE(tml, 3);

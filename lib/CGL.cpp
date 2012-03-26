@@ -18,7 +18,9 @@
 #include "adaptivity.hpp"
 #include "adaptivity.hpp"
 
-namespace stm
+using namespace stm;
+
+namespace cgl
 {
   /**
    * The only metadata we need is a single global padded lock
@@ -32,9 +34,11 @@ namespace stm
 
   /**
    *  Start a transaction: if we're already in a tx, bump the nesting
-   *  counter.  Otherwise, grab the lock.
+   *  counter.  Otherwise, grab the lock.  Note that we have a null parameter
+   *  so that the signature is identical to all other STMs (prereq for
+   *  adaptivity)
    */
-  void tm_begin()
+  void tm_begin(void*)
   {
       TX* tx = Self;
       if (++tx->nesting_depth > 1)
@@ -90,18 +94,10 @@ namespace stm
       return NULL;
   }
 
-  /**
-   * Dummy begin with the appropriate signature for adaptivity
-   */
-  void tm_begin(scope_t*)
-  {
-      tm_begin();
-  }
-
-
-  /**
-   *  Register the TM for adaptivity
-   */
-  REGISTER_TM_FOR_ADAPTIVITY(CGL);
-
 }
+
+/**
+ *  Register the TM for adaptivity and for use as a standalone library
+ */
+REGISTER_TM_FOR_ADAPTIVITY(CGL, cgl);
+REGISTER_TM_FOR_STANDALONE(cgl, 3);

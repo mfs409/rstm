@@ -77,4 +77,8 @@ namespace stm
       // need to null out the scope
       longjmp(*scope, 1);
   }
+
+  // for CM
+  pad_word_t fcm_timestamp = {0};
+  pad_word_t epochs[MAX_THREADS] = {{0}};
 }

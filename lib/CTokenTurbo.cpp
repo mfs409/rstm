@@ -28,7 +28,9 @@
 #include "tx.hpp"
 #include "adaptivity.hpp"
 
-namespace stm
+using namespace stm;
+
+namespace ctokenturbo
 {
   /*** The only metadata we need is a single global padded lock ***/
   pad_word_t timestamp = {0};
@@ -329,9 +331,10 @@ namespace stm
    */
   void tm_free(void* p) { Self->allocator.txFree(p); }
 
-  /**
-   *  Register the TM for adaptivity
-   */
-  REGISTER_TM_FOR_ADAPTIVITY(CTokenTurbo);
-
 }
+
+/**
+ *  Register the TM for adaptivity and for use as a standalone library
+ */
+REGISTER_TM_FOR_ADAPTIVITY(CTokenTurbo, ctokenturbo);
+REGISTER_TM_FOR_STANDALONE(ctokenturbo, 11);

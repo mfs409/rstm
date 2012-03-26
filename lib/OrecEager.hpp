@@ -49,7 +49,9 @@
 #include "Macros.hpp"
 #include "tx.hpp"
 
-namespace stm
+using namespace stm;
+
+namespace oreceager_generic
 {
   // for CM
   pad_word_t fcm_timestamp = {0};
@@ -299,4 +301,4 @@ namespace stm
    */
   void tm_free(void* p) { Self->allocator.txFree(p); }
 
-} // (anonymous namespace)
+} // namespace oreceager_generic

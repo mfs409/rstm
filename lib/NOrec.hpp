@@ -28,13 +28,10 @@
 #include "Macros.hpp"
 #include "tx.hpp"
 
-namespace stm
+using namespace stm;
+
+namespace norec_generic
 {
-
-  // for CM
-  pad_word_t fcm_timestamp = {0};
-  pad_word_t epochs[MAX_THREADS] = {{0}};
-
   /*** The only metadata we need is a single global padded lock ***/
   pad_word_t timestamp = {0};
 

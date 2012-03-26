@@ -28,7 +28,9 @@
 #include "tx.hpp"
 #include "adaptivity.hpp"
 
-namespace stm
+using namespace stm;
+
+namespace ctoken
 {
 
   pad_word_t timestamp = {0};
@@ -216,9 +218,10 @@ namespace stm
    */
   void tm_free(void* p) { Self->allocator.txFree(p); }
 
-  /**
-   *  Register the TM for adaptivity
-   */
-  REGISTER_TM_FOR_ADAPTIVITY(CToken);
-
 }
+
+/**
+ *  Register the TM for adaptivity and for use as a standalone library
+ */
+REGISTER_TM_FOR_ADAPTIVITY(CToken, ctoken);
+REGISTER_TM_FOR_STANDALONE(ctoken, 6);
