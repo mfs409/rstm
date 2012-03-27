@@ -6,9 +6,10 @@ The latest RSTM release features the following changes:
 
 Important Build Notes
 
-- The svn branch must be configured before being built. Run the 'autogen'
-  script from the root. This will generate the configure script.
+- The svn development branch must be autoreconf-ed before being configured,
+  because we haven't checking in the autoconf=automake products. Run the
+  'autogen' script from the root. This will generate the configure script.
 
 Please visit the RSTM Google code site for more information:
 
-http://code.google.com/p/rstm
+http://rstm.googlecode.com/
