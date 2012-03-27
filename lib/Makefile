@@ -36,7 +36,7 @@ CXXFLAGS += -MMD -I$(ODIR)
 #
 # Names of the supporting files that we need to build
 #
-COMMONNAMES = WBMMPolicy Common CommonLazy CommonOrec tx adaptivity
+COMMONNAMES = WBMMPolicy Common CommonLazy CommonOrec tx adaptivity checkpoint
 
 #
 # Transform all source names to .o files in the output directory
