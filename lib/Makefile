@@ -16,9 +16,16 @@ include $(MKFOLDER)/info.mk
 include $(MKFOLDER)/algs.mk
 
 #
-# Output folder: we build in-tree, unless this is overridden
+# Output folder: we build in-tree, unless this is overridden.  Note that the
+# folder is built at parse time, so that we don't have to depend on its
+# existance
 #
-ODIR ?= obj.$(PLATFORM)
+ODIR := obj.$(PLATFORM)
+ODIR := obj.$(PLATFORM)
+ifeq ($(ODIR),obj.)
+else
+output_folder := $(shell mkdir -p $(ODIR))
+endif
 
 #
 # Updates to flags: we want support for dependencies, and we build an .h file
@@ -48,10 +55,10 @@ LIBS = $(patsubst %, $(ODIR)/lib%.a, $(ALGNAMES))
 #
 ADAPTHEADER = $(ODIR)/tmnames.autobuild.h
 
-ADAPTNAMES  = adaptm WBMMPolicy Common CommonLazy CommonOrec adaptivity
+ADAPTNAMES  = AdapTM WBMMPolicy Common CommonLazy CommonOrec adaptivity
 ADAPTOFILES = $(patsubst %, $(ODIR)/%.o, $(ADAPTNAMES))
 .PRECIOUS: $(ADAPTOFILES)
-ADAPTLIB    = $(ODIR)/libadaptm.a
+ADAPTLIB    = $(ODIR)/libAdapTM.a
 
 #
 # Dependencies when building .o files
@@ -77,17 +84,11 @@ default: info
 	MAKEFILES="$<" $(MAKE) librstm
 
 #
-# Rule to build the output folder
-#
-$(ODIR):
-	@mkdir $@
-
-#
 # The real target.  NB: we don't make LIBS depend on ODIR, or else they would
 # be rebuilt every time the contents of ODIR change.  Instead, ODIR is the
 # first thing to build.
 #
-librstm: $(ODIR) $(ADAPTHEADER) $(LIBS) $(ADAPTLIB)
+librstm: $(ADAPTHEADER) $(LIBS) $(ADAPTLIB)
 
 #
 # Rule for building individual files in the lib folder

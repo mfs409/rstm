@@ -38,6 +38,8 @@
 #    include "cglapi.hpp"
 #  elif defined(STM_INST_STM)
 #    include "stmapi.hpp"
+#  elif defined(STM_INST_FPTR)
+#    include "stmapi_fptr.hpp"
 #  else
 #    error "Unrecognized STM instrumentation mode"
 #  endif // STM_INST_XXX

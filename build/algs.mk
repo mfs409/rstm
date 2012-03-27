@@ -13,7 +13,7 @@
 # results in us building and linking ALGNAMES different executables when we
 # only need one
 #
-APIS = lockapi genericapi
+APIS = lockapi genericapi fptrapi
 
 #
 # The names of the STM algorithms, and of all supporting compilable files
@@ -21,4 +21,5 @@ APIS = lockapi genericapi
 ALGNAMES = CGL NOrec TML CohortsEager Cohorts CTokenTurbo CToken LLT \
            OrecEagerRedo OrecELA OrecALA OrecLazy OrecEager NOrecHB  \
            OrecLazyBackoff OrecLazyHB OrecLazyHour NOrecBackoff      \
-           NOrecHour OrecEagerHour OrecEagerHB OrecEagerBackoff
+           NOrecHour OrecEagerHour OrecEagerHB OrecEagerBackoff      \
+           AdapTM

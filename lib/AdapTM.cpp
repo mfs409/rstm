@@ -200,4 +200,9 @@ namespace stm
       return trueAlgName;
   }
 
+  /**
+   *  We don't need, and don't want, to use the REGISTER_TM_FOR_XYZ macros,
+   *  but we still need to make sure that there is an initTM<AdapTM> symbol:
+   */
+  template <> void initTM<AdapTM>() { }
 }
