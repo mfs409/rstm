@@ -1,0 +1,2 @@
+proc foo_exit {} {}
+proc foo_version {} {}
