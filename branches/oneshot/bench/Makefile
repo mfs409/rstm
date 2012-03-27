@@ -28,9 +28,15 @@ LIBFOLDER = ../lib
 CXXFLAGS += -MMD -DSINGLE_SOURCE_BUILD -I../include -I$(LIBFOLDER)
 
 #
-# Output folder: we build in-tree, unless this is overridden
+# Output folder: we build in-tree, unless this is overridden.  Note that the
+# folder is built at parse time, so that we don't have to depend on its
+# existance
 #
-ODIR ?= obj.$(PLATFORM)
+ODIR := obj.$(PLATFORM)
+ifeq ($(ODIR),obj.)
+else
+output_folder := $(shell mkdir -p $(ODIR))
+endif
 
 #
 # The names of the benchmarks.  Every benchmark will produce a .o file for
@@ -52,6 +58,11 @@ BENCHOFILES = $(foreach api,$(APIS),$(foreach bench,$(BENCHNAMES),$(ODIR)/$(benc
 # algorithm
 #
 BENCHEXES = $(foreach alg,$(ALGNAMES),$(foreach	bench,$(BENCHNAMES),$(ODIR)/$(bench).$(alg)))
+
+#
+# Custom AdapTM target that uses the fptr interface
+#
+BENCHEXES += $(patsubst %, $(ODIR)/%.AdapTM_fptr, $(BENCHNAMES))
 
 #
 # Dependencies
@@ -77,12 +88,6 @@ default: info
 	MAKEFILES="$<" $(MAKE) benchmarks
 
 #
-# Rule to build the output folder
-#
-$(ODIR):
-	@mkdir $@
-
-#
 # The real target.  NB: we don't make BENCHEXES depend on ODIR, or else they
 # would be rebuilt every time the contents of ODIR change.  Instead, ODIR is
 # the first thing to build.
@@ -98,10 +103,13 @@ $(ODIR)/%.lockapi.o: %.cpp
 $(ODIR)/%.genericapi.o: %.cpp
 	@echo [CXX] $< "-->" $@ 
 	@$(CXX) $(CXXFLAGS) -o $@ -c $< $(LDFLAGS) -DSTM_INST_STM
+$(ODIR)/%.fptrapi.o: %.cpp
+	@echo [CXX] $< "-->" $@ 
+	@$(CXX) $(CXXFLAGS) -o $@ -c $< $(LDFLAGS) -DSTM_INST_FPTR
 
 #
-# Rules for linking to make executables.  genericapi builds are easier.  lockapi
-# builds are harder
+# Rules for linking to make executables.  genericapi builds are easier.
+# lockapi builds are harder
 #
 
 #
@@ -109,6 +117,14 @@ $(ODIR)/%.genericapi.o: %.cpp
 # need a rule of the following form:
 #
 $(ODIR)/%.CGL: $(ODIR)/%.lockapi.o $(LIBFOLDER)/$(ODIR)/libCGL.a
+	@echo [LD] $@ 
+	@$(CXX) -o $@ $^ $(LDFLAGS)
+
+#
+# fptrapi builds are also likely to be rare (in fact, there should probably
+# only ever be one)
+#
+$(ODIR)/%.AdapTM_fptr: $(ODIR)/%.fptrapi.o $(LIBFOLDER)/$(ODIR)/libAdapTM.a
 	@echo [LD] $@ 
 	@$(CXX) -o $@ $^ $(LDFLAGS)
 
