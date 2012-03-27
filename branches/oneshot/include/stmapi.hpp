@@ -45,9 +45,11 @@ namespace stm
 
 #define TM_BEGIN(x)                                    \
                              {                         \
-                             jmp_buf _jmpbuf;          \
+                             _ITM_beginTransaction(0x1);
+
+/*jmp_buf _jmpbuf;                                     \
                              setjmp(_jmpbuf);          \
-                             stm::tm_begin(&_jmpbuf);
+                             stm::tm_begin(&_jmpbuf); */
 
 #define TM_END()             stm::tm_end();   \
                              }

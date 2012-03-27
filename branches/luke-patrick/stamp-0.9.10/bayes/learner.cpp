@@ -653,6 +653,14 @@ computeLocalLogLikelihoodHelper (long i,
                                  query_t* queries,
                                  vector_t* queryVectorPtr,
                                  vector_t* parentQueryVectorPtr)
+
+static float
+computeLocalLogLikelihoodHelper (long i,
+                                 long numParent,
+                                 adtree_t* adtreePtr,
+                                 query_t* queries,
+                                 vector_t* queryVectorPtr,
+                                 vector_t* parentQueryVectorPtr)
 {
     if (i >= numParent) {
         return computeSpecificLocalLogLikelihood(adtreePtr,

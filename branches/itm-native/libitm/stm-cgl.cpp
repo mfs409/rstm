@@ -55,38 +55,38 @@ namespace {
               uint8_t* b_addr;
               uint8_t b_val[sizeof(word_t)/sizeof(uint8_t)];
           };
-          struct {
-              uint16_t* s_addr;
-              uint16_t s_val[sizeof(word_t)/sizeof(uint16_t)];
-          };
-          struct {
-              uint32_t* i_addr;
-              uint32_t i_val[sizeof(word_t)/sizeof(uint32_t)];
-          };
-          struct {
-              uint64_t* l_addr;
-              uint64_t l_val[sizeof(word_t)/sizeof(uint64_t)];
-          };
       };
       size_t bytes;
 
       UndoEntry() : addr(NULL), val(0), bytes(0) {
       }
 
-      explicit UndoEntry(uint8_t* _addr) : b_addr(_addr), bytes(1) {
-          b_val[0] = *b_addr;
+      explicit UndoEntry(uint8_t* _addr) {
+          read_as(_addr);
       }
 
-      explicit UndoEntry(uint16_t* _addr) : s_addr(_addr), bytes(2) {
-          s_val[0] = *s_addr;
+      explicit UndoEntry(uint16_t* _addr) {
+          read_as(_addr);
       }
 
-      explicit UndoEntry(uint32_t* _addr) : i_addr(_addr), bytes(4) {
-          i_val[0] = *i_addr;
+      explicit UndoEntry(uint32_t* _addr) {
+          read_as(_addr);
       }
 
-      explicit UndoEntry(uint64_t* _addr) : l_addr(_addr), bytes(8) {
-          l_val[0] = *l_addr;
+      explicit UndoEntry(uint64_t* _addr) {
+          read_as(_addr);
+      }
+
+      // don't use this frequently.
+      UndoEntry(const uint8_t* _addr, size_t bytes) {
+          switch (bytes) {
+            case (8): read_as<const uint64_t*>(_addr); return;
+            case (4): read_as<const uint32_t*>(_addr); return;
+            case (2): read_as<const uint16_t*>(_addr); return;
+            case (1): read_as<const uint8_t*>(_addr); return;
+            case (0): assert(false && "can't log 0 bytes");
+            default: assert(false ** "can't log arbitrary number of bytes");
+          }
       }
 
       /// Undo switches on the number of bytes being stored, and calls the
@@ -99,13 +99,31 @@ namespace {
           return;
         subword:
           switch (bytes) {
-            case (1): *b_addr = b_val[0]; return;
-            case (2): *s_addr = s_val[0]; return;
-            case (4): *i_addr = i_val[0]; return;
-            case (8): *l_addr = l_val[0]; return;
+            case (8): undo_as<uint64_t>(); return;
+            case (4): undo_as<uint32_t>(); return;
+            case (2): undo_as<uint16_t>(); return;
+            case (1): undo_as<uint8_t>(); return;
             case (0): assert(false && "Cannot redo uninitialized log.");
             default: assert(false && "Unexpected undo log size.");
           }
+      }
+
+    private:
+      template <typename T>
+      T* val_as() const {
+          return reinterpret_cast<T*>(b_val);
+      }
+
+      template <typename T>
+      void read_as(const T* _addr) {
+          b_addr = reinterpret_cast<uint8_t*>(const_cast<T*>(_addr));
+          bytes = sizeof(T);
+          val_as<T>()[0] = *_addr;
+      }
+
+      template <typename T>
+      void undo_as() const {
+          *reinterpret_cast<T*>(b_addr) = val_as<T>()[0];
       }
   };
 
@@ -372,6 +390,45 @@ _ITM_abortTransaction(_ITM_abortReason reason) {
     }
 #include "libitm-dtfns.def"
 #undef RSTM_LIBITM_WRITE
+
+///
+/// The CGL log barriers just use the existing logging infrastructure. This
+/// won't work if log is being called from an irrevocable context (why would
+/// this happen... seperate compilation?).
+#define RSTM_LIBITM_LOG(SYMBOL, CALLING_CONVENTION, TYPE)               \
+    void SYMBOL(TYPE* address) {                                        \
+        assert(!scopes.empty() && "_ITM_L(og) used in irrevocable context."); \
+         undo_log(address);                                              \
+    }
+#include "libitm-dtfns.def"
+#undef RSTM_LIBITM_LOG
+
+///
+/// One-off for logging a byte-buffer.
+void
+_ITM_LB(const void* addr, size_t bytes) {
+    assert(!scopes.empty() && "_ITM_LB used in irrevocable context.");
+    word_t* const address = reinterpret_cast<word_t*>(addr);
+
+    // read and log as many words as we can
+    for (size_t i = 0, e = bytes / sizeof(word_t); i < e; ++i)
+        undos.push_back(UndoEntry(address + i));
+
+    size_t r = bytes % sizeof(word_t);
+    if (!r)
+        return;
+
+    // get the address of the last word and log the remaining bytes, in a divide
+    // and conquer loop.
+    uint8_t* address8 = reinterpret_cast<uint8_t*>(addr) + bytes - r;
+    size_t chunk = sizeof(word_t) >> 1;
+    do {
+        undos.log(UndoEntry(address8, chunk));
+        address8 += chunk;
+        chunk >>= 1;
+    } while ((r %= 2) > 0);
+}
+
 
 /// TODO: We need RSTM_LIBITM_LOG barriers, as well as all of the mem*
 /// barriers.
