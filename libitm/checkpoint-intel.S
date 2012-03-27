@@ -39,7 +39,7 @@
         ASM_DOT_TYPE(__ITM_beginTransaction, @function)
 __ITM_beginTransaction:
         ASM_DOT_CFI_STARTPROC
-#ifdef __APPLE__
+#ifdef __APPLE__                              // apple has stack aligment issues
         pushq   %rsp
         andq    $0xFFFFFFFFFFFFFFF0, %rsp
 #endif
@@ -47,7 +47,7 @@ __ITM_beginTransaction:
 #ifdef __APPLE__
         popq    %rsp
 #endif
-        testq   %rax, %rax                      // if this is a nested begin)
+        testq   %rax, %rax                      // (if this is a nested begin)
         je      __ITM_beginTransaction_nested
         
         movq    (%rsp), %rcx                    // grab the return address
@@ -135,7 +135,7 @@ __ITM_beginTransaction:
         
         movl    4(%esp), %eax                   // get a checkpoint (or NULL in
 #ifdef __APPLE__
-        pushl   %esp
+        pushl   %esp                          // apple has stack aligment issues
         andl    $0xFFFFFFF0, %esp
 #endif
         call    _rstm_pre_checkpoint            // a nested contet)---uses
@@ -143,7 +143,7 @@ __ITM_beginTransaction:
         popl    %esp
 #endif
         testl   %eax, %eax                      // regparm(1) to pass flags to 
-        je      __ITM_beginTransaction_nested    // _rstm_pre_checkpoint.
+        je      __ITM_beginTransaction_nested   // _rstm_pre_checkpoint.
 
         movl    (%esp), %ecx                    // get the return address from
         movl    %ecx, EIP(%eax)                 // the stack

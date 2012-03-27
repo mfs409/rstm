@@ -33,6 +33,7 @@
 #endif
 
 
+// Don't include this part from a .S file.
 #ifdef __cplusplus
 #include <stdint.h>
 
@@ -55,17 +56,7 @@ namespace rstm {
   /// Like a jmp_buf, a checkpoint_t is just a "big-enough" array.
   typedef void* checkpoint_t[CHECKPOINT_SIZE];
 
-  /// Hits TLS to get a checkpoint to use. This has a slightly wonky interface
-  /// because it is convenient in _ITM_beginTransaction. If the passed value
-  /// is not 0, then get_checkpoint will return either a checkopint, or NULL
-  /// if we are nested. If the passed value is 0, it will always return the
-  /// outermost checkpoint.
-  ///
-  ///   flags == 0 -> return checkpoint
-  ///   flags != 0 -> return (nested) ? NULL : checkpoint
-  ///
-  /// The ABI guarantees that at least one bit in flags is set, which is why
-  /// this works (either instrumentedCode or uninstrumentedCode).
+  /// Get a checkpoint to use.
   ///
   /// Note: the __attribute__((regparm(1))) is *important* because it is used in
   /// the custom asm for _ITM_beginTransaction to pass flags correctly.
@@ -74,21 +65,21 @@ namespace rstm {
 
   /// Implemented in an architecture-specific asm file, along with
   /// _ITM_beginTransaction. It must not modify the checkpoint because it will
-  /// get reused for a conflict abort.
+  /// get reused for a conflict abort, where the checkpoint will be reused.
   void restore_checkpoint(const checkpoint_t* const, uint32_t)
   asm("_rstm_restore_checkpoint") __attribute__((noreturn));
 
   /// Implemented in an algorithm-specific manner. Called from
   /// _ITM_beginTransaction using a sibling call, which is the only reason
   /// that the varargs work without more effort. Must return _ITM_actions to
-  /// take.
+  /// take, as _ITM_beginTransaction is supposed to do.
   uint32_t post_checkpoint(uint32_t, ...)
       asm("_rstm_post_checkpoint");
 
   /// Implemented in an algorithm-specific manner. Called from
   /// _ITM_beginTransaction using a sibling call, which is the only reason
   /// that the varargs work without more effort. Must return _ITM_actions to
-  /// take.
+  /// take, as _ITM_beginTransaction is supposed to do.
   uint32_t post_checkpoint_nested(uint32_t, ...)
       asm("_rstm_post_checkpoint_nested");
 }

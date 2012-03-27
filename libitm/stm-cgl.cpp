@@ -7,6 +7,24 @@
 /// License: Modified BSD
 ///          Please see the file LICENSE.RSTM for licensing information
 ///
+
+
+///
+/// This is an example native itm STM that demonstrats the normal control flow
+/// around transactions. It is designed to correctly handle nested,
+/// non-irrevocable transactions---though this hasn't been tested extensively.
+///
+/// It limits the amount of thread-local data to a single mcs queue-node. It
+/// could use no per-thread data if we wanted to, or the depth/undo-log could be
+/// thread-local (this would likely reduce cache misses).
+///
+/// It doesn't handle the entire ABI, but it does demonstrate the use of
+/// libitm-dtfns.def to expand classes of ABI functions (currently READs and
+/// WRITEs).
+///
+/// It uses some general-purpose voodoo to deal with logging non-word sized
+/// data.
+
 #include <cassert>                              // assert
 #include <vector>                               // vector
 #include "checkpoint.h"                         // post_checkpoint/_nested
@@ -14,8 +32,6 @@
 #include "word.h"                               // word_t
 #include "libitm.h"                             // _ITM_*
 using std::vector;
-using std::pair;
-using std::make_pair;
 using rstm::word_t;
 using rstm::mcs_qnode_t;
 
@@ -86,7 +102,7 @@ namespace {
             case (1): *b_addr = b_val[0]; return;
             case (2): *s_addr = s_val[0]; return;
             case (4): *i_addr = i_val[0]; return;
-            case (8): *l_addr = l_val[0]; break;
+            case (8): *l_addr = l_val[0]; return;
             case (0): assert(false && "Cannot redo uninitialized log.");
             default: assert(false && "Unexpected undo log size.");
           }
@@ -97,8 +113,8 @@ namespace {
   /// For now we're using std::vectors for undo logging when we need to be able
   /// to abort.
   ///
-  /// TODO: use something that supports a more efficient clear() operation.
-  ///
+  /// TODO: use something that supports a more efficient clear()/resize()
+  /// operation.
   typedef vector<UndoEntry> UndoLog;
   static UndoLog undos;
 
@@ -204,29 +220,36 @@ namespace {
   static void __attribute__((constructor))
   init_node() {
       node.flag = false;
-      node.next = &node;
+      node.next = &node; // our little hack to detect if our node is in the
+                         // queue, if node.next != node, then we're waiting
   }
 }
 
 ///
 /// The CGL pre-checkpoint code actually acquires the lock, and determines if we
-/// need to make a checkpoint.
+/// need to make a checkpoint. This is called from the checkpoint-<arch>.S asm,
+/// and is responsible for returning a pointer to the checkpoint to use. The asm
+/// understands that, if the returned value is NULL, then it should not fill in
+/// the checkpoint.
 rstm::checkpoint_t* const
 rstm::pre_checkpoint(const uint32_t flags) {
     // if this is an outermost pre_checkpoint, then acquire the lock (be polite
     // to darwin, where TLS is emulated with pthreads, and only hit the node
     // once)
-    mcs_qnode_t* mine = &node;
+    //
     // we use this hack (setting the MCS next pointer to point at "this") to
-    // distinguish between a node that's in the list, and a node that isn't.
+    // distinguish between a node that's in the list, and a node that
+    // isn't. This is because we're using a static for nesting depth. Could use
+    // a thread local instead, but we're trying to limit exposure to __thread.
+    mcs_qnode_t* mine = &node;
     if (mine->next != mine)
         rstm::acquire(&lock, mine);
 
-    // update our nesting depth
+    // update the nesting depth
     assert(UINT32_MAX - depth > 1 && "STM nesting depth overflow.");
     ++depth;
 
-    // if this depth has no aborts, then we don't need a checkpoint
+    // if this scope has no aborts, then we don't need a checkpoint
     if (flags & pr_hasNoAbort)
         return NULL;
 
