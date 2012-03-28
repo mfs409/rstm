@@ -36,7 +36,9 @@ CXXFLAGS += -MMD -I$(ODIR)
 #
 # Names of the supporting files that we need to build
 #
-COMMONNAMES = WBMMPolicy Common CommonLazy CommonOrec tx adaptivity
+COMMONNAMES = WBMMPolicy Common CommonLazy CommonOrec tx adaptivity \
+              checkpoint-asm checkpoint
+
 
 #
 # Transform all source names to .o files in the output directory
@@ -95,7 +97,13 @@ librstm: $(ADAPTHEADER) $(LIBS) $(ADAPTLIB)
 #
 $(ODIR)/%.o: %.cpp
 	@echo [CXX] $< "-->" $@
-	@$(CXX) $(CXXFLAGS) -c -o $@ $<
+	$(_V)$(CXX) $(CXXFLAGS) -c -o $@ $<
+#
+# Rule for building individual files in the lib folder
+#
+$(ODIR)/%.o: %.S
+	@echo [CCAS] $< "-->" $@
+	$(_V)$(CC) $(ASFLAGS) -c -o $@ $<
 
 #
 # Rule for building .a files.  Since we use the same TX definition in all
@@ -103,14 +111,14 @@ $(ODIR)/%.o: %.cpp
 #
 $(ODIR)/lib%.a: $(ODIR)/%.o $(COMMONOFILES)
 	@echo [AR] $@
-	@$(AR) cru $@ $^
+	$(_V)$(AR) cru $@ $^
 
 #
 # Custom rule for libadaptm.a
 #
 $(ADAPTLIB): $(ADAPTOFILES) $(ALGOFILES)
 	@echo [AR] $@
-	@$(AR) cru $@ $^
+	$(_V)$(AR) cru $@ $^
 
 #
 # Adaptivity requires that we know the names of all TM algorithms

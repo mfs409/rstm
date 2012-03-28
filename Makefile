@@ -20,6 +20,13 @@ MKFOLDER = build
 include $(MKFOLDER)/info.mk
 
 #
+# Allow V=1 on the command line to display verbose make lines.
+#
+ifndef V
+_V=@
+endif
+
+#
 # Names of all folders we might want to clean out
 #
 OUTDIRS	     = $(patsubst %, obj.%, $(PLATFORMS))
