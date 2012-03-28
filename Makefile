@@ -23,7 +23,7 @@ include $(MKFOLDER)/info.mk
 # Allow V=1 on the command line to display verbose make lines.
 #
 ifndef V
-_V=@
+export _V=@
 endif
 
 #

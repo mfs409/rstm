@@ -86,15 +86,12 @@ namespace stm
  * This hides the nastiness of registering algorithms with the adaptivity
  * mechanism
  */
-#define REGISTER_TM_FOR_ADAPTIVITY(ALG, NS)                             \
-    namespace stm                                                       \
-    {                                                                   \
-        template <> void initTM<ALG>()                                  \
-        {                                                               \
-            registerTMAlg(ALG, NS::tm_begin, NS::tm_end, NS::tm_read,   \
-                          NS::tm_write, NS::rollback,                   \
-                          NS::tm_getalgname, NS::tm_alloc,              \
-                          NS::tm_free);                                 \
+#define REGISTER_TM_FOR_ADAPTIVITY(ALG)                                 \
+    namespace stm {                                                     \
+      template <> void initTM<ALG>() {                                  \
+          registerTMAlg(ALG,                                            \
+                        tm_begin, tm_end, tm_read, tm_write, rollback,  \
+                        tm_getalgname, tm_alloc, tm_free);              \
         }                                                               \
     }
 

@@ -51,257 +51,229 @@
 
 using namespace stm;
 
-namespace oreceager_generic
+/**
+ *  OrecEager rollback:
+ *
+ *    Run the redo log, possibly bump timestamp
+ */
+
+/*** The only metadata we need is a single global padded lock ***/
+static pad_word_t timestamp = {0};
+
+template <class CM>
+static scope_t* rollback(TX* tx)
 {
-  /**
-   *  OrecEager rollback:
-   *
-   *    Run the redo log, possibly bump timestamp
-   */
+    ++tx->aborts;
 
-  /*** The only metadata we need is a single global padded lock ***/
-  __attribute__((weak))
-  pad_word_t timestamp = {0};
+    // run the undo log
+    STM_UNDO(tx->undo_log, except, len);
 
-  template <class CM>
-  scope_t* rollback_generic(TX* tx)
-  {
-      ++tx->aborts;
+    // release the locks and bump version numbers by one... track the highest
+    // version number we write, in case it is greater than timestamp.val
+    uintptr_t max = 0;
+    foreach (OrecList, j, tx->locks) {
+        uintptr_t newver = (*j)->p + 1;
+        (*j)->v.all = newver;
+        max = (newver > max) ? newver : max;
+    }
+    // if we bumped a version number to higher than the timestamp, we need to
+    // increment the timestamp to preserve the invariant that the timestamp
+    // val is >= all orecs' values when unlocked
+    uintptr_t ts = timestamp.val;
+    if (max > ts)
+        casptr(&timestamp.val, ts, (ts+1)); // assumes no transient failures
 
-      // run the undo log
-      STM_UNDO(tx->undo_log, except, len);
+    // reset all lists
+    CM::onAbort(tx);
+    tx->r_orecs.reset();
+    tx->undo_log.reset();
+    tx->locks.reset();
 
-      // release the locks and bump version numbers by one... track the highest
-      // version number we write, in case it is greater than timestamp.val
-      uintptr_t max = 0;
-      foreach (OrecList, j, tx->locks) {
-          uintptr_t newver = (*j)->p + 1;
-          (*j)->v.all = newver;
-          max = (newver > max) ? newver : max;
-      }
-      // if we bumped a version number to higher than the timestamp, we need to
-      // increment the timestamp to preserve the invariant that the timestamp
-      // val is >= all orecs' values when unlocked
-      uintptr_t ts = timestamp.val;
-      if (max > ts)
-          casptr(&timestamp.val, ts, (ts+1)); // assumes no transient failures
+    tx->allocator.onTxAbort();
+    tx->nesting_depth = 0;
+    scope_t* scope = tx->scope;
+    tx->scope = NULL;
+    return scope;
+}
 
-      // reset all lists
-      CM::onAbort(tx);
-      tx->r_orecs.reset();
-      tx->undo_log.reset();
-      tx->locks.reset();
+template <class CM>
+static void tm_begin(scope_t* scope)
+{
+    TX* tx = Self;
+    if (++tx->nesting_depth > 1)
+        return;
 
-      tx->allocator.onTxAbort();
-      tx->nesting_depth = 0;
-      scope_t* scope = tx->scope;
-      tx->scope = NULL;
-      return scope;
-  }
+    CM::onBegin(tx);
 
-  template <class CM>
-  void tm_begin_generic(scope_t* scope)
-  {
-      TX* tx = Self;
-      if (++tx->nesting_depth > 1)
-          return;
+    tx->scope = scope;
+    // sample the timestamp and prepare local structures
+    tx->allocator.onTxBegin();
+    tx->start_time = timestamp.val;
+}
 
-      CM::onBegin(tx);
+static NOINLINE void validate_commit(TX* tx)
+{
+    foreach (OrecList, i, tx->r_orecs) {
+        // abort unless orec older than start or owned by me
+        uintptr_t ivt = (*i)->v.all;
+        if ((ivt > tx->start_time) && (ivt != tx->my_lock.all))
+            tm_abort(tx);
+    }
+}
 
-      tx->scope = scope;
-      // sample the timestamp and prepare local structures
-      tx->allocator.onTxBegin();
-      tx->start_time = timestamp.val;
-  }
+/**
+ *  OrecEager validation:
+ *
+ *    Make sure that all orecs that we've read have timestamps older than our
+ *    start time, unless we locked those orecs.  If we locked the orec, we
+ *    did so when the time was smaller than our start time, so we're sure to
+ *    be OK.
+ */
+static NOINLINE void validate(TX* tx)
+{
+    foreach (OrecList, i, tx->r_orecs) {
+        // read this orec
+        uintptr_t ivt = (*i)->v.all;
+        // if unlocked and newer than start time, abort
+        if ((ivt > tx->start_time) && (ivt != tx->my_lock.all))
+            tm_abort(tx);
+    }
+}
 
-  NOINLINE
-  __attribute__((weak))
-  void validate_commit(TX* tx)
-  {
-      foreach (OrecList, i, tx->r_orecs) {
-          // abort unless orec older than start or owned by me
-          uintptr_t ivt = (*i)->v.all;
-          if ((ivt > tx->start_time) && (ivt != tx->my_lock.all))
-              tm_abort(tx);
-      }
-  }
+/**
+ *  OrecEager commit:
+ *
+ *    read-only transactions do no work
+ *
+ *    writers must increment the timestamp, maybe validate, and then release
+ *    locks
+ */
+template <class CM>
+static void tm_end()
+{
+    TX* tx = Self;
+    if (--tx->nesting_depth)
+        return;
 
-  /**
-   *  OrecEager validation:
-   *
-   *    Make sure that all orecs that we've read have timestamps older than our
-   *    start time, unless we locked those orecs.  If we locked the orec, we
-   *    did so when the time was smaller than our start time, so we're sure to
-   *    be OK.
-   */
-  NOINLINE
-  __attribute__((weak))
-  void validate(TX* tx)
-  {
-      foreach (OrecList, i, tx->r_orecs) {
-          // read this orec
-          uintptr_t ivt = (*i)->v.all;
-          // if unlocked and newer than start time, abort
-          if ((ivt > tx->start_time) && (ivt != tx->my_lock.all))
-              tm_abort(tx);
-      }
-  }
+    // use the lockset size to identify if tx is read-only
+    if (!tx->locks.size()) {
+        tx->r_orecs.reset();
+        tx->allocator.onTxCommit();
+        ++tx->commits_ro;
+        CM::onCommit(tx);
+        return;
+    }
 
-  /**
-   *  OrecEager commit:
-   *
-   *    read-only transactions do no work
-   *
-   *    writers must increment the timestamp, maybe validate, and then release
-   *    locks
-   */
-  template <class CM>
-  void tm_end_generic()
-  {
-      TX* tx = Self;
-      if (--tx->nesting_depth)
-          return;
+    // increment the global timestamp
+    uintptr_t end_time = 1 + faiptr(&timestamp.val);
 
-      // use the lockset size to identify if tx is read-only
-      if (!tx->locks.size()) {
-          tx->r_orecs.reset();
-          tx->allocator.onTxCommit();
-          ++tx->commits_ro;
-          CM::onCommit(tx);
-          return;
-      }
+    // skip validation if nobody else committed since my last validation
+    if (end_time != (tx->start_time + 1))
+        validate_commit(tx);
 
-      // increment the global timestamp
-      uintptr_t end_time = 1 + faiptr(&timestamp.val);
+    // release locks
+    foreach (OrecList, i, tx->locks)
+    (*i)->v.all = end_time;
 
-      // skip validation if nobody else committed since my last validation
-      if (end_time != (tx->start_time + 1))
-          validate_commit(tx);
+    // reset lock list and undo log
+    CM::onCommit(tx);
+    tx->locks.reset();
+    tx->undo_log.reset();
+    tx->r_orecs.reset();
+    tx->allocator.onTxCommit();
+    ++tx->commits_rw;
+}
 
-      // release locks
-      foreach (OrecList, i, tx->locks)
-          (*i)->v.all = end_time;
+/**
+ *  OrecEager read:
+ *
+ *    Must check orec twice, and may need to validate
+ */
+static TM_FASTCALL void* tm_read(void** addr)
+{
+    TX* tx = Self;
 
-      // reset lock list and undo log
-      CM::onCommit(tx);
-      tx->locks.reset();
-      tx->undo_log.reset();
-      tx->r_orecs.reset();
-      tx->allocator.onTxCommit();
-      ++tx->commits_rw;
-  }
+    // get the orec addr, then start loop to read a consistent value
+    orec_t* o = get_orec(addr);
+    while (true) {
+        // read the orec BEFORE we read anything else
+        id_version_t ivt;
+        ivt.all = o->v.all;
+        CFENCE;
 
-  /**
-   *  OrecEager read:
-   *
-   *    Must check orec twice, and may need to validate
-   */
-  TM_FASTCALL
-  __attribute__((weak))
-  void* tm_read(void** addr)
-  {
-      TX* tx = Self;
+        // read the location
+        void* tmp = *addr;
 
-      // get the orec addr, then start loop to read a consistent value
-      orec_t* o = get_orec(addr);
-      while (true) {
-          // read the orec BEFORE we read anything else
-          id_version_t ivt;
-          ivt.all = o->v.all;
-          CFENCE;
+        // best case: I locked it already
+        if (ivt.all == tx->my_lock.all)
+            return tmp;
 
-          // read the location
-          void* tmp = *addr;
+        // re-read orec AFTER reading value
+        CFENCE;
+        uintptr_t ivt2 = o->v.all;
 
-          // best case: I locked it already
-          if (ivt.all == tx->my_lock.all)
-              return tmp;
+        // common case: new read to an unlocked, old location
+        if ((ivt.all == ivt2) && (ivt.all <= tx->start_time)) {
+            tx->r_orecs.insert(o);
+            return tmp;
+        }
 
-          // re-read orec AFTER reading value
-          CFENCE;
-          uintptr_t ivt2 = o->v.all;
+        // abort if locked
+        if (__builtin_expect(ivt.fields.lock, 0))
+            tm_abort(tx);
 
-          // common case: new read to an unlocked, old location
-          if ((ivt.all == ivt2) && (ivt.all <= tx->start_time)) {
-              tx->r_orecs.insert(o);
-              return tmp;
-          }
+        // scale timestamp if ivt is too new, then try again
+        uintptr_t newts = timestamp.val;
+        validate(tx);
+        tx->start_time = newts;
+    }
+}
 
-          // abort if locked
-          if (__builtin_expect(ivt.fields.lock, 0))
-              tm_abort(tx);
+/**
+ *  OrecEager write:
+ *
+ *    Lock the orec, log the old value, do the write
+ */
+static TM_FASTCALL void tm_write(void** addr, void* val)
+{
+    TX* tx = Self;
 
-          // scale timestamp if ivt is too new, then try again
-          uintptr_t newts = timestamp.val;
-          validate(tx);
-          tx->start_time = newts;
-      }
-  }
+    // get the orec addr, then enter loop to get lock from a consistent state
+    orec_t* o = get_orec(addr);
+    while (true) {
+        // read the orec version number
+        id_version_t ivt;
+        ivt.all = o->v.all;
 
-  /**
-   *  OrecEager write:
-   *
-   *    Lock the orec, log the old value, do the write
-   */
-  TM_FASTCALL
-  __attribute__((weak))
-  void tm_write(void** addr, void* val)
-  {
-      TX* tx = Self;
+        // common case: uncontended location... try to lock it, abort on fail
+        if (ivt.all <= tx->start_time) {
+            if (!bcasptr(&o->v.all, ivt.all, tx->my_lock.all))
+                tm_abort(tx);
 
-      // get the orec addr, then enter loop to get lock from a consistent state
-      orec_t* o = get_orec(addr);
-      while (true) {
-          // read the orec version number
-          id_version_t ivt;
-          ivt.all = o->v.all;
+            // save old value, log lock, do the write, and return
+            o->p = ivt.all;
+            tx->locks.insert(o);
+            tx->undo_log.insert(UndoLogEntry(STM_UNDO_LOG_ENTRY(addr, *addr, ignored)));
+            *addr = val;
+            return;
+        }
 
-          // common case: uncontended location... try to lock it, abort on fail
-          if (ivt.all <= tx->start_time) {
-              if (!bcasptr(&o->v.all, ivt.all, tx->my_lock.all))
-                  tm_abort(tx);
+        // next best: I already have the lock... must log old value, because
+        // many locations hash to the same orec.  The lock does not mean I
+        // have undo logged *this* location
+        if (ivt.all == tx->my_lock.all) {
+            tx->undo_log.insert(UndoLogEntry(STM_UNDO_LOG_ENTRY(addr, *addr, ignored)));
+            *addr = val;
+            return;
+        }
 
-              // save old value, log lock, do the write, and return
-              o->p = ivt.all;
-              tx->locks.insert(o);
-              tx->undo_log.insert(UndoLogEntry(STM_UNDO_LOG_ENTRY(addr, *addr, ignored)));
-              *addr = val;
-              return;
-          }
+        // fail if lock held by someone else
+        if (ivt.fields.lock)
+            tm_abort(tx);
 
-          // next best: I already have the lock... must log old value, because
-          // many locations hash to the same orec.  The lock does not mean I
-          // have undo logged *this* location
-          if (ivt.all == tx->my_lock.all) {
-              tx->undo_log.insert(UndoLogEntry(STM_UNDO_LOG_ENTRY(addr, *addr, ignored)));
-              *addr = val;
-              return;
-          }
-
-          // fail if lock held by someone else
-          if (ivt.fields.lock)
-              tm_abort(tx);
-
-          // unlocked but too new... scale forward and try again
-          uintptr_t newts = timestamp.val;
-          validate(tx);
-          tx->start_time = newts;
-      }
-  }
-
-  /**
-   *  get a chunk of memory that will be automatically reclaimed if the caller
-   *  is a transaction that ultimately aborts
-   */
-  __attribute__((weak))
-  void* tm_alloc(size_t size) { return Self->allocator.txAlloc(size); }
-
-  /**
-   *  Free some memory.  If the caller is a transaction that ultimately aborts,
-   *  the free will not happen.  If the caller is a transaction that commits,
-   *  the free will happen at commit time.
-   */
-  __attribute__((weak))
-  void tm_free(void* p) { Self->allocator.txFree(p); }
-
-} // namespace oreceager_generic
+        // unlocked but too new... scale forward and try again
+        uintptr_t newts = timestamp.val;
+        validate(tx);
+        tx->start_time = newts;
+    }
+}

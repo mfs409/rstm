@@ -19,84 +19,80 @@
 
 using namespace stm;
 
-namespace cgl
+/**
+ * The only metadata we need is a single global padded lock
+ */
+static pad_word_t timestamp = {0};
+
+/**
+ *  For querying to get the current algorithm name
+ */
+static const char* tm_getalgname() { return "CGL"; }
+
+/**
+ *  Start a transaction: if we're already in a tx, bump the nesting
+ *  counter.  Otherwise, grab the lock.  Note that we have a null parameter
+ *  so that the signature is identical to all other STMs (prereq for
+ *  adaptivity)
+ */
+static void tm_begin(void*)
 {
-  /**
-   * The only metadata we need is a single global padded lock
-   */
-  pad_word_t timestamp = {0};
+    TX* tx = Self;
+    if (++tx->nesting_depth > 1)
+        return;
+    tatas_acquire(&timestamp.val);
+}
 
-  /**
-   *  For querying to get the current algorithm name
-   */
-  const char* tm_getalgname() { return "CGL"; }
+/**
+ *  End a transaction: decrease the nesting level, then perhaps release the
+ *  lock and increment the count of commits.
+ */
+static void tm_end()
+{
+    TX* tx = Self;
+    if (--tx->nesting_depth)
+        return;
+    tatas_release(&timestamp.val);
+    ++tx->commits_rw;
+}
 
-  /**
-   *  Start a transaction: if we're already in a tx, bump the nesting
-   *  counter.  Otherwise, grab the lock.  Note that we have a null parameter
-   *  so that the signature is identical to all other STMs (prereq for
-   *  adaptivity)
-   */
-  void tm_begin(void*)
-  {
-      TX* tx = Self;
-      if (++tx->nesting_depth > 1)
-          return;
-      tatas_acquire(&timestamp.val);
-  }
+/**
+ *  In CGL, malloc doesn't need any special care
+ */
+static void* tm_alloc(size_t s) { return malloc(s); }
 
-  /**
-   *  End a transaction: decrease the nesting level, then perhaps release the
-   *  lock and increment the count of commits.
-   */
-  void tm_end()
-  {
-      TX* tx = Self;
-      if (--tx->nesting_depth)
-          return;
-      tatas_release(&timestamp.val);
-      ++tx->commits_rw;
-  }
+/**
+ *  In CGL, free doesn't need any special care
+ */
+static void tm_free(void* p) { free(p); }
 
-  /**
-   *  In CGL, malloc doesn't need any special care
-   */
-  void* tm_alloc(size_t s) { return malloc(s); }
+/**
+ *  CGL read
+ */
+TM_FASTCALL
+static void* tm_read(void** addr)
+{
+    return *addr;
+}
 
-  /**
-   *  In CGL, free doesn't need any special care
-   */
-  void tm_free(void* p) { free(p); }
+/**
+ *  CGL write
+ */
+TM_FASTCALL
+static void tm_write(void** addr, void* val)
+{
+    *addr = val;
+}
 
-  /**
-   *  CGL read
-   */
-  TM_FASTCALL
-  void* tm_read(void** addr)
-  {
-      return *addr;
-  }
-
-  /**
-   *  CGL write
-   */
-  TM_FASTCALL
-  void tm_write(void** addr, void* val)
-  {
-      *addr = val;
-  }
-
-  scope_t* rollback(TX* tx)
-  {
-      assert(0 && "Rollback not supported in CGL");
-      exit(-1);
-      return NULL;
-  }
-
+static scope_t* rollback(TX* tx)
+{
+    assert(0 && "Rollback not supported in CGL");
+    exit(-1);
+    return NULL;
 }
 
 /**
  *  Register the TM for adaptivity and for use as a standalone library
  */
-REGISTER_TM_FOR_ADAPTIVITY(CGL, cgl);
-REGISTER_TM_FOR_STANDALONE(cgl, 3);
+REGISTER_TM_FOR_ADAPTIVITY(CGL);
+REGISTER_TM_FOR_STANDALONE();

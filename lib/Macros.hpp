@@ -20,25 +20,38 @@
          CEND = COLLECTION.end();                       \
          VAR != CEND; ++VAR)
 
-#define REGISTER_TM_FOR_STANDALONE(NAME, NAMELEN)                       \
+#define REGISTER_TM_FOR_STANDALONE()                                    \
     namespace stm                                                       \
     {                                                                   \
-        void tm_begin(void*)                                            \
-        __attribute__((weak, alias("_ZN" #NAMELEN #NAME "8tm_beginEPv"))); \
-        void tm_end()                                                   \
-        __attribute__((weak, alias("_ZN" #NAMELEN #NAME "6tm_endEv"))); \
-        const char* tm_getalgname()                                     \
-        __attribute__((weak, alias("_ZN" #NAMELEN #NAME "13tm_getalgnameEv"))); \
-        void* tm_alloc(size_t s)                                        \
-        __attribute__((weak, alias("_ZN" #NAMELEN #NAME "8tm_allocEj"))); \
-        void tm_free(void* p)                                           \
-        __attribute__((weak, alias("_ZN" #NAMELEN #NAME "7tm_freeEPv"))); \
-        TM_FASTCALL void* tm_read(void** addr)                          \
-        __attribute__((weak, alias("_ZN" #NAMELEN #NAME "7tm_readEPPv"))); \
-        TM_FASTCALL void tm_write(void** addr, void* val)               \
-        __attribute__((weak, alias("_ZN" #NAMELEN #NAME "8tm_writeEPPvS0_"))); \
-        scope_t* rollback(TX*)                                          \
-        __attribute__((weak, alias("_ZN" #NAMELEN #NAME "8rollbackEPN3stm2TXE"))); \
+    void tm_begin(void*)                                                \
+    __attribute__((weak, alias("_ZL8tm_beginPv")));                     \
+    void tm_end()                                                       \
+    __attribute__((weak, alias("_ZL6tm_endv")));                        \
+    const char* tm_getalgname()                                         \
+    __attribute__((weak, alias("_ZL13tm_getalgnamev")));                \
+    void* tm_alloc(size_t s)                                            \
+    __attribute__((weak, alias("_ZL8tm_allocj")));                      \
+    void tm_free(void* p)                                               \
+    __attribute__((weak, alias("_ZL7tm_freePv")));                      \
+    void* tm_read(void** addr)                                          \
+    __attribute__((weak, alias("_ZL7tm_readPPv"))) TM_FASTCALL;         \
+    void tm_write(void** addr, void* val)                               \
+    __attribute__((weak, alias("_ZL8tm_writePPvS_"))) TM_FASTCALL;      \
+    scope_t* rollback(TX*)                                              \
+    __attribute__((weak, alias("_ZL8rollbackPN3stm2TXE")));             \
     }
+
+#define INSTANTIATE_FOR_CM(CM, NCM)                                     \
+    template scope_t* rollback<stm::CM>(stm::TX*);                      \
+    static scope_t* rollback(TX* tx)                                    \
+        __attribute__((alias("_Z8rollbackIN3stm"#NCM#CM"EEPvPNS0_2TXE"))); \
+                                                                        \
+    template void tm_begin<stm::CM>(stm::scope_t*);                     \
+    static void tm_begin(scope_t *)                                     \
+        __attribute__((alias("_Z8tm_beginIN3stm"#NCM#CM"EEvPv")));      \
+                                                                        \
+    template void tm_end<stm::CM>();                                    \
+    static void tm_end()                                                \
+        __attribute__((alias("_Z6tm_endIN3stm"#NCM#CM"EEvv")));
 
 #endif // MACROS_HPP__
