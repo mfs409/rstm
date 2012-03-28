@@ -44,7 +44,7 @@ static const char* tm_getalgname() {
 /**
  *  CToken unwinder:
  */
-static scope_t* rollback(TX* tx)
+static checkpoint_t* rollback(TX* tx)
 {
     ++tx->aborts;
 
@@ -61,9 +61,7 @@ static scope_t* rollback(TX* tx)
     //     commit_rw to finish in-order
     tx->allocator.onTxAbort();
     tx->nesting_depth = 0;
-    scope_t* scope = tx->scope;
-    tx->scope = NULL;
-    return scope;
+    return &tx->checkpoint;
 }
 
 /**
@@ -93,7 +91,7 @@ static void tm_begin(scope_t* scope)
     if (++tx->nesting_depth > 1)
         return;
 
-    tx->scope = scope;
+
 
     tx->allocator.onTxBegin();
 

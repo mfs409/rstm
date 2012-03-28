@@ -39,7 +39,7 @@ static const char* tm_getalgname() {
 }
 
 /** Abort and roll back the transaction (e.g., on conflict). */
-static scope_t* rollback(TX* tx) {
+static checkpoint_t* rollback(TX* tx) {
     ++tx->aborts;
 
     // release the locks and restore version numbers
@@ -52,9 +52,7 @@ static scope_t* rollback(TX* tx) {
     tx->locks.reset();
     tx->allocator.onTxAbort();
     tx->nesting_depth = 0;
-    scope_t* scope = tx->scope;
-    tx->scope = NULL;
-    return scope;
+    return &tx->checkpoint;
 }
 
 /*** The only metadata we need is a single global padded lock ***/
@@ -67,7 +65,7 @@ static void tm_begin(scope_t* scope)
     if (++tx->nesting_depth > 1)
         return;
 
-    tx->scope = scope;
+
 
     tx->allocator.onTxBegin();
     // get a start time

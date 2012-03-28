@@ -37,14 +37,14 @@
     __attribute__((weak, alias("_ZL7tm_readPPv"))) TM_FASTCALL;         \
     void tm_write(void** addr, void* val)                               \
     __attribute__((weak, alias("_ZL8tm_writePPvS_"))) TM_FASTCALL;      \
-    scope_t* rollback(TX*)                                              \
+    checkpoint_t* rollback(TX*)                                         \
     __attribute__((weak, alias("_ZL8rollbackPN3stm2TXE")));             \
     }
 
 #define INSTANTIATE_FOR_CM(CM, NCM)                                     \
-    template scope_t* rollback<stm::CM>(stm::TX*);                      \
-    static scope_t* rollback(TX* tx)                                    \
-        __attribute__((alias("_Z8rollbackIN3stm"#NCM#CM"EEPvPNS0_2TXE"))); \
+    template stm::checkpoint_t* rollback<stm::CM>(stm::TX*); \
+    static stm::checkpoint_t* rollback(TX* tx)                          \
+        __attribute__((alias("_Z8rollbackIN3stm"#NCM#CM"EEPA1_13__jmp_buf_tagPNS0_2TXE"))); \
                                                                         \
     template void tm_begin<stm::CM>(stm::scope_t*);                     \
     static void tm_begin(scope_t *)                                     \
@@ -54,4 +54,5 @@
     static void tm_end()                                                \
         __attribute__((alias("_Z6tm_endIN3stm"#NCM#CM"EEvv")));
 
+//EEPA1_13__jmp_buf_tagPNS0_2TXE
 #endif // MACROS_HPP__

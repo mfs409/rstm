@@ -52,7 +52,7 @@
 # error "No checkpoint available for your architecture"
 #endif
 
-namespace rstm {
+namespace stm {
   /// Like a jmp_buf, a checkpoint_t is just a "big-enough" array.
   typedef void* checkpoint_t[CHECKPOINT_SIZE];
 

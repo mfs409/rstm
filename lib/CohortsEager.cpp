@@ -63,15 +63,13 @@ static const char* tm_getalgname() {
 /**
  *  Abort and roll back the transaction (e.g., on conflict).
  */
-static scope_t* rollback(TX* tx) {
+static checkpoint_t* rollback(TX* tx) {
     ++tx->aborts;
     tx->r_orecs.reset();
     tx->writes.reset();
     tx->allocator.onTxAbort();
     tx->nesting_depth = 0;
-    scope_t* scope = tx->scope;
-    tx->scope = NULL;
-    return scope;
+    return &tx->checkpoint;
 }
 
 /**
@@ -108,8 +106,6 @@ static void tm_begin(scope_t* scope) {
     TX* tx = Self;
     if (++tx->nesting_depth > 1)
         return;
-
-    tx->scope = scope;
 
   S1:
     // wait until everyone is committed

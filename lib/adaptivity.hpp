@@ -27,7 +27,7 @@ namespace stm
   typedef void* (*tm_alloc_t)(size_t);
   typedef void  (*tm_free_t)(void*);
   typedef const char* (*tm_get_alg_name_t)();
-  typedef scope_t* (*rollback_t)(TX*);
+  typedef checkpoint_t* (*rollback_t)(TX*);
 
   /**
    * Use this function to register your TM algorithm implementation.  It

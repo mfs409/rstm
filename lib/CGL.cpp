@@ -84,7 +84,7 @@ static void tm_write(void** addr, void* val)
     *addr = val;
 }
 
-static scope_t* rollback(TX* tx)
+static checkpoint_t* rollback(TX* tx)
 {
     assert(0 && "Rollback not supported in CGL");
     exit(-1);
