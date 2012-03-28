@@ -131,3 +131,5 @@ if (CMAKE_CXX-tm_COMPILER)
     endforeach ()
   endforeach ()
 endif ()
+
+configure_file (sandbox.mk.cmake sandbox.mk @ONLY)

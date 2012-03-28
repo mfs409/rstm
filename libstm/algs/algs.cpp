@@ -11,6 +11,16 @@
 #include "algs.hpp"
 #include "../cm.hpp"
 
+/**
+ *  Our TMs are generally opaque, which means that they are always valid when
+ *  returning from tmread. These TMs use this default tmvalidate handler so
+ *  that that can be adapted into an otherwise sandboxed setting.
+ */
+static bool
+opaque_validate_handler(stm::TxThread*) {
+    return true;
+}
+
 namespace stm
 {
   /*** BACKING FOR GLOBAL METADATA */
@@ -86,4 +96,20 @@ namespace stm
       return -1;
   }
 
+  /*** simple ctor, because a NULL name is a bad thing */
+  alg_t::alg_t()
+      : name(""),
+        begin(NULL),
+        commit(NULL),
+        read(NULL),
+        write(NULL),
+        rollback(NULL),
+        irrevoc(NULL),
+        validate(opaque_validate_handler),
+        switcher(NULL),
+        privatization_safe(false),
+        sandbox_signals(false)
+  {
+      assert((this - stm::stms) < ALG_MAX);
+  }
 } // namespace stm

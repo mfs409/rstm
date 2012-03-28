@@ -10,14 +10,19 @@
 
 #include <setjmp.h>
 #include <iostream>
-#include <stm/txthread.hpp>
 #include <stm/lib_globals.hpp>
+#include <stm/txthread.hpp>
 #include "policies/policies.hpp"
 #include "algs/tml_inline.hpp"
 #include "algs/algs.hpp"
 #include "inst.hpp"
+#include "sandboxing.hpp"
 
 using namespace stm;
+
+void stm_restart() {
+    stm::restart();
+}
 
 namespace
 {
@@ -51,7 +56,7 @@ namespace stm
   /*** BACKING FOR GLOBAL VARS DECLARED IN TXTHREAD.HPP */
   pad_word_t threadcount          = {0}; // thread count
   TxThread*  threads[MAX_THREADS] = {0}; // all TxThreads
-  __thread TxThread* Self = NULL;        // this thread's TxThread
+  THREAD_LOCAL_DECL_TYPE(TxThread*) Self; // this thread's TxThread
 
   /**
    *  Constructor sets up the lists and vars
@@ -78,7 +83,17 @@ namespace stm
         nanorecs(64),
         begin_wait(0),
         strong_HG(),
-        irrevocable(false)
+        irrevocable(false),
+        end_txn_time(0),
+        total_nontxn_time(0),
+        pthreadid(),
+        validations(0),
+        lazy_hashing_cursor(0),
+        sandboxing(false),
+        full_validations(0),
+        tmcommit(NULL),
+        tmread(NULL),
+        tmwrite(NULL)
   {
       // prevent new txns from starting.
       while (true) {
@@ -87,6 +102,8 @@ namespace stm
               break;
           spin64();
       }
+
+      pthreadid = pthread_self();
 
       // We need to be very careful here.  Some algorithms (at least TLI and
       // NOrecPrio) like to let a thread look at another thread's TxThread
@@ -170,11 +187,12 @@ namespace stm
   bool TM_FASTCALL (*volatile TxThread::tmbegin)(TxThread*) = begin_CGL;
 
   /**
-   *  The tmrollback, tmabort, and tmirrevoc pointers
+   *  The tmrollback, tmabort, tmirrevoc, tmvalidate pointers
    */
   scope_t* (*TxThread::tmrollback)(STM_ROLLBACK_SIG(,,));
   NORETURN void (*TxThread::tmabort)(TxThread*) = default_abort_handler;
   bool (*TxThread::tmirrevoc)(TxThread*) = NULL;
+  bool (*TxThread::tmvalidate)(TxThread*) = NULL;
 
   /*** the init factory */
   void TxThread::thread_init()
@@ -184,6 +202,9 @@ namespace stm
 
       // create a TxThread and save it in thread-local storage
       Self = new TxThread();
+
+      // initialize the sandboxing subsystem for this thread
+      sandbox::init_thread();
   }
 
   /**
@@ -199,7 +220,6 @@ namespace stm
       tx->tmabort(tx);
   }
 
-
   /**
    *  When the transactional system gets shut down, we call this to dump stats
    */
@@ -213,6 +233,8 @@ namespace stm
       uint32_t txn_count    = 0;                // total txns
       uint32_t rw_txns      = 0;                // rw commits
       uint32_t ro_txns      = 0;                // ro commits
+      uintptr_t validations  = 0;
+      uintptr_t full_validations = 0;
       for (uint32_t i = 0; i < threadcount.val; i++) {
           std::cout << "Thread: "       << threads[i]->id
                     << "; RW Commits: " << threads[i]->num_commits
@@ -224,11 +246,15 @@ namespace stm
           rw_txns += threads[i]->num_commits;
           ro_txns += threads[i]->num_ro;
           nontxn_count += threads[i]->total_nontxn_time;
+          validations += threads[i]->validations;
+          full_validations += threads[i]->full_validations;
       }
       txn_count = rw_txns + ro_txns;
       pct_ro = (!txn_count) ? 0 : (100 * ro_txns) / txn_count;
 
-      std::cout << "Total nontxn work:\t" << nontxn_count << std::endl;
+      std::cout << "Total nontxn work:\t" << nontxn_count << "\n";
+      std::cout << "Total validation barriers:\t" << validations << "\n";
+      std::cout << "Total full validations:\t" << full_validations << "\n";
 
       // if we ever switched to ProfileApp, then we should print out the
       // ProfileApp custom output.
@@ -344,6 +370,9 @@ namespace stm
       static volatile uint32_t mtx = 0;
 
       if (bcas32(&mtx, 0u, 1u)) {
+          // initialize the system-wide sandboxing stuff
+          sandbox::init_system();
+
           // manually register all behavior policies that we support.  We do
           // this via tail-recursive template metaprogramming
           MetaInitializer<0>::init();

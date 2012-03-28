@@ -17,14 +17,18 @@
 #include "Transaction.h"
 #include "Scope.h"
 #include "StackProtection.h"
+#include "common/ThreadLocal.hpp"
 #include "stm/txthread.hpp"
 #include "stm/lib_globals.hpp"
 using namespace stm;
 using namespace itm2stm;
 
 namespace {
-/// Our thread local transaction descriptor.
-static __thread _ITM_transaction* td = NULL;
+/// Our thread local transaction descriptor. On most platforms this uses
+/// __thread or its equivalent, but on Mac OS X---or if explicitly selected by
+/// the user---it will use a specialized template-based Pthreads
+/// implementation.
+THREAD_LOCAL_DECL_TYPE(_ITM_transaction*) thread_td;
 
 /// This is what the stm library will call when it detects a conflict and needs
 /// to abort. We always retry in this case, and if we have a registered thrown
@@ -41,6 +45,7 @@ tmabort(stm::TxThread* tx) {
     // boundary. If we leave it in the scope, the rollback will filter out
     // rollback behavior for it, which we don't want.
     Scope* scope = static_cast<Scope*>(tx->scope);
+    assert(scope && "Scope must be non-null during tmabort.");
     scope->clearThrownObject();
     scope->getOwner().restart();
 }
@@ -50,7 +55,7 @@ tmabort(stm::TxThread* tx) {
 
 int
 _ITM_initializeProcess(void) {
-    if (td == NULL)
+    if (thread_td == NULL)
         sys_init(tmabort);
     return _ITM_initializeThread();
 }
@@ -62,9 +67,9 @@ _ITM_initializeThread(void) {
 
 void
 _ITM_finalizeThread(void) {
-    if (td)
-        delete td;
-    td = NULL;
+    if (thread_td)
+        delete thread_td;
+    thread_td = NULL;
 }
 
 void
@@ -77,15 +82,17 @@ _ITM_finalizeProcess(void) {
 
 _ITM_transaction*
 _ITM_getTransaction(void) {
-    if (!td) {
+    if (!thread_td) {
+        sys_init(tmabort); // In case the library was not already initialized
         TxThread::thread_init();
-        td = new _ITM_transaction(*stm::Self);
+        thread_td = new _ITM_transaction(*stm::Self);
     }
-    return td;
+    return thread_td;
 }
 
 _ITM_transactionId_t
-_ITM_getTransactionId(_ITM_transaction* td) {
+_ITM_getTransactionId(_ITM_TD_PARAM) {
+    _ITM_TD_GET;
     return td->inner()->getId();
 }
 

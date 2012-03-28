@@ -519,6 +519,113 @@
 #  define TM_EARLY_RELEASE(var)         /* nothing */
 
 /* =============================================================================
+ * C++ STM API using DTMC
+ * =============================================================================
+ */
+#elif defined(DTMC)
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#ifdef strncmp
+# undef strncmp
+#endif
+extern __attribute__((transaction_pure))
+int strncmp(const char *s1, const char *s2, size_t n);
+
+#ifdef strcmp
+# undef strcmp
+#endif
+extern __attribute__((transaction_pure))
+int strcmp(const char *s1, const char *s2);
+
+#ifdef __cplusplus
+}
+#endif
+
+#  define TM_ARG                        /* nothing */
+#  define TM_ARG_ALONE                  /* nothing */
+#  define TM_ARGDECL                    /* nothing */
+#  define TM_ARGDECL_ALONE              /* nothing */
+#  define TM_CALLABLE __attribute__((transaction_callable))
+
+#  define TM_STARTUP(numThread)         /* nothing */
+#  define TM_SHUTDOWN()                 /* nothing */
+#  define TM_THREAD_ENTER()             /* nothing */
+#  define TM_THREAD_EXIT()              /* nothing */
+#  define TM_BEGIN_WAIVER()
+#  define TM_END_WAIVER()
+
+#  define P_MALLOC(size)                malloc(size)
+#  define P_FREE(ptr)                   free(ptr)
+#  define TM_MALLOC(size)               malloc(size)
+#  define TM_FREE(ptr)                  free(ptr)
+#  define SEQ_MALLOC(size)              malloc(size)
+#  define SEQ_FREE(ptr)                 free(ptr)
+
+#  define TM_BEGIN()                    __transaction {
+#  define TM_BEGIN_RO()                 __transaction {
+#  define TM_END()                      }
+#  define TM_RESTART()                  /* stm_restart() */
+
+#  define TM_EARLY_RELEASE(var)         /* nothing */
+
+#elif defined(TANGER)
+
+#include <tanger-stm.h>
+#include <tanger-stm-std-math.h>
+#include <tanger-stm-std-string.h>
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#ifdef strncmp
+# undef strncmp
+#endif
+extern __attribute__((transaction_pure))
+int strncmp(const char *s1, const char *s2, size_t n);
+
+#ifdef strcmp
+# undef strcmp
+#endif
+extern __attribute__((transaction_pure))
+int strcmp(const char *s1, const char *s2);
+
+
+#ifdef __cplusplus
+}
+#endif
+
+#  define TM_ARG                        /* nothing */
+#  define TM_ARG_ALONE                  /* nothing */
+#  define TM_ARGDECL                    /* nothing */
+#  define TM_ARGDECL_ALONE              /* nothing */
+#  define TM_CALLABLE                   /* __attribute__((tm_callable)) */
+
+#  define TM_STARTUP(numThread)         /* nothing */
+#  define TM_SHUTDOWN()                 /* nothing */
+#  define TM_THREAD_ENTER()             /* nothing */
+#  define TM_THREAD_EXIT()              /* nothing */
+#  define TM_BEGIN_WAIVER()
+#  define TM_END_WAIVER()
+
+#  define P_MALLOC(size)                malloc(size)
+#  define P_FREE(ptr)                   free(ptr)
+#  define TM_MALLOC(size)               malloc(size)
+#  define TM_FREE(ptr)                  free(ptr)
+#  define SEQ_MALLOC(size)              malloc(size)
+#  define SEQ_FREE(ptr)                 free(ptr)
+
+#  define TM_BEGIN()                    {tanger_begin();
+#  define TM_BEGIN_RO()                 {tanger_begin();
+#  define TM_END()                       tanger_commit();}
+#  define TM_RESTART()                  /* stm_restart() */
+
+#  define TM_EARLY_RELEASE(var)         /* nothing */
+
+/* =============================================================================
  * Sequential execution
  * =============================================================================
  */

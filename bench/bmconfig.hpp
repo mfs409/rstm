@@ -36,6 +36,7 @@ struct Config
     volatile uint64_t time;
     volatile bool     running;
     volatile uint32_t txcount;
+    volatile uint32_t found;
 
     Config();
 };
@@ -48,7 +49,7 @@ extern Config CFG TM_ALIGN(64);
 void bench_init();
 
 /*** Run a bunch of increment transactions */
-void bench_test(uintptr_t, uint32_t*);
+bool bench_test(uintptr_t, uint32_t*);
 
 /*** Ensure the final state of the benchmark satisfies all invariants */
 bool bench_verify();

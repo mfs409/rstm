@@ -75,6 +75,10 @@
 #include "error.h"
 #include "tm.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef struct decoder decoder_t;
 
 
@@ -131,6 +135,9 @@ TMdecoder_getComplete (TM_ARGDECL  decoder_t* decoderPtr, long* decodedFlowIdPtr
 #define TMDECODER_PROCESS(d, b, n)      TMdecoder_process(TM_ARG  d, b, n)
 #define TMDECODER_GETCOMPLETE(d, f)     TMdecoder_getComplete(TM_ARG  d, f)
 
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* DECODER_H */
 

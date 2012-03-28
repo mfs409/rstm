@@ -39,12 +39,13 @@ namespace stm
       OrecELA, TMLLazy, NOrecPrio, OrecFair, CToken, CTokenTurbo, Pipeline,
       BitLazy, LLT, TLI, ByteEager, MCS, Serial, BitEager, ByteLazy,
       ByEAR, OrecEagerRedo, ByteEagerRedo, BitEagerRedo,
-      RingALA, Nano, Swiss,
+      RingALA, Nano, NanoSandbox, Swiss,
 
       ByEAUBackoff, ByEAUFCM, ByEAUNoBackoff, ByEAUHour,
       OrEAUBackoff, OrEAUFCM, OrEAUNoBackoff, OrEAUHour,
       OrecEager, OrecEagerHour, OrecEagerBackoff, OrecEagerHB,
       OrecLazy,  OrecLazyHour,  OrecLazyBackoff,  OrecLazyHB,
+      OrecSandbox,
       NOrec,     NOrecHour,     NOrecBackoff,     NOrecHB,
       // ProfileTM support.  These are not true STMs
       ProfileTM, ProfileAppAvg, ProfileAppMax, ProfileAppAll,
@@ -119,6 +120,9 @@ namespace stm
       /*** the restart, retry, and irrevoc methods to use */
       bool  (* irrevoc)(TxThread*);
 
+      /*** the code to force a validation */
+      bool (* validate)(TxThread*);
+
       /*** the code to run when switching to this alg */
       void  (* switcher) ();
 
@@ -130,8 +134,14 @@ namespace stm
        */
       bool privatization_safe;
 
+      /**
+       *  bool flag to indicate if an algorithm needs signal sandboxing, this
+       *  is used in install_algorithm to do sigactioning.
+       */
+      bool sandbox_signals;
+
       /*** simple ctor, because a NULL name is a bad thing */
-      alg_t() : name("") { }
+      alg_t();
   };
 
   /**
@@ -223,7 +233,7 @@ namespace stm
       bits = (bits > BACKOFF_MAX) ? BACKOFF_MAX : bits;
       // get a random amount of time to wait, bounded by an exponentially
       // increasing limit
-      int32_t delay = rand_r(&tx->seed);
+      int32_t delay = rand_r_32(&tx->seed);
       delay &= ((1 << bits)-1);
       // wait until at least that many ns have passed
       unsigned long long start = getElapsedTime();

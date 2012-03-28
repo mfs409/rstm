@@ -11,18 +11,18 @@ set(
   sources
   ../lib/bitmap.c
   ../lib/hash.c
-  ../lib/hashtable.c
+  ../lib/hashtable.cpp
   ../lib/pair.c
   ../lib/random.c
-  ../lib/list.c
+  ../lib/list.cpp
   ../lib/mt19937ar.c
-  ../lib/thread.c
-  ../lib/vector.c
+  ../lib/thread.cpp
+  ../lib/vector.cpp
   gene.c
-  genome.c
+  genome.cpp
   segments.c
-  sequencer.c
-  table.c)
+  sequencer.cpp
+  table.cpp)
 
 # Force the use of the C++ compiler
 set_source_files_properties(${sources} PROPERTIES LANGUAGE CXX)
@@ -32,3 +32,5 @@ foreach (arch ${rstm_archs})
   add_stamp_executable(exec genome ${arch} ${sources})
   add_target_definitions(${exec} LIST_NO_DUPLICATES CHUNK_STEP1=12)
 endforeach ()
+
+configure_file (sandbox.mk.cmake sandbox.mk @ONLY)

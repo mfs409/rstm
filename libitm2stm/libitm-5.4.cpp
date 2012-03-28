@@ -15,7 +15,8 @@
 using namespace stm;
 
 _ITM_howExecuting
-_ITM_inTransaction(_ITM_transaction* td) {
+_ITM_inTransaction(_ITM_TD_PARAM) {
+    _ITM_TD_GET;
     if (!td->inner())
         return outsideTransaction;
     if (td->libraryIsInevitable())

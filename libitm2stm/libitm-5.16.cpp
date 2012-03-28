@@ -18,7 +18,8 @@ using namespace itm2stm;
 /// _ITM_LB can log arbitrary data. This implements a routine that chunks the
 /// passed data into word sized blocks, and logs them all individually.
 void
-_ITM_LB(_ITM_transaction* td, const void* addr, size_t bytes) {
+_ITM_LB(_ITM_TD_PARAMS const void* addr, size_t bytes) {
+    _ITM_TD_GET;
     void**  address = reinterpret_cast<void**>(const_cast<void*>(addr));
     Scope* scope = td->inner();
 
@@ -48,7 +49,8 @@ _ITM_LB(_ITM_transaction* td, const void* addr, size_t bytes) {
 /// just directly use the scope's templated log functionality.
 #define GENERATE_LOG(TYPE, EXT)                                 \
     void                                                        \
-    _ITM_L##EXT(_ITM_transaction* td, const TYPE* address) {    \
+    _ITM_L##EXT(_ITM_TD_PARAMS const TYPE* address) {           \
+        _ITM_TD_GET;                                            \
         td->inner()->log(address);                              \
     }
 

@@ -48,6 +48,7 @@
 using stm::TxThread;
 using stm::timestamp;
 using stm::OrecList;
+using stm::LockList;
 using stm::orec_t;
 using stm::get_orec;
 using stm::id_version_t;
@@ -145,7 +146,7 @@ namespace {
       }
 
       // release locks
-      foreach (OrecList, i, tx->locks)
+      foreach (LockList, i, tx->locks)
           (*i)->v.all = end_time;
 
       // notify CM
@@ -322,7 +323,7 @@ namespace {
       }
 
       // release locks
-      foreach (OrecList, i, tx->locks)
+      foreach (LockList, i, tx->locks)
           (*i)->v.all = end_time;
 
       // clean up

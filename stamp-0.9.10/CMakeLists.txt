@@ -87,7 +87,10 @@ macro (add_stamp_itm2stm_executable exec name arch)
   add_target_definitions(${${exec}} CXXTM ITM HAVE_CONFIG_H)
 endmacro ()
 
-configure_file(STAMP_config.h.cmake STAMP_config.h)
+configure_file (STAMP_config.h.cmake STAMP_config.h)
+configure_file (sandbox.mk.cmake sandbox.mk @ONLY)
+configure_file (sandbox.stamp.mk.cmake sandbox.stamp.mk @ONLY)
+
 include_directories(lib)
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
 

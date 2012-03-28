@@ -76,6 +76,22 @@
 #include "utility.h"
 #include "vector.h"
 
+extern "C" {
+void qsort(void *base, size_t nmemb, size_t size,
+           int(*compar)(const void *, const void *))
+    __attribute__((tm_wrapper("tanger_stm_std_qsort")));
+
+static void __attribute__((used))
+tanger_stm_std_qsort(void *base, size_t nmemb, size_t size,
+                     int(*compar)(const void *, const void*))
+{
+    size_t s = size * nmemb;
+    uint8_t buf[s];
+    _ITM_memcpyRtWn(buf, base, s);
+    qsort(buf, nmemb, size, compar);
+    _ITM_memcpyRnWt(base, buf, s);
+}
+}
 
 /* =============================================================================
  * vector_alloc

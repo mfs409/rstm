@@ -25,6 +25,7 @@
 using stm::UNRECOVERABLE;
 using stm::TxThread;
 using stm::OrecList;
+using stm::LockList;
 using stm::orec_t;
 using stm::get_orec;
 using stm::WriteSetEntry;
@@ -108,7 +109,7 @@ namespace {
       tx->end_time = 1 + faiptr(&timestamp.val);
 
       // release locks
-      foreach (OrecList, i, tx->locks)
+      foreach (LockList, i, tx->locks)
           (*i)->v.all = tx->end_time;
 
       // clean up
@@ -303,7 +304,7 @@ namespace {
       STM_ROLLBACK(tx->writes, except, len);
 
       // release the locks and restore version numbers
-      foreach (OrecList, i, tx->locks)
+      foreach (LockList, i, tx->locks)
           (*i)->v.all = (*i)->p;
 
       // undo memory operations, reset lists

@@ -24,7 +24,11 @@ extern "C" {
 
 #include <stdint.h>     // uint32_t
 #include <stdbool.h>    // bool for tryCommitTransaction
-#include <immintrin.h>  // sse-specific type __m256, __m128, __m64
+#ifdef __AVX__
+# include <immintrin.h> // sse-specific type __m256, __m128, __m64
+#else
+# include <xmmintrin.h> // dtmc doesn't have an immintrin.h header
+#endif
 
 // -----------------------------------------------------------------------------
 // 4  Types and macro list -----------------------------------------------------
@@ -34,6 +38,16 @@ extern "C" {
 #define _ITM_NoTransactionId    0
 
 #define _ITM_NORETURN NORETURN
+#define _ITM_TD_TYPE             _ITM_transaction
+#if defined(_ITM_GCC) || defined(_ITM_DTMC)
+#   define _ITM_TD_PARAM
+#   define _ITM_TD_PARAMS
+#   define _ITM_TD_GET              _ITM_transaction* td = _ITM_getTransaction();
+#else /* default: _ITM_ICC */
+#   define _ITM_TD_PARAM            _ITM_transaction* td
+#   define _ITM_TD_PARAMS           _ITM_transaction* td,
+#   define _ITM_TD_GET
+#endif /* _ITM_ICC */
 
 /* Values used as arguments to abort. */
 typedef enum {
@@ -110,13 +124,13 @@ void _ITM_FASTCALL _ITM_NORETURN _ITM_error(const _ITM_srcLocation*, int errorCo
 // -----------------------------------------------------------------------------
 // 5.4  inTransaction call -----------------------------------------------------
 // -----------------------------------------------------------------------------
-_ITM_howExecuting _ITM_FASTCALL _ITM_inTransaction(_ITM_transaction*);
+_ITM_howExecuting _ITM_FASTCALL _ITM_inTransaction(_ITM_TD_PARAM);
 
 // -----------------------------------------------------------------------------
 // 5.5  State manipulation functions -------------------------------------------
 // -----------------------------------------------------------------------------
 _ITM_transaction* _ITM_FASTCALL _ITM_getTransaction(void);
-_ITM_transactionId_t _ITM_FASTCALL _ITM_getTransactionId(_ITM_transaction*);
+_ITM_transactionId_t _ITM_FASTCALL _ITM_getTransactionId(_ITM_TD_PARAM);
 
 // -----------------------------------------------------------------------------
 // 5.6  Source locations -------------------------------------------------------
@@ -125,224 +139,227 @@ _ITM_transactionId_t _ITM_FASTCALL _ITM_getTransactionId(_ITM_transaction*);
 // -----------------------------------------------------------------------------
 // 5.7  Starting a transaction -------------------------------------------------
 // -----------------------------------------------------------------------------
-uint32_t _ITM_FASTCALL _ITM_beginTransaction(_ITM_transaction*, uint32_t, _ITM_srcLocation*);
+uint32_t _ITM_FASTCALL _ITM_beginTransaction(_ITM_TD_PARAMS uint32_t, _ITM_srcLocation*);
 
 // -----------------------------------------------------------------------------
 // 5.8  Aborting a transaction -------------------------------------------------
 // -----------------------------------------------------------------------------
-void _ITM_FASTCALL _ITM_NORETURN _ITM_abortTransaction(_ITM_transaction*, _ITM_abortReason, const _ITM_srcLocation*);
-void _ITM_FASTCALL _ITM_rollbackTransaction(_ITM_transaction*, const _ITM_srcLocation*);
+void _ITM_FASTCALL _ITM_NORETURN _ITM_abortTransaction(_ITM_TD_PARAMS _ITM_abortReason, const _ITM_srcLocation*);
+void _ITM_FASTCALL _ITM_rollbackTransaction(_ITM_TD_PARAMS const _ITM_srcLocation*);
 
 // -----------------------------------------------------------------------------
 // 5.9  Committing a transaction -----------------------------------------------
 // -----------------------------------------------------------------------------
-void _ITM_FASTCALL _ITM_commitTransaction(_ITM_transaction*, const _ITM_srcLocation*);
-bool _ITM_FASTCALL _ITM_tryCommitTransaction(_ITM_transaction*, const _ITM_srcLocation*);
-void _ITM_FASTCALL _ITM_commitTransactionToId(_ITM_transaction*, const _ITM_transactionId_t, const _ITM_srcLocation*);
+void _ITM_FASTCALL _ITM_commitTransaction(_ITM_TD_PARAMS const _ITM_srcLocation*);
+bool _ITM_FASTCALL _ITM_tryCommitTransaction(_ITM_TD_PARAMS const _ITM_srcLocation*);
+void _ITM_FASTCALL _ITM_commitTransactionToId(_ITM_TD_PARAMS const _ITM_transactionId_t, const _ITM_srcLocation*);
+#ifdef _ITM_GCC
+void _ITM_FASTCALL _ITM_commitTransactionEH(void *);
+#endif /* _ITM_GCC */
 
 // -----------------------------------------------------------------------------
 // 5.10  Exception handling support --------------------------------------------
 // -----------------------------------------------------------------------------
-void _ITM_FASTCALL _ITM_registerThrownObject(_ITM_transaction*, const void*, size_t);
+void _ITM_FASTCALL _ITM_registerThrownObject(_ITM_TD_PARAMS const void*, size_t);
 
 // -----------------------------------------------------------------------------
 // 5.11  Transition to serial irrevocable mode ---------------------------------
 // -----------------------------------------------------------------------------
-void _ITM_FASTCALL _ITM_changeTransactionMode(_ITM_transaction*, _ITM_transactionState, const _ITM_srcLocation*);
+void _ITM_FASTCALL _ITM_changeTransactionMode(_ITM_TD_PARAMS _ITM_transactionState, const _ITM_srcLocation*);
 
 // -----------------------------------------------------------------------------
 // 5.12  Data transfer functions -----------------------------------------------
 // -----------------------------------------------------------------------------
-uint8_t _ITM_FASTCALL _ITM_RU1(_ITM_transaction*, const uint8_t*);
-uint8_t _ITM_FASTCALL _ITM_RaRU1(_ITM_transaction*, const uint8_t*);
-uint8_t _ITM_FASTCALL _ITM_RaWU1(_ITM_transaction*, const uint8_t*);
-uint8_t _ITM_FASTCALL _ITM_RfWU1(_ITM_transaction*, const uint8_t*);
+uint8_t _ITM_FASTCALL _ITM_RU1(_ITM_TD_PARAMS const uint8_t*);
+uint8_t _ITM_FASTCALL _ITM_RaRU1(_ITM_TD_PARAMS const uint8_t*);
+uint8_t _ITM_FASTCALL _ITM_RaWU1(_ITM_TD_PARAMS const uint8_t*);
+uint8_t _ITM_FASTCALL _ITM_RfWU1(_ITM_TD_PARAMS const uint8_t*);
 
-void _ITM_FASTCALL _ITM_WU1(_ITM_transaction*, uint8_t*, uint8_t);
-void _ITM_FASTCALL _ITM_WaRU1(_ITM_transaction*, uint8_t*, uint8_t);
-void _ITM_FASTCALL _ITM_WaWU1(_ITM_transaction*, uint8_t*, uint8_t);
+void _ITM_FASTCALL _ITM_WU1(_ITM_TD_PARAMS uint8_t*, uint8_t);
+void _ITM_FASTCALL _ITM_WaRU1(_ITM_TD_PARAMS uint8_t*, uint8_t);
+void _ITM_FASTCALL _ITM_WaWU1(_ITM_TD_PARAMS uint8_t*, uint8_t);
 
-uint16_t _ITM_FASTCALL _ITM_RU2(_ITM_transaction*, const uint16_t*);
-uint16_t _ITM_FASTCALL _ITM_RaRU2(_ITM_transaction*, const uint16_t*);
-uint16_t _ITM_FASTCALL _ITM_RaWU2(_ITM_transaction*, const uint16_t*);
-uint16_t _ITM_FASTCALL _ITM_RfWU2 (_ITM_transaction*, const uint16_t*);
+uint16_t _ITM_FASTCALL _ITM_RU2(_ITM_TD_PARAMS const uint16_t*);
+uint16_t _ITM_FASTCALL _ITM_RaRU2(_ITM_TD_PARAMS const uint16_t*);
+uint16_t _ITM_FASTCALL _ITM_RaWU2(_ITM_TD_PARAMS const uint16_t*);
+uint16_t _ITM_FASTCALL _ITM_RfWU2 (_ITM_TD_PARAMS const uint16_t*);
 
-void _ITM_FASTCALL _ITM_WU2(_ITM_transaction*, uint16_t*, uint16_t);
-void _ITM_FASTCALL _ITM_WaRU2(_ITM_transaction*, uint16_t*, uint16_t);
-void _ITM_FASTCALL _ITM_WaWU2(_ITM_transaction*, uint16_t*, uint16_t);
+void _ITM_FASTCALL _ITM_WU2(_ITM_TD_PARAMS uint16_t*, uint16_t);
+void _ITM_FASTCALL _ITM_WaRU2(_ITM_TD_PARAMS uint16_t*, uint16_t);
+void _ITM_FASTCALL _ITM_WaWU2(_ITM_TD_PARAMS uint16_t*, uint16_t);
 
-uint32_t _ITM_FASTCALL _ITM_RU4(_ITM_transaction*, const uint32_t*);
-uint32_t _ITM_FASTCALL _ITM_RaRU4(_ITM_transaction*, const uint32_t*);
-uint32_t _ITM_FASTCALL _ITM_RaWU4(_ITM_transaction*, const uint32_t*);
-uint32_t _ITM_FASTCALL _ITM_RfWU4(_ITM_transaction*, const uint32_t*);
+uint32_t _ITM_FASTCALL _ITM_RU4(_ITM_TD_PARAMS const uint32_t*);
+uint32_t _ITM_FASTCALL _ITM_RaRU4(_ITM_TD_PARAMS const uint32_t*);
+uint32_t _ITM_FASTCALL _ITM_RaWU4(_ITM_TD_PARAMS const uint32_t*);
+uint32_t _ITM_FASTCALL _ITM_RfWU4(_ITM_TD_PARAMS const uint32_t*);
 
-void _ITM_FASTCALL _ITM_WU4(_ITM_transaction*, uint32_t*, uint32_t);
-void _ITM_FASTCALL _ITM_WaRU4(_ITM_transaction*, uint32_t*, uint32_t);
-void _ITM_FASTCALL _ITM_WaWU4(_ITM_transaction*, uint32_t*, uint32_t);
+void _ITM_FASTCALL _ITM_WU4(_ITM_TD_PARAMS uint32_t*, uint32_t);
+void _ITM_FASTCALL _ITM_WaRU4(_ITM_TD_PARAMS uint32_t*, uint32_t);
+void _ITM_FASTCALL _ITM_WaWU4(_ITM_TD_PARAMS uint32_t*, uint32_t);
 
-uint64_t _ITM_FASTCALL _ITM_RU8(_ITM_transaction*, const uint64_t*);
-uint64_t _ITM_FASTCALL _ITM_RaRU8(_ITM_transaction*, const uint64_t*);
-uint64_t _ITM_FASTCALL _ITM_RaWU8(_ITM_transaction*, const uint64_t*);
-uint64_t _ITM_FASTCALL _ITM_RfWU8(_ITM_transaction*, const uint64_t*);
+uint64_t _ITM_FASTCALL _ITM_RU8(_ITM_TD_PARAMS const uint64_t*);
+uint64_t _ITM_FASTCALL _ITM_RaRU8(_ITM_TD_PARAMS const uint64_t*);
+uint64_t _ITM_FASTCALL _ITM_RaWU8(_ITM_TD_PARAMS const uint64_t*);
+uint64_t _ITM_FASTCALL _ITM_RfWU8(_ITM_TD_PARAMS const uint64_t*);
 
-void _ITM_FASTCALL _ITM_WU8(_ITM_transaction*, uint64_t*, uint64_t);
-void _ITM_FASTCALL _ITM_WaRU8(_ITM_transaction*, uint64_t*, uint64_t);
-void _ITM_FASTCALL _ITM_WaWU8(_ITM_transaction*, uint64_t*, uint64_t);
+void _ITM_FASTCALL _ITM_WU8(_ITM_TD_PARAMS uint64_t*, uint64_t);
+void _ITM_FASTCALL _ITM_WaRU8(_ITM_TD_PARAMS uint64_t*, uint64_t);
+void _ITM_FASTCALL _ITM_WaWU8(_ITM_TD_PARAMS uint64_t*, uint64_t);
 
-float _ITM_FASTCALL _ITM_RF(_ITM_transaction*, const float*);
-float _ITM_FASTCALL _ITM_RaRF(_ITM_transaction*, const float*);
-float _ITM_FASTCALL _ITM_RaWF(_ITM_transaction*, const float*);
-float _ITM_FASTCALL _ITM_RfWF (_ITM_transaction*, const float*);
+float _ITM_FASTCALL _ITM_RF(_ITM_TD_PARAMS const float*);
+float _ITM_FASTCALL _ITM_RaRF(_ITM_TD_PARAMS const float*);
+float _ITM_FASTCALL _ITM_RaWF(_ITM_TD_PARAMS const float*);
+float _ITM_FASTCALL _ITM_RfWF (_ITM_TD_PARAMS const float*);
 
-void _ITM_FASTCALL _ITM_WF(_ITM_transaction*, float*, float);
-void _ITM_FASTCALL _ITM_WaRF(_ITM_transaction*, float*, float);
-void _ITM_FASTCALL _ITM_WaWF(_ITM_transaction*, float*, float);
+void _ITM_FASTCALL _ITM_WF(_ITM_TD_PARAMS float*, float);
+void _ITM_FASTCALL _ITM_WaRF(_ITM_TD_PARAMS float*, float);
+void _ITM_FASTCALL _ITM_WaWF(_ITM_TD_PARAMS float*, float);
 
-double _ITM_FASTCALL _ITM_RD(_ITM_transaction*, const double*);
-double _ITM_FASTCALL _ITM_RaRD(_ITM_transaction*, const double*);
-double _ITM_FASTCALL _ITM_RaWD (_ITM_transaction*, const double*);
-double _ITM_FASTCALL _ITM_RfWD (_ITM_transaction*, const double*);
+double _ITM_FASTCALL _ITM_RD(_ITM_TD_PARAMS const double*);
+double _ITM_FASTCALL _ITM_RaRD(_ITM_TD_PARAMS const double*);
+double _ITM_FASTCALL _ITM_RaWD (_ITM_TD_PARAMS const double*);
+double _ITM_FASTCALL _ITM_RfWD (_ITM_TD_PARAMS const double*);
 
-void _ITM_FASTCALL _ITM_WD(_ITM_transaction*, double*, double);
-void _ITM_FASTCALL _ITM_WaRD(_ITM_transaction*, double*, double);
-void _ITM_FASTCALL _ITM_WaWD(_ITM_transaction*, double*, double);
+void _ITM_FASTCALL _ITM_WD(_ITM_TD_PARAMS double*, double);
+void _ITM_FASTCALL _ITM_WaRD(_ITM_TD_PARAMS double*, double);
+void _ITM_FASTCALL _ITM_WaWD(_ITM_TD_PARAMS double*, double);
 
-long double _ITM_FASTCALL _ITM_RE(_ITM_transaction*, const long double*);
-long double _ITM_FASTCALL _ITM_RaRE(_ITM_transaction*, const long double*);
-long double _ITM_FASTCALL _ITM_RaWE(_ITM_transaction*, const long double*);
-long double _ITM_FASTCALL _ITM_RfWE(_ITM_transaction*, const long double*);
+long double _ITM_FASTCALL _ITM_RE(_ITM_TD_PARAMS const long double*);
+long double _ITM_FASTCALL _ITM_RaRE(_ITM_TD_PARAMS const long double*);
+long double _ITM_FASTCALL _ITM_RaWE(_ITM_TD_PARAMS const long double*);
+long double _ITM_FASTCALL _ITM_RfWE(_ITM_TD_PARAMS const long double*);
 
-void _ITM_FASTCALL _ITM_WE(_ITM_transaction*, long double*, long double);
-void _ITM_FASTCALL _ITM_WaRE(_ITM_transaction*, long double*, long double);
-void _ITM_FASTCALL _ITM_WaWE(_ITM_transaction*, long double*, long double);
+void _ITM_FASTCALL _ITM_WE(_ITM_TD_PARAMS long double*, long double);
+void _ITM_FASTCALL _ITM_WaRE(_ITM_TD_PARAMS long double*, long double);
+void _ITM_FASTCALL _ITM_WaWE(_ITM_TD_PARAMS long double*, long double);
 
-__m64 _ITM_FASTCALL _ITM_RM64(_ITM_transaction*, const __m64*);
-__m64 _ITM_FASTCALL _ITM_RaRM64(_ITM_transaction*, const __m64*);
-__m64 _ITM_FASTCALL _ITM_RaWM64(_ITM_transaction*, const __m64*);
-__m64 _ITM_FASTCALL _ITM_RfWM64(_ITM_transaction*, const __m64*);
+__m64 _ITM_FASTCALL _ITM_RM64(_ITM_TD_PARAMS const __m64*);
+__m64 _ITM_FASTCALL _ITM_RaRM64(_ITM_TD_PARAMS const __m64*);
+__m64 _ITM_FASTCALL _ITM_RaWM64(_ITM_TD_PARAMS const __m64*);
+__m64 _ITM_FASTCALL _ITM_RfWM64(_ITM_TD_PARAMS const __m64*);
 
-void _ITM_FASTCALL _ITM_WM64(_ITM_transaction*, __m64*, __m64);
-void _ITM_FASTCALL _ITM_WaRM64(_ITM_transaction*, __m64*, __m64);
-void _ITM_FASTCALL _ITM_WaWM64(_ITM_transaction*, __m64*, __m64);
+void _ITM_FASTCALL _ITM_WM64(_ITM_TD_PARAMS __m64*, __m64);
+void _ITM_FASTCALL _ITM_WaRM64(_ITM_TD_PARAMS __m64*, __m64);
+void _ITM_FASTCALL _ITM_WaWM64(_ITM_TD_PARAMS __m64*, __m64);
 
-__m128 _ITM_FASTCALL _ITM_RM128(_ITM_transaction*, const __m128*);
-__m128 _ITM_FASTCALL _ITM_RaRM128(_ITM_transaction*, const __m128*);
-__m128 _ITM_FASTCALL _ITM_RaWM128(_ITM_transaction*, const __m128*);
-__m128 _ITM_FASTCALL _ITM_RfWM128(_ITM_transaction*, const __m128*);
+__m128 _ITM_FASTCALL _ITM_RM128(_ITM_TD_PARAMS const __m128*);
+__m128 _ITM_FASTCALL _ITM_RaRM128(_ITM_TD_PARAMS const __m128*);
+__m128 _ITM_FASTCALL _ITM_RaWM128(_ITM_TD_PARAMS const __m128*);
+__m128 _ITM_FASTCALL _ITM_RfWM128(_ITM_TD_PARAMS const __m128*);
 
-void _ITM_FASTCALL _ITM_WM128(_ITM_transaction*, __m128*, __m128);
-void _ITM_FASTCALL _ITM_WaRM128(_ITM_transaction*, __m128*, __m128);
-void _ITM_FASTCALL _ITM_WaWM128(_ITM_transaction*, __m128*, __m128);
+void _ITM_FASTCALL _ITM_WM128(_ITM_TD_PARAMS __m128*, __m128);
+void _ITM_FASTCALL _ITM_WaRM128(_ITM_TD_PARAMS __m128*, __m128);
+void _ITM_FASTCALL _ITM_WaWM128(_ITM_TD_PARAMS __m128*, __m128);
 
 #ifdef __AVX__
-__m256 _ITM_FASTCALL _ITM_RM256(_ITM_transaction*, const __m256*);
-__m256 _ITM_FASTCALL _ITM_RaRM256(_ITM_transaction*, const __m256*);
-__m256 _ITM_FASTCALL _ITM_RaWM256(_ITM_transaction*, const __m256*);
-__m256 _ITM_FASTCALL _ITM_RfWM256(_ITM_transaction*, const __m256*);
+__m256 _ITM_FASTCALL _ITM_RM256(_ITM_TD_PARAMS const __m256*);
+__m256 _ITM_FASTCALL _ITM_RaRM256(_ITM_TD_PARAMS const __m256*);
+__m256 _ITM_FASTCALL _ITM_RaWM256(_ITM_TD_PARAMS const __m256*);
+__m256 _ITM_FASTCALL _ITM_RfWM256(_ITM_TD_PARAMS const __m256*);
 
-void _ITM_FASTCALL _ITM_WM256(_ITM_transaction*, __m256*, __m256);
-void _ITM_FASTCALL _ITM_WaRM256(_ITM_transaction*, __m256*, __m256);
-void _ITM_FASTCALL _ITM_WaWM256(_ITM_transaction*, __m256*, __m256);
+void _ITM_FASTCALL _ITM_WM256(_ITM_TD_PARAMS __m256*, __m256);
+void _ITM_FASTCALL _ITM_WaRM256(_ITM_TD_PARAMS __m256*, __m256);
+void _ITM_FASTCALL _ITM_WaWM256(_ITM_TD_PARAMS __m256*, __m256);
 #endif
 
-_Complex float _ITM_FASTCALL _ITM_RCF(_ITM_transaction*, const _Complex float*);
-_Complex float _ITM_FASTCALL _ITM_RaRCF(_ITM_transaction*, const _Complex float*);
-_Complex float _ITM_FASTCALL _ITM_RaWCF(_ITM_transaction*, const _Complex float*);
-_Complex float _ITM_FASTCALL _ITM_RfWCF(_ITM_transaction*, const _Complex float*);
+_Complex float _ITM_FASTCALL _ITM_RCF(_ITM_TD_PARAMS const _Complex float*);
+_Complex float _ITM_FASTCALL _ITM_RaRCF(_ITM_TD_PARAMS const _Complex float*);
+_Complex float _ITM_FASTCALL _ITM_RaWCF(_ITM_TD_PARAMS const _Complex float*);
+_Complex float _ITM_FASTCALL _ITM_RfWCF(_ITM_TD_PARAMS const _Complex float*);
 
-void _ITM_FASTCALL _ITM_WCF(_ITM_transaction*, _Complex float*, _Complex float);
-void _ITM_FASTCALL _ITM_WaRCF(_ITM_transaction*, _Complex float*, _Complex float);
-void _ITM_FASTCALL _ITM_WaWCF(_ITM_transaction*, _Complex float*, _Complex float);
+void _ITM_FASTCALL _ITM_WCF(_ITM_TD_PARAMS _Complex float*, _Complex float);
+void _ITM_FASTCALL _ITM_WaRCF(_ITM_TD_PARAMS _Complex float*, _Complex float);
+void _ITM_FASTCALL _ITM_WaWCF(_ITM_TD_PARAMS _Complex float*, _Complex float);
 
-_Complex double _ITM_FASTCALL _ITM_RCD(_ITM_transaction*, const _Complex double*);
-_Complex double _ITM_FASTCALL _ITM_RaRCD(_ITM_transaction*, const _Complex double*);
-_Complex double _ITM_FASTCALL _ITM_RaWCD(_ITM_transaction*, const _Complex double*);
-_Complex double _ITM_FASTCALL _ITM_RfWCD(_ITM_transaction*, const _Complex double*);
+_Complex double _ITM_FASTCALL _ITM_RCD(_ITM_TD_PARAMS const _Complex double*);
+_Complex double _ITM_FASTCALL _ITM_RaRCD(_ITM_TD_PARAMS const _Complex double*);
+_Complex double _ITM_FASTCALL _ITM_RaWCD(_ITM_TD_PARAMS const _Complex double*);
+_Complex double _ITM_FASTCALL _ITM_RfWCD(_ITM_TD_PARAMS const _Complex double*);
 
-void _ITM_FASTCALL _ITM_WCD(_ITM_transaction*, _Complex double*, _Complex double);
-void _ITM_FASTCALL _ITM_WaRCD(_ITM_transaction*, _Complex double*, _Complex double);
-void _ITM_FASTCALL _ITM_WaWCD(_ITM_transaction*, _Complex double*, _Complex double);
+void _ITM_FASTCALL _ITM_WCD(_ITM_TD_PARAMS _Complex double*, _Complex double);
+void _ITM_FASTCALL _ITM_WaRCD(_ITM_TD_PARAMS _Complex double*, _Complex double);
+void _ITM_FASTCALL _ITM_WaWCD(_ITM_TD_PARAMS _Complex double*, _Complex double);
 
-_Complex long double _ITM_FASTCALL _ITM_RCE(_ITM_transaction*, const _Complex long double*);
-_Complex long double _ITM_FASTCALL _ITM_RaRCE(_ITM_transaction*, const _Complex long double*);
-_Complex long double _ITM_FASTCALL _ITM_RaWCE(_ITM_transaction*, const _Complex long double*);
-_Complex long double _ITM_FASTCALL _ITM_RfWCE(_ITM_transaction*, const _Complex long double*);
+_Complex long double _ITM_FASTCALL _ITM_RCE(_ITM_TD_PARAMS const _Complex long double*);
+_Complex long double _ITM_FASTCALL _ITM_RaRCE(_ITM_TD_PARAMS const _Complex long double*);
+_Complex long double _ITM_FASTCALL _ITM_RaWCE(_ITM_TD_PARAMS const _Complex long double*);
+_Complex long double _ITM_FASTCALL _ITM_RfWCE(_ITM_TD_PARAMS const _Complex long double*);
 
-void _ITM_FASTCALL _ITM_WCE(_ITM_transaction*, _Complex long double*, _Complex long double);
-void _ITM_FASTCALL _ITM_WaRCE(_ITM_transaction*, _Complex long double*, _Complex long double);
-void _ITM_FASTCALL _ITM_WaWCE(_ITM_transaction*, _Complex long double*, _Complex long double);
+void _ITM_FASTCALL _ITM_WCE(_ITM_TD_PARAMS _Complex long double*, _Complex long double);
+void _ITM_FASTCALL _ITM_WaRCE(_ITM_TD_PARAMS _Complex long double*, _Complex long double);
+void _ITM_FASTCALL _ITM_WaWCE(_ITM_TD_PARAMS _Complex long double*, _Complex long double);
 
 // -----------------------------------------------------------------------------
 // 5.13  Transactional memory copies -------------------------------------------
 // -----------------------------------------------------------------------------
-void _ITM_FASTCALL _ITM_memcpyRnWt(_ITM_transaction*, void*, const void*, size_t);
-void _ITM_FASTCALL _ITM_memcpyRnWtaR(_ITM_transaction*, void*, const void*, size_t);
-void _ITM_FASTCALL _ITM_memcpyRnWtaW(_ITM_transaction*, void*, const void*, size_t);
-void _ITM_FASTCALL _ITM_memcpyRtWn(_ITM_transaction*, void*, const void*, size_t);
-void _ITM_FASTCALL _ITM_memcpyRtWt(_ITM_transaction*, void*, const void*, size_t);
-void _ITM_FASTCALL _ITM_memcpyRtWtaR(_ITM_transaction*, void*, const void*, size_t);
-void _ITM_FASTCALL _ITM_memcpyRtWtaW(_ITM_transaction*, void*, const void*, size_t);
-void _ITM_FASTCALL _ITM_memcpyRtaRWn(_ITM_transaction*, void*, const void*, size_t);
-void _ITM_FASTCALL _ITM_memcpyRtaRWt(_ITM_transaction*, void*, const void*, size_t);
-void _ITM_FASTCALL _ITM_memcpyRtaRWtaR(_ITM_transaction*, void*, const void*, size_t);
-void _ITM_FASTCALL _ITM_memcpyRtaRWtaW(_ITM_transaction*, void*, const void*, size_t);
-void _ITM_FASTCALL _ITM_memcpyRtaWWn(_ITM_transaction*, void*, const void*, size_t);
-void _ITM_FASTCALL _ITM_memcpyRtaWWt(_ITM_transaction*, void*, const void*, size_t);
-void _ITM_FASTCALL _ITM_memcpyRtaWWtaR(_ITM_transaction*, void*, const void*, size_t);
-void _ITM_FASTCALL _ITM_memcpyRtaWWtaW(_ITM_transaction*, void*, const void*, size_t);
+void _ITM_FASTCALL _ITM_memcpyRnWt(_ITM_TD_PARAMS void*, const void*, size_t);
+void _ITM_FASTCALL _ITM_memcpyRnWtaR(_ITM_TD_PARAMS void*, const void*, size_t);
+void _ITM_FASTCALL _ITM_memcpyRnWtaW(_ITM_TD_PARAMS void*, const void*, size_t);
+void _ITM_FASTCALL _ITM_memcpyRtWn(_ITM_TD_PARAMS void*, const void*, size_t);
+void _ITM_FASTCALL _ITM_memcpyRtWt(_ITM_TD_PARAMS void*, const void*, size_t);
+void _ITM_FASTCALL _ITM_memcpyRtWtaR(_ITM_TD_PARAMS void*, const void*, size_t);
+void _ITM_FASTCALL _ITM_memcpyRtWtaW(_ITM_TD_PARAMS void*, const void*, size_t);
+void _ITM_FASTCALL _ITM_memcpyRtaRWn(_ITM_TD_PARAMS void*, const void*, size_t);
+void _ITM_FASTCALL _ITM_memcpyRtaRWt(_ITM_TD_PARAMS void*, const void*, size_t);
+void _ITM_FASTCALL _ITM_memcpyRtaRWtaR(_ITM_TD_PARAMS void*, const void*, size_t);
+void _ITM_FASTCALL _ITM_memcpyRtaRWtaW(_ITM_TD_PARAMS void*, const void*, size_t);
+void _ITM_FASTCALL _ITM_memcpyRtaWWn(_ITM_TD_PARAMS void*, const void*, size_t);
+void _ITM_FASTCALL _ITM_memcpyRtaWWt(_ITM_TD_PARAMS void*, const void*, size_t);
+void _ITM_FASTCALL _ITM_memcpyRtaWWtaR(_ITM_TD_PARAMS void*, const void*, size_t);
+void _ITM_FASTCALL _ITM_memcpyRtaWWtaW(_ITM_TD_PARAMS void*, const void*, size_t);
 
 // -----------------------------------------------------------------------------
 // 5.14  Transactional versions of memmove -------------------------------------
 // -----------------------------------------------------------------------------
-void _ITM_FASTCALL _ITM_memmoveRnWt(_ITM_transaction*, void*, const void*, size_t);
-void _ITM_FASTCALL _ITM_memmoveRnWtaR(_ITM_transaction*, void*, const void*, size_t);
-void _ITM_FASTCALL _ITM_memmoveRnWtaW(_ITM_transaction*, void*, const void*, size_t);
-void _ITM_FASTCALL _ITM_memmoveRtWn(_ITM_transaction*, void*, const void*, size_t);
-void _ITM_FASTCALL _ITM_memmoveRtWt(_ITM_transaction*, void*, const void*, size_t);
-void _ITM_FASTCALL _ITM_memmoveRtWtaR(_ITM_transaction*, void*, const void*, size_t);
-void _ITM_FASTCALL _ITM_memmoveRtWtaW(_ITM_transaction*, void*, const void*, size_t);
-void _ITM_FASTCALL _ITM_memmoveRtaRWn(_ITM_transaction*, void*, const void*, size_t);
-void _ITM_FASTCALL _ITM_memmoveRtaRWt(_ITM_transaction*, void*, const void*, size_t);
-void _ITM_FASTCALL _ITM_memmoveRtaRWtaR(_ITM_transaction*, void*, const void*, size_t);
-void _ITM_FASTCALL _ITM_memmoveRtaRWtaW(_ITM_transaction*, void*, const void*, size_t);
-void _ITM_FASTCALL _ITM_memmoveRtaWWn(_ITM_transaction*, void*, const void*, size_t);
-void _ITM_FASTCALL _ITM_memmoveRtaWWt(_ITM_transaction*, void*, const void*, size_t);
-void _ITM_FASTCALL _ITM_memmoveRtaWWtaR(_ITM_transaction*, void*, const void*, size_t);
-void _ITM_FASTCALL _ITM_memmoveRtaWWtaW(_ITM_transaction*, void*, const void*, size_t);
+void _ITM_FASTCALL _ITM_memmoveRnWt(_ITM_TD_PARAMS void*, const void*, size_t);
+void _ITM_FASTCALL _ITM_memmoveRnWtaR(_ITM_TD_PARAMS void*, const void*, size_t);
+void _ITM_FASTCALL _ITM_memmoveRnWtaW(_ITM_TD_PARAMS void*, const void*, size_t);
+void _ITM_FASTCALL _ITM_memmoveRtWn(_ITM_TD_PARAMS void*, const void*, size_t);
+void _ITM_FASTCALL _ITM_memmoveRtWt(_ITM_TD_PARAMS void*, const void*, size_t);
+void _ITM_FASTCALL _ITM_memmoveRtWtaR(_ITM_TD_PARAMS void*, const void*, size_t);
+void _ITM_FASTCALL _ITM_memmoveRtWtaW(_ITM_TD_PARAMS void*, const void*, size_t);
+void _ITM_FASTCALL _ITM_memmoveRtaRWn(_ITM_TD_PARAMS void*, const void*, size_t);
+void _ITM_FASTCALL _ITM_memmoveRtaRWt(_ITM_TD_PARAMS void*, const void*, size_t);
+void _ITM_FASTCALL _ITM_memmoveRtaRWtaR(_ITM_TD_PARAMS void*, const void*, size_t);
+void _ITM_FASTCALL _ITM_memmoveRtaRWtaW(_ITM_TD_PARAMS void*, const void*, size_t);
+void _ITM_FASTCALL _ITM_memmoveRtaWWn(_ITM_TD_PARAMS void*, const void*, size_t);
+void _ITM_FASTCALL _ITM_memmoveRtaWWt(_ITM_TD_PARAMS void*, const void*, size_t);
+void _ITM_FASTCALL _ITM_memmoveRtaWWtaR(_ITM_TD_PARAMS void*, const void*, size_t);
+void _ITM_FASTCALL _ITM_memmoveRtaWWtaW(_ITM_TD_PARAMS void*, const void*, size_t);
 
 // -----------------------------------------------------------------------------
 // 5.15  Transactional versions of memset --------------------------------------
 // -----------------------------------------------------------------------------
-void _ITM_FASTCALL _ITM_memsetW(_ITM_transaction*, void*, int, size_t);
-void _ITM_FASTCALL _ITM_memsetWaR(_ITM_transaction*, void*, int, size_t);
-void _ITM_FASTCALL _ITM_memsetWaW(_ITM_transaction*, void*, int, size_t);
+void _ITM_FASTCALL _ITM_memsetW(_ITM_TD_PARAMS void*, int, size_t);
+void _ITM_FASTCALL _ITM_memsetWaR(_ITM_TD_PARAMS void*, int, size_t);
+void _ITM_FASTCALL _ITM_memsetWaW(_ITM_TD_PARAMS void*, int, size_t);
 
 // -----------------------------------------------------------------------------
 // 5.16  Logging functions -----------------------------------------------------
 // -----------------------------------------------------------------------------
-void _ITM_FASTCALL _ITM_LU1(_ITM_transaction*, const uint8_t*);
-void _ITM_FASTCALL _ITM_LU2(_ITM_transaction*, const uint16_t*);
-void _ITM_FASTCALL _ITM_LU4(_ITM_transaction*, const uint32_t*);
-void _ITM_FASTCALL _ITM_LU8(_ITM_transaction*, const uint64_t*);
-void _ITM_FASTCALL _ITM_LF(_ITM_transaction*, const float*);
-void _ITM_FASTCALL _ITM_LD(_ITM_transaction*, const double*);
-void _ITM_FASTCALL _ITM_LE(_ITM_transaction*, const long double*);
-void _ITM_FASTCALL _ITM_LM64(_ITM_transaction*, const __m64*);
-void _ITM_FASTCALL _ITM_LM128(_ITM_transaction*, const __m128*);
+void _ITM_FASTCALL _ITM_LU1(_ITM_TD_PARAMS const uint8_t*);
+void _ITM_FASTCALL _ITM_LU2(_ITM_TD_PARAMS const uint16_t*);
+void _ITM_FASTCALL _ITM_LU4(_ITM_TD_PARAMS const uint32_t*);
+void _ITM_FASTCALL _ITM_LU8(_ITM_TD_PARAMS const uint64_t*);
+void _ITM_FASTCALL _ITM_LF(_ITM_TD_PARAMS const float*);
+void _ITM_FASTCALL _ITM_LD(_ITM_TD_PARAMS const double*);
+void _ITM_FASTCALL _ITM_LE(_ITM_TD_PARAMS const long double*);
+void _ITM_FASTCALL _ITM_LM64(_ITM_TD_PARAMS const __m64*);
+void _ITM_FASTCALL _ITM_LM128(_ITM_TD_PARAMS const __m128*);
 #ifdef __AVX__
-void _ITM_FASTCALL _ITM_LM256(_ITM_transaction*, const __m256*);
+void _ITM_FASTCALL _ITM_LM256(_ITM_TD_PARAMS const __m256*);
 #endif
-void _ITM_FASTCALL _ITM_LCF(_ITM_transaction*, const _Complex float*);
-void _ITM_FASTCALL _ITM_LCD(_ITM_transaction*, const _Complex double*);
-void _ITM_FASTCALL _ITM_LCE(_ITM_transaction*, const _Complex long double*);
-void _ITM_FASTCALL _ITM_LB(_ITM_transaction*, const void*, size_t);
+void _ITM_FASTCALL _ITM_LCF(_ITM_TD_PARAMS const _Complex float*);
+void _ITM_FASTCALL _ITM_LCD(_ITM_TD_PARAMS const _Complex double*);
+void _ITM_FASTCALL _ITM_LCE(_ITM_TD_PARAMS const _Complex long double*);
+void _ITM_FASTCALL _ITM_LB(_ITM_TD_PARAMS const void*, size_t);
 
 // -----------------------------------------------------------------------------
 // 5.17 User registered commit and undo actions --------------------------------
 // -----------------------------------------------------------------------------
-void _ITM_FASTCALL _ITM_addUserCommitAction(_ITM_transaction*, _ITM_userCommitFunction, _ITM_transactionId_t, void*);
-void _ITM_FASTCALL _ITM_addUserUndoAction(_ITM_transaction*, _ITM_userUndoFunction, void*);
-void _ITM_FASTCALL _ITM_dropReferences(_ITM_transaction*, void*, size_t);
+void _ITM_FASTCALL _ITM_addUserCommitAction(_ITM_TD_PARAMS _ITM_userCommitFunction, _ITM_transactionId_t, void*);
+void _ITM_FASTCALL _ITM_addUserUndoAction(_ITM_TD_PARAMS _ITM_userUndoFunction, void*);
+void _ITM_FASTCALL _ITM_dropReferences(_ITM_TD_PARAMS void*, size_t);
 
 #ifdef __cplusplus
 }  // extern "C"

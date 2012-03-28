@@ -64,6 +64,11 @@ _ITM_transaction::rollback() {
                                   thrown.second);
         thread_handle_.stack_high = 0x0;
         thread_handle_.stack_low = (void**)~0x0;
+
+#ifdef _ITM_DTMC
+        // Restore the stack before leaving.
+        restoreStack();
+#endif /* _ITM_DTMC */
     }
 }
 
@@ -136,12 +141,15 @@ _ITM_transaction::abort(_ITM_abortReason why) {
 
 // 5.8  Aborting a transaction
 void
-_ITM_abortTransaction(_ITM_transaction* td, _ITM_abortReason why,
+_ITM_abortTransaction(_ITM_TD_PARAMS _ITM_abortReason why,
                       const _ITM_srcLocation*) {
+    _ITM_TD_GET;
     td->abort(why);
 }
 
 void
-_ITM_rollbackTransaction(_ITM_transaction* td, const _ITM_srcLocation*) {
+_ITM_rollbackTransaction(_ITM_TD_PARAMS const _ITM_srcLocation*) {
+    _ITM_TD_GET;
     td->rollback();
 }
+

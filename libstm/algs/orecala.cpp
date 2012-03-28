@@ -28,6 +28,7 @@ using stm::timestamp_max;
 using stm::last_complete;
 using stm::WriteSet;
 using stm::OrecList;
+using stm::LockList;
 using stm::orec_t;
 using stm::get_orec;
 using stm::WriteSetEntry;
@@ -142,7 +143,7 @@ namespace {
 
       // release locks
       CFENCE;
-      foreach (OrecList, i, tx->locks)
+      foreach (LockList, i, tx->locks)
           (*i)->v.all = tx->end_time;
 
       // now ensure that transactions depart from stm_end in the order that
@@ -247,7 +248,7 @@ namespace {
       STM_ROLLBACK(tx->writes, except, len);
 
       // release the locks and restore version numbers
-      foreach (OrecList, i, tx->locks)
+      foreach (LockList, i, tx->locks)
           (*i)->v.all = (*i)->p;
       tx->r_orecs.reset();
       tx->writes.reset();

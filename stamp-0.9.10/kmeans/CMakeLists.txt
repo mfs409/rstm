@@ -11,7 +11,7 @@ set(
   sources
   ../lib/mt19937ar.c
   ../lib/random.c
-  ../lib/thread.c
+  ../lib/thread.cpp
   cluster.c
   common.c
   kmeans.c
@@ -30,3 +30,5 @@ foreach (arch ${rstm_archs})
     add_target_definitions(${exec_shim} OUTPUT_TO_STDOUT)
   endif ()
 endforeach ()
+
+configure_file (sandbox.mk.cmake sandbox.mk @ONLY)

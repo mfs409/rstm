@@ -302,7 +302,7 @@ namespace stm
  * the original configuration, so that the app will use the STM as expected.
  */
 #ifdef STM_API_ITM
-#  define TM_BEGIN_FAST_INITIALIZATION()
+#  define TM_BEGIN_FAST_INITIALIZATION() stm::TxThread* tx = NULL;
 #  define TM_END_FAST_INITIALIZATION()
 #else
 #  define TM_BEGIN_FAST_INITIALIZATION()                \

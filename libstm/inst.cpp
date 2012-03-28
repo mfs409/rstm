@@ -16,6 +16,10 @@
 #include "inst.hpp"
 #include "policies/policies.hpp"
 #include "algs/algs.hpp"
+#include "sandboxing.hpp"    // (start/stop)_timer
+
+using stm::sandbox::start_timer;
+using stm::sandbox::stop_timer;
 
 namespace stm
 {
@@ -26,6 +30,7 @@ namespace stm
       tx->tmread     = stms[new_alg].read;
       tx->tmwrite    = stms[new_alg].write;
       tx->tmcommit   = stms[new_alg].commit;
+      tx->sandboxing = stms[new_alg].sandbox_signals;
   }
 
   /**
@@ -54,6 +59,11 @@ namespace stm
           printf("Warning: Algorithm %s is not privatization-safe!\n",
                  stms[new_alg].name);
 
+      if (stms[new_alg].sandbox_signals)
+          start_timer();
+      else
+          stop_timer();
+
       // we need to make sure the metadata remains healthy
       //
       // we do this by invoking the new alg's onSwitchTo_ method, which
@@ -67,11 +77,13 @@ namespace stm
           threads[i]->tmread     = stms[new_alg].read;
           threads[i]->tmwrite    = stms[new_alg].write;
           threads[i]->tmcommit   = stms[new_alg].commit;
+          threads[i]->sandboxing = stms[new_alg].sandbox_signals;
           threads[i]->consec_aborts  = 0;
       }
 
       TxThread::tmrollback = stms[new_alg].rollback;
       TxThread::tmirrevoc  = stms[new_alg].irrevoc;
+      TxThread::tmvalidate = stms[new_alg].validate;
       curr_policy.ALG_ID   = new_alg;
       CFENCE;
       TxThread::tmbegin    = stms[new_alg].begin;

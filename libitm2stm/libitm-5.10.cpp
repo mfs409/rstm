@@ -14,7 +14,8 @@
 #include "Scope.h"
 
 void
-_ITM_registerThrownObject(_ITM_transaction* td, const void* addr, size_t len) {
+_ITM_registerThrownObject(_ITM_TD_PARAMS const void* addr, size_t len) {
+    _ITM_TD_GET;
     assert(!td->inner()->isExceptionBlock());
     td->inner()->setThrownObject((void**)addr, len);
 }

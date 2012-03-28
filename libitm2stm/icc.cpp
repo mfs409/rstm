@@ -9,7 +9,7 @@
  */
 
 #include "stm/txthread.hpp"
-#include "Extras.h"
+#include "icc.h"
 
 // It's important to allow users to declare malloc, free, new, and delete to be
 // [[transaction_safe]]. Intel's itm2stm actually contains transactional versions

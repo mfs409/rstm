@@ -28,6 +28,7 @@ using stm::timestamp;
 using stm::timestamp_max;
 using stm::WriteSet;
 using stm::OrecList;
+using stm::LockList;
 using stm::UNRECOVERABLE;
 using stm::WriteSetEntry;
 using stm::orec_t;
@@ -120,7 +121,7 @@ namespace {
 
       // release locks
       CFENCE;
-      foreach (OrecList, i, tx->locks)
+      foreach (LockList, i, tx->locks)
           (*i)->v.all = end_time;
 
       // clean-up
@@ -227,7 +228,7 @@ namespace {
       STM_ROLLBACK(tx->writes, except, len);
 
       // release the locks and restore version numbers
-      foreach (OrecList, i, tx->locks)
+      foreach (LockList, i, tx->locks)
           (*i)->v.all = (*i)->p;
 
       // undo memory operations, reset lists

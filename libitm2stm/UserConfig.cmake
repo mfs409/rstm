@@ -9,5 +9,6 @@
 
 option(
   itm2stm_enable_assert_on_irrevocable
-  "ON causes calls to _ITM_changeTransactionMode to fail (useful for debuggin)"
+  "ON causes calls to _ITM_changeTransactionMode to fail (useful for debugging)"
   OFF)
+

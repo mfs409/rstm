@@ -31,6 +31,7 @@ using stm::orec_t;
 using stm::get_orec;
 using stm::WriteSet;
 using stm::OrecList;
+using stm::LockList;
 using stm::WriteSetEntry;
 using stm::id_version_t;
 
@@ -139,7 +140,7 @@ namespace {
       tx->writes.writeback();
 
       // release locks
-      foreach (OrecList, i, tx->locks)
+      foreach (LockList, i, tx->locks)
           (*i)->v.all = tx->end_time;
 
       // now ensure that transactions depart from stm_end in the order that
@@ -166,6 +167,8 @@ namespace {
   void*
   OrecELA::read_ro(STM_READ_SIG(tx,addr,))
   {
+      ++tx->validations;
+
       // get the orec addr, read the orec's version#
       orec_t* o = get_orec(addr);
       while (true) {
@@ -194,6 +197,8 @@ namespace {
               spin64();
               continue;
           }
+
+          ++tx->full_validations;
 
           // unlocked but too new... validate and scale forward
           uintptr_t newts = timestamp.val;
@@ -270,7 +275,7 @@ namespace {
       STM_ROLLBACK(tx->writes, except, len);
 
       // release locks and restore version numbers
-      foreach (OrecList, i, tx->locks)
+      foreach (LockList, i, tx->locks)
           (*i)->v.all = (*i)->p;
       tx->r_orecs.reset();
       tx->writes.reset();
@@ -309,6 +314,8 @@ namespace {
   void
   OrecELA::privtest(TxThread* tx, uintptr_t ts)
   {
+      ++tx->full_validations;
+
       // optimized validation since we don't hold any locks
       foreach (OrecList, i, tx->r_orecs) {
           // if orec locked or newer than start time, abort
@@ -358,5 +365,6 @@ namespace stm {
       stm::stms[OrecELA].irrevoc  = ::OrecELA::irrevoc;
       stm::stms[OrecELA].switcher = ::OrecELA::onSwitchTo;
       stm::stms[OrecELA].privatization_safe = true;
+      // stm::stms[OrecELA].sandbox_signals = true;
   }
 }

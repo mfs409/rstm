@@ -9,18 +9,18 @@
 
 set(
   sources
-  ../lib/list.c
+  ../lib/list.cpp
   ../lib/mt19937ar.c
   ../lib/pair.c
   ../lib/queue.c
   ../lib/random.c
-  ../lib/thread.c
-  ../lib/vector.c
+  ../lib/thread.cpp
+  ../lib/vector.cpp
   coordinate.c
   grid.c
-  labyrinth.c
-  maze.c
-  router.c)
+  labyrinth.cpp
+  maze.cpp
+  router.cpp)
 
 # build the different executables
 foreach (arch ${rstm_archs})
@@ -28,3 +28,5 @@ foreach (arch ${rstm_archs})
   target_link_libraries(${exec} -lm)
   add_target_definitions(${exec} USE_EARLY_RELEASE)
 endforeach ()
+
+configure_file (sandbox.mk.cmake sandbox.mk @ONLY)

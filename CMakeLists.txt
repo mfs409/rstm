@@ -64,7 +64,7 @@ if (NOT CMAKE_THREAD_LIBS_IS_LIB)
   set(CMAKE_THREAD_INCLUDE ${CMAKE_THREAD_LIBS_INIT})
 endif ()
 
-# Include all fo the relevant UserConfig modules.
+# Include all of the relevant UserConfig modules.
 include (UserConfig.cmake)
 include (libstm/UserConfig.cmake)
 if (rstm_enable_mesh)
@@ -95,7 +95,7 @@ include_directories (
 
 add_subdirectory(include)     # configures stm/config.h.cmake
 add_subdirectory (libstm)     # the main library
-if (rstm_enable_itm2stm)
+if (rstm_itm2stm)
   add_subdirectory (libitm2stm) # the shim library
 endif ()
 
@@ -112,3 +112,7 @@ if (CMAKE_USE_PTHREADS_INIT)
 else ()
   message (STATUS "Pthreads not found, will not build pthread apps.")
 endif ()
+
+configure_file (libitm.mk.cmake libitm.mk @ONLY)
+configure_file (sandbox.mk.cmake sandbox.mk @ONLY)
+configure_file (sandbox.common.mk.cmake sandbox.common.mk @ONLY)

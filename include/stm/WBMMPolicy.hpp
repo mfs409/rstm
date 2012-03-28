@@ -28,6 +28,7 @@
 #include <stm/config.h>
 #include "stm/MiniVector.hpp"
 #include "stm/metadata.hpp"
+#include <libstm/sandboxing.hpp>        // super-hack
 
 namespace stm
 {
@@ -128,6 +129,7 @@ namespace stm
       /*** Wrapper to thread-specific allocator for allocating memory */
       void* txAlloc(size_t const &size)
       {
+          stm::sandbox::InLib raii;
           void* ptr = malloc(size);
           if ((*my_ts)&1)
               allocs.insert(ptr);
@@ -137,6 +139,7 @@ namespace stm
       /*** Wrapper to thread-specific allocator for freeing memory */
       void txFree(void* ptr)
       {
+          stm::sandbox::InLib raii;
           if ((*my_ts)&1)
               frees.insert(ptr);
           else

@@ -20,6 +20,10 @@ set(sources
   profiling.cpp
   WBMMPolicy.cpp
   irrevocability.cpp
+  shadow-signals.cpp
+  signals.cpp
+  validation.cpp
+  WriteSet.cpp
   algs/algs.cpp
   algs/biteager.cpp
   algs/biteagerredo.cpp
@@ -35,6 +39,7 @@ set(sources
   algs/llt.cpp
   algs/mcs.cpp
   algs/nano.cpp
+  algs/nanosandbox.cpp
   algs/norec.cpp
   algs/norecprio.cpp
   algs/oreau.cpp
@@ -44,6 +49,7 @@ set(sources
   algs/orecela.cpp
   algs/orecfair.cpp
   algs/oreclazy.cpp
+  algs/orecsandbox.cpp
   algs/pipeline.cpp
   algs/profiletm.cpp
   algs/ringala.cpp
@@ -60,12 +66,6 @@ set(sources
   policies/static.cpp
   )
 
-# Solaris includes a 16-bit implementation of rand_r, which isn't adequate for
-# what we want to do, so we have a replacement.
-if (CMAKE_SYSTEM_NAME MATCHES "SunOS")
-  list (APPEND sources ${CMAKE_SOURCE_DIR}/alt-license/rand_r.cpp)
-endif ()
-
 set(mmapwrapsources hooks.cpp)
   
 # build 32 and/or 64 bit libraries for intercepting munmap, so that we can
@@ -80,9 +80,12 @@ endforeach ()
 #  Build the RSTM library
 foreach (arch ${rstm_archs})
   add_library(stm${arch} STATIC ${sources})
-  append_property(TARGET stm${arch} COMPILE_FLAGS -m${arch})
+  append_property(TARGET stm${arch} COMPILE_FLAGS -m${arch} -I/u/luked/rstm-branches/luke-patrick/libitm2stm/arch/x86_64)
+  if (rstm_itm2stm STREQUAL "DTMC")
+    append_property(TARGET stm${arch} COMPILE_FLAGS -emit-llvm)
+  endif ()
   if (CMAKE_SYSTEM_NAME MATCHES "Linux")
-    target_link_libraries(stm${arch} -lrt)
+    target_link_libraries(stm${arch} -lrt -ldl)
   endif ()
   if (CMAKE_SYSTEM_NAME MATCHES "SunOS")
     target_link_libraries(stm${arch} -lmtmalloc)

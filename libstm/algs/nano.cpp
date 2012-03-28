@@ -30,6 +30,7 @@ using stm::TxThread;
 using stm::WriteSet;
 using stm::WriteSetEntry;
 using stm::OrecList;
+using stm::LockList;
 using stm::orec_t;
 using stm::NanorecList;
 using stm::nanorec_t;
@@ -122,7 +123,7 @@ namespace {
       tx->writes.writeback();
 
       // release locks
-      foreach (OrecList, i, tx->locks)
+      foreach (LockList, i, tx->locks)
           (*i)->v.all = (*i)->p+1;
 
       // clean-up
@@ -226,7 +227,7 @@ namespace {
       STM_ROLLBACK(tx->writes, except, len);
 
       // release the locks and restore version numbers
-      foreach (OrecList, i, tx->locks)
+      foreach (LockList, i, tx->locks)
           (*i)->v.all = (*i)->p;
 
       // undo memory operations, reset lists

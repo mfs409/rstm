@@ -76,6 +76,9 @@
 #include "vector.h"
 #include "types.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 typedef vector_t dictionary_t;
 
@@ -143,6 +146,9 @@ dictionary_match (dictionary_t* dictionaryPtr, char* str);
 #define PDICTIONARY_ALLOC()             Pdictionary_alloc()
 #define PDICTIONARY_FREE(d)             Pdictionary_free(d)
 
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* DICTIONARY_H */
 

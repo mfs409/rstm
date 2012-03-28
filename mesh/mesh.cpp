@@ -28,7 +28,7 @@
 #include "dwyer.hpp"
 #include "worker.hpp"
 
-__thread thread* currentThread = NULL;
+THREAD_LOCAL_DECL_TYPE(thread*) currentThread;
 
 d_lock io_lock;
 unsigned long long start_time;

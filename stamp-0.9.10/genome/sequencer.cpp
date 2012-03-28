@@ -137,12 +137,19 @@ hashString (char* str)
  * -- For hashtable
  * =============================================================================
  */
-static ulong_t
+static ulong_t __attribute__((tm_wrapper("rstm_waiver_hashSegment")))
 hashSegment (const void* keyPtr)
 {
     return (ulong_t)hash_sdbm((char*)keyPtr); /* can be any "good" hash function */
 }
 
+extern "C" {
+static ulong_t __attribute__((used))
+rstm_waiver_hashSegment (const void* keyPtr)
+{
+    return hashSegment(keyPtr);
+}
+}
 
 /* =============================================================================
  * compareSegment
@@ -278,7 +285,7 @@ sequencer_run (void* argPtr)
     /*
      * Step 1: Remove duplicate segments
      */
-#if defined(HTM) || defined(STM)
+#if defined(HTM) || defined(STM) || defined(TANGER) || defined(DTMC)
     long numThread = thread_getNumThread();
     {
         /* Choose disjoint segments [i_start,i_stop) for each thread */
@@ -290,10 +297,10 @@ sequencer_run (void* argPtr)
             i_stop = i_start + partitionSize;
         }
     }
-#else /* !(HTM || STM) */
+#else /* !(HTM || STM || TANGER || DTMC) */
     i_start = 0;
     i_stop = numSegment;
-#endif /* !(HTM || STM) */
+#endif /* !(HTM || STM || TANGER || DTMC) */
     for (i = i_start; i < i_stop; i+=CHUNK_STEP1) {
         TM_BEGIN();
         {
@@ -335,7 +342,7 @@ sequencer_run (void* argPtr)
     numUniqueSegment = hashtable_getSize(uniqueSegmentsPtr);
     entryIndex = 0;
 
-#if defined(HTM) || defined(STM)
+#if defined(HTM) || defined(STM) || defined(TANGER) || defined(DTMC)
     {
         /* Choose disjoint segments [i_start,i_stop) for each thread */
         long num = uniqueSegmentsPtr->numBucket;
@@ -352,11 +359,11 @@ sequencer_run (void* argPtr)
         long partitionSize = (numUniqueSegment + numThread/2) / numThread; /* with rounding */
         entryIndex = threadId * partitionSize;
     }
-#else /* !(HTM || STM) */
+#else /* !(HTM || STM || TANGER || DTMC) */
     i_start = 0;
     i_stop = uniqueSegmentsPtr->numBucket;
     entryIndex = 0;
-#endif /* !(HTM || STM) */
+#endif /* !(HTM || STM || TANGER || DTMC) */
 
     for (i = i_start; i < i_stop; i++) {
 
@@ -437,7 +444,7 @@ sequencer_run (void* argPtr)
         long index_start;
         long index_stop;
 
-#if defined(HTM) || defined(STM)
+#if defined(HTM) || defined(STM) || defined(TANGER) || defined(DTMC)
         {
             /* Choose disjoint segments [index_start,index_stop) for each thread */
             long partitionSize = (numUniqueSegment + numThread/2) / numThread; /* with rounding */
@@ -448,10 +455,10 @@ sequencer_run (void* argPtr)
                 index_stop = index_start + partitionSize;
             }
         }
-#else /* !(HTM || STM) */
+#else /* !(HTM || STM || TANGER || DTMC) */
         index_start = 0;
         index_stop = numUniqueSegment;
-#endif /* !(HTM || STM) */
+#endif /* !(HTM || STM || TANGER || DTMC) */
 
         /* Iterating over disjoint itervals in the range [0, numUniqueSegment) */
         for (entryIndex = index_start;

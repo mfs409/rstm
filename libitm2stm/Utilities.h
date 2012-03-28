@@ -13,6 +13,11 @@
 
 #include <stdint.h>
 
+// Recent GCC does not define the macro
+#ifndef offsetof
+# define offsetof(st, m) __builtin_offsetof(st, m)
+#endif
+
 namespace itm2stm {
 /// We need to mask the offset bits from an address. This is the least
 /// significant N=log_2(sizeof(void*)) bits, which can be computed by just

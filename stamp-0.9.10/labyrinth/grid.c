@@ -78,7 +78,8 @@
 #include "tm.h"
 #include "types.h"
 #include "vector.h"
-
+#include <stm/lib_globals.hpp>          /* direct stm_restart() call for
+                                           condition synchronization */
 
 const unsigned long CACHE_LINE_SIZE = 32UL;
 
@@ -167,6 +168,11 @@ Pgrid_free (grid_t* gridPtr)
  * grid_copy
  * =============================================================================
  */
+static void __attribute__((used))
+rstm_waiver_grid_copy (grid_t* dstGridPtr, grid_t* srcGridPtr) {
+    grid_copy (dstGridPtr, srcGridPtr);
+}
+
 void
 grid_copy (grid_t* dstGridPtr, grid_t* srcGridPtr)
 {
@@ -316,7 +322,7 @@ TMgrid_addPath (TM_ARGDECL  grid_t* gridPtr, vector_t* pointVectorPtr)
         long* gridPointPtr = (long*)vector_at(pointVectorPtr, i);
         long value = (long)TM_SHARED_READ_L(*gridPointPtr);
         if (value != GRID_POINT_EMPTY) {
-            TM_RESTART();
+            stm_restart();
         }
         TM_SHARED_WRITE_L(*gridPointPtr, (long)GRID_POINT_FULL);
     }

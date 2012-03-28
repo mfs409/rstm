@@ -28,6 +28,7 @@ _ITM_transaction::leave() {
 inline void
 _ITM_transaction::commit() {
     // This code was pilfered from <stm/api/library.hpp>.
+    stm::TxThread& stm = handle();
 
     // Don't commit anything if we're nested... just exit this scope, this
     // hopefully respects libstm's lack of closed nesting for the moment.
@@ -35,27 +36,32 @@ _ITM_transaction::commit() {
     // Don't pre-decerement the nesting depth, because the tmcommit call can
     // fail due to a conflict. This calls tmabort, and tmabort will fail if the
     // nesting depth is 0.
-    if (thread_handle_.nesting_depth == 1)
+    if (stm.nesting_depth == 1)
     {
         // dispatch to the appropriate end function
-        thread_handle_.tmcommit(&thread_handle_);
+        stm.tmcommit(&stm);
 
-        // // zero scope (to indicate "not in tx")
-        CFENCE;
-        thread_handle_.scope = NULL;
+#ifdef _ITM_DTMC
+        // Indicate that the stack area is now released
+        resetStackInfo();
+#endif /* _ITM_DTMC */
 
         // clear the high/low stack marks.
-        thread_handle_.stack_high = 0x0;
-        thread_handle_.stack_low = (void**)~0x0;
+        stm.stack_high = 0x0;
+        stm.stack_low = (void**)~0x0;
 
         // record start of nontransactional time, this misses the itm2stm commit
         // and leave time for the outermost scope, but I think we're ok.
-        thread_handle_.end_txn_time = tick();
+        stm.end_txn_time = tick();
+
+        // zero scope (to indicate "not in tx")
+        CFENCE;
+        stm.scope = NULL;
     }
 
     // Decrement the nesting depth unconditionally here. It's needed on a nested
     // commit, as well as after the tmcommit succeeds for the outermost scope.
-    --thread_handle_.nesting_depth;
+    --stm.nesting_depth;
 
     inner()->commit();
     leave(); // don't care about the returned node during a commit
@@ -85,18 +91,35 @@ _ITM_transaction::commitToId(_ITM_transactionId_t id) {
 }
 
 void
-_ITM_commitTransaction(_ITM_transaction* td, const _ITM_srcLocation*) {
+_ITM_commitTransaction(_ITM_TD_PARAMS const _ITM_srcLocation*) {
+    _ITM_TD_GET;
     td->commit();
 }
 
 bool
-_ITM_tryCommitTransaction(_ITM_transaction* td, const _ITM_srcLocation*) {
+_ITM_tryCommitTransaction(_ITM_TD_PARAMS const _ITM_srcLocation*) {
+    _ITM_TD_GET;
     return td->tryCommit();
 }
 
 void
-_ITM_commitTransactionToId(_ITM_transaction* td, const _ITM_transactionId_t id,
+_ITM_commitTransactionToId(_ITM_TD_PARAMS const _ITM_transactionId_t id,
                            const _ITM_srcLocation*) {
+    _ITM_TD_GET;
     td->commitToId(id);
 }
+
+#ifdef _ITM_GCC
+// _ITM_commitTransactionEH is here to keep the inline of the commit() call
+extern "C" void exceptionOnAbort(void *);
+void _ITM_FASTCALL
+_ITM_commitTransactionEH(void *exc_ptr) {
+    _ITM_TD_GET;
+    td->inner()->registerOnAbort(exceptionOnAbort, exc_ptr);
+    td->commit();
+    /* ??? should not be required for _ITM_commitTransaction */
+    td->TMException.cxa_catch_count = 0;
+    td->TMException.cxa_unthrown = NULL;
+}
+#endif /* _ITM_GCC */
 

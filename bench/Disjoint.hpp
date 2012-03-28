@@ -66,9 +66,9 @@ struct Disjoint
           unsigned int s = W;
           for (uint32_t i = 0; i < BUFFER_COUNT; ++i)
               for (unsigned j = 0; j < DJBUFFER_SIZE; ++j)
-                  privateBuffers[i].buffer[j].value = rand_r(&s);
+                  privateBuffers[i].buffer[j].value = rand_r_32(&s);
           for (unsigned j = 0; j < DJBUFFER_SIZE; ++j)
-              publicBuffer.buffer[j].value = rand_r(&s);
+              publicBuffer.buffer[j].value = rand_r_32(&s);
       }
 
       /**

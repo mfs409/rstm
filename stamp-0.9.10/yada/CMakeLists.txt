@@ -10,23 +10,25 @@
 set(
   sources
   ../lib/avltree.c
-  ../lib/heap.c
-  ../lib/list.c
+  ../lib/heap.cpp
+  ../lib/list.cpp
   ../lib/mt19937ar.c
   ../lib/pair.c
   ../lib/queue.c
   ../lib/random.c
-  ../lib/rbtree.c
-  ../lib/thread.c
-  ../lib/vector.c
+  ../lib/rbtree.cpp
+  ../lib/thread.cpp
+  ../lib/vector.cpp
   coordinate.c
-  element.c
-  mesh.c
-  region.c
-  yada.c)
+  element.cpp
+  mesh.cpp
+  region.cpp
+  yada.cpp)
 
 # build the different executables
 foreach (arch ${rstm_archs})
   add_stamp_executable(exec yada ${arch} ${sources})
   add_target_definitions(${exec} LIST_NO_DUPLICATES MAP_USE_AVLTREE SET_USE_RBTREE)
 endforeach ()
+
+configure_file (sandbox.mk.cmake sandbox.mk @ONLY)

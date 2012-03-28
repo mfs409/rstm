@@ -11,15 +11,21 @@
 #ifndef STM_ITM2STM_CHECKPOINT_H
 #define STM_ITM2STM_CHECKPOINT_H
 
-#include <stm/config.h> // NORETURN
-#include <checkpoint.h> // CHECKPOINT_SIZE
+#include <common/platform.hpp>          // NORETURN
+#include <checkpoint.h>                 // CHECKPOINT_SIZE
+#include <signal.h>                     // sigset_t
 
 namespace itm2stm {
 class Checkpoint {
   public:
-    // implemented in arch/$(ARCH)/checkpoint_restore.S
-    void restore(uint32_t flags) asm("_stm_itm2stm_checkpoint_restore")
+    void restore(uint32_t flags)
         NORETURN;
+
+    // implemented in arch/$(ARCH)/checkpoint_restore.S
+    void restore_asm(uint32_t flags) asm("_stm_itm2stm_checkpoint_restore")
+        NORETURN;
+
+    void checkpoint_mask() asm("_stm_itm2stm_checkpoint_mask");
 
     // Returns the address that represents the high value of the protected
     // stack at the time of this call. Currently this means the frame address
@@ -30,8 +36,9 @@ class Checkpoint {
         return (void**)checkpoint_[0];
     }
 
-  protected:
     void* checkpoint_[CHECKPOINT_SIZE];
+    bool restoreMask_;
+    sigset_t mask_;
 };
 } // namespace itm2stm
 

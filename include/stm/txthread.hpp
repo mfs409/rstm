@@ -19,7 +19,9 @@
 #ifndef TXTHREAD_HPP__
 #define TXTHREAD_HPP__
 
+#include "alt-license/rand_r_32.h"
 #include "common/locks.hpp"
+#include "common/ThreadLocal.hpp"
 #include "stm/metadata.hpp"
 #include "stm/WriteSet.hpp"
 #include "stm/UndoLog.hpp"
@@ -65,7 +67,7 @@ namespace stm
       ValueList      vlist;         // NOrec read log
       WriteSet       writes;        // write set
       OrecList       r_orecs;       // read set for orec STMs
-      OrecList       locks;         // list of all locks held by tx
+      LockList       locks;         // list of all locks held by tx
       id_version_t   my_lock;       // lock word for orec STMs
       filter_t*      wf;            // write filter
       filter_t*      rf;            // read filter
@@ -93,6 +95,13 @@ namespace stm
       /*** PER-THREAD FIELDS FOR ENABLING ADAPTIVITY POLICIES */
       uint64_t      end_txn_time;      // end of non-transactional work
       uint64_t      total_nontxn_time; // time on non-transactional work
+
+      /*** SANDBOXING */
+      pthread_t     pthreadid;           // used for sandbox validation
+      uintptr_t     validations;         // counts sandbox validations
+      size_t        lazy_hashing_cursor; // used in norecsandbox
+      bool          sandboxing;          // true iff the algorithm needs it
+      uintptr_t     full_validations;    // counts the number of full
 
       /*** POINTERS TO INSTRUMENTATION */
 
@@ -144,6 +153,18 @@ namespace stm
       static bool(*tmirrevoc)(TxThread*);
 
       /**
+       *  When we're sandboxing we need access to a function that validates a
+       *  transaction's read set. We expose the result as a boolean rather than
+       *  letting the TM library abort itself here because we sometimes want to
+       *  do something from the calling context before the abort happens (like,
+       *  say, reset a signal mask).
+       *
+       *  Ultimately this could/should be a per-thread pointer rather than a
+       *  TxThread static.
+       */
+      static bool(*tmvalidate)(TxThread*);
+
+      /**
        * for shutting down threads.  Currently a no-op.
        */
       static void thread_shutdown() { }
@@ -159,7 +180,7 @@ namespace stm
   }; // class TxThread
 
   /*** GLOBAL VARIABLES RELATED TO THREAD MANAGEMENT */
-  extern __thread TxThread* Self; // this thread's TxThread
+  extern THREAD_LOCAL_DECL_TYPE(TxThread*) Self; // this thread's TxThread
 
 } // namespace stm
 

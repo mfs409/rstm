@@ -16,6 +16,17 @@
  *  to many parts of the STM library.
  */
 
+#ifdef __cplusplus
+extern "C" void stm_restart(void) __attribute__((transaction_pure));
+extern "C" void stm_enter_waiver(void);
+extern "C" void stm_leave_waiver(void);
+#else
+extern void stm_restart(void) __attribute__((transaction_pure));
+extern void stm_enter_waiver(void);
+extern void stm_leave_waiver(void);
+#endif
+
+#ifdef __cplusplus
 #include <stm/config.h>
 #include <stm/metadata.hpp>
 
@@ -35,4 +46,7 @@ namespace stm
   extern TxThread*   threads[MAX_THREADS];  // all TxThreads
 }
 
+// used for sandboxing support
+extern "C" void stm_validation_full();
+#endif
 #endif // LIB_GLOBALS_HPP

@@ -11,7 +11,7 @@ set(
   sources
   ../lib/mt19937ar.c
   ../lib/random.c
-  ../lib/thread.c
+  ../lib/thread.cpp
   alg_radix_smp.c
   computeGraph.c
   createPartition.c
@@ -44,3 +44,5 @@ foreach (arch ${rstm_archs})
     add_target_definitions(${exec_shim} ENABLE_KERNEL1)
   endif ()
 endforeach ()
+
+configure_file (sandbox.mk.cmake sandbox.mk @ONLY)
