@@ -27,7 +27,7 @@
 
 namespace stm
 {
-  void tm_begin(void*);
+  uint32_t tm_begin(uint32_t);
   void tm_end();
   const char* tm_getalgname();
   void tm_thread_init();
@@ -42,7 +42,7 @@ namespace stm
   void tm_write(void** addr, void* val);
 }
 
-#define TM_BEGIN(x)          stm::tm_begin(NULL);
+#define TM_BEGIN(x)          stm::tm_begin(0x01);
 #define TM_END()             stm::tm_end()
 
 #define TM_GET_ALGNAME()     stm::tm_getalgname()

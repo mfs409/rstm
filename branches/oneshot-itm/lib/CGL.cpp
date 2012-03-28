@@ -16,6 +16,7 @@
 #include "locks.hpp"
 #include "metadata.hpp"
 #include "adaptivity.hpp"
+#include "libitm.h"
 
 using namespace stm;
 
@@ -35,12 +36,12 @@ static const char* tm_getalgname() { return "CGL"; }
  *  so that the signature is identical to all other STMs (prereq for
  *  adaptivity)
  */
-static void tm_begin(void*)
+static uint32_t tm_begin(uint32_t)
 {
     TX* tx = Self;
-    if (++tx->nesting_depth > 1)
-        return;
-    tatas_acquire(&timestamp.val);
+    if (++tx->nesting_depth == 1)
+        tatas_acquire(&timestamp.val);
+    return a_runInstrumentedCode;
 }
 
 /**

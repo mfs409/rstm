@@ -26,6 +26,7 @@
 #include "tx.hpp"
 #include "adaptivity.hpp"
 #include "tm_alloc.hpp"
+#include "libitm.h"
 
 // define atomic operations
 #define CAS __sync_val_compare_and_swap
@@ -102,28 +103,28 @@ static NOINLINE void validate(TX* tx) {
  *
  *  [mfs] Eventually need to inline setjmp into this method
  */
-static void tm_begin(scope_t* scope) {
+static uint32_t tm_begin(uint32_t) {
     TX* tx = Self;
-    if (++tx->nesting_depth > 1)
-        return;
+    if (++tx->nesting_depth > 1) {
+      S1:
+        // wait until everyone is committed
+        while (cpending != committed);
 
-  S1:
-    // wait until everyone is committed
-    while (cpending != committed);
+        // before tx begins, increase total number of tx
+        ADD(&started, 1);
 
-    // before tx begins, increase total number of tx
-    ADD(&started, 1);
+        // [NB] we must double check no one is ready to commit yet
+        // and no one entered in place write phase(turbo mode)
+        if (cpending > committed || inplace == 1) {
+            SUB(&started, 1);
+            goto S1;
+        }
 
-    // [NB] we must double check no one is ready to commit yet
-    // and no one entered in place write phase(turbo mode)
-    if (cpending > committed || inplace == 1) {
-        SUB(&started, 1);
-        goto S1;
+        tx->allocator.onTxBegin();
+        // get time of last finished txn
+        tx->ts_cache = last_complete.val;
     }
-
-    tx->allocator.onTxBegin();
-    // get time of last finished txn
-    tx->ts_cache = last_complete.val;
+    return a_runInstrumentedCode | a_saveLiveVariables;
 }
 
 /**

@@ -30,6 +30,7 @@
 #include "tx.hpp"
 #include "adaptivity.hpp"
 #include "tm_alloc.hpp"
+#include "libitm.h"
 
 using namespace stm;
 
@@ -91,18 +92,17 @@ static checkpoint_t* rollback(TX* tx)
  *    wait for it to finish writeback.  In this code, we choose the former
  *    option.
  */
-static void tm_begin(scope_t* scope)
+static uint32_t tm_begin(uint32_t)
 {
     TX* tx = Self;
-    if (++tx->nesting_depth > 1)
-        return;
-
-
-    tx->allocator.onTxBegin();
-    // Start after the last cleanup, instead of after the last commit, to
-    // avoid spinning in begin()
-    tx->start_time = last_complete.val;
-    tx->end_time = 0;
+    if (++tx->nesting_depth == 1) {
+        tx->allocator.onTxBegin();
+        // Start after the last cleanup, instead of after the last commit, to
+        // avoid spinning in begin()
+        tx->start_time = last_complete.val;
+        tx->end_time = 0;
+    }
+    return a_runInstrumentedCode | a_saveLiveVariables;
 }
 
 static NOINLINE void validate_commit(TX* tx)

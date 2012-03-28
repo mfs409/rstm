@@ -28,6 +28,7 @@
 #include "tx.hpp"
 #include "adaptivity.hpp"
 #include "tm_alloc.hpp"
+#include "libitm.h"
 
 using namespace stm;
 
@@ -84,19 +85,16 @@ static NOINLINE void validate(TX* tx, uintptr_t finish_cache)
 /**
  *  CToken begin:
  */
-static void tm_begin(scope_t* scope)
+static uint32_t tm_begin(uint32_t)
 {
     TX* tx = Self;
+    if (++tx->nesting_depth == 1) {
+        tx->allocator.onTxBegin();
 
-    if (++tx->nesting_depth > 1)
-        return;
-
-
-
-    tx->allocator.onTxBegin();
-
-    // get time of last finished txn
-    tx->ts_cache = last_complete.val;
+        // get time of last finished txn
+        tx->ts_cache = last_complete.val;
+    }
+    return a_runInstrumentedCode | a_saveLiveVariables;
 }
 
 /**

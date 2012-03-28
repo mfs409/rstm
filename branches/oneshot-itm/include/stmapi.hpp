@@ -32,7 +32,7 @@
 
 namespace stm
 {
-  void tm_begin(void*);
+  uint32_t tm_begin(uint32_t);
   void tm_end();
   const char* tm_getalgname();
   void tm_thread_init();
@@ -49,7 +49,7 @@ namespace stm
 
 #define TM_BEGIN(x) {                                  \
     setjmp(stm::Self->checkpoint);                     \
-    stm::tm_begin(NULL);
+    stm::tm_begin(0x1);
 
 #define TM_END()             stm::tm_end();     \
                              }

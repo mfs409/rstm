@@ -20,13 +20,13 @@
 
 namespace stm
 {
-  typedef void  (*tm_begin_t)(scope_t*);
-  typedef void  (*tm_end_t)();
-  typedef void* (*tm_read_t)(void**) TM_FASTCALL;
-  typedef void  (*tm_write_t)(void**, void*) TM_FASTCALL;
-  typedef void* (*tm_alloc_t)(size_t);
-  typedef void  (*tm_free_t)(void*);
-  typedef const char* (*tm_get_alg_name_t)();
+  typedef uint32_t (*tm_begin_t)(uint32_t);
+  typedef void     (*tm_end_t)();
+  typedef void*    (*tm_read_t)(void**) TM_FASTCALL;
+  typedef void     (*tm_write_t)(void**, void*) TM_FASTCALL;
+  typedef void*    (*tm_alloc_t)(size_t);
+  typedef void     (*tm_free_t)(void*);
+  typedef const char*   (*tm_get_alg_name_t)();
   typedef checkpoint_t* (*rollback_t)(TX*);
 
   /**
