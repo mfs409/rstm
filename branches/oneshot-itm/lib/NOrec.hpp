@@ -68,7 +68,7 @@ static NOINLINE uintptr_t validate(TX* tx)
  *  Abort and roll back the transaction (e.g., on conflict).
  */
 template <class CM>
-static stm::scope_t* rollback(TX* tx)
+static stm::checkpoint_t* rollback(TX* tx)
 {
     ++tx->aborts;
     tx->vlist.reset();
@@ -76,9 +76,7 @@ static stm::scope_t* rollback(TX* tx)
     tx->allocator.onTxAbort();
     tx->nesting_depth = 0;
     CM::onAbort(tx);
-    stm::scope_t* scope = tx->scope;
-    tx->scope = NULL;
-    return scope;
+    return &tx->checkpoint;
 }
 
 /**
@@ -93,8 +91,6 @@ static void tm_begin(scope_t* scope) {
         return;
 
     CM::onBegin(tx);
-
-    tx->scope = scope;
 
     // Originally, NOrec required us to wait until the timestamp is even
     // before we start.  However, we can round down if odd, in which case

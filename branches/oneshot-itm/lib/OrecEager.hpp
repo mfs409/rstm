@@ -61,7 +61,7 @@ using namespace stm;
 static pad_word_t timestamp = {0};
 
 template <class CM>
-static scope_t* rollback(TX* tx)
+static checkpoint_t* rollback(TX* tx)
 {
     ++tx->aborts;
 
@@ -91,9 +91,7 @@ static scope_t* rollback(TX* tx)
 
     tx->allocator.onTxAbort();
     tx->nesting_depth = 0;
-    scope_t* scope = tx->scope;
-    tx->scope = NULL;
-    return scope;
+    return &tx->checkpoint;
 }
 
 template <class CM>
@@ -105,7 +103,7 @@ static void tm_begin(scope_t* scope)
 
     CM::onBegin(tx);
 
-    tx->scope = scope;
+
     // sample the timestamp and prepare local structures
     tx->allocator.onTxBegin();
     tx->start_time = timestamp.val;

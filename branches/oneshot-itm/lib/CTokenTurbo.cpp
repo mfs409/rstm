@@ -48,7 +48,7 @@ static const char* tm_getalgname() {
  *    NB: self-aborts in Turbo Mode are not supported.  We could add undo
  *        logging to address this, and add it in Pipeline too.
  */
-static scope_t* rollback(TX* tx)
+static checkpoint_t* rollback(TX* tx)
 {
     ++tx->aborts;
 
@@ -71,9 +71,7 @@ static scope_t* rollback(TX* tx)
     //     commit_rw to finish in-order
     tx->allocator.onTxAbort();
     tx->nesting_depth = 0;
-    scope_t* scope = tx->scope;
-    tx->scope = NULL;
-    return scope;
+    return &tx->checkpoint;
 }
 
 /**
@@ -117,7 +115,7 @@ static void tm_begin(scope_t* scope)
     if (++tx->nesting_depth > 1)
         return;
 
-    tx->scope = scope;
+
 
     tx->allocator.onTxBegin();
 

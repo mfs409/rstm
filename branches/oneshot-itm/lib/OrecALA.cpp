@@ -51,7 +51,7 @@ static pad_word_t last_complete = {0};
  *    turn and then increment the trailing timestamp, to keep the two counters
  *    consistent.
  */
-static scope_t* rollback(TX* tx)
+static checkpoint_t* rollback(TX* tx)
 {
     ++tx->aborts;
 
@@ -78,9 +78,7 @@ static scope_t* rollback(TX* tx)
     CFENCE;
     tx->allocator.onTxAbort();
     tx->nesting_depth = 0;
-    scope_t* scope = tx->scope;
-    tx->scope = NULL;
-    return scope;
+    return &tx->checkpoint;
 }
 
 /**
@@ -100,7 +98,7 @@ static void tm_begin(scope_t* scope)
     TX* tx = Self;
     if (++tx->nesting_depth > 1)
         return;
-    tx->scope = scope;
+
 
     tx->allocator.onTxBegin();
     // Start after the last cleanup, instead of after the last commit, to

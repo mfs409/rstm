@@ -43,7 +43,7 @@ static const char* tm_getalgname() {
  *
  *    To unwind, we must release locks, but we don't have an undo log to run.
  */
-static scope_t* rollback(TX* tx)
+static checkpoint_t* rollback(TX* tx)
 {
     ++tx->aborts;
 
@@ -57,9 +57,7 @@ static scope_t* rollback(TX* tx)
     tx->locks.reset();
     tx->allocator.onTxAbort();
     tx->nesting_depth = 0;
-    scope_t* scope = tx->scope;
-    tx->scope = NULL;
-    return scope;
+    return &tx->checkpoint;
 }
 
 /*** The only metadata we need is a single global padded lock ***/
@@ -76,7 +74,7 @@ static void tm_begin(scope_t* scope)
     if (++tx->nesting_depth > 1)
         return;
 
-    tx->scope = scope;
+
     tx->allocator.onTxBegin();
     tx->start_time = timestamp.val;
 }

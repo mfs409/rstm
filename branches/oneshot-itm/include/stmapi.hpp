@@ -20,10 +20,14 @@
 #include <setjmp.h>
 #include <cstdlib>
 
+#include "../lib/tx.hpp" // TODO: temporary hack to check checkpoint behavior
+
+#ifndef TM_FASTCALL
 #if defined(STM_CPU_X86) && defined(STM_CC_GCC)
 #    define TM_FASTCALL __attribute__((regparm(3)))
 #else
 #    define TM_FASTCALL
+#endif
 #endif
 
 namespace stm
@@ -43,13 +47,11 @@ namespace stm
   void tm_write(void** addr, void* val);
 }
 
-#define TM_BEGIN(x)                                    \
-                             {                         \
-                             jmp_buf _jmpbuf;          \
-                             setjmp(_jmpbuf);          \
-                             stm::tm_begin(&_jmpbuf);
+#define TM_BEGIN(x) {                                  \
+    setjmp(stm::Self->checkpoint);                     \
+    stm::tm_begin(NULL);
 
-#define TM_END()             stm::tm_end();   \
+#define TM_END()             stm::tm_end();     \
                              }
 
 #define TM_GET_ALGNAME()     stm::tm_getalgname()

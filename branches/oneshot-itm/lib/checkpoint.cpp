@@ -13,19 +13,19 @@
 #include "libitm.h" // a_runInstrumentedCode | a_saveLiveVariables
 using stm::TX;
 using stm::Self;
-using rstm::checkpoint_t;
+using stm::checkpoint_t;
 
 checkpoint_t* const
-rstm::pre_checkpoint(const uint32_t flags) {
+stm::pre_checkpoint(const uint32_t flags) {
     TX& tx = *Self;
 }
 
 uint32_t
-rstm::post_checkpoint(uint32_t flags, ...) {
+stm::post_checkpoint(uint32_t flags, ...) {
     return a_runInstrumentedCode | a_saveLiveVariables;
 }
 
 uint32_t
-rstm::post_checkpoint_nested(uint32_t flags, ...) {
+stm::post_checkpoint_nested(uint32_t flags, ...) {
     return a_runInstrumentedCode;
 }
