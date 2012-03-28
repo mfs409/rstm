@@ -13,7 +13,6 @@
 
 #include <stdint.h>
 #include "metadata.hpp"
-#include "checkpoint.hpp"
 #include "MiniVector.hpp"
 #include "WBMMPolicy.hpp"
 #include "WriteSet.hpp"
@@ -29,7 +28,7 @@ namespace stm
    */
   struct TX
   {
-      // 24 words + checkpoint + mm (9) + writeset (9) = 43 words = 172 bytes = 3 cache
+      // 25 words + mm (9) + writeset (9) = 43 words = 172 bytes = 3 cache
       // lines :(
       //
       // NB: we could save a fair bit by using these more carefully (e.g.,
@@ -41,7 +40,7 @@ namespace stm
       int nesting_depth;
 
       /*** for rollback */
-      rstm::checkpoint_t checkpoint;
+      scope_t* scope;
 
       /*** unique id for this thread ***/
       int id;
@@ -81,7 +80,7 @@ namespace stm
       /*** constructor ***/
       TX()
           : nesting_depth(0), commits_ro(0),
-            commits_rw(0), aborts(0), checkpoint(), allocator(),
+            commits_rw(0), aborts(0), scope(NULL), allocator(),
             start_time(0), writes(64), locks(64), vlist(64),
             r_orecs(64), ts_cache(0), order(-1), turbo(false),
             end_time(0), undo_log(64)
