@@ -8,7 +8,7 @@
  *          Please see the file LICENSE.RSTM for licensing information
  */
 
-#include <stm/config.h>
+#include <stm.h>
 #if defined(STM_CPU_SPARC)
 #include <sys/types.h>
 #endif
@@ -19,7 +19,6 @@
  */
 
 #include <iostream>
-#include <api/api.hpp>
 #include "bmconfig.hpp"
 
 /**
@@ -57,7 +56,7 @@ void bench_init()
     // warm up the datastructure
     TM_BEGIN_FAST_INITIALIZATION();
     for (uint32_t i = 0; i < CFG.elements; i+=2)
-        SET->insert(i TM_PARAM);
+        SET->insert(i);
     TM_END_FAST_INITIALIZATION();
 }
 
@@ -68,18 +67,18 @@ void bench_test(uintptr_t, uint32_t* seed)
     uint32_t act = rand_r(seed) % 100;
     if (act < CFG.lookpct) {
         TM_BEGIN(atomic) {
-            SET->lookup(val TM_PARAM);
-        } TM_END;
+            SET->lookup(val);
+        } TM_END();
     }
     else if (act < CFG.inspct) {
         TM_BEGIN(atomic) {
-            SET->insert(val TM_PARAM);
-        } TM_END;
+            SET->insert(val);
+        } TM_END();
     }
     else {
         TM_BEGIN(atomic) {
-            SET->remove(val TM_PARAM);
-        } TM_END;
+            SET->remove(val);
+        } TM_END();
     }
 }
 

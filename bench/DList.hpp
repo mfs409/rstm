@@ -12,7 +12,6 @@
 #define DLIST_HPP__
 
 #include <limits.h>
-#include <api/api.hpp>
 
 // Doubly-Linked List workload
 class DList
@@ -38,39 +37,39 @@ class DList
 
     // insert a node if it doesn't already exist
     TM_CALLABLE
-    void insert(int val TM_ARG);
+    void insert(int val);
 
     // true iff val is in the data structure
     TM_CALLABLE
-    bool lookup(int val TM_ARG) const;
+    bool lookup(int val) const;
 
     // remove a node if its value = val
     TM_CALLABLE
-    void remove(int val TM_ARG);
+    void remove(int val);
 
     // make sure the list is in sorted order
     bool isSane() const;
 
     // increment all elements, moving forward
     TM_CALLABLE
-    void increment_forward(TM_ARG_ALONE);
+    void increment_forward();
 
     // increment all elements, moving in reverse
     TM_CALLABLE
-    void increment_backward(TM_ARG_ALONE);
+    void increment_backward();
 
     // increment every seqth element, starting with start, moving forward
     TM_CALLABLE
-    void increment_forward_pattern(int start, int seq TM_ARG);
+    void increment_forward_pattern(int start, int seq);
 
     // increment every seqth element, starting with start, moving backward
     TM_CALLABLE
-    void increment_backward_pattern(int start, int seq TM_ARG);
+    void increment_backward_pattern(int start, int seq);
 
     // read the whole list, then increment every element in the chunk
     // starting at chunk_num*chunk_size
     TM_CALLABLE
-    void increment_chunk(int chunk_num, int chunk_size TM_ARG);
+    void increment_chunk(int chunk_num, int chunk_size);
 };
 
 
@@ -132,7 +131,7 @@ bool DList::isSane(void) const
 // insert method; find the right place in the list, add val so that it is in
 // sorted order; if val is already in the list, exit without inserting
 TM_CALLABLE
-void DList::insert(int val TM_ARG)
+void DList::insert(int val)
 {
     // traverse the list to find the insertion point
     const Node* prev(head);
@@ -164,7 +163,7 @@ void DList::insert(int val TM_ARG)
 
 // search for a value
 TM_CALLABLE
-bool DList::lookup(int val TM_ARG) const
+bool DList::lookup(int val) const
 {
     bool found = false;
 
@@ -182,7 +181,7 @@ bool DList::lookup(int val TM_ARG) const
 
 // remove a node if its value == val
 TM_CALLABLE
-void DList::remove(int val TM_ARG)
+void DList::remove(int val)
 {
     // find the node whose val matches the request
     const Node* prev(head);
@@ -212,7 +211,7 @@ void DList::remove(int val TM_ARG)
 }
 
 TM_CALLABLE
-void DList::increment_forward(TM_ARG_ALONE)
+void DList::increment_forward()
 {
     // forward traversal
     const Node* prev(head);
@@ -225,7 +224,7 @@ void DList::increment_forward(TM_ARG_ALONE)
 }
 
 TM_CALLABLE
-void DList::increment_backward(TM_ARG_ALONE)
+void DList::increment_backward()
 {
     // backward traversal
     const Node* prev(tail);
@@ -239,7 +238,7 @@ void DList::increment_backward(TM_ARG_ALONE)
 
 // increment every seqth element, starting with start, moving forward
 TM_CALLABLE
-void DList::increment_forward_pattern(int start, int seq TM_ARG)
+void DList::increment_forward_pattern(int start, int seq)
 {
     int sum = 0;
     // forward traversal to element # start
@@ -267,7 +266,7 @@ void DList::increment_forward_pattern(int start, int seq TM_ARG)
 
 // increment every element, starting with start, moving backward
 TM_CALLABLE
-void DList::increment_backward_pattern(int start, int seq TM_ARG)
+void DList::increment_backward_pattern(int start, int seq)
 {
     int sum = 0;
     // backward traversal to element # start
@@ -295,7 +294,7 @@ void DList::increment_backward_pattern(int start, int seq TM_ARG)
 
 // increment every seqth element, starting with start, moving forward
 TM_CALLABLE
-void DList::increment_chunk(int chunk_num, int chunk_size TM_ARG)
+void DList::increment_chunk(int chunk_num, int chunk_size)
 {
     int startpoint = chunk_num * chunk_size;
 

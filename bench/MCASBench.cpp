@@ -8,7 +8,7 @@
  *          Please see the file LICENSE.RSTM for licensing information
  */
 
-#include <stm/config.h>
+#include <stm.h>
 #if defined(STM_CPU_SPARC)
 #include <sys/types.h>
 #endif
@@ -18,7 +18,6 @@
  *    Include the configuration code for the harness, and the API code.
  */
 #include <iostream>
-#include <api/api.hpp>
 #include "bmconfig.hpp"
 
 /**
@@ -60,14 +59,17 @@ void bench_test(uintptr_t, uint32_t* seed)
     // NB: volatile needed because using a non-volatile local in conjunction
     //     with a setjmp-longjmp control transfer is undefined, and gcc won't
     //     allow it with -Wall -Werror.
-    volatile uint32_t local_seed = *seed;
+#ifndef STM_API_GCCTM
+    volatile
+#endif
+    uint32_t local_seed = *seed;
 
     TM_BEGIN(atomic) {
         for (uint32_t i = 0; i < CFG.ops; ++i) {
             uint32_t loc = rand_r((uint32_t*)&local_seed) % CFG.elements;
             TM_WRITE(matrix[loc], 1 + TM_READ(matrix[loc]));
         }
-    } TM_END;
+    } TM_END();
     *seed = local_seed;
 }
 

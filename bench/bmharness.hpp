@@ -15,7 +15,6 @@
 #include <iostream>
 #include <signal.h>
 #include <pthread.h>
-#include <api/api.hpp>
 #include <common/platform.hpp>
 #include <common/locks.hpp>
 #include "bmconfig.hpp"
@@ -65,7 +64,7 @@ void dump_csv()
  */
 void usage()
 {
-    std::cerr << "Usage: CounterBench -C <stm algorithm> [flags]\n";
+    std::cerr << "Usage: <BenchName> -C <stm algorithm> [flags]\n";
     std::cerr << "    -d: number of seconds to time (default 1)\n";
     std::cerr << "    -X: execute fixed tx count, not for a duration\n";
     std::cerr << "    -p: number of threads (default 1)\n";

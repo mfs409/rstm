@@ -1,0 +1,64 @@
+* How to add a new TM algorithms
+
+(Note: this file is best viewed in emacs org mode or emacs outline mode)
+
+* Step 1: Implement your TM
+
+The first step is to create your new implementation.  For now, this entails
+creating a single .cpp file in the lib/ folder.  In that file, the following
+must be defined:
+
+namespace stm
+{
+  void tm_sys_init()
+  void tm_sys_shutdown()
+  const char* tm_getalgname()
+  void tm_begin()
+  void tm_end()
+  void tm_thread_init()
+  void tm_thread_shutdown()
+  void* tm_alloc(size_t s)
+  void tm_free(void* p)
+  void* tm_read(void** addr)
+  void tm_write(void** addr, void* val)
+}
+
+Note: it is likely that you will need to declare a stm::TX struct for storing
+per-thread metadata.  For the time being, each implementation defines its own
+stm::TX object.
+
+* Step 2: Update build/algs.mk
+
+The second step is to add the name of your stm's cpp file to the ALGNAMES
+define in build/algs.mk.  This ensures that your algorithm name will be
+visible to benchmarks (see step 4).
+
+* Step 3: Update lib/Makefile
+
+Unless you added additional cpp files that must be built, you should not need
+to update lib/Makefile.
+
+* Step 4: Update bench/Makefile
+
+This is an annoying step.  We currently have two different library APIs: one
+for CGL, where the loads and stores are inlined, and one for everything else,
+where the loads and stores are not inlined.  Thus for a given benchmark, we
+must compile twice: once to build with lockapi instrumentation, and once to
+compile with genericapi instrumentation.  We also must link S times, where S
+is the number of different TM libraries in the ALGNAMES define (see step 2).
+(Remember: lockapi is for CGL and any other TM that does not require
+instrumentation on loads/stores; genericapi is for everything else).
+
+In reality, what this means is that one api is favored, and the other isn't.
+If your TM uses the lockapi, you need to add a 3-line build rule to create
+the microbenchmark exes for your new algorithm.  This rule should follow the
+cgl build (search for "lockapi builds are likely to be less common").
+
+If you are building to the genericapi, then you don't need to edit the
+bench/Makefile at all.
+
+* Step 5: Update stamp-xxx/Makefile
+
+The same annoying and brittle mechanism is needed in the STAMP Makefile,
+where a 3-line target and build rule is needed to indicate how to link a
+STAMP benchmark to your library .a file if your library uses lockapi.
