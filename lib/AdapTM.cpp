@@ -72,14 +72,14 @@ namespace stm
    *  All behaviors are reached via function pointers.  This allows us to
    *  change on the fly:
    */
-  scope_t* (*rollback_)(TX* tx);
-  void (*tm_begin_)(void*);
-  void (*tm_end_)();
-  const char* (*tm_getalgname_)();
-  void* (*tm_alloc_)(size_t s);
-  void (*tm_free_)(void* p);
-  void* (* TM_FASTCALL tm_read_)(void** addr);
-  void (* TM_FASTCALL tm_write_)(void** addr, void* val);
+  static rollback_t        rollback_;
+  static tm_begin_t        tm_begin_;
+  static tm_end_t          tm_end_;
+  static tm_get_alg_name_t tm_getalgname_;
+  static tm_alloc_t        tm_alloc_;
+  static tm_free_t         tm_free_;
+  static tm_read_t         tm_read_;
+  static tm_write_t        tm_write_;
 
   /**
    *  The default mechanism that libstm uses for an abort. An API environment

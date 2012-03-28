@@ -23,14 +23,14 @@ namespace stm
    * enum.
    */
   void registerTMAlg(int identifier,
-                     void (*tm_begin)(scope_t*),
-                     void (*tm_end)(),
-                     void* (* TM_FASTCALL tm_read)(void**),
-                     void (* TM_FASTCALL tm_write)(void**, void*),
-                     scope_t* (*rollback)(TX*),
-                     const char* (*tm_getalgname)(),
-                     void* (*tm_alloc)(size_t),
-                     void (*tm_free)(void*))
+                     tm_begin_t tm_begin,
+                     tm_end_t tm_end,
+                     tm_read_t tm_read,
+                     tm_write_t tm_write,
+                     rollback_t rollback,
+                     tm_get_alg_name_t tm_getalgname,
+                     tm_alloc_t tm_alloc,
+                     tm_free_t tm_free)
   {
       tm_info[identifier].tm_begin = tm_begin;
       tm_info[identifier].tm_end = tm_end;

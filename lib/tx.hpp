@@ -97,7 +97,7 @@ namespace stm
 
   /**
    *  Need to forward-declare the fact of the tm_abort function, since
-   *  virtually very tm implementation will use it to abort
+   *  virtually every tm implementation will use it to abort
    */
   NORETURN
   void tm_abort(TX* tx);
