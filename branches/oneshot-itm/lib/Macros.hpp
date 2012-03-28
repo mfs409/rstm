@@ -23,14 +23,22 @@
 #define REGISTER_TM_FOR_STANDALONE(NAME, NAMELEN)                       \
     namespace stm                                                       \
     {                                                                   \
-        void tm_begin(void*) __attribute__((weak, alias("_ZN" #NAMELEN #NAME "8tm_beginEPv"))); \
-        void tm_end() __attribute__((weak, alias("_ZN" #NAMELEN #NAME "6tm_endEv"))); \
-        const char* tm_getalgname() __attribute__((weak, alias("_ZN" #NAMELEN #NAME "13tm_getalgnameEv"))); \
-        void* tm_alloc(size_t s) __attribute__((weak, alias("_ZN" #NAMELEN #NAME "8tm_allocEj"))); \
-        void tm_free(void* p) __attribute__((weak, alias("_ZN" #NAMELEN #NAME "7tm_freeEPv"))); \
-        TM_FASTCALL void* tm_read(void** addr) __attribute__((weak, alias("_ZN" #NAMELEN #NAME "7tm_readEPPv"))); \
-        TM_FASTCALL void tm_write(void** addr, void* val) __attribute__((weak, alias("_ZN" #NAMELEN #NAME "8tm_writeEPPvS0_"))); \
-        scope_t* rollback(TX*) __attribute__((weak, alias("_ZN" #NAMELEN #NAME "8rollbackEPN3stm2TXE"))); \
+        void tm_begin(void*)                                            \
+        __attribute__((weak, alias("_ZN" #NAMELEN #NAME "8tm_beginEPv"))); \
+        void tm_end()                                                   \
+        __attribute__((weak, alias("_ZN" #NAMELEN #NAME "6tm_endEv"))); \
+        const char* tm_getalgname()                                     \
+        __attribute__((weak, alias("_ZN" #NAMELEN #NAME "13tm_getalgnameEv"))); \
+        void* tm_alloc(size_t s)                                        \
+        __attribute__((weak, alias("_ZN" #NAMELEN #NAME "8tm_allocEj"))); \
+        void tm_free(void* p)                                           \
+        __attribute__((weak, alias("_ZN" #NAMELEN #NAME "7tm_freeEPv"))); \
+        TM_FASTCALL void* tm_read(void** addr)                          \
+        __attribute__((weak, alias("_ZN" #NAMELEN #NAME "7tm_readEPPv"))); \
+        TM_FASTCALL void tm_write(void** addr, void* val)               \
+        __attribute__((weak, alias("_ZN" #NAMELEN #NAME "8tm_writeEPPvS0_"))); \
+        scope_t* rollback(TX*)                                          \
+        __attribute__((weak, alias("_ZN" #NAMELEN #NAME "8rollbackEPN3stm2TXE"))); \
     }
 
 #endif // MACROS_HPP__
