@@ -99,13 +99,13 @@ benchmarks: $(ODIR) $(BENCHEXES)
 #
 $(ODIR)/%.lockapi.o: %.cpp
 	@echo [CXX] $< "-->" $@ 
-	@$(CXX) $(CXXFLAGS) -o $@ -c $< $(LDFLAGS) -DSTM_INST_CGL
+	$(_V)$(CXX) $(CXXFLAGS) -o $@ -c $< $(LDFLAGS) -DSTM_INST_CGL
 $(ODIR)/%.genericapi.o: %.cpp
 	@echo [CXX] $< "-->" $@ 
-	@$(CXX) $(CXXFLAGS) -o $@ -c $< $(LDFLAGS) -DSTM_INST_STM
+	$(_V)$(CXX) $(CXXFLAGS) -o $@ -c $< $(LDFLAGS) -DSTM_INST_STM
 $(ODIR)/%.fptrapi.o: %.cpp
 	@echo [CXX] $< "-->" $@ 
-	@$(CXX) $(CXXFLAGS) -o $@ -c $< $(LDFLAGS) -DSTM_INST_FPTR
+	$(_V)$(CXX) $(CXXFLAGS) -o $@ -c $< $(LDFLAGS) -DSTM_INST_FPTR
 
 #
 # Rules for linking to make executables.  genericapi builds are easier.
@@ -118,7 +118,7 @@ $(ODIR)/%.fptrapi.o: %.cpp
 #
 $(ODIR)/%.CGL: $(ODIR)/%.lockapi.o $(LIBFOLDER)/$(ODIR)/libCGL.a
 	@echo [LD] $@ 
-	@$(CXX) -o $@ $^ $(LDFLAGS)
+	$(_V)$(CXX) -o $@ $^ $(LDFLAGS)
 
 #
 # fptrapi builds are also likely to be rare (in fact, there should probably
@@ -126,7 +126,7 @@ $(ODIR)/%.CGL: $(ODIR)/%.lockapi.o $(LIBFOLDER)/$(ODIR)/libCGL.a
 #
 $(ODIR)/%.AdapTM_fptr: $(ODIR)/%.fptrapi.o $(LIBFOLDER)/$(ODIR)/libAdapTM.a
 	@echo [LD] $@ 
-	@$(CXX) -o $@ $^ $(LDFLAGS)
+	$(_V)$(CXX) -o $@ $^ $(LDFLAGS)
 
 #
 # genericapi builds are more common, since there are a lot more ways to do an
@@ -136,40 +136,40 @@ $(ODIR)/%.AdapTM_fptr: $(ODIR)/%.fptrapi.o $(LIBFOLDER)/$(ODIR)/libAdapTM.a
 #
 $(ODIR)/CounterBench.%: $(ODIR)/CounterBench.genericapi.o $(LIBFOLDER)/$(ODIR)/lib%.a
 	@echo [LD] $@
-	@$(CXX) -o $@ $^ $(LDFLAGS)
+	$(_V)$(CXX) -o $@ $^ $(LDFLAGS)
 $(ODIR)/DisjointBench.%: $(ODIR)/DisjointBench.genericapi.o $(LIBFOLDER)/$(ODIR)/lib%.a
 	@echo [LD] $@ 
-	@$(CXX) -o $@ $^ $(LDFLAGS)
+	$(_V)$(CXX) -o $@ $^ $(LDFLAGS)
 $(ODIR)/DListBench.%: $(ODIR)/DListBench.genericapi.o $(LIBFOLDER)/$(ODIR)/lib%.a
 	@echo [LD] $@ 
-	@$(CXX) -o $@ $^ $(LDFLAGS)
+	$(_V)$(CXX) -o $@ $^ $(LDFLAGS)
 $(ODIR)/ForestBench.%: $(ODIR)/ForestBench.genericapi.o $(LIBFOLDER)/$(ODIR)/lib%.a
 	@echo [LD] $@ 
-	@$(CXX) -o $@ $^ $(LDFLAGS)
+	$(_V)$(CXX) -o $@ $^ $(LDFLAGS)
 $(ODIR)/HashBench.%: $(ODIR)/HashBench.genericapi.o $(LIBFOLDER)/$(ODIR)/lib%.a
 	@echo [LD] $@ 
-	@$(CXX) -o $@ $^ $(LDFLAGS)
+	$(_V)$(CXX) -o $@ $^ $(LDFLAGS)
 $(ODIR)/ListBench.%: $(ODIR)/ListBench.genericapi.o $(LIBFOLDER)/$(ODIR)/lib%.a
 	@echo [LD] $@ 
-	@$(CXX) -o $@ $^ $(LDFLAGS)
+	$(_V)$(CXX) -o $@ $^ $(LDFLAGS)
 $(ODIR)/MCASBench.%: $(ODIR)/MCASBench.genericapi.o $(LIBFOLDER)/$(ODIR)/lib%.a
 	@echo [LD] $@ 
-	@$(CXX) -o $@ $^ $(LDFLAGS)
+	$(_V)$(CXX) -o $@ $^ $(LDFLAGS)
 $(ODIR)/ReadNWrite1Bench.%: $(ODIR)/ReadNWrite1Bench.genericapi.o $(LIBFOLDER)/$(ODIR)/lib%.a
 	@echo [LD] $@ 
-	@$(CXX) -o $@ $^ $(LDFLAGS)
+	$(_V)$(CXX) -o $@ $^ $(LDFLAGS)
 $(ODIR)/ReadWriteNBench.%: $(ODIR)/ReadWriteNBench.genericapi.o $(LIBFOLDER)/$(ODIR)/lib%.a
 	@echo [LD] $@ 
-	@$(CXX) -o $@ $^ $(LDFLAGS)
+	$(_V)$(CXX) -o $@ $^ $(LDFLAGS)
 $(ODIR)/TreeBench.%: $(ODIR)/TreeBench.genericapi.o $(LIBFOLDER)/$(ODIR)/lib%.a
 	@echo [LD] $@ 
-	@$(CXX) -o $@ $^ $(LDFLAGS)
+	$(_V)$(CXX) -o $@ $^ $(LDFLAGS)
 $(ODIR)/TreeOverwriteBench.%: $(ODIR)/TreeOverwriteBench.genericapi.o $(LIBFOLDER)/$(ODIR)/lib%.a
 	@echo [LD] $@ 
-	@$(CXX) -o $@ $^ $(LDFLAGS)
+	$(_V)$(CXX) -o $@ $^ $(LDFLAGS)
 $(ODIR)/TypeTest.%: $(ODIR)/TypeTest.genericapi.o $(LIBFOLDER)/$(ODIR)/lib%.a
 	@echo [LD] $@ 
-	@$(CXX) -o $@ $^ $(LDFLAGS)
+	$(_V)$(CXX) -o $@ $^ $(LDFLAGS)
 $(ODIR)/WWPathologyBench.%: $(ODIR)/WWPathologyBench.genericapi.o $(LIBFOLDER)/$(ODIR)/lib%.a
 	@echo [LD] $@ 
-	@$(CXX) -o $@ $^ $(LDFLAGS)
+	$(_V)$(CXX) -o $@ $^ $(LDFLAGS)

@@ -72,14 +72,14 @@ namespace stm
    *  All behaviors are reached via function pointers.  This allows us to
    *  change on the fly:
    */
-  static rollback_t        rollback_;
-  static tm_begin_t        tm_begin_;
-  static tm_end_t          tm_end_;
-  static tm_get_alg_name_t tm_getalgname_;
-  static tm_alloc_t        tm_alloc_;
-  static tm_free_t         tm_free_;
-  static tm_read_t         tm_read_;
-  static tm_write_t        tm_write_;
+  rollback_t        rollback_;
+  tm_begin_t        tm_begin_;
+  tm_end_t          tm_end_;
+  tm_get_alg_name_t tm_getalgname_;
+  tm_alloc_t        tm_alloc_;
+  tm_free_t         tm_free_;
+  tm_read_t         tm_read_;
+  tm_write_t        tm_write_;
 
   /**
    *  The default mechanism that libstm uses for an abort. An API environment
@@ -183,7 +183,7 @@ namespace stm
       printf("STM library configured using config == %s\n", cfg);
   }
 
-  char* trueAlgName = NULL;
+  static char* trueAlgName = NULL;
   const char* tm_getalgname()
   {
       if (trueAlgName)

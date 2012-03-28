@@ -15,46 +15,24 @@
 #include "NOrec.hpp"
 #include "cm.hpp"
 #include "adaptivity.hpp"
+#include "tm_alloc.hpp"
 
-using namespace stm;
-
-/**
- * Instantiate rollback with the appropriate CM for this TM algorithm
- */
-template scope_t* norec_generic::rollback_generic<HourglassBackoffCM>(TX*);
 
 /**
- * Instantiate tm_begin with the appropriate CM for this TM algorithm
+ * Instantiate rollback with the appropriate CM for this TM algorithm. This
+ * works because NOrec.hpp uses the "right" names.
  */
-template void norec_generic::tm_begin_generic<HourglassBackoffCM>(scope_t*);
+INSTANTIATE_FOR_CM(HourglassBackoffCM, 18)
 
 /**
- * Instantiate tm_end with the appropriate CM for this TM algorithm
+ *  For querying to get the current algorithm name
  */
-template void norec_generic::tm_end_generic<HourglassBackoffCM>();
-
-namespace norechb
-{
-  scope_t* rollback(TX* tx) __attribute__((weak, alias("_ZN13norec_generic16rollback_genericIN3stm18HourglassBackoffCMEEEPvPNS1_2TXE")));
-
-  void tm_begin(scope_t *) __attribute__((weak, alias("_ZN13norec_generic16tm_begin_genericIN3stm18HourglassBackoffCMEEEvPv")));
-  void tm_end() __attribute__((weak, alias("_ZN13norec_generic14tm_end_genericIN3stm18HourglassBackoffCMEEEvv")));
-  TM_FASTCALL
-  void* tm_read(void**) __attribute__((weak, alias("_ZN13norec_generic7tm_readEPPv")));
-  TM_FASTCALL
-  void tm_write(void**, void*) __attribute__((weak, alias("_ZN13norec_generic8tm_writeEPPvS0_")));
-  void* tm_alloc(size_t) __attribute__((weak, alias("_ZN13norec_generic8tm_allocEj")));
-  void tm_free(void*) __attribute__((weak, alias("_ZN13norec_generic7tm_freeEPv")));
-
-  /**
-   *  For querying to get the current algorithm name
-   */
-  const char* tm_getalgname() { return "NOrecHB"; }
-
+static const char* tm_getalgname() {
+    return "NOrecHB";
 }
 
 /**
- * Register the TM for adaptivity and for use as a standalone library
+ *  Register the TM for adaptivity and for use as a standalone library
  */
-REGISTER_TM_FOR_ADAPTIVITY(NOrecHB, norechb);
-REGISTER_TM_FOR_STANDALONE(norechb, 7);
+REGISTER_TM_FOR_ADAPTIVITY(NOrecHB)
+REGISTER_TM_FOR_STANDALONE()

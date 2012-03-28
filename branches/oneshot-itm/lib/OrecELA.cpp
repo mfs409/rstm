@@ -29,282 +29,264 @@
 #include "locks.hpp"
 #include "tx.hpp"
 #include "adaptivity.hpp"
+#include "tm_alloc.hpp"
 
 using namespace stm;
 
-namespace orecela
+/**
+ *  For querying to get the current algorithm name
+ */
+static const char* tm_getalgname() {
+    return "OrecELA";
+}
+
+/*** The only metadata we need is a single global padded lock ***/
+static pad_word_t timestamp = {0};
+static pad_word_t last_complete = {0};
+
+/**
+ *  OrecELA unwinder:
+ *
+ *    This is a standard orec unwind function.  The only catch is that if a
+ *    transaction aborted after incrementing the timestamp, it must wait its
+ *    turn and then increment the trailing timestamp, to keep the two counters
+ *    consistent.
+ */
+static scope_t* rollback(TX* tx)
 {
-  /**
-   *  For querying to get the current algorithm name
-   */
-  const char* tm_getalgname() { return "OrecELA"; }
+    ++tx->aborts;
 
-  /*** The only metadata we need is a single global padded lock ***/
-  pad_word_t timestamp = {0};
-  pad_word_t last_complete = {0};
+    // release locks and restore version numbers
+    foreach (OrecList, i, tx->locks)
+    (*i)->v.all = (*i)->p;
+    tx->r_orecs.reset();
+    tx->writes.reset();
+    tx->locks.reset();
 
-  /**
-   *  OrecELA unwinder:
-   *
-   *    This is a standard orec unwind function.  The only catch is that if a
-   *    transaction aborted after incrementing the timestamp, it must wait its
-   *    turn and then increment the trailing timestamp, to keep the two counters
-   *    consistent.
-   */
-  scope_t* rollback(TX* tx)
-  {
-      ++tx->aborts;
+    CFENCE;
 
-      // release locks and restore version numbers
-      foreach (OrecList, i, tx->locks)
-          (*i)->v.all = (*i)->p;
-      tx->r_orecs.reset();
-      tx->writes.reset();
-      tx->locks.reset();
+    // if we aborted after incrementing the timestamp, then we have to
+    // participate in the global cleanup order to support our solution to
+    // the deferred update half of the privatization problem.
+    //
+    // NB:  Note that end_time is always zero for restarts and retrys
+    if (tx->end_time != 0) {
+        while (last_complete.val < (tx->end_time - 1))
+            spin64();
+        CFENCE;
+        last_complete.val = tx->end_time;
+    }
+    CFENCE;
+    tx->allocator.onTxAbort();
+    tx->nesting_depth = 0;
+    scope_t* scope = tx->scope;
+    tx->scope = NULL;
+    return scope;
+}
 
-      CFENCE;
+/**
+ *  OrecELA begin:
+ *
+ *    We need a starting point for the transaction.  If an in-flight
+ *    transaction is committed, but still doing writeback, we can either start
+ *    at the point where that transaction had not yet committed, or else we can
+ *    wait for it to finish writeback.  In this code, we choose the former
+ *    option.
+ */
+static void tm_begin(scope_t* scope)
+{
+    TX* tx = Self;
+    if (++tx->nesting_depth > 1)
+        return;
+    tx->scope = scope;
 
-      // if we aborted after incrementing the timestamp, then we have to
-      // participate in the global cleanup order to support our solution to
-      // the deferred update half of the privatization problem.
-      //
-      // NB:  Note that end_time is always zero for restarts and retrys
-      if (tx->end_time != 0) {
-          while (last_complete.val < (tx->end_time - 1))
-              spin64();
-          CFENCE;
-          last_complete.val = tx->end_time;
-      }
-      CFENCE;
-      tx->allocator.onTxAbort();
-      tx->nesting_depth = 0;
-      scope_t* scope = tx->scope;
-      tx->scope = NULL;
-      return scope;
-  }
+    tx->allocator.onTxBegin();
+    // Start after the last cleanup, instead of after the last commit, to
+    // avoid spinning in begin()
+    tx->start_time = last_complete.val;
+    tx->end_time = 0;
+}
 
-  /**
-   *  OrecELA begin:
-   *
-   *    We need a starting point for the transaction.  If an in-flight
-   *    transaction is committed, but still doing writeback, we can either start
-   *    at the point where that transaction had not yet committed, or else we can
-   *    wait for it to finish writeback.  In this code, we choose the former
-   *    option.
-   */
-  void tm_begin(scope_t* scope)
-  {
-      TX* tx = Self;
-      if (++tx->nesting_depth > 1)
-          return;
-      tx->scope = scope;
+static NOINLINE void validate_commit(TX* tx)
+{
+    foreach (OrecList, i, tx->r_orecs) {
+        // read this orec
+        uintptr_t ivt = (*i)->v.all;
+        if ((ivt > tx->start_time) && (ivt != tx->my_lock.all))
+            tm_abort(tx);
+    }
+}
 
-      tx->allocator.onTxBegin();
-      // Start after the last cleanup, instead of after the last commit, to
-      // avoid spinning in begin()
-      tx->start_time = last_complete.val;
-      tx->end_time = 0;
-  }
+/**
+ *  OrecELA commit (read-only):
+ *
+ *    RO commit is trivial
+ */
+static void tm_end()
+{
+    TX* tx = Self;
+    if (--tx->nesting_depth)
+        return;
 
-  NOINLINE
-  void validate_commit(TX* tx)
-  {
-      foreach (OrecList, i, tx->r_orecs) {
-          // read this orec
-          uintptr_t ivt = (*i)->v.all;
-          if ((ivt > tx->start_time) && (ivt != tx->my_lock.all))
-              tm_abort(tx);
-      }
-  }
+    CFENCE;
+    if (!tx->writes.size()) {
+        tx->r_orecs.reset();
+        tx->allocator.onTxCommit();
+        ++tx->commits_ro;
+        return;
+    }
 
-  /**
-   *  OrecELA commit (read-only):
-   *
-   *    RO commit is trivial
-   */
-  void tm_end()
-  {
-      TX* tx = Self;
-      if (--tx->nesting_depth)
-          return;
+    // acquire locks
+    foreach (WriteSet, i, tx->writes) {
+        // get orec, read its version#
+        orec_t* o = get_orec(i->addr);
+        uintptr_t ivt = o->v.all;
 
-      CFENCE;
-      if (!tx->writes.size()) {
-          tx->r_orecs.reset();
-          tx->allocator.onTxCommit();
-          ++tx->commits_ro;
-          return;
-      }
+        // if orec not locked, lock it and save old to orec.p
+        if (ivt <= tx->start_time) {
+            // abort if cannot acquire
+            if (!bcasptr(&o->v.all, ivt, tx->my_lock.all))
+                tm_abort(tx);
+            // save old version to o->p, log lock
+            o->p = ivt;
+            tx->locks.insert(o);
+        }
+        // else if we don't hold the lock abort
+        else if (ivt != tx->my_lock.all) {
+            tm_abort(tx);
+        }
+    }
+    CFENCE;
+    // increment the global timestamp if we have writes
+    tx->end_time = 1 + faiptr(&timestamp.val);
+    CFENCE;
+    // skip validation if possible
+    if (tx->end_time != (tx->start_time + 1)) {
+        validate_commit(tx);
+    }
+    CFENCE;
+    // run the redo log
+    tx->writes.writeback();
+    CFENCE;
+    // release locks
+    foreach (OrecList, i, tx->locks)
+    (*i)->v.all = tx->end_time;
+    CFENCE;
+    // now ensure that transactions depart from stm_end in the order that
+    // they incremend the timestamp.  This avoids the "deferred update"
+    // half of the privatization problem.
+    while (last_complete.val != (tx->end_time - 1))
+        spin64();
+    last_complete.val = tx->end_time;
 
-      // acquire locks
-      foreach (WriteSet, i, tx->writes) {
-          // get orec, read its version#
-          orec_t* o = get_orec(i->addr);
-          uintptr_t ivt = o->v.all;
+    // clean-up
+    tx->r_orecs.reset();
+    tx->writes.reset();
+    tx->locks.reset();
+    tx->allocator.onTxCommit();
+    ++tx->commits_rw;
+}
 
-          // if orec not locked, lock it and save old to orec.p
-          if (ivt <= tx->start_time) {
-              // abort if cannot acquire
-              if (!bcasptr(&o->v.all, ivt, tx->my_lock.all))
-                  tm_abort(tx);
-              // save old version to o->p, log lock
-              o->p = ivt;
-              tx->locks.insert(o);
-          }
-          // else if we don't hold the lock abort
-          else if (ivt != tx->my_lock.all) {
-              tm_abort(tx);
-          }
-      }
-      CFENCE;
-      // increment the global timestamp if we have writes
-      tx->end_time = 1 + faiptr(&timestamp.val);
-      CFENCE;
-      // skip validation if possible
-      if (tx->end_time != (tx->start_time + 1)) {
-          validate_commit(tx);
-      }
-      CFENCE;
-      // run the redo log
-      tx->writes.writeback();
-      CFENCE;
-      // release locks
-      foreach (OrecList, i, tx->locks)
-          (*i)->v.all = tx->end_time;
-      CFENCE;
-      // now ensure that transactions depart from stm_end in the order that
-      // they incremend the timestamp.  This avoids the "deferred update"
-      // half of the privatization problem.
-      while (last_complete.val != (tx->end_time - 1))
-          spin64();
-      last_complete.val = tx->end_time;
+/**
+ *  OrecELA validation
+ *
+ *    an in-flight transaction must make sure it isn't suffering from the
+ *    "doomed transaction" half of the privatization problem.  We can get that
+ *    effect by calling this after every transactional read (actually every
+ *    read that detects that some new transaction has committed).
+ */
+static NOINLINE void privtest(TX* tx, uintptr_t ts)
+{
+    // optimized validation since we don't hold any locks
+    foreach (OrecList, i, tx->r_orecs) {
+        // if orec locked or newer than start time, abort
+        if ((*i)->v.all > tx->start_time)
+            tm_abort(tx);
+    }
+    // careful here: we can't scale the start time past last_complete.val,
+    // unless we want to re-introduce the need for prevalidation on every
+    // read.
+    CFENCE;
+    uintptr_t cs = last_complete.val;
+    tx->start_time = (ts < cs) ? ts : cs;
+}
 
-      // clean-up
-      tx->r_orecs.reset();
-      tx->writes.reset();
-      tx->locks.reset();
-      tx->allocator.onTxCommit();
-      ++tx->commits_rw;
-  }
+/**
+ *  OrecELA read (read-only transaction)
+ *
+ *    This is a traditional orec read for systems with extendable timestamps.
+ *    However, we also poll the timestamp counter and validate any time a new
+ *    transaction has committed, in order to catch doomed transactions.
+ */
+static TM_FASTCALL void* tm_read(void** addr)
+{
+    TX* tx = Self;
 
-  /**
-   *  OrecELA validation
-   *
-   *    an in-flight transaction must make sure it isn't suffering from the
-   *    "doomed transaction" half of the privatization problem.  We can get that
-   *    effect by calling this after every transactional read (actually every
-   *    read that detects that some new transaction has committed).
-   */
-  NOINLINE
-  void privtest(TX* tx, uintptr_t ts)
-  {
-      // optimized validation since we don't hold any locks
-      foreach (OrecList, i, tx->r_orecs) {
-          // if orec locked or newer than start time, abort
-          if ((*i)->v.all > tx->start_time)
-              tm_abort(tx);
-      }
-      // careful here: we can't scale the start time past last_complete.val,
-      // unless we want to re-introduce the need for prevalidation on every
-      // read.
-      CFENCE;
-      uintptr_t cs = last_complete.val;
-      tx->start_time = (ts < cs) ? ts : cs;
-  }
+    if (tx->writes.size()) {
+        // check the log for a RAW hazard, we expect to miss
+        WriteSetEntry log(STM_WRITE_SET_ENTRY(addr, NULL, mask));
+        bool found = tx->writes.find(log);
+        if (found)
+            return log.val;
+    }
 
-  /**
-   *  OrecELA read (read-only transaction)
-   *
-   *    This is a traditional orec read for systems with extendable timestamps.
-   *    However, we also poll the timestamp counter and validate any time a new
-   *    transaction has committed, in order to catch doomed transactions.
-   */
-  TM_FASTCALL
-  void* tm_read(void** addr)
-  {
-      TX* tx = Self;
+    // get the orec addr, read the orec's version#
+    orec_t* o = get_orec(addr);
+    while (true) {
+        // read the location
+        void* tmp = *addr;
+        CFENCE;
+        // check the orec.  Note: we don't need prevalidation because we
+        // have a global clean state via the last_complete.val field.
+        id_version_t ivt;
+        ivt.all = o->v.all;
 
-      if (tx->writes.size()) {
-          // check the log for a RAW hazard, we expect to miss
-          WriteSetEntry log(STM_WRITE_SET_ENTRY(addr, NULL, mask));
-          bool found = tx->writes.find(log);
-          if (found)
-              return log.val;
-      }
+        // common case: new read to uncontended location
+        if (ivt.all <= tx->start_time) {
+            tx->r_orecs.insert(o);
+            // privatization safety: avoid the "doomed transaction" half
+            // of the privatization problem by polling a global and
+            // validating if necessary
+            uintptr_t ts = timestamp.val;
+            CFENCE;
+            if (ts != tx->start_time)
+                privtest(tx, ts);
+            return tmp;
+        }
 
-      // get the orec addr, read the orec's version#
-      orec_t* o = get_orec(addr);
-      while (true) {
-          // read the location
-          void* tmp = *addr;
-          CFENCE;
-          // check the orec.  Note: we don't need prevalidation because we
-          // have a global clean state via the last_complete.val field.
-          id_version_t ivt;
-          ivt.all = o->v.all;
+        // if lock held, spin and retry
+        if (ivt.fields.lock) {
+            spin64();
+            continue;
+        }
 
-          // common case: new read to uncontended location
-          if (ivt.all <= tx->start_time) {
-              tx->r_orecs.insert(o);
-              // privatization safety: avoid the "doomed transaction" half
-              // of the privatization problem by polling a global and
-              // validating if necessary
-              uintptr_t ts = timestamp.val;
-              CFENCE;
-              if (ts != tx->start_time)
-                  privtest(tx, ts);
-              return tmp;
-          }
+        // unlocked but too new... validate and scale forward
+        uintptr_t newts = timestamp.val;
+        foreach (OrecList, i, tx->r_orecs) {
+            // if orec locked or newer than start time, abort
+            if ((*i)->v.all > tx->start_time)
+                tm_abort(tx);
+        }
+        CFENCE;
+        uintptr_t cs = last_complete.val;
+        // need to pick cs or newts
+        tx->start_time = (newts < cs) ? newts : cs;
+    }
+}
 
-          // if lock held, spin and retry
-          if (ivt.fields.lock) {
-              spin64();
-              continue;
-          }
-
-          // unlocked but too new... validate and scale forward
-          uintptr_t newts = timestamp.val;
-          foreach (OrecList, i, tx->r_orecs) {
-              // if orec locked or newer than start time, abort
-              if ((*i)->v.all > tx->start_time)
-                  tm_abort(tx);
-          }
-          CFENCE;
-          uintptr_t cs = last_complete.val;
-          // need to pick cs or newts
-          tx->start_time = (newts < cs) ? newts : cs;
-      }
-  }
-
-  /**
-   *  OrecELA write (read-only context)
-   *
-   *    Simply buffer the write and switch to a writing context
-   */
-  TM_FASTCALL
-  void tm_write(void** addr, void* val)
-  {
-      TX* tx = Self;
-      tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
-  }
-
-  /**
-   *  get a chunk of memory that will be automatically reclaimed if the caller
-   *  is a transaction that ultimately aborts
-   */
-  void* tm_alloc(size_t size) { return Self->allocator.txAlloc(size); }
-
-  /**
-   *  Free some memory.  If the caller is a transaction that ultimately aborts,
-   *  the free will not happen.  If the caller is a transaction that commits,
-   *  the free will happen at commit time.
-   */
-  void tm_free(void* p) { Self->allocator.txFree(p); }
-
+/**
+ *  OrecELA write (read-only context)
+ *
+ *    Simply buffer the write and switch to a writing context
+ */
+static TM_FASTCALL void tm_write(void** addr, void* val)
+{
+    TX* tx = Self;
+    tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
 }
 
 /**
  * Register the TM for adaptivity and for use as a standalone library
  */
-REGISTER_TM_FOR_ADAPTIVITY(OrecELA, orecela);
-REGISTER_TM_FOR_STANDALONE(orecela, 7);
+REGISTER_TM_FOR_ADAPTIVITY(OrecELA)
+REGISTER_TM_FOR_STANDALONE()
