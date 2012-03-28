@@ -55,14 +55,23 @@ BENCHOFILES = $(foreach api,$(APIS),$(foreach bench,$(BENCHNAMES),$(ODIR)/$(benc
 
 #
 # Executables: note that we are doing foreach benchmark, foreach STM
-# algorithm
+# algorithm, unless gcctm is being used, in which case we only need to build
+# once, for gcctm
 #
-BENCHEXES = $(foreach alg,$(ALGNAMES),$(foreach	bench,$(BENCHNAMES),$(ODIR)/$(bench).$(alg)))
+ifeq ($(LIB_OVERRIDE),true)
+BENCHEXES = $(patsubst %, $(ODIR)/%.gcctm, $(BENCHNAMES))
+else
+BENCHEXES = $(foreach alg,$(ALGNAMES),$(foreach bench,$(BENCHNAMES),$(ODIR)/$(bench).$(alg)))
+endif
 
 #
-# Custom AdapTM target that uses the fptr interface
+# Custom AdapTM target that uses the fptr interface.  For now, we don't build
+# this when using gcctm, since gcctm only uses the gcc TM library.
 #
+ifeq ($(LIB_OVERRIDE),true)
+else
 BENCHEXES += $(patsubst %, $(ODIR)/%.AdapTM_fptr, $(BENCHNAMES))
+endif
 
 #
 # Dependencies
@@ -119,6 +128,15 @@ $(ODIR)/%.fptrapi.o: %.cpp
 $(ODIR)/%.CGL: $(ODIR)/%.lockapi.o $(LIBFOLDER)/$(ODIR)/libCGL.a
 	@echo [LD] $@ 
 	$(_V)$(CXX) -o $@ $^ $(LDFLAGS)
+
+#
+# gcctm builds are the easiest, since they don't even need a libXYZ file.
+# Note that it suffices to use lockapi, since all apis are the same (use gcc
+# to do the instrumentation) when STM_API_GCCTM is defined.
+#
+$(ODIR)/%.gcctm: $(ODIR)/%.lockapi.o
+	@echo [LD] $@ 
+	@$(CXX) -o $@ $^ $(LDFLAGS)
 
 #
 # fptrapi builds are also likely to be rare (in fact, there should probably
