@@ -24,6 +24,7 @@
 #include "platform.hpp"
 #include "adaptivity.hpp"
 #include "tm_alloc.hpp"
+#include "libitm.h"
 
 using namespace stm;
 
@@ -72,19 +73,19 @@ inline static void beforewrite_TML(TX* tx) {
  *
  *  [mfs] Eventually need to inline setjmp into this method
  */
-static void tm_begin(scope_t* scope) {
+static uint32_t tm_begin(uint32_t) {
     TX* tx = Self;
-    if (++tx->nesting_depth > 1)
-        return;
+    if (++tx->nesting_depth == 1) {
+        // Sample the sequence lock until it is even (unheld)
+        //
+        // [mfs] Consider using NOrec trick to just decrease and start
+        // running... we'll die more often, but with less overhead for readers...
+        while ((tx->start_time = timestamp.val) & 1) { }
 
-    // Sample the sequence lock until it is even (unheld)
-    //
-    // [mfs] Consider using NOrec trick to just decrease and start
-    // running... we'll die more often, but with less overhead for readers...
-    while ((tx->start_time = timestamp.val) & 1) { }
-
-    // notify the allocator
-    tx->allocator.onTxBegin();
+        // notify the allocator
+        tx->allocator.onTxBegin();
+    }
+    return a_runInstrumentedCode | a_saveLiveVariables;
 }
 
 /**

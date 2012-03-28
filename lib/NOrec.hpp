@@ -27,6 +27,7 @@
 #include "WBMMPolicy.hpp"
 #include "Macros.hpp"
 #include "tx.hpp"
+#include "libitm.h"
 
 using namespace stm;
 
@@ -85,22 +86,22 @@ static stm::checkpoint_t* rollback(TX* tx)
  *  [mfs] Eventually need to inline setjmp into this method
  */
 template <class CM>
-static void tm_begin(scope_t* scope) {
+static uint32_t tm_begin(uint32_t) {
     TX* tx = Self;
-    if (++tx->nesting_depth > 1)
-        return;
+    if (++tx->nesting_depth == 1) {
+        CM::onBegin(tx);
 
-    CM::onBegin(tx);
+        // Originally, NOrec required us to wait until the timestamp is even
+        // before we start.  However, we can round down if odd, in which case
+        // we don't need control flow here.
 
-    // Originally, NOrec required us to wait until the timestamp is even
-    // before we start.  However, we can round down if odd, in which case
-    // we don't need control flow here.
+        // Sample the sequence lock, if it is even decrement by 1
+        tx->start_time = timestamp.val & ~(1L);
 
-    // Sample the sequence lock, if it is even decrement by 1
-    tx->start_time = timestamp.val & ~(1L);
-
-    // notify the allocator
-    tx->allocator.onTxBegin();
+        // notify the allocator
+        tx->allocator.onTxBegin();
+    }
+    return a_runInstrumentedCode | a_saveLiveVariables;
 }
 
 /**

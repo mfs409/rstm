@@ -102,7 +102,7 @@ namespace stm
   pad_word_t epochs[MAX_THREADS] = {{0}};
 
   // forward all calls to the function pointers
-  void tm_begin(void* buf) { tm_begin_(buf); }
+  uint32_t tm_begin(uint32_t flags) { return tm_begin_(flags); }
   void tm_end() { tm_end_(); }
   void* tm_alloc(size_t s) { return tm_alloc_(s); }
   void tm_free(void* p) { tm_free_(p); }

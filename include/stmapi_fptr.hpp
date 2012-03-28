@@ -19,16 +19,19 @@
 #include <limits.h>
 #include <setjmp.h>
 #include <cstdlib>
+#include "../lib/tx.hpp" // TODO: temporary hack to check checkpoint behavior
 
+#ifndef TM_FASTCALL
 #if defined(STM_CPU_X86) && defined(STM_CC_GCC)
 #    define TM_FASTCALL __attribute__((regparm(3)))
 #else
 #    define TM_FASTCALL
 #endif
+#endif
 
 namespace stm
 {
-  extern void (*tm_begin_)(void*);
+  extern uint32_t (*tm_begin_)(uint32_t);
   extern void (*tm_end_)();
   extern const char* (*tm_getalgname_)();
   void tm_thread_init();
@@ -43,11 +46,9 @@ namespace stm
   extern void (*tm_write_)(void** addr, void* val);
 }
 
-#define TM_BEGIN(x)                                    \
-                             {                         \
-                             jmp_buf _jmpbuf;          \
-                             setjmp(_jmpbuf);          \
-                             stm::tm_begin_(&_jmpbuf);
+#define TM_BEGIN(x) {                                   \
+    setjmp(stm::Self->checkpoint);                      \
+    stm::tm_begin_(0x01);
 
 #define TM_END()             stm::tm_end_();   \
                              }

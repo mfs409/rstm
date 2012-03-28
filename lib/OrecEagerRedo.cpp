@@ -28,6 +28,7 @@
 #include "tx.hpp"
 #include "adaptivity.hpp"
 #include "tm_alloc.hpp"
+#include "libitm.h"
 
 using namespace stm;
 
@@ -68,15 +69,14 @@ static pad_word_t timestamp = {0};
  *
  *    Standard begin: just get a start time
  */
-static void tm_begin(scope_t* scope)
+static uint32_t tm_begin(uint32_t)
 {
     TX* tx = Self;
-    if (++tx->nesting_depth > 1)
-        return;
-
-
-    tx->allocator.onTxBegin();
-    tx->start_time = timestamp.val;
+    if (++tx->nesting_depth == 1) {
+        tx->allocator.onTxBegin();
+        tx->start_time = timestamp.val;
+    }
+    return a_runInstrumentedCode | a_saveLiveVariables;
 }
 
 /**

@@ -48,6 +48,7 @@
 #include "WBMMPolicy.hpp"
 #include "Macros.hpp"
 #include "tx.hpp"
+#include "libitm.h"
 
 using namespace stm;
 
@@ -95,18 +96,16 @@ static checkpoint_t* rollback(TX* tx)
 }
 
 template <class CM>
-static void tm_begin(scope_t* scope)
+static uint32_t tm_begin(uint32_t)
 {
     TX* tx = Self;
-    if (++tx->nesting_depth > 1)
-        return;
-
-    CM::onBegin(tx);
-
-
-    // sample the timestamp and prepare local structures
-    tx->allocator.onTxBegin();
-    tx->start_time = timestamp.val;
+    if (++tx->nesting_depth == 1) {
+        CM::onBegin(tx);
+        // sample the timestamp and prepare local structures
+        tx->allocator.onTxBegin();
+        tx->start_time = timestamp.val;
+    }
+    return a_runInstrumentedCode | a_saveLiveVariables;
 }
 
 static NOINLINE void validate_commit(TX* tx)
