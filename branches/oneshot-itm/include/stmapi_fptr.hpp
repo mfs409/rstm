@@ -26,15 +26,15 @@
 #    define TM_FASTCALL
 #endif
 
-namespace stm
-{
+namespace stm {
+  // These functions can be called directly.
+  void                 tm_thread_init();
+  void                 tm_thread_shutdown();
+
+  // These are called through function pointers.
   extern uint32_t    (*tm_begin_)(uint32_t);
   extern void        (*tm_end_)();
   extern const char* (*tm_getalgname_)();
-  void tm_thread_init();
-  void tm_thread_shutdown();
-  void tm_sys_init();
-  void tm_sys_shutdown();
   extern void*       (*tm_alloc_)(size_t s);
   extern void        (*tm_free_)(void* p);
   extern void*       (*tm_read_)(void** addr) TM_FASTCALL;
@@ -76,8 +76,8 @@ namespace stm
 
 #define TM_THREAD_INIT()     stm::tm_thread_init()
 #define TM_THREAD_SHUTDOWN() stm::tm_thread_shutdown()
-#define TM_SYS_INIT()        stm::tm_sys_init()
-#define TM_SYS_SHUTDOWN()    stm::tm_sys_shutdown()
+#define TM_SYS_INIT()
+#define TM_SYS_SHUTDOWN()
 #define TM_ALLOC(s)          stm::tm_alloc_(s)
 #define TM_FREE(p)           stm::tm_free_(p)
 #define TM_BEGIN_FAST_INITIALIZATION() TM_BEGIN(atomic)

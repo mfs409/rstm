@@ -15,30 +15,6 @@
 namespace stm
 {
   /**
-   *  No system initialization is required, since the timestamp is already 0
-   */
-  void tm_sys_init() { }
-
-  /**
-   *  When the transactional system gets shut down, we call this to dump
-   *  stats for all threads
-   */
-  void tm_sys_shutdown()
-  {
-      static volatile unsigned int mtx = 0;
-      // while (!bcas32(&mtx, 0u, 1u)) { }
-      for (uint32_t i = 0; i < threadcount.val; i++) {
-          std::cout << "Thread: "       << threads[i]->id
-                    << "; RO Commits: " << threads[i]->commits_ro
-                    << "; RW Commits: " << threads[i]->commits_rw
-                    << "; Aborts: "     << threads[i]->aborts
-                    << std::endl;
-      }
-      CFENCE;
-      mtx = 0;
-  }
-
-  /**
    *  To initialize the thread's TM support, we need only ensure it has a
    *  descriptor.
    */
@@ -55,7 +31,8 @@ namespace stm
    *  When a thread is done using the TM, we don't need to do anything
    *  special.
    */
-  void tm_thread_shutdown() { }
+  void tm_thread_shutdown() {
+  }
 
   /**
    *  Declaration of the rollback function.
@@ -69,8 +46,6 @@ namespace stm
    *
    *  This is ugly because rollback has a configuration-dependent signature.
    */
-  NOINLINE
-  NORETURN
   void tm_abort(TX* tx) {
       checkpoint_t* checkpoint = rollback(tx);
       tx->nesting_depth = 1;
@@ -80,4 +55,19 @@ namespace stm
   // for CM
   pad_word_t fcm_timestamp = {0};
   pad_word_t epochs[MAX_THREADS] = {{0}};
+}
+
+/**
+ *  When the transactional system gets shut down, we call this to dump
+ *  stats for all threads
+ */
+static void __attribute((destructor)) library_shutdown() {
+    for (uint32_t i = 0; i < stm::threadcount.val; i++) {
+        std::cout << "Thread: "       << stm::threads[i]->id
+                  << "; RO Commits: " << stm::threads[i]->commits_ro
+                  << "; RW Commits: " << stm::threads[i]->commits_rw
+                  << "; Aborts: "     << stm::threads[i]->aborts
+                  << "\n";
+    }
+    CFENCE;
 }

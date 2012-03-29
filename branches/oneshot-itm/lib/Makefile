@@ -56,11 +56,6 @@ LIBS = $(patsubst %, $(ODIR)/lib%.a, $(ALGNAMES))
 # Auto-generated header file
 #
 ADAPTHEADER = $(ODIR)/tmnames.autobuild.h
-
-ADAPTNAMES  = AdapTM WBMMPolicy Common CommonLazy CommonOrec adaptivity \
-              checkpoint-asm checkpoint
-ADAPTOFILES = $(patsubst %, $(ODIR)/%.o, $(ADAPTNAMES))
-.PRECIOUS: $(ADAPTOFILES)
 ADAPTLIB    = $(ODIR)/libAdapTM.a
 
 #
@@ -117,7 +112,7 @@ $(ODIR)/lib%.a: $(ODIR)/%.o $(COMMONOFILES)
 #
 # Custom rule for libadaptm.a
 #
-$(ADAPTLIB): $(ADAPTOFILES) $(ALGOFILES)
+$(ADAPTLIB): $(filter %AdapTM.o,$(ALGOFILES)) $(filter-out %AdapTM.o,$(ALGOFILES)) $(COMMONOFILES)
 	@echo [AR] $@
 	$(_V)$(AR) cru $@ $^
 

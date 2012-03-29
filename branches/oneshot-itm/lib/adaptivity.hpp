@@ -20,12 +20,12 @@
 
 namespace stm
 {
-  typedef uint32_t (*tm_begin_t)(uint32_t);
-  typedef void     (*tm_end_t)();
-  typedef void*    (*tm_read_t)(void**) TM_FASTCALL;
-  typedef void     (*tm_write_t)(void**, void*) TM_FASTCALL;
-  typedef void*    (*tm_alloc_t)(size_t);
-  typedef void     (*tm_free_t)(void*);
+  typedef uint32_t      (*tm_begin_t)(uint32_t);
+  typedef void          (*tm_end_t)();
+  typedef void*         (*tm_read_t)(void**) TM_FASTCALL;
+  typedef void          (*tm_write_t)(void**, void*) TM_FASTCALL;
+  typedef void*         (*tm_alloc_t)(size_t);
+  typedef void          (*tm_free_t)(void*);
   typedef const char*   (*tm_get_alg_name_t)();
   typedef checkpoint_t* (*rollback_t)(TX*);
 
@@ -56,30 +56,25 @@ namespace stm
   void initTM();
 
   /**
-   *  Type for storing all the information we need to define an STM algorithm
+   *  Type for storing all the information we need to define an STM algorithm,
+   *  and the array of all of the stored algorithms.
    */
-  struct alg_t
-  {
-      int identifier;
-      tm_begin_t tm_begin;
-      tm_end_t tm_end;
-      tm_read_t tm_read;
-      tm_write_t tm_write;
-      rollback_t rollback;
+  extern struct alg_t {
+      int               identifier;
+      tm_begin_t        tm_begin;
+      tm_end_t          tm_end;
+      tm_read_t         tm_read;
+      tm_write_t        tm_write;
+      rollback_t        rollback;
       tm_get_alg_name_t tm_getalgname;
-      tm_alloc_t tm_alloc;
-      tm_free_t tm_free;
+      tm_alloc_t        tm_alloc;
+      tm_free_t         tm_free;
 
       // [TODO]
       // bool (* irrevoc)(TxThread*);
       // void (* switcher) ();
       // bool privatization_safe;
-  };
-
-  /**
-   *  Collection of all known algorithms
-   */
-  extern alg_t tm_info[TM_NAMES_MAX];
+  } tm_info[TM_NAMES_MAX];
 }
 
 /**

@@ -28,19 +28,15 @@
 
 namespace stm
 {
-  uint32_t tm_begin(uint32_t);
-  void tm_end();
+  uint32_t    tm_begin(uint32_t);
+  void        tm_end();
   const char* tm_getalgname();
-  void tm_thread_init();
-  void tm_thread_shutdown();
-  void tm_sys_init();
-  void tm_sys_shutdown();
-  void* tm_alloc(size_t s);
-  void tm_free(void* p);
-  TM_FASTCALL
-  void* tm_read(void** addr);
-  TM_FASTCALL
-  void tm_write(void** addr, void* val);
+  void        tm_thread_init();
+  void        tm_thread_shutdown();
+  void*       tm_alloc(size_t s);
+  void        tm_free(void* p);
+  void*       tm_read(void** addr) TM_FASTCALL;
+  void        tm_write(void** addr, void* val) TM_FASTCALL;
 }
 
 #define TM_BEGIN(x) { _ITM_beginTransaction(0x1);
@@ -76,8 +72,8 @@ namespace stm
 
 #define TM_THREAD_INIT()     stm::tm_thread_init()
 #define TM_THREAD_SHUTDOWN() stm::tm_thread_shutdown()
-#define TM_SYS_INIT()        stm::tm_sys_init()
-#define TM_SYS_SHUTDOWN()    stm::tm_sys_shutdown()
+#define TM_SYS_INIT()
+#define TM_SYS_SHUTDOWN()
 #define TM_ALLOC(s)          stm::tm_alloc(s)
 #define TM_FREE(p)           stm::tm_free(p)
 #define TM_BEGIN_FAST_INITIALIZATION() TM_BEGIN(atomic)

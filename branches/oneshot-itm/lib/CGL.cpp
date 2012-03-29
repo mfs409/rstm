@@ -38,32 +38,30 @@ static const char* tm_getalgname() { return "CGL"; }
  *
  *  This only gets called for the outermost scope.
  */
-static uint32_t tm_begin(uint32_t)
-{
+static uint32_t tm_begin(uint32_t) {
     TX* tx = Self;
     tatas_acquire(&timestamp.val);
     return a_runInstrumentedCode;
 }
 
-/**
- *  This is a special external function call for the cglapi that bypasses the
- *  normal _ITM_beginTransaction call that performs a checkpoint.
- *
- *  TODO: We'll want a different solution for this in the future.
- */
-namespace stm {
-  void cgl_tm_begin() {
-      if (++Self->nesting_depth == 1)
-          tm_begin(0x02);
-  }
-}
+// /**
+//  *  This is a special external function call for the cglapi that bypasses the
+//  *  normal _ITM_beginTransaction call that performs a checkpoint.
+//  *
+//  *  TODO: We'll want a different solution for this in the future.
+//  */
+// namespace stm {
+//   void cgl_tm_begin() {
+//       if (++Self->nesting_depth == 1)
+//           tm_begin(0x02);
+//   }
+// }
 
 /**
  *  End a transaction: decrease the nesting level, then perhaps release the
  *  lock and increment the count of commits.
  */
-static void tm_end()
-{
+static void tm_end() {
     TX* tx = Self;
     if (--tx->nesting_depth)
         return;
@@ -74,33 +72,32 @@ static void tm_end()
 /**
  *  In CGL, malloc doesn't need any special care
  */
-static void* tm_alloc(size_t s) { return malloc(s); }
+static void* tm_alloc(size_t s) {
+    return malloc(s);
+}
 
 /**
  *  In CGL, free doesn't need any special care
  */
-static void tm_free(void* p) { free(p); }
+static void tm_free(void* p) {
+    free(p);
+}
 
 /**
  *  CGL read
  */
-TM_FASTCALL
-static void* tm_read(void** addr)
-{
+static void* TM_FASTCALL tm_read(void** addr) {
     return *addr;
 }
 
 /**
  *  CGL write
  */
-TM_FASTCALL
-static void tm_write(void** addr, void* val)
-{
+static void TM_FASTCALL tm_write(void** addr, void* val) {
     *addr = val;
 }
 
-static checkpoint_t* rollback(TX* tx)
-{
+static checkpoint_t* rollback(TX* tx) {
     assert(0 && "Rollback not supported in CGL");
     exit(-1);
     return NULL;
