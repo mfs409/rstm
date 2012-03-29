@@ -29,6 +29,12 @@ CXXFLAGS += -O3 -ggdb -m64 -march=native -mtune=native -msse2 -mfpmath=sse \
 LDFLAGS  += -lrt -lpthread -m64 -lmtmalloc -fgnu-tm
 
 #
+# Since this is a GCCTM build, we override so that we don't build all the
+# libXYZ.a files
+#
+LIB_OVERRIDE = true
+
+#
 # Options to pass to STM files
 #
 CXXFLAGS += -DSTM_API_GCCTM
