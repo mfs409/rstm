@@ -102,7 +102,7 @@ _rstm_restore_checkpoint:
 #elif defined(__x64_64__)
 # error No checkpoint code designed for x32 yet.
 #elif defined(__i386__)
-
+        
 // describe the checkpoint offsets
 #define EBP 0
 #define ESP 4
@@ -110,6 +110,7 @@ _rstm_restore_checkpoint:
 #define EBX 12
 #define ESI 16
 #define EDI 20
+#define EAX 24 // not callee-saves, but we use it to remember flags
 
 ///
 /// The i386 _ITM_beginTransaction gets a checkpoint (or NULL in a nested
@@ -128,9 +129,9 @@ _rstm_restore_checkpoint:
 ///
         .text        
         .p2align 4,,15
-        .globl __ITM_beginTransaction
-        ASM_DOT_TYPE(__ITM_beginTransaction, @function)
-__ITM_beginTransaction:
+        .globl _ITM_beginTransaction
+        ASM_DOT_TYPE(_ITM_beginTransaction, @function)
+_ITM_beginTransaction:
         ASM_DOT_CFI_STARTPROC
         
         movl    4(%esp), %eax                   // get a checkpoint (or NULL in
@@ -143,10 +144,13 @@ __ITM_beginTransaction:
         popl    %esp
 #endif
         testl   %eax, %eax                      // regparm(1) to pass flags to 
-        je      __ITM_beginTransaction_nested   // _rstm_pre_checkpoint.
+        je      _ITM_beginTransaction_nested   // _rstm_pre_checkpoint.
 
         movl    (%esp), %ecx                    // get the return address from
         movl    %ecx, EIP(%eax)                 // the stack
+
+        movl    4(%esp), %ecx                   // remember flags in case we
+        movl    %ecx, EAX(%eax)                 // are aborted
 
         movl    %esp, ESP(%eax)
         movl    %ebp, EBP(%eax)
@@ -155,11 +159,11 @@ __ITM_beginTransaction:
         movl    %edi, EDI(%eax)
         
         jmp     _rstm_post_checkpoint           // jmp == sibling call, which
-___ITM_beginTransaction_nested:                   // is necessary to make varargs
+_ITM_beginTransaction_nested:                  // is necessary to make varargs
         jmp     _rstm_post_checkpoint_nested    // work
 
         ASM_DOT_CFI_ENDPROC
-        ASM_DOT_SIZE(__ITM_beginTransaction, .-__ITM_beginTransaction)
+        ASM_DOT_SIZE(_ITM_beginTransaction, .-_ITM_beginTransaction)
 
 ///
 /// The i386 restore_checkpoint just extracts the saved registers from the
@@ -172,10 +176,12 @@ ___ITM_beginTransaction_nested:                   // is necessary to make vararg
         .p2align 4,,15
         .globl _rstm_restore_checkpoint
         ASM_DOT_TYPE(_rstm_restore_checkpoint, @function)
-_rstm_checkpoint_restore:
+_rstm_restore_checkpoint:
         ASM_DOT_CFI_STARTPROC
-        
-        movl    0x8(%esp), %eax                 // setup the return value
+
+        // this doesn't work like longjmp, we don't pass in a return value, we
+        // reuse the flags that were originally passed to us
+        // movl    0x8(%esp), %eax                 // setup the return value
         movl    0x4(%esp), %ecx                 // grab the buffer
 
         movl    ESP(%ecx), %esp
@@ -184,9 +190,15 @@ _rstm_checkpoint_restore:
         movl    ESI(%ecx), %esi
         movl    EDI(%ecx), %edi
 
+        // we're executing in the same stack fram as _ITM_begin was, fix some
+        // of the stack that we /know/ was there when we were checkpointed.
+        movl    EAX(%ecx), %eax                 // restore the flags
+        movl    %eax, 4(%esp)
+        
         movl    EIP(%ecx), %ecx                 // restore the return address
-        movl    %ecx, (%esp)                    // and return
-        ret
+        movl    %ecx, (%esp)
+
+        jmp     _rstm_post_restart              // reenter the transaction
                 
         ASM_DOT_CFI_ENDPROC
         ASM_DOT_SIZE(_rstm_restore_checkpoint, .-_rstm_restore_checkpoint)

@@ -58,9 +58,9 @@ namespace stm
   void tm_thread_shutdown() { }
 
   /**
-   *  Forward declare for per-alg rollback
+   *  Declaration of the rollback function.
    */
-  scope_t* rollback(TX* tx);
+  checkpoint_t* rollback(TX*);
 
   /**
    *  The default mechanism that libstm uses for an abort. An API environment
@@ -71,11 +71,10 @@ namespace stm
    */
   NOINLINE
   NORETURN
-  void tm_abort(TX* tx)
-  {
-      jmp_buf* scope = (jmp_buf*)rollback(tx);
-      // need to null out the scope
-      longjmp(*scope, 1);
+  void tm_abort(TX* tx) {
+      checkpoint_t* checkpoint = rollback(tx);
+      tx->nesting_depth = 1;
+      restore_checkpoint(checkpoint);
   }
 
   // for CM

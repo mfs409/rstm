@@ -39,8 +39,7 @@ static const uintptr_t VALIDATION_FAILED = 1;
 /**
  *  Validate a transaction by ensuring that its reads have not changed
  */
-static NOINLINE uintptr_t validate(TX* tx)
-{
+static NOINLINE uintptr_t validate(TX* tx) {
     while (true) {
         // read the lock until it is even
         uintptr_t s = timestamp.val;
@@ -65,51 +64,40 @@ static NOINLINE uintptr_t validate(TX* tx)
     }
 }
 
-/**
- *  Abort and roll back the transaction (e.g., on conflict).
- */
+/** Abort and roll back the transaction (e.g., on conflict). */
 template <class CM>
-static stm::checkpoint_t* rollback(TX* tx)
-{
+static stm::checkpoint_t* rollback(TX* tx) {
     ++tx->aborts;
     tx->vlist.reset();
     tx->writes.reset();
     tx->allocator.onTxAbort();
-    tx->nesting_depth = 0;
     CM::onAbort(tx);
     return &tx->checkpoint;
 }
 
-/**
- *  Start a (possibly flat nested) transaction.
- *
- *  [mfs] Eventually need to inline setjmp into this method
- */
+/** only called for outermost transactions. */
 template <class CM>
 static uint32_t tm_begin(uint32_t) {
     TX* tx = Self;
-    if (++tx->nesting_depth == 1) {
-        CM::onBegin(tx);
 
-        // Originally, NOrec required us to wait until the timestamp is even
-        // before we start.  However, we can round down if odd, in which case
-        // we don't need control flow here.
+    CM::onBegin(tx);
 
-        // Sample the sequence lock, if it is even decrement by 1
-        tx->start_time = timestamp.val & ~(1L);
+    // Originally, NOrec required us to wait until the timestamp is even
+    // before we start.  However, we can round down if odd, in which case
+    // we don't need control flow here.
 
-        // notify the allocator
-        tx->allocator.onTxBegin();
-    }
-    return a_runInstrumentedCode | a_saveLiveVariables;
+    // Sample the sequence lock, if it is even decrement by 1
+    tx->start_time = timestamp.val & ~(1L);
+
+    // notify the allocator
+    tx->allocator.onTxBegin();
+
+    return a_runInstrumentedCode;
 }
 
-/**
- *  Commit a (possibly flat nested) transaction
- */
+/** Commit a (possibly flat nested) transaction. */
 template <class CM>
-static void tm_end()
-{
+static void tm_end() {
     TX* tx = Self;
     if (--tx->nesting_depth)
         return;
@@ -143,11 +131,8 @@ static void tm_end()
     ++tx->commits_rw;
 }
 
-/**
- *  Transactional read
- */
-static TM_FASTCALL void* tm_read(void** addr)
-{
+/** Transactional read */
+static TM_FASTCALL void* tm_read(void** addr) {
     TX* tx = Self;
 
     if (tx->writes.size()) {
@@ -181,11 +166,8 @@ static TM_FASTCALL void* tm_read(void** addr)
     return tmp;
 }
 
-/**
- *  Simple buffered transactional write
- */
-static TM_FASTCALL void tm_write(void** addr, void* val)
-{
+/** Simple buffered transactional write. */
+static TM_FASTCALL void tm_write(void** addr, void* val) {
     TX* tx = Self;
     // just buffer the write
     tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));

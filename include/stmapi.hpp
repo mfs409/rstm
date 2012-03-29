@@ -17,17 +17,13 @@
 #define STMAPI_HPP__
 
 #include <limits.h>
-#include <setjmp.h>
 #include <cstdlib>
+#include "libitm.h"
 
-#include "../lib/tx.hpp" // TODO: temporary hack to check checkpoint behavior
-
-#ifndef TM_FASTCALL
 #if defined(STM_CPU_X86) && defined(STM_CC_GCC)
 #    define TM_FASTCALL __attribute__((regparm(3)))
 #else
 #    define TM_FASTCALL
-#endif
 #endif
 
 namespace stm
@@ -47,9 +43,7 @@ namespace stm
   void tm_write(void** addr, void* val);
 }
 
-#define TM_BEGIN(x) {                                  \
-    setjmp(stm::Self->checkpoint);                     \
-    stm::tm_begin(0x1);
+#define TM_BEGIN(x) { _ITM_beginTransaction(0x1);
 
 #define TM_END()             stm::tm_end();     \
                              }

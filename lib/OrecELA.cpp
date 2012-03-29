@@ -79,7 +79,6 @@ static checkpoint_t* rollback(TX* tx)
     }
     CFENCE;
     tx->allocator.onTxAbort();
-    tx->nesting_depth = 0;
     return &tx->checkpoint;
 }
 
@@ -91,18 +90,18 @@ static checkpoint_t* rollback(TX* tx)
  *    at the point where that transaction had not yet committed, or else we can
  *    wait for it to finish writeback.  In this code, we choose the former
  *    option.
+ *
+ *    only called for outermost transactions.
  */
 static uint32_t tm_begin(uint32_t)
 {
     TX* tx = Self;
-    if (++tx->nesting_depth == 1) {
-        tx->allocator.onTxBegin();
-        // Start after the last cleanup, instead of after the last commit, to
-        // avoid spinning in begin()
-        tx->start_time = last_complete.val;
-        tx->end_time = 0;
-    }
-    return a_runInstrumentedCode | a_saveLiveVariables;
+    tx->allocator.onTxBegin();
+    // Start after the last cleanup, instead of after the last commit, to
+    // avoid spinning in begin()
+    tx->start_time = last_complete.val;
+    tx->end_time = 0;
+    return a_runInstrumentedCode;
 }
 
 static NOINLINE void validate_commit(TX* tx)

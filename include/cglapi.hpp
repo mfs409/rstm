@@ -18,6 +18,7 @@
 
 #include <limits.h>
 #include <cstdlib>
+#include "libitm.h"
 
 #if defined(STM_CPU_X86) && defined(STM_CC_GCC)
 #    define TM_FASTCALL __attribute__((regparm(3)))
@@ -27,25 +28,22 @@
 
 namespace stm
 {
-  uint32_t tm_begin(uint32_t);
-  void tm_end();
+  uint32_t    tm_begin(uint32_t);
+  void        tm_end();
   const char* tm_getalgname();
-  void tm_thread_init();
-  void tm_thread_shutdown();
-  void tm_sys_init();
-  void tm_sys_shutdown();
-  void* tm_alloc(size_t s);
-  void tm_free(void* p);
-  TM_FASTCALL
-  void* tm_read(void** addr);
-  TM_FASTCALL
-  void tm_write(void** addr, void* val);
+  void        tm_thread_init();
+  void        tm_thread_shutdown();
+  void        tm_sys_init();
+  void        tm_sys_shutdown();
+  void*       tm_alloc(size_t s);
+  void        tm_free(void* p);
+  void*       tm_read(void** addr) TM_FASTCALL;
+  void        tm_write(void** addr, void* val) TM_FASTCALL;
 }
 
-#define TM_BEGIN(x)          stm::tm_begin(0x01);
-#define TM_END()             stm::tm_end()
-
-#define TM_GET_ALGNAME()     stm::tm_getalgname()
+#define TM_BEGIN(x)      _ITM_beginTransaction(0x01);
+#define TM_END()         stm::tm_end()
+#define TM_GET_ALGNAME() stm::tm_getalgname()
 
 /**
  *  When LTO is available, there is no need to use these custom read/write

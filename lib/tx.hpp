@@ -18,7 +18,7 @@
 #include "WriteSet.hpp"
 #include "ValueList.hpp"
 #include "UndoLog.hpp"
-#include "checkpoint-temp.hpp"
+#include "checkpoint.hpp"
 
 namespace stm
 {

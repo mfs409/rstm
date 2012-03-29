@@ -69,7 +69,6 @@ static checkpoint_t* rollback(TX* tx) {
     tx->r_orecs.reset();
     tx->writes.reset();
     tx->allocator.onTxAbort();
-    tx->nesting_depth = 0;
     return &tx->checkpoint;
 }
 
@@ -99,32 +98,29 @@ static NOINLINE void validate(TX* tx) {
 }
 
 /**
- *  Start a (possibly flat nested) transaction.
- *
- *  [mfs] Eventually need to inline setjmp into this method
+ * only called for outermost transactions.
  */
 static uint32_t tm_begin(uint32_t) {
     TX* tx = Self;
-    if (++tx->nesting_depth > 1) {
-      S1:
-        // wait until everyone is committed
-        while (cpending != committed);
+  S1:
+    // wait until everyone is committed
+    while (cpending != committed);
 
-        // before tx begins, increase total number of tx
-        ADD(&started, 1);
+    // before tx begins, increase total number of tx
+    ADD(&started, 1);
 
-        // [NB] we must double check no one is ready to commit yet
-        // and no one entered in place write phase(turbo mode)
-        if (cpending > committed || inplace == 1) {
-            SUB(&started, 1);
-            goto S1;
-        }
-
-        tx->allocator.onTxBegin();
-        // get time of last finished txn
-        tx->ts_cache = last_complete.val;
+    // [NB] we must double check no one is ready to commit yet
+    // and no one entered in place write phase(turbo mode)
+    if (cpending > committed || inplace == 1) {
+        SUB(&started, 1);
+        goto S1;
     }
-    return a_runInstrumentedCode | a_saveLiveVariables;
+
+    tx->allocator.onTxBegin();
+    // get time of last finished txn
+    tx->ts_cache = last_complete.val;
+
+    return a_runInstrumentedCode;
 }
 
 /**

@@ -57,7 +57,8 @@ LIBS = $(patsubst %, $(ODIR)/lib%.a, $(ALGNAMES))
 #
 ADAPTHEADER = $(ODIR)/tmnames.autobuild.h
 
-ADAPTNAMES  = AdapTM WBMMPolicy Common CommonLazy CommonOrec adaptivity
+ADAPTNAMES  = AdapTM WBMMPolicy Common CommonLazy CommonOrec adaptivity \
+              checkpoint-asm checkpoint
 ADAPTOFILES = $(patsubst %, $(ODIR)/%.o, $(ADAPTNAMES))
 .PRECIOUS: $(ADAPTOFILES)
 ADAPTLIB    = $(ODIR)/libAdapTM.a

@@ -17,37 +17,32 @@
 #define STMAPI_HPP__
 
 #include <limits.h>
-#include <setjmp.h>
 #include <cstdlib>
-#include "../lib/tx.hpp" // TODO: temporary hack to check checkpoint behavior
+#include "libitm.h"
 
-#ifndef TM_FASTCALL
 #if defined(STM_CPU_X86) && defined(STM_CC_GCC)
 #    define TM_FASTCALL __attribute__((regparm(3)))
 #else
 #    define TM_FASTCALL
 #endif
-#endif
 
 namespace stm
 {
-  extern uint32_t (*tm_begin_)(uint32_t);
-  extern void (*tm_end_)();
+  extern uint32_t    (*tm_begin_)(uint32_t);
+  extern void        (*tm_end_)();
   extern const char* (*tm_getalgname_)();
   void tm_thread_init();
   void tm_thread_shutdown();
   void tm_sys_init();
   void tm_sys_shutdown();
-  extern void* (*tm_alloc_)(size_t s);
-  extern void (*tm_free_)(void* p);
-  TM_FASTCALL
-  extern void* (*tm_read_)(void** addr);
-  TM_FASTCALL
-  extern void (*tm_write_)(void** addr, void* val);
+  extern void*       (*tm_alloc_)(size_t s);
+  extern void        (*tm_free_)(void* p);
+  extern void*       (*tm_read_)(void** addr) TM_FASTCALL;
+  extern void        (*tm_write_)(void** addr, void* val) TM_FASTCALL;
 }
 
-#define TM_BEGIN(x) {                                   \
-    setjmp(stm::Self->checkpoint);                      \
+#define TM_BEGIN(x) {                                        \
+    assert(false && "fptr API temporarily not implemented"); \
     stm::tm_begin_(0x01);
 
 #define TM_END()             stm::tm_end_();   \

@@ -44,31 +44,31 @@ static checkpoint_t* rollback(TX* tx) {
     ++tx->aborts;
 
     // release the locks and restore version numbers
-    foreach (OrecList, i, tx->locks)
-    (*i)->v.all = (*i)->p;
+    foreach (OrecList, i, tx->locks) {
+        (*i)->v.all = (*i)->p;
+    }
 
     // undo memory operations, reset lists
     tx->r_orecs.reset();
     tx->writes.reset();
     tx->locks.reset();
     tx->allocator.onTxAbort();
-    tx->nesting_depth = 0;
     return &tx->checkpoint;
 }
 
 /*** The only metadata we need is a single global padded lock ***/
 static pad_word_t timestamp = {0};
 
-/** LLT begin: */
+/** LLT begin: only called for outermost transactions. */
 static uint32_t tm_begin(uint32_t)
 {
     TX* tx = Self;
-    if (++tx->nesting_depth == 1) {
-        tx->allocator.onTxBegin();
-        // get a start time
-        tx->start_time = timestamp.val;
-    }
-    return a_runInstrumentedCode | a_saveLiveVariables;
+
+    tx->allocator.onTxBegin();
+    // get a start time
+    tx->start_time = timestamp.val;
+
+    return a_runInstrumentedCode;
 }
 
 /** LLT validation */

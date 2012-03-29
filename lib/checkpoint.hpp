@@ -66,8 +66,8 @@ namespace stm {
   /// Implemented in an architecture-specific asm file, along with
   /// _ITM_beginTransaction. It must not modify the checkpoint because it will
   /// get reused for a conflict abort, where the checkpoint will be reused.
-  void restore_checkpoint(const checkpoint_t* const, uint32_t)
-  asm("_rstm_restore_checkpoint") __attribute__((noreturn));
+  void restore_checkpoint(const checkpoint_t* const)
+      asm("_rstm_restore_checkpoint") __attribute__((noreturn));
 
   /// Implemented in an algorithm-specific manner. Called from
   /// _ITM_beginTransaction using a sibling call, which is the only reason
@@ -75,6 +75,10 @@ namespace stm {
   /// take, as _ITM_beginTransaction is supposed to do.
   uint32_t post_checkpoint(uint32_t, ...)
       asm("_rstm_post_checkpoint");
+
+  uint32_t post_restart(uint32_t, ...)
+      asm("_rstm_post_restart");
+
 
   /// Implemented in an algorithm-specific manner. Called from
   /// _ITM_beginTransaction using a sibling call, which is the only reason
