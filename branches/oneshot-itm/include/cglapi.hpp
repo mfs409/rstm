@@ -39,9 +39,11 @@ namespace stm
   void        tm_free(void* p);
   void*       tm_read(void** addr) TM_FASTCALL;
   void        tm_write(void** addr, void* val) TM_FASTCALL;
+
+  void        cgl_tm_begin() __attribute__((returns_twice));
 }
 
-#define TM_BEGIN(x)      _ITM_beginTransaction(0x01);
+#define TM_BEGIN(x)      stm::cgl_tm_begin();
 #define TM_END()         stm::tm_end()
 #define TM_GET_ALGNAME() stm::tm_getalgname()
 

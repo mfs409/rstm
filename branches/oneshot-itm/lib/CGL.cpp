@@ -35,13 +35,27 @@ static const char* tm_getalgname() { return "CGL"; }
  *  counter.  Otherwise, grab the lock.  Note that we have a null parameter
  *  so that the signature is identical to all other STMs (prereq for
  *  adaptivity)
+ *
+ *  This only gets called for the outermost scope.
  */
 static uint32_t tm_begin(uint32_t)
 {
     TX* tx = Self;
-    if (++tx->nesting_depth == 1)
-        tatas_acquire(&timestamp.val);
+    tatas_acquire(&timestamp.val);
     return a_runInstrumentedCode;
+}
+
+/**
+ *  This is a special external function call for the cglapi that bypasses the
+ *  normal _ITM_beginTransaction call that performs a checkpoint.
+ *
+ *  TODO: We'll want a different solution for this in the future.
+ */
+namespace stm {
+  void cgl_tm_begin() {
+      if (++Self->nesting_depth == 1)
+          tm_begin(0x02);
+  }
 }
 
 /**
