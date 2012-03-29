@@ -61,7 +61,6 @@ static checkpoint_t* rollback(TX* tx)
     //     order, but restarts and is read-only, then it still must call
     //     commit_rw to finish in-order
     tx->allocator.onTxAbort();
-    tx->nesting_depth = 0;
     return &tx->checkpoint;
 }
 
@@ -83,18 +82,16 @@ static NOINLINE void validate(TX* tx, uintptr_t finish_cache)
 }
 
 /**
- *  CToken begin:
+ *  CToken begin: only called for outermost transactions.
  */
 static uint32_t tm_begin(uint32_t)
 {
     TX* tx = Self;
-    if (++tx->nesting_depth == 1) {
-        tx->allocator.onTxBegin();
+    tx->allocator.onTxBegin();
 
-        // get time of last finished txn
-        tx->ts_cache = last_complete.val;
-    }
-    return a_runInstrumentedCode | a_saveLiveVariables;
+    // get time of last finished txn
+    tx->ts_cache = last_complete.val;
+    return a_runInstrumentedCode;
 }
 
 /**

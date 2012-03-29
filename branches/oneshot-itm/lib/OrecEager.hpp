@@ -91,21 +91,21 @@ static checkpoint_t* rollback(TX* tx)
     tx->locks.reset();
 
     tx->allocator.onTxAbort();
-    tx->nesting_depth = 0;
     return &tx->checkpoint;
 }
 
+/** only called for outermost transactions. */
 template <class CM>
 static uint32_t tm_begin(uint32_t)
 {
     TX* tx = Self;
-    if (++tx->nesting_depth == 1) {
-        CM::onBegin(tx);
-        // sample the timestamp and prepare local structures
-        tx->allocator.onTxBegin();
-        tx->start_time = timestamp.val;
-    }
-    return a_runInstrumentedCode | a_saveLiveVariables;
+
+    CM::onBegin(tx);
+    // sample the timestamp and prepare local structures
+    tx->allocator.onTxBegin();
+    tx->start_time = timestamp.val;
+
+    return a_runInstrumentedCode;
 }
 
 static NOINLINE void validate_commit(TX* tx)

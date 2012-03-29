@@ -44,11 +44,11 @@
 #define INSTANTIATE_FOR_CM(CM, NCM)                                     \
     template stm::checkpoint_t* rollback<stm::CM>(stm::TX*);            \
     static stm::checkpoint_t* rollback(TX* tx)                          \
-        __attribute__((alias("_Z8rollbackIN3stm"#NCM#CM"EEPA1_13__jmp_buf_tagPNS0_2TXE"))); \
+        __attribute__((alias("_Z8rollbackIN3stm"#NCM#CM"EEPA6_PvPNS0_2TXE")));\
                                                                         \
     template uint32_t tm_begin<stm::CM>(uint32_t);                      \
     static uint32_t tm_begin(uint32_t)                                  \
-        __attribute__((alias("_Z8tm_beginIN3stm"#NCM#CM"EEjj")));      \
+        __attribute__((alias("_Z8tm_beginIN3stm"#NCM#CM"EEjj")));       \
                                                                         \
     template void tm_end<stm::CM>();                                    \
     static void tm_end()                                                \

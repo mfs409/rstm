@@ -57,7 +57,6 @@ static checkpoint_t* rollback(TX* tx)
     tx->writes.reset();
     tx->locks.reset();
     tx->allocator.onTxAbort();
-    tx->nesting_depth = 0;
     return &tx->checkpoint;
 }
 
@@ -67,16 +66,15 @@ static pad_word_t timestamp = {0};
 /**
  *  OrecEagerRedo begin:
  *
- *    Standard begin: just get a start time
+ *    Standard begin: just get a start time, only called for outermost
+ *    transactions.
  */
 static uint32_t tm_begin(uint32_t)
 {
     TX* tx = Self;
-    if (++tx->nesting_depth == 1) {
-        tx->allocator.onTxBegin();
-        tx->start_time = timestamp.val;
-    }
-    return a_runInstrumentedCode | a_saveLiveVariables;
+    tx->allocator.onTxBegin();
+    tx->start_time = timestamp.val;
+    return a_runInstrumentedCode;
 }
 
 /**
