@@ -108,13 +108,13 @@ benchmarks: $(ODIR) $(BENCHEXES)
 #
 $(ODIR)/%.lockapi.o: %.cpp
 	@echo [CXX] $< "-->" $@ 
-	$(_V)$(CXX) $(CXXFLAGS) -o $@ -c $< $(LDFLAGS) -DSTM_INST_CGL
+	$(_V)$(CXX) $(CXXFLAGS) -o $@ -c $< -DSTM_INST_CGL
 $(ODIR)/%.genericapi.o: %.cpp
 	@echo [CXX] $< "-->" $@ 
-	$(_V)$(CXX) $(CXXFLAGS) -o $@ -c $< $(LDFLAGS) -DSTM_INST_STM
+	$(_V)$(CXX) $(CXXFLAGS) -o $@ -c $< -DSTM_INST_STM
 $(ODIR)/%.fptrapi.o: %.cpp
 	@echo [CXX] $< "-->" $@ 
-	$(_V)$(CXX) $(CXXFLAGS) -o $@ -c $< $(LDFLAGS) -DSTM_INST_FPTR
+	$(_V)$(CXX) $(CXXFLAGS) -o $@ -c $< -DSTM_INST_FPTR
 
 #
 # Rules for linking to make executables.  genericapi builds are easier.

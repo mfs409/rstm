@@ -20,15 +20,13 @@
 #include "UndoLog.hpp"
 #include "checkpoint.hpp"
 
-namespace stm
-{
+namespace stm {
   typedef MiniVector<orec_t*> OrecList;     // vector of orecs
 
   /**
    *  Store per-thread metadata.  There isn't much for CGL...
    */
-  struct TX
-  {
+  struct TX {
       // 24 words + checkpoint + mm (9) + writeset (9) = 43 words = 172 bytes = 3 cache
       // lines :(
       //
@@ -79,13 +77,10 @@ namespace stm
       bool           strong_HG;     // for strong hourglass
 
       /*** constructor ***/
-      TX()
-          : nesting_depth(0), commits_ro(0),
-            commits_rw(0), aborts(0), checkpoint(), allocator(),
-            start_time(0), writes(64), locks(64), vlist(64),
-            r_orecs(64), ts_cache(0), order(-1), turbo(false),
-            end_time(0), undo_log(64)
-      {
+      TX() : nesting_depth(0), commits_ro(0), commits_rw(0), aborts(0),
+             checkpoint(), allocator(), start_time(0), writes(64),
+             locks(64), vlist(64), r_orecs(64), ts_cache(0), order(-1),
+             turbo(false), end_time(0), undo_log(64) {
           id = faiptr(&threadcount.val);
           threads[id] = this;
           // set up my lock word
@@ -94,14 +89,18 @@ namespace stm
           // NB: unused by CGL
           allocator.setID(id);
       }
+
+    private:
+      TX(const TX&);
+      TX& operator=(const TX&);
   };
+
 
   /**
    *  Need to forward-declare the fact of the tm_abort function, since
    *  virtually every tm implementation will use it to abort
    */
-  NORETURN
-  void tm_abort(TX* tx);
+  void tm_abort(TX* tx) __attribute__((noinline, noreturn));
 }
 
 #endif // TX_HPP__
