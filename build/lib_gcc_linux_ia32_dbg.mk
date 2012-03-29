@@ -24,6 +24,8 @@ CXX       = g++
 CC       ?= gcc
 CXXFLAGS += -O0 -ggdb -m32 -march=native -mtune=native -msse2 -mfpmath=sse
 LDFLAGS  += -lrt -lpthread -m32
+CFLAGS   += -m32
+ASFLAGS  += -m32
 
 #
 # Options to pass to STM files
