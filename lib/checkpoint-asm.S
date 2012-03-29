@@ -24,6 +24,7 @@
 #define R13 40
 #define R14 48
 #define R15 56
+#define RDI 64
         
 ///
 /// The x86_64 _ITM_beginTransaction gets a checkpoint (or NULL in a nested
@@ -59,7 +60,9 @@ __ITM_beginTransaction:
         movq    %r12, R12(%rax)
         movq    %r13, R13(%rax)
         movq    %r14, R14(%rax)
-        movq    %r15, R15(%rax)        
+        movq    %r15, R15(%rax)
+        movq    %rdi, RDI(%rax) // not technically callee-saves, but we want
+        // the flags at abort
 
         jmp     _rstm_post_checkpoint           // jmp == sibling call
 __ITM_beginTransaction_nested:
@@ -82,8 +85,6 @@ __ITM_beginTransaction_nested:
 _rstm_restore_checkpoint:
         ASM_DOT_CFI_STARTPROC
 
-        movl    %esi, %eax                      // prepare the return value
-
         movq    RBP(%rdi), %rbp
         movq    RSP(%rdi), %rsp
         movq    RBX(%rdi), %rbx
@@ -92,9 +93,12 @@ _rstm_restore_checkpoint:
         movq    R14(%rdi), %r14
         movq    R15(%rdi), %r15
 
-        movq    RIP(%rdi), %rdi                 // put the return address on
-        movq    %rdi, (%rsp)                    // the stack, and return
-        ret
+        movq    RIP(%rdi), %rax                 // put the return address on
+        movq    %rax, (%rsp)                    // the stack
+
+        movq    RDI(%rdi), rdi                  // restore the flags
+        jmp     _rstm_post_restart              // and reenter the transaction
+                                                // as a sibling call
         
         ASM_DOT_CFI_ENDPROC
         ASM_DOT_SIZE(_rstm_restore_checkpoint, .-_rstm_restore_checkpoint)
