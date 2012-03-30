@@ -42,13 +42,14 @@ using stm::last_order;
 
 /** Implementation Choice: OLD, LOSE, EO&EOTIGHT, EO&EOLOSE*/
 
-//#define OLD    // the original implementation, tight condition to go turbo
+#define OLD    // the original implementation, tight condition to go turbo
 //#define LOSE   // lose condition to go turbo
-#define EO       // use even/odd number to indicate if inplace write happens
-                 // commit_turbo gets mush faster
-//#define EOTIGHT// work with EO
-#define EOLOSE   // work with EO
 
+//#define EO       // use even/odd number to indicate if inplace write happens
+                   // commit_turbo gets mush faster
+//#define EOTIGHT  // work with EO
+//#define EOLOSE   // work with EO
+//#define BIAS     //work with EO
 /**
  *  Declare the functions that we're going to implement, so that we can avoid
  *  circular dependencies.
@@ -87,26 +88,26 @@ namespace {
   {
     S1:
       // wait until everyone is committed
-      while (cpending != committed);
+      while (cpending.val != committed.val);
 #ifndef EO
       // before tx begins, increase total number of tx
-      ADD(&started, 1);
+      ADD(&started.val, 1);
 
       // [NB] we must double check no one is ready to commit yet
       // and no one entered in place write phase(turbo mode)
-      if (cpending > committed || inplace == 1){
-          SUB(&started, 1);
+      if (cpending.val > committed.val || inplace == 1){
+          SUB(&started.val, 1);
           goto S1;
       }
 #else
       // before tx begins, increase total number of tx
-      ADD(&started, 2);
+      ADD(&started.val, 2);
 
       // [NB] we must double check no one is ready to commit yet
       // and no one entered in place write phase(turbo mode)
-      // started should be even to continue
-      if (cpending > committed || started % 2 != 0){
-          SUB(&started, 2);
+      // started.val should be even to continue
+      if (cpending.val > committed.val || (started.val & 0x01) != 0){
+          SUB(&started.val, 2);
           goto S1;
       }
 #endif
@@ -125,9 +126,9 @@ namespace {
   {
 #ifndef EO
       // decrease total number of tx started
-      SUB(&started, 1);
+      SUB(&started.val, 1);
 #else
-      SUB(&started, 2);
+      SUB(&started.val, 2);
 #endif
       // clean up
       tx->r_orecs.reset();
@@ -143,7 +144,7 @@ namespace {
   {
 #ifndef EO
       // increase # of tx waiting to commit, and use it as the order
-      ADD(&cpending, 1);
+      ADD(&cpending.val, 1);
 
       // clean up
       tx->r_orecs.reset();
@@ -151,20 +152,20 @@ namespace {
       OnReadWriteCommit(tx, read_ro, write_ro, commit_ro);
 
       // wait for my turn, in this case, cpending is my order
-      while (last_complete.val != (uintptr_t)(cpending - 1));
+      while (last_complete.val != (uintptr_t)(cpending.val - 1));
 
       // reset in place write flag
       inplace = 0;
 
       // mark self as done
-      last_complete.val = cpending;
+      last_complete.val = cpending.val;
 
       // increase # of committed
-      ADD(&committed, 1);
+      ADD(&committed.val, 1);
 #else
       // make started even again
       // and other tx can commit now
-      SUB(&started, 3);
+      SUB(&started.val, 3);
 
       // clean up
       tx->r_orecs.reset();
@@ -184,13 +185,13 @@ namespace {
   {
 #ifndef EO
       // increase # of tx waiting to commit, and use it as the order
-      tx->order = ADD(&cpending ,1);
+      tx->order = ADD(&cpending.val ,1);
 
       // Wait for my turn
       while (last_complete.val != (uintptr_t)(tx->order - 1));
 
       // Wait until all tx are ready to commit
-      while (cpending < started);
+      while (cpending.val < started.val);
 
       // If in place write occurred, all tx validate reads
       // Otherwise, only first one skips validation
@@ -198,7 +199,7 @@ namespace {
           validate(tx);
 
       // Last one doesn't needs to mark orec
-      if (tx->order != started)
+      if (tx->order != started.val)
           foreach (WriteSet, i, tx->writes) {
               // get orec
               orec_t* o = get_orec(i->addr);
@@ -212,32 +213,32 @@ namespace {
 
       // increase total number of committed tx
       // [NB] Using atomic instruction might be faster
-      ADD(&committed, 1);
-      // committed ++;
+      ADD(&committed.val, 1);
+      // committed.val ++;
       // WBR;
 
       // mark self as done
       last_complete.val = tx->order;
 
       // update last_order
-      last_order = started + 1;
+      last_order = started.val + 1;
 
       // commit all frees, reset all lists
       tx->r_orecs.reset();
       tx->writes.reset();
       OnReadWriteCommit(tx, read_ro, write_ro, commit_ro);
 #else
-      tx->order = ADD(&cpending ,2);
+      tx->order = ADD(&cpending.val ,2);
       while (last_complete.val != (uintptr_t)(tx->order - 2))
           spin64();
-      while (cpending < started)
+      while (cpending.val < started.val)
           spin64();
 
       // everyone needs to validate reads
       validate(tx);
 
       // Last one doesn't needs to mark orec
-      if (tx->order != started)
+      if (tx->order != started.val)
           foreach (WriteSet, i, tx->writes) {
               // get orec
               orec_t* o = get_orec(i->addr);
@@ -252,7 +253,7 @@ namespace {
       // mark self as done
       last_complete.val = tx->order;
 
-      ADD(&committed, 2);
+      ADD(&committed.val, 2);
 
       // commit all frees, reset all lists
       tx->r_orecs.reset();
@@ -308,16 +309,16 @@ namespace {
   {
 #ifdef OLD
       // If everyone else is ready to commit, do in place write
-      if (cpending + 1 == started) {
+      if (cpending.val + 1 == started.val) {
           // set up flag indicating in place write starts
           // [NB]When testing on MacOS, better use CAS
           inplace = 1;
           WBR;
           // double check is necessary
-          if (cpending + 1 == started) {
+          if (cpending.val + 1 == started.val) {
               // mark orec
               orec_t* o = get_orec(addr);
-              o->v.all = started;
+              o->v.all = started.val;
               // in place write
               *addr = val;
               // go turbo mode
@@ -331,12 +332,12 @@ namespace {
       OnFirstWrite(tx, read_rw, write_rw, commit_rw);
 #endif
 #ifdef LOSE
-      if (cpending + 1 == started && bcas32(&inplace, 0 , 1)) {
+      if (cpending.val + 1 == started.val && bcas32(&inplace, 0 , 1)) {
           // wait
-          while (cpending + 1 != started);
+          while (cpending.val + 1 != started.val);
           // mark orec
           orec_t* o = get_orec(addr);
-          o->v.all = started;
+          o->v.all = started.val;
           // in place write
           *addr = val;
           // go turbo mode
@@ -347,32 +348,49 @@ namespace {
       OnFirstWrite(tx, read_rw, write_rw, commit_rw);
 #endif
 #ifdef EOTIGHT
-      uint32_t temp = started;
-      if (cpending + 2 == started && temp % 2 == 0 && bcas32(&started, temp , temp + 1)) {
+      uint32_t temp = started.val;
+      if (cpending.val + 2 == started.val && (temp & 0x01) == 0 && bcas32(&started.val, temp , temp + 1)) {
           // double check
-          if (cpending + 3 == started) {
+          if (cpending.val + 3 == started.val) {
               // mark orec
               orec_t* o = get_orec(addr);
-              o->v.all = started;
+              o->v.all = started.val;
               // in place write
               *addr = val;
               // go turbo mode
               OnFirstWrite(tx, read_turbo, write_turbo, commit_turbo);
               return;
           }
-          SUB(&started, 1);
+          SUB(&started.val, 1);
       }
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
       OnFirstWrite(tx, read_rw, write_rw, commit_rw);
 #endif
 #ifdef EOLOSE
-      uint32_t temp = started;
-      if (cpending + 2 == started && temp % 2 == 0 && bcas32(&started, temp , temp + 1)) {
+      uint32_t temp = started.val;
+      if (cpending.val + 2 == started.val && (temp & 0x01) == 0 && bcas32(&started.val, temp , temp + 1)) {
           // wait
-          while (cpending + 3 != started);
+          while (cpending.val + 3 != started.val);
           // mark orec
           orec_t* o = get_orec(addr);
-          o->v.all = started;
+          o->v.all = started.val;
+          // in place write
+          *addr = val;
+          // go turbo mode
+          OnFirstWrite(tx, read_turbo, write_turbo, commit_turbo);
+          return;
+      }
+      tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
+      OnFirstWrite(tx, read_rw, write_rw, commit_rw);
+#endif
+#ifdef BIAS
+      // thread 1 go turbo
+      if (tx->id == 1) {
+          ADD(&started.val, 1);
+          while (cpending.val + 3 < started.val);
+          // mark orec
+          orec_t* o = get_orec(addr);
+          o->v.all = started.val;
           // in place write
           *addr = val;
           // go turbo mode
@@ -391,7 +409,7 @@ namespace {
   CohortsEager::write_turbo(STM_WRITE_SIG(tx,addr,val,mask))
   {
       orec_t* o = get_orec(addr);
-      o->v.all = started; // mark orec
+      o->v.all = started.val; // mark orec
       *addr = val; // in place write
   }
 
@@ -404,15 +422,15 @@ namespace {
       // record the new value in a redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
 #ifdef LOSE
-      if (cpending + 1 == started && bcas32(&inplace, 0 , 1)) {
+      if (cpending.val + 1 == started.val && bcas32(&inplace, 0 , 1)) {
           // wait
-          while (cpending + 1 != started);
+          while (cpending.val + 1 != started.val);
           // write previous write set back
           foreach (WriteSet, i, tx->writes) {
               // get orec
               orec_t* o = get_orec(i->addr);
               // mark orec
-              o->v.all = started;
+              o->v.all = started.val;
               // do write back
               *i->addr = i->val;
           }
@@ -421,16 +439,16 @@ namespace {
       }
 #endif
 #ifdef EOTIGHT
-      uint32_t temp = started;
-      if (cpending + 2 == started && temp % 2 == 0 && bcas32(&started, temp , temp + 1)) {
+      uint32_t temp = started.val;
+      if (cpending.val + 2 == started.val && temp % 2 == 0 && bcas32(&started.val, temp , temp + 1)) {
           // double check
-          if (cpending + 3 == started) {
+          if (cpending.val + 3 == started.val) {
               // write previous write set back
               foreach (WriteSet, i, tx->writes) {
                   // get orec
                   orec_t* o = get_orec(i->addr);
                   // mark orec
-                  o->v.all = started;
+                  o->v.all = started.val;
                   // do write back
                   *i->addr = i->val;
               }
@@ -438,19 +456,19 @@ namespace {
               OnFirstWrite(tx, read_turbo, write_turbo, commit_turbo);
               return;
           }
-          SUB(&started, 1);
+          SUB(&started.val, 1);
       }
 #endif
 #ifdef EOLOSE
-      uint32_t temp = started;
-      if (cpending + 2 == started && temp % 2 == 0 && bcas32(&started, temp , temp + 1)) {
-          while (cpending + 3 != started);
+      uint32_t temp = started.val;
+      if (cpending.val + 2 == started.val && temp % 2 == 0 && bcas32(&started.val, temp , temp + 1)) {
+          while (cpending.val + 3 != started.val);
           // write previous write set back
           foreach (WriteSet, i, tx->writes) {
               // get orec
               orec_t* o = get_orec(i->addr);
               // mark orec
-              o->v.all = started;
+              o->v.all = started.val;
               // do write back
               *i->addr = i->val;
           }
@@ -503,11 +521,11 @@ namespace {
           if (ivt > tx->ts_cache) {
 #ifndef EO
               // increase total number of committed tx
-              // ADD(&committed, 1);
-              committed ++;
+              // ADD(&committed.val, 1);
+              committed.val ++;
               WBR;
 #else
-              ADD(&committed, 2);
+              ADD(&committed.val, 2);
 #endif
               // set self as completed
               last_complete.val = tx->order;

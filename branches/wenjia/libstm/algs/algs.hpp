@@ -97,9 +97,9 @@ namespace stm
   // Global variables for Cohorts
   extern volatile uint32_t locks[9];  // a big lock at locks[0], and
                                       // small locks from locks[1] to locks[8]
-  extern volatile int32_t started;    // number of tx started
-  extern volatile int32_t cpending;   // number of tx waiting to commit
-  extern volatile int32_t committed;  // number of tx committed
+  extern volatile pad_word_t started;    // number of tx started
+  extern volatile pad_word_t cpending;   // number of tx waiting to commit
+  extern volatile pad_word_t committed;  // number of tx committed
   extern volatile int32_t last_order; // order of last tx in a cohort + 1
   extern volatile uint32_t gatekeeper;// indicating whether tx can start
   extern filter_t* global_filter;     // global filter

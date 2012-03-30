@@ -69,9 +69,9 @@ namespace stm
 
   /*** for Cohorts */
   volatile uint32_t locks[9] = {0};
-  volatile int32_t started = 0;
-  volatile int32_t cpending = 0;
-  volatile int32_t committed = 0;
+  volatile pad_word_t started = {0};
+  volatile pad_word_t cpending = {0};
+  volatile pad_word_t committed = {0};
   volatile int32_t last_order = 1;
   volatile uint32_t gatekeeper = 0;
   filter_t* global_filter = (filter_t*)FILTER_ALLOC(sizeof(filter_t));

@@ -69,15 +69,15 @@ namespace {
   {
     S1:
       // wait until everyone is committed
-      while (cpending != committed);
+      while (cpending.val != committed.val);
 
       // before tx begins, increase total number of tx
-      ADD(&started, 1);
+      ADD(&started.val, 1);
 
       // [NB] we must double check no one is ready to commit yet
       // and no one entered in place write phase(turbo mode)
-      if (cpending > committed || inplace == 1){
-          SUB(&started, 1);
+      if (cpending.val > committed.val || inplace == 1){
+          SUB(&started.val, 1);
           goto S1;
       }
 
@@ -92,7 +92,7 @@ namespace {
   CohortsEF::commit_ro(TxThread* tx)
   {
       // decrease total number of tx started
-      SUB(&started, 1);
+      SUB(&started.val, 1);
 
       // clean up
       tx->rf->clear();
@@ -107,14 +107,14 @@ namespace {
   CohortsEF::commit_turbo(TxThread* tx)
   {
       // increase # of tx waiting to commit
-      cpending ++;
+      cpending.val ++;
 
       // clean up
       tx->rf->clear();
       OnReadWriteCommit(tx, read_ro, write_ro, commit_ro);
 
       // wait for my turn, in this case, cpending is my order
-      while (last_complete.val != (uintptr_t)(cpending - 1));
+      while (last_complete.val != (uintptr_t)(cpending.val - 1));
 
       // I must be the last in the cohort, so clean global_filter
       global_filter->clear();
@@ -125,10 +125,10 @@ namespace {
       WBR;
 
       // mark self as done
-      last_complete.val = cpending;
+      last_complete.val = cpending.val;
 
       // increase # of committed
-      committed ++;
+      committed.val ++;
       WBR;
   }
 
@@ -142,13 +142,13 @@ namespace {
   CohortsEF::commit_rw(TxThread* tx)
   {
       // increase # of tx waiting to commit, and use it as the order
-      tx->order = ADD(&cpending ,1);
+      tx->order = ADD(&cpending.val ,1);
 
       // Wait for my turn
       while (last_complete.val != (uintptr_t)(tx->order - 1));
 
       // Wait until all tx are ready to commit
-      while (cpending < started);
+      while (cpending.val < started.val);
 
       // If in place write occurred, all tx validate reads
       // Otherwise, only first one skips validation
@@ -165,16 +165,16 @@ namespace {
       last_complete.val = tx->order;
 
       // If the last one in the cohort, save the order and clear the filter
-      if (tx->order == started) {
-          last_order = started + 1;
+      if ((uint32_t)tx->order == started.val) {
+          last_order = started.val + 1;
           global_filter->clear();
       }
 
       // increase total number of committed tx
       // [NB] Using atomic instruction might be faster
-      ADD(&committed, 1);
+      ADD(&committed.val, 1);
       //WBR;
-      //committed ++;
+      //committed.val ++;
       //WBR;
 
       // commit all frees, reset all lists
@@ -228,13 +228,13 @@ namespace {
   CohortsEF::write_ro(STM_WRITE_SIG(tx,addr,val,mask))
   {
       // If everyone else is ready to commit, do in place write
-      if (cpending + 1 == started) {
+      if (cpending.val + 1 == started.val) {
           // set up flag indicating in place write starts
           // [NB]When testing on MacOS, better use CAS
           inplace = 1;
           WBR;
           // double check is necessary
-          if (cpending + 1 == started) {
+          if (cpending.val + 1 == started.val) {
               // in place write
               *addr = val; // WBR;
               // add entry to the global filter
@@ -314,8 +314,8 @@ namespace {
       // If there is a same element in both global_filter and read_filter
       if (global_filter->intersect(tx->rf)) {
           // I'm the last one in the cohort, save the order and clear the filter
-          if (tx->order == started) {
-              last_order = started + 1;
+          if ((uint32_t)tx->order == started.val) {
+              last_order = started.val + 1;
               global_filter->clear();
               // [NB] Intruder bench will abort if without this WBR
               WBR;
@@ -323,7 +323,7 @@ namespace {
           // set self as completed
           last_complete.val = tx->order;
           // increase total number of committed tx
-          ADD(&committed, 1);
+          ADD(&committed.val, 1);
           // abort
           tx->tmabort(tx);
       }

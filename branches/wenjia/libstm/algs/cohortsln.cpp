@@ -45,7 +45,7 @@ using stm::cpending;
 namespace {
   const uintptr_t VALIDATION_FAILED = 1;
   NOINLINE uintptr_t validate(TxThread* tx);
-  
+
   struct CohortsLN {
       static TM_FASTCALL bool begin(TxThread*);
       static TM_FASTCALL void* read_ro(STM_READ_SIG(,,));
@@ -86,7 +86,7 @@ namespace {
 
       // Sample the sequence lock, if it is even decrement by 1
       tx->start_time = timestamp.val & ~(1L);
-      
+
       //begin
       tx->allocator.onTxBegin();
 
@@ -121,7 +121,7 @@ namespace {
       tx->status = COHORTS_CPENDING;
 
       // Get an order
-      tx->order = ADD(&cpending, 1);
+      tx->order = ADD(&cpending.val, 1);
 
       // For later use, indicates if I'm the last tx in this cohort
       bool lastone = true;
@@ -136,27 +136,27 @@ namespace {
       // get the lock and validate (use RingSTM obstruction-free
       // technique)
       while (!bcasptr(&timestamp.val, tx->start_time, tx->start_time + 1))
-	if ((tx->start_time = validate(tx)) == VALIDATION_FAILED) {
-	  // Mark self status
-	  tx->status = COHORTS_COMMITTED;
-	  WBR;
-	  // mark self as done
-	  last_complete.val = tx->order;
+    if ((tx->start_time = validate(tx)) == VALIDATION_FAILED) {
+      // Mark self status
+      tx->status = COHORTS_COMMITTED;
+      WBR;
+      // mark self as done
+      last_complete.val = tx->order;
 
-	  // Am I the last one?
-	  for (uint32_t i = 0; lastone != false && i < threadcount.val; ++i)
-	    lastone &= (threads[i]->status != COHORTS_CPENDING);
-	  
-	  // If I'm the last one, release gatekeeper lock
-	  if (lastone)
-	    gatekeeper = 0;
-	  
-	  tx->tmabort(tx);
-	}
-      
+      // Am I the last one?
+      for (uint32_t i = 0; lastone != false && i < threadcount.val; ++i)
+        lastone &= (threads[i]->status != COHORTS_CPENDING);
+
+      // If I'm the last one, release gatekeeper lock
+      if (lastone)
+        gatekeeper = 0;
+
+      tx->tmabort(tx);
+    }
+
       // do write back
       tx->writes.writeback();
-      
+
       // Release the sequence lock, then clean up
       CFENCE;
       timestamp.val = tx->start_time + 2;
@@ -167,7 +167,7 @@ namespace {
 
       // Mark self as done
       last_complete.val = tx->order;
-      
+
       // Am I the last one?
       for (uint32_t i = 0; lastone != false && i < threadcount.val; ++i)
           lastone &= (threads[i]->status != COHORTS_CPENDING);
@@ -272,7 +272,7 @@ namespace {
       // read the lock until it is even
       uintptr_t s = timestamp.val;
       if ((s & 1) == 1)
-	continue;
+    continue;
 
       // check the read set
       CFENCE;
@@ -280,15 +280,15 @@ namespace {
       // validation early
       bool valid = true;
       foreach (ValueList, i, tx->vlist)
-	valid &= STM_LOG_VALUE_IS_VALID(i, tx);
+    valid &= STM_LOG_VALUE_IS_VALID(i, tx);
 
       if (!valid)
-	return VALIDATION_FAILED;
+    return VALIDATION_FAILED;
 
       // restart if timestamp changed during read set iteration
       CFENCE;
       if (timestamp.val == s)
-	return s;
+    return s;
     }
   }
 
