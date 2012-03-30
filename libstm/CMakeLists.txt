@@ -61,12 +61,12 @@ set(sources
   algs/cohortsold.cpp
   algs/cohortslazy.cpp
   algs/cohortseager.cpp
-  algs/cohortsli.cpp               
+  algs/cohortsli.cpp
   algs/cohortsnorec.cpp
   algs/cohortsln.cpp
   algs/cohortsfilter.cpp
   algs/cohortslf.cpp
-  algs/cohortsef.cpp
+  algs/cohortsef.cpp                
   algs/fastlane.cpp
   policies/cbr.cpp
   policies/policies.cpp

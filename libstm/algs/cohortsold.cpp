@@ -79,15 +79,15 @@ namespace {
   {
       // wait until we are allowed to start
       // when started is even, we wait
-      while (started % 2 == 0){
+      while (started.val % 2 == 0){
           // unless started is 0, which means all commits is done
-          if (started == 0)
+          if (started.val == 0)
           {
               // set no validation, for big lock
               locks[0] = 0;
 
               // now we can start again
-              CAS(&started, 0, -1);
+              CAS(&started.val, 0, -1);
           }
 
           // check if an adaptivity action is underway
@@ -98,7 +98,7 @@ namespace {
 
       CFENCE;
       // before start, increase total number of tx in one cohort
-      ADD(&started, 2);
+      ADD(&started.val, 2);
 
       tx->allocator.onTxBegin();
       // get time of last finished txn
@@ -115,7 +115,7 @@ namespace {
   Cohortsold::commit_ro(TxThread* tx)
   {
       // decrease total number of tx in a cohort
-      SUB(&started, 2);
+      SUB(&started.val, 2);
 
       // commit all frees, reset all lists
       tx->r_orecs.reset();
@@ -144,10 +144,10 @@ namespace {
       // since we have order, from now on ,only one tx can go through below at one time
 
       // started is odd, so I'm the first to enter commit in a cohort
-      if (started % 2 != 0)
+      if (started.val % 2 != 0)
       {
           // set started from odd to even, so that no one can begin now
-          ADD(&started, 1);
+          ADD(&started.val, 1);
 
           // set validation flag
           CAS(&locks[0], 0, 1); // we need validations in read from now on
@@ -184,7 +184,7 @@ namespace {
       OnReadWriteCommit(tx, read_ro, write_ro, commit_ro);
 
       // decrease total number of committing tx
-      SUB(&started, 2);
+      SUB(&started.val, 2);
 
       // mark self as done
       last_complete.val = tx->order;
@@ -204,7 +204,7 @@ namespace {
       CFENCE; // RBR between dereference and orec check
 
       // It's possible that no validation is needed
-      if (started % 2 != 0 && locks[0] == 0)
+      if (started.val % 2 != 0 && locks[0] == 0)
       {
           // mark my lock 1, means I'm doing no validation read_ro
           locks[tx->id] = 1;
@@ -369,7 +369,7 @@ namespace {
   Cohortsold::TxAbortWrapper(TxThread* tx)
   {
       // decrease total number of tx in one cohort
-      SUB(&started, 2);
+      SUB(&started.val, 2);
 
       // abort
       tx->tmabort(tx);
@@ -384,7 +384,7 @@ namespace {
   Cohortsold::TxAbortWrapper_cm(TxThread* tx)
   {
       // decrease total number of tx in one cohort
-      SUB(&started, 2);
+      SUB(&started.val, 2);
 
       // set self as completed
       last_complete.val = tx->order;
@@ -411,7 +411,7 @@ namespace {
       last_complete.val = timestamp.val;
 
       // init total tx number in an cohort
-      started = -1;
+      started.val = -1;
 
       for (uint32_t i = 0; i < threadcount.val; ++i)
           threads[i]->order = -1;

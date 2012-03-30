@@ -77,14 +77,14 @@ namespace {
   {
     S1:
       // wait until everyone is committed
-      while (cpending != committed);
+      while (cpending.val != committed.val);
 
       // before tx begins, increase total number of tx
-      ADD(&started, 1);
+      ADD(&started.val, 1);
 
       // [NB] we must double check no one is ready to commit yet!
-      if (cpending > committed) {
-          SUB(&started, 1);
+      if (cpending.val > committed.val) {
+          SUB(&started.val, 1);
           goto S1;
       }
 
@@ -103,7 +103,7 @@ namespace {
   Cohorts::commit_ro(TxThread* tx)
   {
       // decrease total number of tx started
-      SUB(&started, 1);
+      SUB(&started.val, 1);
 
       // clean up
       tx->r_orecs.reset();
@@ -120,7 +120,7 @@ namespace {
   Cohorts::commit_rw(TxThread* tx)
   {
       // increment num of tx ready to commit, and use it as the order
-      tx->order = ADD(&cpending, 1);
+      tx->order = ADD(&cpending.val, 1);
 
       // Wait for my turn
       while (last_complete.val != (uintptr_t)(tx->order - 1));
@@ -130,7 +130,7 @@ namespace {
           validate(tx);
 
       // Last one in cohort can pass the orec marking process
-      if (tx->order != started) {
+      if ((uint32_t)tx->order != started.val) {
           // mark orec
           foreach (WriteSet, i, tx->writes) {
               // get orec
@@ -141,22 +141,22 @@ namespace {
       }
 
       // Wait until all tx are ready to commit
-      while (cpending < started);
+      while (cpending.val < started.val);
 
       // do write back
       foreach (WriteSet, i, tx->writes)
           *i->addr = i->val;
 
       // update last_order
-      last_order = started + 1;
+      last_order = started.val + 1;
 
       // mark self as done
       last_complete.val = tx->order;
 
       // increase total number of committed tx
       // [NB] atomic increment is faster here
-      ADD(&committed, 1);
-      // committed++;
+      ADD(&committed.val, 1);
+      // committed.val++;
       // WBR;
 
       // commit all frees, reset all lists
@@ -258,7 +258,7 @@ namespace {
           // If orec changed, abort
           if (ivt > tx->ts_cache) {
               // increase total number of committed tx
-              ADD(&committed, 1);
+              ADD(&committed.val, 1);
               // set self as completed
               last_complete.val = tx->order;
               // abort

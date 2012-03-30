@@ -42,7 +42,7 @@ using stm::last_order;
 namespace {
   const uintptr_t VALIDATION_FAILED = 1;
   NOINLINE uintptr_t validate(TxThread* tx);
-  
+
   struct CohortsNOrec {
       static TM_FASTCALL bool begin(TxThread*);
       static TM_FASTCALL void* read_ro(STM_READ_SIG(,,));
@@ -69,20 +69,20 @@ namespace {
   {
     S1:
       // wait until everyone is committed
-      while (cpending != committed);
+      while (cpending.val != committed.val);
 
       // before tx begins, increase total number of tx
-      ADD(&started, 1);
+      ADD(&started.val, 1);
 
       // [NB] we must double check no one is ready to commit yet!
-      if (cpending > committed) {
-          SUB(&started, 1);
+      if (cpending.val > committed.val) {
+          SUB(&started.val, 1);
           goto S1;
       }
 
       // Sample the sequence lock, if it is even decrement by 1
       tx->start_time = timestamp.val & ~(1L);
-      
+
       tx->allocator.onTxBegin();
 
       return true;
@@ -95,7 +95,7 @@ namespace {
   CohortsNOrec::commit_ro(TxThread* tx)
   {
       // decrease total number of tx started
-      SUB(&started, 1);
+      SUB(&started.val, 1);
 
       // clean up
       tx->vlist.reset();
@@ -111,28 +111,28 @@ namespace {
   void
   CohortsNOrec::commit_rw(TxThread* tx)
   {
-    ADD(&cpending, 1);
+    ADD(&cpending.val, 1);
 
     // Wait until all tx are ready to commit
-    while (cpending < started);
+    while (cpending.val < started.val);
 
     // get the lock and validate (use RingSTM obstruction-free technique)
     while (!bcasptr(&timestamp.val, tx->start_time, tx->start_time + 1))
       if ((tx->start_time = validate(tx)) == VALIDATION_FAILED) {
-	ADD(&committed, 1);
-	tx->tmabort(tx);
+    ADD(&committed.val, 1);
+    tx->tmabort(tx);
       }
-    
+
     // do write back
     tx->writes.writeback();
 
     // Release the sequence lock, then clean up
     CFENCE;
     timestamp.val = tx->start_time + 2;
-    
+
     // increase total number of committed tx
-    ADD(&committed, 1);
-    
+    ADD(&committed.val, 1);
+
     // commit all frees, reset all lists
     tx->vlist.reset();
     tx->writes.reset();
@@ -228,24 +228,24 @@ namespace {
       // read the lock until it is even
       uintptr_t s = timestamp.val;
       if ((s & 1) == 1)
-	continue;
-      
+    continue;
+
       // check the read set
       CFENCE;
       // don't branch in the loop---consider it backoff if we fail
       // validation early
       bool valid = true;
       foreach (ValueList, i, tx->vlist)
-	valid &= STM_LOG_VALUE_IS_VALID(i, tx);
+    valid &= STM_LOG_VALUE_IS_VALID(i, tx);
 
       if (!valid)
-	return VALIDATION_FAILED;
-      
+    return VALIDATION_FAILED;
+
       // restart if timestamp changed during read set iteration
       CFENCE;
       if (timestamp.val == s)
-	return s;
-    
+    return s;
+
     }
 }
 

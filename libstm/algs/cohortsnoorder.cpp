@@ -74,14 +74,14 @@ namespace {
   {
     S1:
       // wait until everyone is committed
-      while (cpending != committed);
+      while (cpending.val != committed.val);
 
       //before start, increase total number of tx in one cohort
-      ADD(&started, 1);
+      ADD(&started.val, 1);
 
       // [NB] we must double check no one is ready to commit yet!
-      if (cpending > committed){
-          SUB(&started, 1);
+      if (cpending.val > committed.val){
+          SUB(&started.val, 1);
           goto S1;
       }
 
@@ -101,7 +101,7 @@ namespace {
   Cohortsnoorder::commit_ro(TxThread* tx)
   {
     // decrease total number of tx
-    SUB(&started, 1);
+    SUB(&started.val, 1);
 
     // read-only, so just reset lists
     tx->r_orecs.reset();
@@ -115,10 +115,10 @@ namespace {
   Cohortsnoorder::commit_rw(TxThread* tx)
   {
       // increase # of tx waiting to commit
-      ADD(&cpending, 1);
+      ADD(&cpending.val, 1);
 
       // Wait until every tx is ready to commit
-      while (cpending < started);
+      while (cpending.val < started.val);
 
       foreach (WriteSet, i, tx->writes) {
           // get orec, read its version#
@@ -161,7 +161,7 @@ namespace {
       OnReadWriteCommit(tx, read_ro, write_ro, commit_ro);
 
       // increase total number of committed tx
-      ADD(&committed, 1);
+      ADD(&committed.val, 1);
   }
 
   /**
@@ -270,7 +270,7 @@ namespace {
     Cohortsnoorder::TxAbortWrapper(TxThread* tx)
     {
       // Increase total number of committed tx
-      ADD(&committed, 1);
+      ADD(&committed.val, 1);
 
       // abort
       tx->tmabort(tx);

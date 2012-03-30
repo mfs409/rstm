@@ -23,9 +23,9 @@
 #define ADD __sync_add_and_fetch
 #define SUB __sync_sub_and_fetch
 
-//#define OLD
+#define OLD
 //#define MASTER
-#define PREVALIDATE
+//#define PREVALIDATE// doesnt work after change cpending etc to pad_word_t
 
 using stm::TxThread;
 using stm::threads;
@@ -78,15 +78,15 @@ namespace {
   {
     S1:
       // wait until everyone is committed
-      while (cpending != committed)
+      while (cpending.val != committed.val)
           spin64();
 
       // before tx begins, increase total number of tx
-      ADD(&started, 1);
+      ADD(&started.val, 1);
 
       // [NB] we must double check no one is ready to commit yet!
-      if (cpending > committed) {
-          SUB(&started, 1);
+      if (cpending.val > committed.val) {
+          SUB(&started.val, 1);
           goto S1;
       }
 
@@ -103,7 +103,7 @@ namespace {
   CohortsFilter::commit_ro(TxThread* tx)
   {
       // decrease total number of tx started
-      SUB(&started, 1);
+      SUB(&started.val, 1);
 
       // clean up
       tx->rf->clear();
@@ -121,10 +121,10 @@ namespace {
   {
 #ifdef OLD
       // increment num of tx ready to commit, and use it as the order
-      tx->order = ADD(&cpending, 1);
+      tx->order = ADD(&cpending.val, 1);
 
       // Wait until all tx are ready to commit
-      while (cpending < started)
+      while (cpending.val < started.val)
           spin64();
 
       // Wait for my turn
@@ -149,8 +149,8 @@ namespace {
       last_complete.val = tx->order;
 
       // If I'm the last one in the cohort, save the order and clear the filter
-      if (tx->order == started) {
-          last_order = started + 1;
+      if ((uint32_t)tx->order == started.val) {
+          last_order = started.val + 1;
           global_filter->clear();
       }
 #endif
@@ -162,9 +162,9 @@ namespace {
       tx->status = 4;
 
       // increment num of tx ready to commit
-      ADD(&cpending, 1);
+      ADD(&cpending.val, 1);
 
-      while (cpending < started)
+      while (cpending.val < started.val)
           spin64();
 
       // acquire the master lock
@@ -197,17 +197,17 @@ namespace {
       if (tx->status == 5)
           tx->writes.writeback();
       else {
-          ADD(&committed, 1);
+          ADD(&committed.val, 1);
           tx->tmabort(tx);
       }
 #endif
 #ifdef PREVALIDATE
 
       // increment num of tx ready to commit, and use it as the order
-      tx->order = ADD(&cpending, 1);
+      tx->order = ADD(&cpending.val, 1);
 
       // Wait until all tx are ready to commit
-      while (cpending < started)
+      while (cpending.val < started.val)
           spin64();
 
       // Wait for my previous tx's turn
@@ -223,7 +223,7 @@ namespace {
       if (tx->status == 6)
           goto DEAD;
 
-      // validate read with previous committed tx
+      // validate read with previous committed.val tx
       if (tx->order != last_order)
           validate(tx);
 
@@ -245,15 +245,15 @@ namespace {
       last_complete.val = tx->order;
 
       // If I'm the last one in the cohort, save the order and clear the filter
-      if (tx->order == started) {
-          last_order = started + 1;
+      if ((uint32_t)tx->order == started.val) {
+          last_order = started.val + 1;
           global_filter->clear();
       }
 #endif
       // increase total number of committed tx
       // [NB] atomic increment is faster here
-      ADD(&committed, 1);
-      // committed++;
+      ADD(&committed.val, 1);
+      // committed.val++;
       // WBR;
 #ifdef PREVALIDATE
       if (tx->status == 6)
@@ -360,8 +360,8 @@ namespace {
       // If there is a same element in both global_filter and read_filter
       if (global_filter->intersect(tx->rf)) {
           // I'm the last one in the cohort, save the order and clear the filter
-          if (tx->order == started) {
-              last_order = started + 1;
+          if ((uint32_t)tx->order == started.val) {
+              last_order = started.val + 1;
               global_filter->clear();
           }
           // [NB] Intruder bench will abort if without this WBR
@@ -369,21 +369,21 @@ namespace {
           // set self as completed
           last_complete.val = tx->order;
           // increase total number of committed tx
-          ADD(&committed, 1);
+          ADD(&committed.val, 1);
           // abort
           tx->tmabort(tx);
       }
 #else
       if (temp_filter->intersect(tx->rf)) {
-          if (tx->order == started) {
-              last_order = started + 1;
+          if ((uint32_t)tx->order == started.val) {
+              last_order = started.val + 1;
               global_filter->clear();
           }
           WBR;
           // set self as completed
           last_complete.val = tx->order;
           // increase total number of committed tx
-          ADD(&committed, 1);
+          ADD(&committed.val, 1);
           // abort
           tx->tmabort(tx);
       }
