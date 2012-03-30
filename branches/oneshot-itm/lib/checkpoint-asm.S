@@ -36,9 +36,9 @@
 ///
         .text
         /// .p2align 4,,15
-        .globl __ITM_beginTransaction
-        ASM_DOT_TYPE(__ITM_beginTransaction, @function)
-__ITM_beginTransaction:
+        .globl _ITM_beginTransaction
+        ASM_DOT_TYPE(_ITM_beginTransaction, @function)
+_ITM_beginTransaction:
         ASM_DOT_CFI_STARTPROC
 #ifdef __APPLE__                              // apple has stack aligment issues
         pushq   %rsp
@@ -49,7 +49,7 @@ __ITM_beginTransaction:
         popq    %rsp
 #endif
         testq   %rax, %rax                      // (if this is a nested begin)
-        je      __ITM_beginTransaction_nested
+        je      _ITM_beginTransaction_nested
         
         movq    (%rsp), %rcx                    // grab the return address
         movq    %rcx, RIP(%rax)                 // from the stack
@@ -65,11 +65,11 @@ __ITM_beginTransaction:
         // the flags at abort
 
         jmp     _rstm_post_checkpoint           // jmp == sibling call
-__ITM_beginTransaction_nested:
+_ITM_beginTransaction_nested:
         jmp     _rstm_post_checkpoint_nested
         
         ASM_DOT_CFI_ENDPROC
-        ASM_DOT_SIZE(__ITM_beginTransaction, .-__ITM_beginTransaction)
+        ASM_DOT_SIZE(_ITM_beginTransaction, .-_ITM_beginTransaction)
 
 ///
 /// The x86_64 restore_checkpoint just extracts the saved registers from the
@@ -96,7 +96,7 @@ _rstm_restore_checkpoint:
         movq    RIP(%rdi), %rax                 // put the return address on
         movq    %rax, (%rsp)                    // the stack
 
-        movq    RDI(%rdi), rdi                  // restore the flags
+        movq    RDI(%rdi), %rdi                 // restore the flags
         jmp     _rstm_post_restart              // and reenter the transaction
                                                 // as a sibling call
         

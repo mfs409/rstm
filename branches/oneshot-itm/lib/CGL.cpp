@@ -28,7 +28,9 @@ static pad_word_t timestamp = {0};
 /**
  *  For querying to get the current algorithm name
  */
-static const char* tm_getalgname() { return "CGL"; }
+static const char* tm_getalgname() {
+    return "CGL";
+}
 
 /**
  *  Start a transaction: if we're already in a tx, bump the nesting
@@ -44,18 +46,18 @@ static uint32_t tm_begin(uint32_t) {
     return a_runInstrumentedCode;
 }
 
-// /**
-//  *  This is a special external function call for the cglapi that bypasses the
-//  *  normal _ITM_beginTransaction call that performs a checkpoint.
-//  *
-//  *  TODO: We'll want a different solution for this in the future.
-//  */
-// namespace stm {
-//   void cgl_tm_begin() {
-//       if (++Self->nesting_depth == 1)
-//           tm_begin(0x02);
-//   }
-// }
+/**
+ *  This is a special external function call for the cglapi that bypasses the
+ *  normal _ITM_beginTransaction call that performs a checkpoint.
+ *
+ *  TODO: We'll want a different solution for this in the future.
+ */
+namespace stm {
+  void cgl_tm_begin() {
+      if (++Self->nesting_depth == 1)
+          tm_begin(0x02);
+  }
+}
 
 /**
  *  End a transaction: decrease the nesting level, then perhaps release the
