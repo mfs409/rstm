@@ -112,6 +112,7 @@ if (CMAKE_USE_PTHREADS_INIT)
   if (rstm_enable_eigenbench)
     add_subdirectory(eigenbench/src) # build eigenbench
   endif ()
+  add_subdirectory(lee/src) # build lee
 else ()
   message (STATUS "Pthreads not found, will not build pthread apps.")
 endif ()
