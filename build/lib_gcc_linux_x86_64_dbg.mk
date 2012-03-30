@@ -21,8 +21,9 @@
 #
 PLATFORM  = lib_gcc_linux_x86_64_dbg
 CXX       = g++
+CC       ?= gcc
 CXXFLAGS += -O0 -ggdb -m64 -march=native -mtune=native -msse2 -mfpmath=sse
-LDFLAGS  += -lrt -lpthread -m64
+LDFLAGS  += -ldl -lrt -lpthread -m64
 
 #
 # Options to pass to STM files

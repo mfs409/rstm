@@ -11,12 +11,12 @@
 #ifndef RSTM_LIBITM_H
 #define RSTM_LIBITM_H
 
-/// ---------------------------------------------------------------------------
-///  Our definitions of the ITM ABI v 1.1 as described in
-///  Intel-TM-ABI-1_1_20060506.pdf, available from
-///  http://gcc.gnu.org/wiki/TransactionalMemory, combined with the gcc
-///  modifications described in the gcc-libitm source release (libitm.pdf).
-/// ---------------------------------------------------------------------------
+/**
+ *   Our definitions of the ITM ABI v 1.1 as described in
+ *   Intel-TM-ABI-1_1_20060506.pdf, available from
+ *   http://gcc.gnu.org/wiki/TransactionalMemory, combined with the gcc
+ *   modifications described in the gcc-libitm source release (libitm.pdf).
+ */
 #include <stdint.h>
 
 #if defined(__i386__)

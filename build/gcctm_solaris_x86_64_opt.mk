@@ -26,7 +26,7 @@ PLATFORM  = gcctm_solaris_x86_64_opt
 CXX       = g++
 CXXFLAGS += -O3 -ggdb -m64 -march=native -mtune=native -msse2 -mfpmath=sse \
             -fgnu-tm
-LDFLAGS  += -lrt -lpthread -m64 -lmtmalloc -fgnu-tm
+LDFLAGS  += -ldl -lrt -lpthread -m64 -lmtmalloc -fgnu-tm
 
 #
 # Since this is a GCCTM build, we override so that we don't build all the

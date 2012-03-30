@@ -27,10 +27,6 @@
 #endif
 
 namespace stm {
-  // These functions can be called directly.
-  void                 tm_thread_init();
-  void                 tm_thread_shutdown();
-
   // These are called through function pointers.
   extern uint32_t    (*tm_begin_)(uint32_t);
   extern void        (*tm_end_)();
@@ -41,14 +37,12 @@ namespace stm {
   extern void        (*tm_write_)(void** addr, void* val) TM_FASTCALL;
 }
 
-#define TM_BEGIN(x) {                                        \
-    assert(false && "fptr API temporarily not implemented"); \
-    stm::tm_begin_(0x01);
-
-#define TM_END()             stm::tm_end_();   \
-                             }
-
-#define TM_GET_ALGNAME()     stm::tm_getalgname_()
+// TODO: we can't currently call tx_begin_ directly through a function pointer,
+// because it doesn't handle nesting depth or make a checkpoint. Everything
+// else should work though.
+#define TM_BEGIN(x)      { _ITM_beginTransaction(0x1);
+#define TM_END()           stm::tm_end_(); }
+#define TM_GET_ALGNAME() stm::tm_getalgname_()
 
 #include "library_fptrinst.hpp"
 
@@ -74,8 +68,8 @@ namespace stm
 #define TM_READ(var)         stm::stm_read(&var)
 #define TM_WRITE(var, val)   stm::stm_write(&var, val)
 
-#define TM_THREAD_INIT()     stm::tm_thread_init()
-#define TM_THREAD_SHUTDOWN() stm::tm_thread_shutdown()
+#define TM_THREAD_INIT()
+#define TM_THREAD_SHUTDOWN()
 #define TM_SYS_INIT()
 #define TM_SYS_SHUTDOWN()
 #define TM_ALLOC(s)          stm::tm_alloc_(s)

@@ -22,7 +22,7 @@
 PLATFORM  = lib_gcc_solaris_x86_64_dbg
 CXX       = g++
 CXXFLAGS += -O0 -ggdb -m64 -march=native -mtune=native -msse2 -mfpmath=sse
-LDFLAGS  += -lrt -lpthread -m64 -lmtmalloc
+LDFLAGS  += -ldl -lrt -lpthread -m64 -lmtmalloc
 
 #
 # Options to pass to stm files

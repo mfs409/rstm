@@ -32,8 +32,6 @@ namespace stm
   uint32_t    tm_begin(uint32_t);
   void        tm_end();
   const char* tm_getalgname();
-  void        tm_thread_init();
-  void        tm_thread_shutdown();
   void*       tm_alloc(size_t s);
   void        tm_free(void* p);
   void*       tm_read(void** addr) TM_FASTCALL;
@@ -83,8 +81,8 @@ namespace stm
 
 #endif
 
-#define TM_THREAD_INIT()     stm::tm_thread_init()
-#define TM_THREAD_SHUTDOWN() stm::tm_thread_shutdown()
+#define TM_THREAD_INIT()
+#define TM_THREAD_SHUTDOWN()
 #define TM_SYS_INIT()
 #define TM_SYS_SHUTDOWN()
 #define TM_ALLOC(s)          stm::tm_alloc(s)
