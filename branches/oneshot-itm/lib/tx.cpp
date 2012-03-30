@@ -9,31 +9,82 @@
  */
 
 #include <iostream>
-#include <setjmp.h> // factor this out into the API?
-#include "tx.hpp"
+#include "tx.hpp"                               //
+#include "ldl-utils.hpp"                        // lazy_load_symbol
 
-namespace stm
-{
+namespace {
   /**
-   *  To initialize the thread's TM support, we need only ensure it has a
-   *  descriptor.
+   * The gcc implementation of ITM doesn't inject any sort of initialization
+   * calls into the binary. We don't want to have to branch in
+   * _ITM_beginTransaction, so we deal with this in two ways.
+   *
+   * - We have the main thread initialize its descriptor in a .ctor
+   *   constructor.
+   *
+   * - We use ldl to interpose pthread_create (used directly, and by libgomp)
+   *   and redirect the new thread to our tm_thread_initializer trampoline,
+   *   which initializes the new thread's descriptor and then calls the
+   *   user-requested function.
+   *
+   * - We could use custom asm for the tm_thread_initializer to clean up its
+   *   presence and then call the user-supplied entry as a sibling call.
+   *
+   * If we have thread shutdown behavior we'll need to extend this to deal with
+   * pthread_exit as well.
    */
-  void tm_thread_init()
-  {
-      // multiple inits from one thread do not cause trouble
-      if (Self) return;
-
-      // create a TxThread and save it in thread-local storage
-      Self = new TX();
+  static void __attribute((constructor)) main_thread_init() {
+    if (!stm::Self)
+        stm::Self = new stm::TX();
   }
 
-  /**
-   *  When a thread is done using the TM, we don't need to do anything
-   *  special.
-   */
-  void tm_thread_shutdown() {
-  }
+  /** A structure to save the user's requesting starting function. */
+  struct PackedCreateArgs {
+      void* (*start_routine) (void *);
+      void*  args;
+      PackedCreateArgs(void* (*_start) (void *), void* _args) :
+          start_routine(_start), args(_args) {
+      }
+  };
 
+  /**
+   * Our trampoline calls initializes our descriptor, extracts the user's
+   * requested entry routine and arguments, deletes the structure so we don't
+   * leak the memory, and then calls the user's start routine.
+   */
+  static void*
+  tm_thread_initializer(void *arg) {
+      if (!stm::Self)
+          stm::Self = new stm::TX();
+      // extract the packed arguments
+      PackedCreateArgs* parg = static_cast<PackedCreateArgs*>(arg);
+      void* (*start_routine) (void *) = parg->start_routine;
+      void* args = parg->args;
+      delete parg;
+      // TODO: with custom ASM we could fix the arguments and do a sibling call
+      //       here, effectively hiding ourselves from the real start_routine.
+      return start_routine(args);
+  }
+}
+
+/**
+ * Interpose pthread_create to start the new thread in our initializer rather
+ * than in their requested function.
+ */
+int
+pthread_create(pthread_t *thread, const pthread_attr_t *attr,
+               void *(*start_routine) (void *), void *arg) {
+    static int (*sys_pthread_create)(pthread_t*,
+                                     const pthread_attr_t*,
+                                     void* (*) (void *),
+                                     void*);
+    stm::lazy_load_symbol(sys_pthread_create, "pthread_create");
+    // The new'ed object will be deleted in tm_thread_initializer
+    return sys_pthread_create(thread, attr, tm_thread_initializer,
+                              new PackedCreateArgs(start_routine, arg));
+}
+
+
+namespace stm {
   /**
    *  Declaration of the rollback function.
    */

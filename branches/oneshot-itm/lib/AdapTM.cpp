@@ -21,13 +21,10 @@
 using namespace stm;
 
 /**
- * This STM is implemented differently than all others.  We don't give it a
- * custom namespace, and we don't rely on tx.cpp.  Instead, we implement
- * everything directly within this file.  In that way, we can get all of our
- * adaptivity hooks to work correctly.
- *
- * NB: right now, we pick an algorithm at begin time, but we don't actually
- *     adapt yet
+ *  It is important, at least in Linux using ld.bfd, that the AdapTM.o object
+ *  be listed first when linking libAdapTM.a. This is because we don't
+ *  implement any symbols that _require_ AdapTM.o to be linked if the stm ABI
+ *  symbols already have been resolved with weak symbols from other .os.
  */
 namespace stm {
   /**
@@ -100,9 +97,7 @@ namespace stm {
   }
 }
 
-/**
- *  Template Metaprogramming trick for initializing all STM algorithms.
- */
+/** Template Metaprogramming trick for initializing all STM algorithms. */
 template <int I>
 static void init_tm_info() {
     initTM<(TM_NAMES)I>();
@@ -118,9 +113,7 @@ static void init_tm_info() {
     init_tm_info<TM_NAMES_MAX - 1>();
 }
 
-/**
- *  Initialize all of the TM algorithms
- */
+/** Initialize all of the TM algorithms. */
 static void __attribute((constructor)) library_init() {
     // call of the initTM, to have them register themselves with tm_info
     init_tm_info();

@@ -22,7 +22,7 @@
 PLATFORM  = lib_gcc_solaris_ia32_opt
 CXX       = g++
 CXXFLAGS += -O3 -ggdb -m32 -march=native -mtune=native -msse2 -mfpmath=sse
-LDFLAGS  += -lrt -lpthread -m32 -lmtmalloc
+LDFLAGS  += -ldl -lrt -lpthread -m32 -lmtmalloc
 
 #
 # Options to pass to STM files
