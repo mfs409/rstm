@@ -16,10 +16,9 @@
 #ifndef CGLAPI_HPP__
 #define CGLAPI_HPP__
 
-#error this should be included at some point
-
 #include <limits.h>
 #include <cstdlib>
+#include <stdint.h>
 
 #if defined(STM_CPU_X86) && defined(STM_CC_GCC)
 #    define TM_FASTCALL __attribute__((regparm(3)))
