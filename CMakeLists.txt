@@ -113,6 +113,7 @@ if (CMAKE_USE_PTHREADS_INIT)
     add_subdirectory(eigenbench/src) # build eigenbench
   endif ()
   add_subdirectory(lee/src) # build lee
+  add_subdirectory(lee_lockfree/src)
 else ()
   message (STATUS "Pthreads not found, will not build pthread apps.")
 endif ()

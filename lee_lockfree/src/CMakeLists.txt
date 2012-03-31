@@ -15,6 +15,6 @@ set(
 
 # build the different executables
 foreach (arch ${rstm_archs})
-  add_stamp_executable(exec lee ${arch} ${sources})
+  add_stamp_executable(exec lee_lockfree ${arch} ${sources})
   add_target_definitions(${exec} RSTM)
 endforeach ()

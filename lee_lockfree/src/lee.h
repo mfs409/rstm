@@ -41,7 +41,6 @@
 #include <iostream>
 #include <fstream>
 #include <list>
-#include <pthread.h>
 
 #include "tm.h"
 
@@ -136,11 +135,16 @@ class Frontier {
 		void sort();
 		void enQueue(int xs, int ys, int xg, int yg, int nn);
 		void enQueue(WorkQueue *q);
+		void TMenQueue(WorkQueue *q);
 		WorkQueue * deQueue();
+		WorkQueue * TMdeQueue();
 		void toString();
 		WorkQueue * getNext();
+		WorkQueue * TMgetNext();
 		void setNext(WorkQueue *q);
+		void TMsetNext(WorkQueue *q);
 		bool equals(WorkQueue *q);
+		bool TMequals(WorkQueue *q);
 		int listLength();
 		bool less(int xx1, int yy1, int xx2, int yy2);
 		bool less(WorkQueue *n);
@@ -198,7 +202,7 @@ class Frontier {
 	    int netNo, num_vias, forced_vias, failures, maxTrackLength;
 	    Grid *grid;
 	    WorkQueue *work, *verifyQueue;
-	    pthread_mutex_t queueLock, verifyLock;
+	    //pthread_mutex_t queueLock, verifyLock;
 	    Lee();
 	    Lee(const char* file, bool test, bool debug, bool rel);
 	    void parseDataFile(const char *file);

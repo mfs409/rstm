@@ -235,7 +235,11 @@ void run_transactions(void *targ) {
 
 
 	while(true) {
-		WorkQueue *track = lee->getNextTrack();
+		WorkQueue *track;
+
+		TM_BEGIN();
+		track = lee->getNextTrack();
+		TM_END();
 
 		if(track == NULL) {
 			break;

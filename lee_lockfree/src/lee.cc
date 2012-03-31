@@ -55,8 +55,8 @@ const int Lee::dy[2][4] = { { 0, 0, -1, 1 },
 Lee::Lee(const char* file, bool test, bool debug, bool rel)
 { 
 	netNo = num_vias = forced_vias = failures = 0;
-	pthread_mutex_init(&queueLock, NULL);
-	pthread_mutex_init(&verifyLock, NULL);
+	//pthread_mutex_init(&queueLock, NULL);
+	//pthread_mutex_init(&verifyLock, NULL);
     if (TEST) GRID_SIZE = 10;
     else GRID_SIZE = 600;
     maxTrackLength = ((GRID_SIZE + GRID_SIZE) / 2) * 5; //Extra work in case grid is not square
@@ -185,36 +185,43 @@ void Lee::fakeTestData() {
 	
 }
 
+/* only called in tx */
 WorkQueue* Lee::getNextTrack() {
 	WorkQueue *retval = NULL;
-	pthread_mutex_lock(&queueLock);
-	if(work->getNext() != NULL) {
+	//pthread_mutex_lock(&queueLock);
+	//TM_BEGIN();
+	if(work->TMgetNext() != NULL) {
 		if(DEBUG) printf("Tracks remaining: %d\n", work->listLength());
-		retval =  work->deQueue();
+		retval =  work->TMdeQueue();
 	}
-	pthread_mutex_unlock(&queueLock);
+	//TM_END();
+	//pthread_mutex_unlock(&queueLock);
 	return retval;
 }
 
 void Lee::addTrackForVerification(WorkQueue *q) {
-	pthread_mutex_lock(&verifyLock);
-	if(VERIFY) verifyQueue->enQueue(q);
-	pthread_mutex_unlock(&verifyLock);
+	//pthread_mutex_lock(&verifyLock);
+	//TM_BEGIN();
+	if(VERIFY) verifyQueue->TMenQueue(q);
+	//TM_END();
+	//pthread_mutex_unlock(&verifyLock);
 }
 	
 void Lee::removeTrackFromVerification(WorkQueue *q) {
-	pthread_mutex_lock(&verifyLock);
+	//pthread_mutex_lock(&verifyLock);
+	//TM_BEGIN()
 	WorkQueue *curr = verifyQueue;
-	while(curr->getNext()!=NULL) {
-		if(curr->getNext()->equals(q)) {
-			curr->setNext(curr->getNext()->getNext());
+	while(curr->TMgetNext()!=NULL) {
+		if(curr->TMgetNext()->TMequals(q)) {
+			curr->TMsetNext(curr->TMgetNext()->TMgetNext());
 			break;
 		}
 		else {
-			curr = curr->getNext();
+			curr = curr->TMgetNext();
 		}
 	}
-	pthread_mutex_unlock(&verifyLock);
+	//TM_END();
+	//pthread_mutex_unlock(&verifyLock);
 }
 
 bool Lee::ok(int x, int y) {
@@ -830,11 +837,27 @@ void WorkQueue::enQueue(WorkQueue *q) {
 	next = q;	
 }
 
+void WorkQueue::TMenQueue(WorkQueue *q) {
+	stm::TxThread *tx = stm::Self;
+	TM_WRITE(q->next, TM_READ(next));
+	TM_WRITE(next, q);	
+}
+
+
 WorkQueue* WorkQueue::deQueue() {
 	WorkQueue *q = next;
 	next = next->next;
 	return q;
 }
+
+WorkQueue* WorkQueue::TMdeQueue() {
+	stm::TxThread *tx = stm::Self;
+	WorkQueue *q = TM_READ(next);
+	TM_WRITE(next, TM_READ(q->next));
+	return q;
+}
+
+
 
 int WorkQueue::listLength() {
 	WorkQueue *curr = next;
@@ -852,12 +875,27 @@ WorkQueue* WorkQueue::getNext() {
 	return next;
 }
 
+WorkQueue* WorkQueue::TMgetNext() {
+	stm::TxThread *tx = stm::Self;
+        return TM_READ(next);
+}
+
 void WorkQueue::setNext(WorkQueue *q) {
 	next = q;
 }
 
+void WorkQueue::TMsetNext(WorkQueue *q) {
+	stm::TxThread *tx = stm::Self;
+	TM_WRITE(next, q);
+}
+
 bool WorkQueue::equals(WorkQueue *q) {
 	return q->netNo == netNo;
+}
+
+bool WorkQueue::TMequals(WorkQueue *q) {
+	stm::TxThread *tx = stm::Self;
+	return TM_READ(q->netNo) == TM_READ(netNo);
 }
 
 void WorkQueue::toString() {
