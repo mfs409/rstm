@@ -5,7 +5,7 @@
  *  Lehigh University Department of Computer Science and Engineering
  *
  * License: Modified BSD
- *          Please see the file LICENSE.RSTM for licensing information
+ *          Please see the file LICENSE.ISM for licensing information
  */
 
 /**
@@ -249,6 +249,21 @@ namespace stm
     stm::TxThread* tx = (stm::TxThread*)stm::Self;          \
     jmp_buf _jmpbuf;                                        \
     uint32_t abort_flags = setjmp(_jmpbuf);                 \
+    stm::begin(tx, &_jmpbuf, abort_flags);                  \
+    CFENCE;                                                 \
+    {
+
+/**
+ *  [wer210] This is the way to start a Read-Only transaction.
+ *  Only used for Pessimistic TM for now!
+ *  set tx->read_only true.
+ */
+#define TM_BEGIN_READONLY(TYPE)                             \
+    {                                                       \
+    stm::TxThread* tx = (stm::TxThread*)stm::Self;          \
+    jmp_buf _jmpbuf;                                        \
+    uint32_t abort_flags = setjmp(_jmpbuf);                 \
+    tx->read_only = true;                                   \
     stm::begin(tx, &_jmpbuf, abort_flags);                  \
     CFENCE;                                                 \
     {

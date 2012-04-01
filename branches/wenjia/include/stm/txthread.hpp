@@ -97,6 +97,9 @@ namespace stm
       volatile uint32_t status;     // tx status
       AddressList r_addrs;          // tx read addresses
 
+      /*** FOR PESSIMISTIC USE */
+      bool read_only;               // mark a transaction to be read-only txn
+
       /*** PER-THREAD FIELDS FOR ENABLING ADAPTIVITY POLICIES */
       uint64_t      end_txn_time;      // end of non-transactional work
       uint64_t      total_nontxn_time; // time on non-transactional work

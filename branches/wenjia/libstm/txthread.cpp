@@ -76,7 +76,7 @@ namespace stm
         cm_ts(INT_MAX),
         cf((filter_t*)FILTER_ALLOC(sizeof(filter_t))),
         nanorecs(64), begin_wait(0), strong_HG(),
-        irrevocable(false), status(0), r_addrs(64),
+        irrevocable(false), status(0), r_addrs(64), read_only(false),
         pmu()
   {
       // prevent new txns from starting.
