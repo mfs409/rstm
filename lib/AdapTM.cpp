@@ -8,6 +8,15 @@
  *          Please see the file LICENSE.RSTM for licensing information
  */
 
+/**
+ *  Implements a simple, function-pointer-based version of adaptivity.
+ *
+ *  It is important, at least in Linux using ld.bfd, that the AdapTM.o object
+ *  be listed first when linking libAdapTM.a. This is because we don't
+ *  implement any symbols that _require_ AdapTM.o to be linked if the stm ABI
+ *  symbols already have been resolved with weak symbols from other .os.
+ */
+
 #include <stdint.h>
 #include <iostream>
 #include <cstdlib>
@@ -21,12 +30,50 @@
 using namespace stm;
 
 /**
- *  It is important, at least in Linux using ld.bfd, that the AdapTM.o object
- *  be listed first when linking libAdapTM.a. This is because we don't
- *  implement any symbols that _require_ AdapTM.o to be linked if the stm ABI
- *  symbols already have been resolved with weak symbols from other .os.
+ *  Stores the function pointers for the dynamically selectable algorithms,
+ *  registered through registerTMAlg.
  */
+static struct {
+    int               identifier;
+    tm_begin_t        tm_begin;
+    tm_end_t          tm_end;
+    tm_read_t         tm_read;
+    tm_write_t        tm_write;
+    rollback_t        rollback;
+    tm_get_alg_name_t tm_getalgname;
+    tm_alloc_t        tm_alloc;
+    tm_free_t         tm_free;
+
+    // [TODO]
+    // bool (* irrevoc)(TxThread*);
+    // void (* switcher) ();
+    // bool privatization_safe;
+} tm_info[TM_NAMES_MAX];
+
 namespace stm {
+  /**
+   *  A strong implementation of the registration algorithm.
+   */
+  void registerTMAlg(int identifier,
+                     tm_begin_t tm_begin,
+                     tm_end_t tm_end,
+                     tm_read_t tm_read,
+                     tm_write_t tm_write,
+                     rollback_t rollback,
+                     tm_get_alg_name_t tm_getalgname,
+                     tm_alloc_t tm_alloc,
+                     tm_free_t tm_free)
+  {
+      tm_info[identifier].tm_begin = tm_begin;
+      tm_info[identifier].tm_end = tm_end;
+      tm_info[identifier].tm_read = tm_read;
+      tm_info[identifier].tm_write = tm_write;
+      tm_info[identifier].rollback = rollback;
+      tm_info[identifier].tm_getalgname = tm_getalgname;
+      tm_info[identifier].tm_alloc = tm_alloc;
+      tm_info[identifier].tm_free = tm_free;
+  }
+
   /**
    *  All behaviors are reached via function pointers.  This allows us to
    *  change on the fly. These are public because there is an api file
@@ -114,7 +161,7 @@ static void init_tm_info() {
 }
 
 /** Initialize all of the TM algorithms. */
-static void __attribute((constructor)) library_init() {
+static void __attribute__((constructor)) library_init() {
     // call of the initTM, to have them register themselves with tm_info
     init_tm_info();
 
