@@ -43,9 +43,9 @@
 #if defined(__x86_64__) && defined(__LP64__)    /* x86_64 -m64 */
 # define CHECKPOINT_SIZE 9
 #elif defined(__x86_64__)                       /* x86 -mx32  */
-# define CHECKPOINT_SIZE 7
+#error No checkpoint infrastructure for -mx32 at the moment. Patches welcome.
 #elif defined(__i386__)                         /* x86_64 -m32, i?86 */
-# define CHECKPOINT_SIZE 6
+# define CHECKPOINT_SIZE 7
 #elif defined(__sparc__) && defined(__LP64__)   /* sparcv9 -m64 */
 #elif defined(__sparc__)                        /* sparcv9 -m32, sparc */
 #else
