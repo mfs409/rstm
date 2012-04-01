@@ -55,7 +55,7 @@
 
 // Some of the tms use explicit template instatiations.
 #define SPECIALIZE_TM_ROLLBACK_SYMBOL(CM, NCM)      \
-    "_Z8rollbackIN3stm"#NCM#CM"EEPA6_PvPNS0_2TXE"
+    "_Z8rollbackIN3stm"#NCM#CM"EEPA7_PvPNS0_2TXE"
 #define SPECIALIZE_TM_BEGIN_SYMBOL(CM, NCM)     \
     "_Z8tm_beginIN3stm"#NCM#CM"EEjj"
 #define SPECIALIZE_TM_END_SYMBOL(CM, NCM)       \
