@@ -36,8 +36,8 @@ CXXFLAGS += -MMD -I$(ODIR)
 #
 # Names of the supporting files that we need to build
 #
-COMMONNAMES = WBMMPolicy Common CommonLazy CommonOrec tx adaptivity \
-              checkpoint-asm checkpoint
+COMMONNAMES = WBMMPolicy Common CommonLazy CommonOrec tx \
+              checkpoint-asm checkpoint adaptivity
 
 
 #
@@ -112,7 +112,8 @@ $(ODIR)/lib%.a: $(ODIR)/%.o $(COMMONOFILES)
 #
 # Custom rule for libadaptm.a
 #
-$(ADAPTLIB): $(filter %AdapTM.o,$(ALGOFILES)) $(filter-out %AdapTM.o,$(ALGOFILES)) $(COMMONOFILES)
+$(ADAPTLIB): $(filter %AdapTM.o,$(ALGOFILES)) \
+             $(filter-out %AdapTM.o,$(ALGOFILES)) $(COMMONOFILES)
 	@echo [AR] $@
 	$(_V)$(AR) cru $@ $^
 

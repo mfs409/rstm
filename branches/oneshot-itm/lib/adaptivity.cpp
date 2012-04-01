@@ -10,36 +10,14 @@
 
 #include "adaptivity.hpp"
 
-namespace stm
-{
+namespace stm {
   /**
-   *  Collection of all known algorithms
+   *  Weak placeholder implementation for libraries that don't use
+   *  adaptivity. AdapTM has a strong version of this that gets used when we
+   *  include it in the archive.
    */
-  alg_t tm_info[TM_NAMES_MAX];
-
-  /**
-   * Use this function to register your TM algorithm implementation.  It
-   * takes a bunch of function pointers and an identifier from the TM_NAMES
-   * enum.
-   */
-  void registerTMAlg(int identifier,
-                     tm_begin_t tm_begin,
-                     tm_end_t tm_end,
-                     tm_read_t tm_read,
-                     tm_write_t tm_write,
-                     rollback_t rollback,
-                     tm_get_alg_name_t tm_getalgname,
-                     tm_alloc_t tm_alloc,
-                     tm_free_t tm_free)
-  {
-      tm_info[identifier].tm_begin = tm_begin;
-      tm_info[identifier].tm_end = tm_end;
-      tm_info[identifier].tm_read = tm_read;
-      tm_info[identifier].tm_write = tm_write;
-      tm_info[identifier].rollback = rollback;
-      tm_info[identifier].tm_getalgname = tm_getalgname;
-      tm_info[identifier].tm_alloc = tm_alloc;
-      tm_info[identifier].tm_free = tm_free;
+  void __attribute__((weak))
+  registerTMAlg(int, tm_begin_t, tm_end_t, tm_read_t, tm_write_t, rollback_t,
+                     tm_get_alg_name_t, tm_alloc_t, tm_free_t) {
   }
-
 }

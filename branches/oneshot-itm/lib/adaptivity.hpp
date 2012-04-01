@@ -34,15 +34,9 @@ namespace stm
    * takes a bunch of function pointers and an identifier from the TM_NAMES
    * enum.  This should be called by the initTM<> method.
    */
-  void registerTMAlg(int identifier,
-                     tm_begin_t,
-                     tm_end_t,
-                     tm_read_t,
-                     tm_write_t,
-                     rollback_t,
-                     tm_get_alg_name_t,
-                     tm_alloc_t,
-                     tm_free_t);
+  void registerTMAlg(int, tm_begin_t, tm_end_t, tm_read_t, tm_write_t,
+                          rollback_t, tm_get_alg_name_t, tm_alloc_t,
+                          tm_free_t);
 
   /**
    *  We don't want to have to declare an init function for each of the STM
@@ -54,32 +48,11 @@ namespace stm
    */
   template <int I>
   void initTM();
-
-  /**
-   *  Type for storing all the information we need to define an STM algorithm,
-   *  and the array of all of the stored algorithms.
-   */
-  extern struct alg_t {
-      int               identifier;
-      tm_begin_t        tm_begin;
-      tm_end_t          tm_end;
-      tm_read_t         tm_read;
-      tm_write_t        tm_write;
-      rollback_t        rollback;
-      tm_get_alg_name_t tm_getalgname;
-      tm_alloc_t        tm_alloc;
-      tm_free_t         tm_free;
-
-      // [TODO]
-      // bool (* irrevoc)(TxThread*);
-      // void (* switcher) ();
-      // bool privatization_safe;
-  } tm_info[TM_NAMES_MAX];
 }
 
 /**
  * This hides the nastiness of registering algorithms with the adaptivity
- * mechanism
+ * mechanism.
  */
 #define REGISTER_TM_FOR_ADAPTIVITY(ALG)                                 \
     namespace stm {                                                     \
