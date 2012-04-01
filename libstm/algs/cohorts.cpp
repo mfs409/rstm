@@ -159,6 +159,7 @@ namespace {
       // committed.val++;
       // WBR;
 
+            tx->read_only = false;
       // commit all frees, reset all lists
       tx->r_orecs.reset();
       tx->writes.reset();

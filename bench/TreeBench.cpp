@@ -70,7 +70,11 @@ void bench_test(uintptr_t, uint32_t* seed)
     uint32_t val = rand_r_32(seed) % CFG.elements;
     uint32_t act = rand_r_32(seed) % 100;
     if (act < CFG.lookpct) {
-        TM_BEGIN(atomic) {
+        /**
+         * [wer210] Lookup is read-only transaction
+         * call TM_BEGIN_READONLY()
+         */
+        TM_BEGIN_READONLY(atomic) {
             SET->lookup(val TM_PARAM);
         } TM_END;
     }
