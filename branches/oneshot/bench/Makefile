@@ -9,8 +9,7 @@
 #
 
 #
-# Pull in the 'info' target, which is the default if a platform isn't
-# specified
+# Location of helper build files
 #
 MKFOLDER  = ../build
 include $(MKFOLDER)/info.mk
