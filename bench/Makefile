@@ -1,5 +1,5 @@
 #
-#  Copyright (C) 2011
+#  Copyright (C) 2012
 #  University of Rochester Department of Computer Science
 #    and
 #  Lehigh University Department of Computer Science and Engineering
@@ -17,20 +17,24 @@ include $(MKFOLDER)/info.mk
 include $(MKFOLDER)/algs.mk
 
 #
-# Location of RSTM
+# Location of RSTM libraries and includes
 #
-LIBFOLDER = ../lib
+RSTMLIB = ../lib
+RSTMINC = ../include
 
 #
 # Updates to flags: we want support for dependencies, and for building
-# benchmarks without intermediate .o files
+# benchmarks without special .o files for the harness
 #
-CXXFLAGS += -MMD -DSINGLE_SOURCE_BUILD -I../include -I$(LIBFOLDER)
+# NB: we include $(RSTMINC) to get the header that defines the
+#     instrumentation API, and we include $(RSTMLIB) to get access to the
+#     atomic op definitions from platform.hpp
+#
+CXXFLAGS += -MMD -DSINGLE_SOURCE_BUILD -I$(RSTMINC) -I$(RSTMLIB)
 
 #
-# Output folder: we build in-tree, unless this is overridden.  Note that the
-# folder is built at parse time, so that we don't have to depend on its
-# existance
+# Output folder: Note that the folder is built at parse time, so that we
+# don't have to depend on it
 #
 ODIR := obj.$(PLATFORM)
 ifeq ($(ODIR),obj.)
@@ -42,36 +46,12 @@ endif
 # The names of the benchmarks.  Every benchmark will produce a .o file for
 # each API that we support.
 #
-BENCHNAMES = CounterBench DisjointBench DListBench ForestBench HashBench    \
-             ListBench MCASBench ReadNWrite1Bench ReadWriteNBench TreeBench \
-             TreeOverwriteBench TypeTest WWPathologyBench
-
-#
-# Pre-executables for benchmarks: we build a .o for each api type for each
-# benchmark
-#
-BENCHOFILES = $(foreach api,$(APIS),$(foreach bench,$(BENCHNAMES),$(ODIR)/$(bench).$(api).o))
+BENCHNAMES  = CounterBench DisjointBench DListBench ForestBench HashBench    \
+              ListBench MCASBench ReadNWrite1Bench ReadWriteNBench TreeBench \
+              TreeOverwriteBench TypeTest WWPathologyBench
+BENCHOFILES = \
+$(foreach api,$(APIS),$(foreach bench,$(BENCHNAMES),$(ODIR)/$(bench).$(api).o))
 .PRECIOUS: $(BENCHOFILES)
-
-#
-# Executables: note that we are doing foreach benchmark, foreach STM
-# algorithm, unless gcctm is being used, in which case we only need to build
-# once, for gcctm
-#
-ifeq ($(LIB_OVERRIDE),true)
-BENCHEXES = $(patsubst %, $(ODIR)/%.gcctm, $(BENCHNAMES))
-else
-BENCHEXES = $(foreach alg,$(ALGNAMES),$(foreach bench,$(BENCHNAMES),$(ODIR)/$(bench).$(alg)))
-endif
-
-#
-# Custom AdapTM target that uses the fptr interface.  For now, we don't build
-# this when using gcctm, since gcctm only uses the gcc TM library.
-#
-ifeq ($(LIB_OVERRIDE),true)
-else
-BENCHEXES += $(patsubst %, $(ODIR)/%.AdapTM_fptr, $(BENCHNAMES))
-endif
 
 #
 # Dependencies
@@ -80,10 +60,76 @@ DEPS = $(patsubst %.o, %.d, $(BENCHOFILES))
 -include $(DEPS)
 
 #
-# simply typing 'make' dumps a message, rather than trying to guess a default
-# platform
+# Warning: This is an uncommon approach to Makefiles
 #
-default: info
+#   We want to be able to statically link each STM algorithm to each
+#   benchmark, but we also must account for the fact that certain STM
+#   algorithms have a 'preferred' instrumentation mode (i.e., not a simple
+#   function call for each read/write).  The different instrumentation modes
+#   correspond to the $(APIS) used for declaring $(BENCHOFILES).  Now we need
+#   to make all the link rules.
+#
+#   The way to do this that avoids editing the makefile when more algorithms
+#   are added is through a MAKEFILE template.  Below, we declare a template
+#   that links executable files: when instantiated (via an $(eval $(call
+#   ...)) statement that takes 3 parameters), it appends to the list of
+#   executables to build, and it also creates a link rule specifically for
+#   the unique executable name that is generated from the parameters.
+#
+define EXE_template
+BENCHEXES += $(ODIR)/$(1)_$(2)_$(3)
+$(ODIR)/$(1)_$(2)_$(3): $(ODIR)/$(1).$(3)api.o $(RSTMLIB)/$(ODIR)/lib$(2).a
+	@echo [LD] $$@ 
+	@$(CXX) -o $$@ $$^ $(LDFLAGS)
+endef
+
+#
+# Executables: what to build depends on whether we are using the gcctm or not
+#
+ifeq ($(LIB_OVERRIDE),true)
+# building for gcctm: one exe for each benchmark
+BENCHEXES = $(patsubst %, $(ODIR)/%.gcctm, $(BENCHNAMES))
+else
+# non-gcctm build:
+#   use the EXE_template to link each STMALG to BENCHNAME.stmapi.o, to link
+#   each LOCKALG to BENCHNAME.lockapi.o, and to link each CUSTOMALG to
+#   BENCHNAME.fptrapi.o
+$(foreach bench,$(BENCHNAMES),$(foreach alg,$(STMALGS),$(eval $(call EXE_template,$(bench),$(alg),stm))))
+$(foreach bench,$(BENCHNAMES),$(foreach alg,$(LOCKALGS),$(eval $(call EXE_template,$(bench),$(alg),lock))))
+$(foreach bench,$(BENCHNAMES),$(foreach alg,$(CUSTOMALGS),$(eval $(call EXE_template,$(bench),$(alg),fptr))))
+endif
+
+#
+# Rules for compiling individual benchmarks according to the specified API
+#
+$(ODIR)/%.lockapi.o: %.cpp
+	@echo [CXX] $< "-->" $@ 
+	@$(CXX) $(CXXFLAGS) -o $@ -c $< $(LDFLAGS) -DSTM_INST_CGL
+$(ODIR)/%.stmapi.o: %.cpp
+	@echo [CXX] $< "-->" $@ 
+	@$(CXX) $(CXXFLAGS) -o $@ -c $< $(LDFLAGS) -DSTM_INST_STM
+$(ODIR)/%.fptrapi.o: %.cpp
+	@echo [CXX] $< "-->" $@ 
+	@$(CXX) $(CXXFLAGS) -o $@ -c $< $(LDFLAGS) -DSTM_INST_FPTR
+
+#
+# custom rule for linking gcctm executables.
+#
+# NB: it suffices to use lockapi, since the API is meaningless when
+#     STM_API_GCCTM is defined.
+#
+$(ODIR)/%.gcctm: $(ODIR)/%.lockapi.o
+	@echo [LD] $@ 
+	@$(CXX) -o $@ $^ $(LDFLAGS)
+
+#
+# Simply typing 'make' dumps a message, rather than trying to guess a default
+# platform.  benchmarks is the correct target, but isn't going to work if the
+# directions are not followed
+#
+.default: info
+benchmarks: $(BENCHEXES)
+.PHONY: .default benchmarks
 
 #
 # In order to avoid creating config files, we use the following approach:
@@ -95,99 +141,3 @@ default: info
 #
 %: $(MKFOLDER)/%.mk
 	MAKEFILES="$<" $(MAKE) benchmarks
-
-#
-# The real target.  NB: we don't make BENCHEXES depend on ODIR, or else they
-# would be rebuilt every time the contents of ODIR change.  Instead, ODIR is
-# the first thing to build.
-#
-benchmarks: $(ODIR) $(BENCHEXES)
-
-#
-# Rules for building individual benchmarks according to the specified API
-#
-$(ODIR)/%.lockapi.o: %.cpp
-	@echo [CXX] $< "-->" $@ 
-	@$(CXX) $(CXXFLAGS) -o $@ -c $< $(LDFLAGS) -DSTM_INST_CGL
-$(ODIR)/%.genericapi.o: %.cpp
-	@echo [CXX] $< "-->" $@ 
-	@$(CXX) $(CXXFLAGS) -o $@ -c $< $(LDFLAGS) -DSTM_INST_STM
-$(ODIR)/%.fptrapi.o: %.cpp
-	@echo [CXX] $< "-->" $@ 
-	@$(CXX) $(CXXFLAGS) -o $@ -c $< $(LDFLAGS) -DSTM_INST_FPTR
-
-#
-# Rules for linking to make executables.  genericapi builds are easier.
-# lockapi builds are harder
-#
-
-#
-# lockapi builds are likely to be less common, so for each lockapi target, we
-# need a rule of the following form:
-#
-$(ODIR)/%.CGL: $(ODIR)/%.lockapi.o $(LIBFOLDER)/$(ODIR)/libCGL.a
-	@echo [LD] $@ 
-	@$(CXX) -o $@ $^ $(LDFLAGS)
-
-#
-# gcctm builds are the easiest, since they don't even need a libXYZ file.
-# Note that it suffices to use lockapi, since all apis are the same (use gcc
-# to do the instrumentation) when STM_API_GCCTM is defined.
-#
-$(ODIR)/%.gcctm: $(ODIR)/%.lockapi.o
-	@echo [LD] $@ 
-	@$(CXX) -o $@ $^ $(LDFLAGS)
-
-#
-# fptrapi builds are also likely to be rare (in fact, there should probably
-# only ever be one)
-#
-$(ODIR)/%.AdapTM_fptr: $(ODIR)/%.fptrapi.o $(LIBFOLDER)/$(ODIR)/libAdapTM.a
-	@echo [LD] $@ 
-	@$(CXX) -o $@ $^ $(LDFLAGS)
-
-#
-# genericapi builds are more common, since there are a lot more ways to do an
-# genericapi TM than a lockapi TM.  To that end, we make a single build
-# target for each /benchmark/, and we infer the right library to link from
-# the exe name
-#
-$(ODIR)/CounterBench.%: $(ODIR)/CounterBench.genericapi.o $(LIBFOLDER)/$(ODIR)/lib%.a
-	@echo [LD] $@
-	@$(CXX) -o $@ $^ $(LDFLAGS)
-$(ODIR)/DisjointBench.%: $(ODIR)/DisjointBench.genericapi.o $(LIBFOLDER)/$(ODIR)/lib%.a
-	@echo [LD] $@ 
-	@$(CXX) -o $@ $^ $(LDFLAGS)
-$(ODIR)/DListBench.%: $(ODIR)/DListBench.genericapi.o $(LIBFOLDER)/$(ODIR)/lib%.a
-	@echo [LD] $@ 
-	@$(CXX) -o $@ $^ $(LDFLAGS)
-$(ODIR)/ForestBench.%: $(ODIR)/ForestBench.genericapi.o $(LIBFOLDER)/$(ODIR)/lib%.a
-	@echo [LD] $@ 
-	@$(CXX) -o $@ $^ $(LDFLAGS)
-$(ODIR)/HashBench.%: $(ODIR)/HashBench.genericapi.o $(LIBFOLDER)/$(ODIR)/lib%.a
-	@echo [LD] $@ 
-	@$(CXX) -o $@ $^ $(LDFLAGS)
-$(ODIR)/ListBench.%: $(ODIR)/ListBench.genericapi.o $(LIBFOLDER)/$(ODIR)/lib%.a
-	@echo [LD] $@ 
-	@$(CXX) -o $@ $^ $(LDFLAGS)
-$(ODIR)/MCASBench.%: $(ODIR)/MCASBench.genericapi.o $(LIBFOLDER)/$(ODIR)/lib%.a
-	@echo [LD] $@ 
-	@$(CXX) -o $@ $^ $(LDFLAGS)
-$(ODIR)/ReadNWrite1Bench.%: $(ODIR)/ReadNWrite1Bench.genericapi.o $(LIBFOLDER)/$(ODIR)/lib%.a
-	@echo [LD] $@ 
-	@$(CXX) -o $@ $^ $(LDFLAGS)
-$(ODIR)/ReadWriteNBench.%: $(ODIR)/ReadWriteNBench.genericapi.o $(LIBFOLDER)/$(ODIR)/lib%.a
-	@echo [LD] $@ 
-	@$(CXX) -o $@ $^ $(LDFLAGS)
-$(ODIR)/TreeBench.%: $(ODIR)/TreeBench.genericapi.o $(LIBFOLDER)/$(ODIR)/lib%.a
-	@echo [LD] $@ 
-	@$(CXX) -o $@ $^ $(LDFLAGS)
-$(ODIR)/TreeOverwriteBench.%: $(ODIR)/TreeOverwriteBench.genericapi.o $(LIBFOLDER)/$(ODIR)/lib%.a
-	@echo [LD] $@ 
-	@$(CXX) -o $@ $^ $(LDFLAGS)
-$(ODIR)/TypeTest.%: $(ODIR)/TypeTest.genericapi.o $(LIBFOLDER)/$(ODIR)/lib%.a
-	@echo [LD] $@ 
-	@$(CXX) -o $@ $^ $(LDFLAGS)
-$(ODIR)/WWPathologyBench.%: $(ODIR)/WWPathologyBench.genericapi.o $(LIBFOLDER)/$(ODIR)/lib%.a
-	@echo [LD] $@ 
-	@$(CXX) -o $@ $^ $(LDFLAGS)
