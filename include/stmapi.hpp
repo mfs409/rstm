@@ -36,7 +36,8 @@ namespace stm
   void        tm_write(void** addr, void* val) TM_FASTCALL;
 }
 
-#define TM_BEGIN(x)      { _ITM_beginTransaction(0x1);
+// The RSTM library APIs have no "Cancel" construction.
+#define TM_BEGIN(x)      { _ITM_beginTransaction(pr_instrumentedCode | pr_hasNoAbort);
 #define TM_END()           stm::tm_end(); }
 #define TM_GET_ALGNAME() stm::tm_getalgname()
 

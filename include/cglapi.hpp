@@ -19,6 +19,7 @@
 #include <limits.h>
 #include <cstdlib>
 #include <stdint.h>
+#include "libitm.h"
 
 #if defined(STM_CPU_X86) && defined(STM_CC_GCC)
 #    define TM_FASTCALL __attribute__((regparm(3)))
@@ -34,12 +35,12 @@ namespace stm
   void        tm_free(void* p);
   void*       tm_read(void** addr) TM_FASTCALL;
   void        tm_write(void** addr, void* val) TM_FASTCALL;
-
-  void        cgl_tm_begin() __attribute__((returns_twice));
 }
 
-#define TM_BEGIN(x)      stm::cgl_tm_begin();
-#define TM_END()         stm::tm_end()
+// The RSTM library APIs don't support cancel. CGL specifically has no cancel
+// functionality.
+#define TM_BEGIN(x)      { _ITM_beginTransaction(pr_instrumentedCode | pr_hasNoAbort);
+#define TM_END()           stm::tm_end(); }
 #define TM_GET_ALGNAME() stm::tm_getalgname()
 
 /**

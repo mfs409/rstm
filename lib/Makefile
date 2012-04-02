@@ -110,6 +110,20 @@ $(ODIR)/lib%.a: $(ODIR)/%.o $(COMMONOFILES)
 	$(_V)$(AR) cru $@ $^
 
 #
+# Custom rule for libCGL.a---we don't want checkpoint-asm in this build because
+# CGL has its own weak definition of _ITM_beginTransaction, and we never need
+# to restart a transaction so we don't need checkpoint.o either (this
+# eliminates a dependency on the _rstm_restore_checkpoint symbol, and means
+# that libCGL can be implemnented without any asm).
+#
+# NB: This is _only_ ok becaue we don't support cancel at all when using CGL.
+#
+$(ODIR)/libCGL.a: $(ODIR)/CGL.o $(filter-out %checkpoint%.o,$(COMMONOFILES))
+	@echo [AR] $@
+	$(_V)$(AR) cru $@ $^
+
+
+#
 # Custom rule for libadaptm.a
 #
 $(ADAPTLIB): $(filter %AdapTM.o,$(ALGOFILES)) \
