@@ -114,4 +114,4 @@ librstm: $(ADAPTHEADER) $(LIBS)
 # definitions we need to build the right way.
 #
 %: $(MKFOLDER)/%.mk
-	MAKEFILES="$<" $(MAKE) benchmarks
+	MAKEFILES="$<" $(MAKE) librstm
