@@ -40,7 +40,7 @@ static const char* tm_getalgname() {
  *
  *  This only gets called for the outermost scope.
  */
-static uint32_t tm_begin(uint32_t, TX*) {
+static uint32_t TM_FASTCALL tm_begin(uint32_t, TX*) {
     tatas_acquire(&timestamp.val);
     return a_runInstrumentedCode;
 }

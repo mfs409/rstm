@@ -18,7 +18,7 @@ using stm::checkpoint_t;
 // [LD] As far as I can tell, there's no general-purpose header that has a
 // library API defined.
 namespace stm {
-  uint32_t tm_begin(uint32_t, TX*);
+  uint32_t tm_begin(uint32_t, TX*) TM_FASTCALL;
 }
 
 uint32_t

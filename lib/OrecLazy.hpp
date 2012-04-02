@@ -64,7 +64,7 @@ static pad_word_t timestamp = {0};
  *    transactions.
  */
 template <class CM>
-static uint32_t tm_begin(uint32_t, TX* tx)
+static uint32_t TM_FASTCALL tm_begin(uint32_t, TX* tx)
 {
     CM::onBegin(tx);
     tx->allocator.onTxBegin();

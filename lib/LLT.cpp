@@ -60,7 +60,7 @@ static checkpoint_t* rollback(TX* tx) {
 static pad_word_t timestamp = {0};
 
 /** LLT begin: only called for outermost transactions. */
-static uint32_t tm_begin(uint32_t, TX* tx)
+static uint32_t TM_FASTCALL tm_begin(uint32_t, TX* tx)
 {
     tx->allocator.onTxBegin();
     // get a start time

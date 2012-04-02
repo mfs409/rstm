@@ -44,7 +44,7 @@
 #elif defined(__x86_64__)
 #error No TM symbols defined for -mx32 yet, patches welcome.
 #elif defined(__i386)
-#define TM_BEGIN_SYMBOL "_ZL8tm_beginj"
+#define TM_BEGIN_SYMBOL "_ZL8tm_beginjPN3stm2TXE"
 #define TM_END_SYMBOL "_ZL6tm_endv"
 #define TM_GETALGNAME_SYMBOL "_ZL13tm_getalgnamev"
 #define TM_ALLOC_SYMBOL "_ZL8tm_allocj"
@@ -57,7 +57,7 @@
 #define SPECIALIZE_TM_ROLLBACK_SYMBOL(CM, NCM)      \
     "_Z8rollbackIN3stm"#NCM#CM"EEPA7_PvPNS0_2TXE"
 #define SPECIALIZE_TM_BEGIN_SYMBOL(CM, NCM)     \
-    "_Z8tm_beginIN3stm"#NCM#CM"EEjj"
+    "_Z8tm_beginIN3stm"#NCM#CM"EEjjPNS0_2TXE"
 #define SPECIALIZE_TM_END_SYMBOL(CM, NCM)       \
     "_Z6tm_endIN3stm"#NCM#CM"EEvv"
 #else
@@ -68,7 +68,7 @@
     namespace stm                                                       \
     {                                                                   \
         uint32_t tm_begin(uint32_t, stm::TX*)                           \
-        __attribute__((weak, alias(TM_BEGIN_SYMBOL)));                  \
+        __attribute__((weak, alias(TM_BEGIN_SYMBOL))) TM_FASTCALL;      \
         void tm_end()                                                   \
         __attribute__((weak, alias(TM_END_SYMBOL)));                    \
         const char* tm_getalgname()                                     \
@@ -92,7 +92,8 @@
                                                                         \
     template uint32_t tm_begin<stm::CM>(uint32_t, stm::TX*);            \
     static uint32_t tm_begin(uint32_t, stm::TX*)                        \
-        __attribute__((alias(SPECIALIZE_TM_BEGIN_SYMBOL(CM, NCM))));    \
+        __attribute__((alias(SPECIALIZE_TM_BEGIN_SYMBOL(CM, NCM))))     \
+        TM_FASTCALL;                                                    \
                                                                         \
     template void tm_end<stm::CM>();                                    \
     static void tm_end()                                                \

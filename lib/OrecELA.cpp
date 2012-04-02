@@ -93,7 +93,7 @@ static checkpoint_t* rollback(TX* tx)
  *
  *    only called for outermost transactions.
  */
-static uint32_t tm_begin(uint32_t, TX* tx)
+static uint32_t TM_FASTCALL tm_begin(uint32_t, TX* tx)
 {
     tx->allocator.onTxBegin();
     // Start after the last cleanup, instead of after the last commit, to

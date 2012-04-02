@@ -69,7 +69,7 @@ static pad_word_t timestamp = {0};
  *    Standard begin: just get a start time, only called for outermost
  *    transactions.
  */
-static uint32_t tm_begin(uint32_t, TX* tx)
+static uint32_t TM_FASTCALL tm_begin(uint32_t, TX* tx)
 {
     tx->allocator.onTxBegin();
     tx->start_time = timestamp.val;
