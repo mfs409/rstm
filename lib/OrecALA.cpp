@@ -112,7 +112,7 @@ static NOINLINE void validate_commit(TX* tx)
         // read this orec
         uintptr_t ivt = (*i)->v.all;
         if ((ivt > tx->start_time) && (ivt != tx->my_lock.all))
-            tm_abort(tx);
+            _ITM_abortTransaction(TMConflict);
     }
 }
 
@@ -145,13 +145,13 @@ void alg_tm_end()
         if (ivt <= tx->start_time) {
             // abort if cannot acquire
             if (!bcasptr(&o->v.all, ivt, tx->my_lock.all))
-                tm_abort(tx);
+                _ITM_abortTransaction(TMConflict);
             // save old version to o->p, remember that we hold the lock
             o->p = ivt;
             tx->locks.insert(o);
         }
         else if (ivt != tx->my_lock.all) {
-            tm_abort(tx);
+            _ITM_abortTransaction(TMConflict);
         }
     }
     CFENCE;
@@ -202,7 +202,7 @@ static NOINLINE void privtest(TX* tx, uintptr_t ts)
         // if orec unlocked and newer than start time, it changed, so abort.
         // if locked, it's not locked by me so abort
         if ((*i)->v.all > tx->start_time)
-            tm_abort(tx);
+            _ITM_abortTransaction(TMConflict);
     }
 
     // remember that we validated at this time
@@ -235,7 +235,7 @@ void* alg_tm_read(void** addr)
 
     // make sure this location isn't locked or too new
     if (o->v.all > tx->start_time)
-        tm_abort(tx);
+        _ITM_abortTransaction(TMConflict);
 
     // privatization safety: poll the timestamp, maybe validate
     uintptr_t ts = timestamp.val;

@@ -83,7 +83,7 @@ static NOINLINE void validate(TX* tx)
     FOREACH (OrecList, i, tx->r_orecs) {
         // abort if orec locked, or if unlocked but timestamp too new
         if ((*i)->v.all > tx->start_time)
-            tm_abort(tx);
+            _ITM_abortTransaction(TMConflict);
     }
 }
 
@@ -120,14 +120,14 @@ static void alg_tm_end()
         if (ivt <= tx->start_time) {
             // abort if cannot acquire
             if (!bcasptr(&o->v.all, ivt, tx->my_lock.all))
-                tm_abort(tx);
+                _ITM_abortTransaction(TMConflict);
             // save old version to o->p, remember that we hold the lock
             o->p = ivt;
             tx->locks.insert(o);
         }
         // else if we don't hold the lock abort
         else if (ivt != tx->my_lock.all) {
-            tm_abort(tx);
+            _ITM_abortTransaction(TMConflict);
         }
     }
 
@@ -136,7 +136,7 @@ static void alg_tm_end()
         uintptr_t ivt = (*i)->v.all;
         // if unlocked and newer than start time, abort
         if ((ivt > tx->start_time) && (ivt != tx->my_lock.all))
-            tm_abort(tx);
+            _ITM_abortTransaction(TMConflict);
     }
 
     // run the redo log

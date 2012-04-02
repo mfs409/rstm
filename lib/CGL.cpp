@@ -53,6 +53,9 @@ uint32_t alg_tm_begin(uint32_t flags, TX*) {
  */
 uint32_t __attribute__((weak)) _ITM_beginTransaction(uint32_t flags, ...) {
     assert(flags & pr_hasNoAbort && "CGL does not support cancel");
+    if (++Self->nesting_depth > 1)
+        return a_runInstrumentedCode;
+
     tatas_acquire(&timestamp.val);
     return a_runInstrumentedCode;
 }
@@ -60,6 +63,9 @@ uint32_t __attribute__((weak)) _ITM_beginTransaction(uint32_t flags, ...) {
 /**
  *  End a transaction: decrease the nesting level, then perhaps release the
  *  lock and increment the count of commits.
+ *
+ *  NB: we don't know if this is a writer or reader, so we just universally
+ *      increment commits_rw.
  */
 void alg_tm_end() {
     TX* tx = Self;

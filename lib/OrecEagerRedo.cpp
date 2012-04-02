@@ -89,7 +89,7 @@ static NOINLINE void validate(TX* tx)
         uintptr_t ivt = (*i)->v.all;
         // if unlocked and newer than start time, abort
         if ((ivt > tx->start_time) && (ivt != tx->my_lock.all))
-            tm_abort(tx);
+            _ITM_abortTransaction(TMConflict);
     }
 }
 
@@ -120,7 +120,7 @@ void alg_tm_end()
         uintptr_t ivt = (*i)->v.all;
         // if unlocked and newer than start time, abort
         if ((ivt > tx->start_time) && (ivt != tx->my_lock.all))
-            tm_abort(tx);
+            _ITM_abortTransaction(TMConflict);
     }
 
     // run the redo log
@@ -176,7 +176,7 @@ void* alg_tm_read(void** addr)
 
         // abort if locked by other
         if (ivt.fields.lock)
-            tm_abort(tx);
+            _ITM_abortTransaction(TMConflict);
 
         // scale timestamp if ivt is too new
         uintptr_t newts = timestamp.val;
@@ -205,7 +205,7 @@ void alg_tm_write(void** addr, void* val)
         // common case: uncontended location... lock it
         if (ivt.all <= tx->start_time) {
             if (!bcasptr(&o->v.all, ivt.all, tx->my_lock.all))
-                tm_abort(tx);
+                _ITM_abortTransaction(TMConflict);
 
             // save old, log lock, write, return
             o->p = ivt.all;
@@ -219,7 +219,7 @@ void alg_tm_write(void** addr, void* val)
 
         // fail if lock held
         if (ivt.fields.lock)
-            tm_abort(tx);
+            _ITM_abortTransaction(TMConflict);
 
         // unlocked but too new... scale forward and try again
         uintptr_t newts = timestamp.val;

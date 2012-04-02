@@ -120,7 +120,7 @@ static void alg_tm_end() {
     // get the lock and validate (use RingSTM obstruction-free technique)
     while (!bcasptr(&timestamp.val, tx->start_time, tx->start_time + 1))
         if ((tx->start_time = validate(tx)) == VALIDATION_FAILED)
-            tm_abort(tx);
+            _ITM_abortTransaction(TMConflict);
 
     tx->writes.writeback();
 
@@ -158,7 +158,7 @@ void* alg_tm_read(void** addr) {
     // restart this read
     while (tx->start_time != timestamp.val) {
         if ((tx->start_time = validate(tx)) == VALIDATION_FAILED)
-            tm_abort(tx);
+            _ITM_abortTransaction(TMConflict);
         tmp = *addr;
         CFENCE;
     }
