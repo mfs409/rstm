@@ -8,26 +8,24 @@
  *          Please see the file LICENSE.RSTM for licensing information
  */
 
-#ifndef ADAPTIVITY_HPP__
-#define ADAPTIVITY_HPP__
+#ifndef RSTM_ADAPTIVITY_H
+#define RSTM_ADAPTIVITY_H
 
-/**
- * Include a file that is generated automatically and provides the names of
- * all our algorithms as an enum called TM_NAMES
- */
-#include <tmnames.autobuild.h>
-#include "tx.hpp"
+#include <stdint.h>                     // uint32_t
+#include "platform.hpp"                 // TM_FASTCALL
 
-namespace stm
-{
-  typedef uint32_t      (*tm_begin_t)(uint32_t, TX*) TM_FASTCALL;
-  typedef void          (*tm_end_t)();
-  typedef void*         (*tm_read_t)(void**) TM_FASTCALL;
-  typedef void          (*tm_write_t)(void**, void*) TM_FASTCALL;
-  typedef void*         (*tm_alloc_t)(size_t);
-  typedef void          (*tm_free_t)(void*);
-  typedef const char*   (*tm_get_alg_name_t)();
-  typedef checkpoint_t* (*rollback_t)(TX*);
+namespace stm {
+  struct TX;
+
+  typedef uint32_t    (*tm_begin_t)(uint32_t, TX*) TM_FASTCALL;
+  typedef void        (*tm_end_t)();
+  typedef void*       (*tm_read_t)(void**) TM_FASTCALL;
+  typedef void        (*tm_write_t)(void**, void*) TM_FASTCALL;
+  typedef void*       (*tm_alloc_t)(size_t);
+  typedef void        (*tm_free_t)(void*);
+  typedef const char* (*tm_get_alg_name_t)();
+  typedef void        (*tm_rollback_t)(TX*);
+  typedef bool        (*tm_is_irrevocable_t)(TX*);
 
   /**
    * Use this function to register your TM algorithm implementation.  It
@@ -35,8 +33,8 @@ namespace stm
    * enum.  This should be called by the initTM<> method.
    */
   void registerTMAlg(int, tm_begin_t, tm_end_t, tm_read_t, tm_write_t,
-                          rollback_t, tm_get_alg_name_t, tm_alloc_t,
-                          tm_free_t);
+                          tm_rollback_t, tm_get_alg_name_t, tm_alloc_t,
+                          tm_free_t, tm_is_irrevocable_t);
 
   /**
    *  We don't want to have to declare an init function for each of the STM
@@ -52,15 +50,19 @@ namespace stm
 
 /**
  * This hides the nastiness of registering algorithms with the adaptivity
- * mechanism.
+ * mechanism. Include the autobuilt header that contains the ALG enum.
  */
+#include <tmnames.autobuild.h>
 #define REGISTER_TM_FOR_ADAPTIVITY(ALG)                                 \
     namespace stm {                                                     \
       template <> void initTM<ALG>() {                                  \
           registerTMAlg(ALG,                                            \
-                        tm_begin, tm_end, tm_read, tm_write, rollback,  \
-                        tm_getalgname, tm_alloc, tm_free);              \
-        }                                                               \
+                        alg_tm_begin, alg_tm_end,                       \
+                        alg_tm_read, alg_tm_write,                      \
+                        alg_tm_rollback, alg_tm_getalgname,             \
+                        alg_tm_alloc, alg_tm_free,                      \
+                        alg_tm_is_irrevocable);                         \
+      }                                                                 \
     }
 
-#endif // ADAPTIVITY_HPP__
+#endif // RSTM_ADAPTIVITY_H

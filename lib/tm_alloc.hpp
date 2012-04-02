@@ -22,7 +22,7 @@
  *  get a chunk of memory that will be automatically reclaimed if the caller
  *  is a transaction that ultimately aborts
  */
-static void* tm_alloc(size_t size) {
+static void* alg_tm_alloc(size_t size) {
     return stm::Self->allocator.txAlloc(size);
 }
 
@@ -31,7 +31,7 @@ static void* tm_alloc(size_t size) {
  *  the free will not happen.  If the caller is a transaction that commits,
  *  the free will happen at commit time.
  */
-static void tm_free(void* p) {
+static void alg_tm_free(void* p) {
     stm::Self->allocator.txFree(p);
 }
 

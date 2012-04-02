@@ -95,12 +95,11 @@ namespace stm {
       TX& operator=(const TX&);
   };
 
-
   /**
    *  Need to forward-declare the fact of the tm_abort function, since
    *  virtually every tm implementation will use it to abort
    */
-  void tm_abort(TX* tx) __attribute__((noinline, noreturn));
+  void tm_abort(TX*) NOINLINE NORETURN;
 }
 
 #endif // TX_HPP__

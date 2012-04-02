@@ -20,12 +20,12 @@
  */
 
 #include <iostream>
-#include <setjmp.h>
+#include "tmabi-weak.hpp"
+#include "foreach.hpp"
 #include "MiniVector.hpp"
 #include "metadata.hpp"
 #include "WriteSet.hpp"
 #include "WBMMPolicy.hpp"
-#include "Macros.hpp"
 #include "locks.hpp"
 #include "tx.hpp"
 #include "adaptivity.hpp"
@@ -37,7 +37,7 @@ using namespace stm;
 /**
  *  For querying to get the current algorithm name
  */
-static const char* tm_getalgname() {
+const char* alg_tm_getalgname() {
     return "OrecELA";
 }
 
@@ -53,13 +53,14 @@ static pad_word_t last_complete = {0};
  *    turn and then increment the trailing timestamp, to keep the two counters
  *    consistent.
  */
-static checkpoint_t* rollback(TX* tx)
+void alg_tm_rollback(TX* tx)
 {
     ++tx->aborts;
 
     // release locks and restore version numbers
-    foreach (OrecList, i, tx->locks)
-    (*i)->v.all = (*i)->p;
+    FOREACH (OrecList, i, tx->locks) {
+        (*i)->v.all = (*i)->p;
+    }
     tx->r_orecs.reset();
     tx->writes.reset();
     tx->locks.reset();
@@ -79,7 +80,6 @@ static checkpoint_t* rollback(TX* tx)
     }
     CFENCE;
     tx->allocator.onTxAbort();
-    return &tx->checkpoint;
 }
 
 /**
@@ -93,7 +93,7 @@ static checkpoint_t* rollback(TX* tx)
  *
  *    only called for outermost transactions.
  */
-static uint32_t TM_FASTCALL tm_begin(uint32_t, TX* tx)
+uint32_t alg_tm_begin(uint32_t, TX* tx)
 {
     tx->allocator.onTxBegin();
     // Start after the last cleanup, instead of after the last commit, to
@@ -105,7 +105,7 @@ static uint32_t TM_FASTCALL tm_begin(uint32_t, TX* tx)
 
 static NOINLINE void validate_commit(TX* tx)
 {
-    foreach (OrecList, i, tx->r_orecs) {
+    FOREACH (OrecList, i, tx->r_orecs) {
         // read this orec
         uintptr_t ivt = (*i)->v.all;
         if ((ivt > tx->start_time) && (ivt != tx->my_lock.all))
@@ -118,7 +118,7 @@ static NOINLINE void validate_commit(TX* tx)
  *
  *    RO commit is trivial
  */
-static void tm_end()
+void alg_tm_end()
 {
     TX* tx = Self;
     if (--tx->nesting_depth)
@@ -133,7 +133,7 @@ static void tm_end()
     }
 
     // acquire locks
-    foreach (WriteSet, i, tx->writes) {
+    FOREACH (WriteSet, i, tx->writes) {
         // get orec, read its version#
         orec_t* o = get_orec(i->addr);
         uintptr_t ivt = o->v.all;
@@ -165,8 +165,9 @@ static void tm_end()
     tx->writes.writeback();
     CFENCE;
     // release locks
-    foreach (OrecList, i, tx->locks)
-    (*i)->v.all = tx->end_time;
+    FOREACH (OrecList, i, tx->locks) {
+        (*i)->v.all = tx->end_time;
+    }
     CFENCE;
     // now ensure that transactions depart from stm_end in the order that
     // they incremend the timestamp.  This avoids the "deferred update"
@@ -194,7 +195,7 @@ static void tm_end()
 static NOINLINE void privtest(TX* tx, uintptr_t ts)
 {
     // optimized validation since we don't hold any locks
-    foreach (OrecList, i, tx->r_orecs) {
+    FOREACH (OrecList, i, tx->r_orecs) {
         // if orec locked or newer than start time, abort
         if ((*i)->v.all > tx->start_time)
             tm_abort(tx);
@@ -214,7 +215,7 @@ static NOINLINE void privtest(TX* tx, uintptr_t ts)
  *    However, we also poll the timestamp counter and validate any time a new
  *    transaction has committed, in order to catch doomed transactions.
  */
-static TM_FASTCALL void* tm_read(void** addr)
+void* alg_tm_read(void** addr)
 {
     TX* tx = Self;
 
@@ -258,7 +259,7 @@ static TM_FASTCALL void* tm_read(void** addr)
 
         // unlocked but too new... validate and scale forward
         uintptr_t newts = timestamp.val;
-        foreach (OrecList, i, tx->r_orecs) {
+        FOREACH (OrecList, i, tx->r_orecs) {
             // if orec locked or newer than start time, abort
             if ((*i)->v.all > tx->start_time)
                 tm_abort(tx);
@@ -275,14 +276,18 @@ static TM_FASTCALL void* tm_read(void** addr)
  *
  *    Simply buffer the write and switch to a writing context
  */
-static TM_FASTCALL void tm_write(void** addr, void* val)
+void alg_tm_write(void** addr, void* val)
 {
     TX* tx = Self;
     tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
+}
+
+bool alg_tm_is_irrevocable(TX*) {
+    assert(false && "Unimplemented");
+    return false;
 }
 
 /**
  * Register the TM for adaptivity and for use as a standalone library
  */
 REGISTER_TM_FOR_ADAPTIVITY(OrecELA)
-REGISTER_TM_FOR_STANDALONE()

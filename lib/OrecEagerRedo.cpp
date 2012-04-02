@@ -19,12 +19,12 @@
  */
 
 #include <iostream>
-#include <setjmp.h>
+#include "tmabi-weak.hpp"
+#include "foreach.hpp"
 #include "MiniVector.hpp"
 #include "metadata.hpp"
 #include "WriteSet.hpp"
 #include "WBMMPolicy.hpp"
-#include "Macros.hpp"
 #include "tx.hpp"
 #include "adaptivity.hpp"
 #include "tm_alloc.hpp"
@@ -35,7 +35,7 @@ using namespace stm;
 /**
  *  For querying to get the current algorithm name
  */
-static const char* tm_getalgname() {
+const char* alg_tm_getalgname() {
     return "OrecEagerRedo";
 }
 
@@ -44,20 +44,20 @@ static const char* tm_getalgname() {
  *
  *    To unwind, we must release locks, but we don't have an undo log to run.
  */
-static checkpoint_t* rollback(TX* tx)
+void alg_tm_rollback(TX* tx)
 {
     ++tx->aborts;
 
     // release the locks and restore version numbers
-    foreach (OrecList, i, tx->locks)
-    (*i)->v.all = (*i)->p;
+    FOREACH (OrecList, i, tx->locks) {
+        (*i)->v.all = (*i)->p;
+    }
 
     // undo memory operations, reset lists
     tx->r_orecs.reset();
     tx->writes.reset();
     tx->locks.reset();
     tx->allocator.onTxAbort();
-    return &tx->checkpoint;
 }
 
 /*** The only metadata we need is a single global padded lock ***/
@@ -69,7 +69,7 @@ static pad_word_t timestamp = {0};
  *    Standard begin: just get a start time, only called for outermost
  *    transactions.
  */
-static uint32_t TM_FASTCALL tm_begin(uint32_t, TX* tx)
+uint32_t alg_tm_begin(uint32_t, TX* tx)
 {
     tx->allocator.onTxBegin();
     tx->start_time = timestamp.val;
@@ -84,7 +84,7 @@ static uint32_t TM_FASTCALL tm_begin(uint32_t, TX* tx)
  */
 static NOINLINE void validate(TX* tx)
 {
-    foreach (OrecList, i, tx->r_orecs) {
+    FOREACH (OrecList, i, tx->r_orecs) {
         // read this orec
         uintptr_t ivt = (*i)->v.all;
         // if unlocked and newer than start time, abort
@@ -98,7 +98,7 @@ static NOINLINE void validate(TX* tx)
  *
  *    Standard commit: we hold no locks, and we're valid, so just clean up
  */
-static void tm_end()
+void alg_tm_end()
 {
     TX* tx = Self;
     if (--tx->nesting_depth)
@@ -115,7 +115,7 @@ static void tm_end()
     // OrecLazy... without the single-thread optimization
 
     // we have all locks, so validate
-    foreach (OrecList, i, tx->r_orecs) {
+    FOREACH (OrecList, i, tx->r_orecs) {
         // read this orec
         uintptr_t ivt = (*i)->v.all;
         // if unlocked and newer than start time, abort
@@ -130,8 +130,9 @@ static void tm_end()
     uintptr_t end_time = 1 + faiptr(&timestamp.val);
 
     // release locks
-    foreach (OrecList, i, tx->locks)
-    (*i)->v.all = end_time;
+    FOREACH (OrecList, i, tx->locks) {
+        (*i)->v.all = end_time;
+    }
 
     // clean up
     tx->r_orecs.reset();
@@ -144,7 +145,7 @@ static void tm_end()
 /**
  *  OrecEagerRedo read
  */
-static TM_FASTCALL void* tm_read(void** addr)
+void* alg_tm_read(void** addr)
 {
     TX* tx = Self;
 
@@ -187,7 +188,7 @@ static TM_FASTCALL void* tm_read(void** addr)
 /**
  *  OrecEagerRedo write
  */
-static TM_FASTCALL void tm_write(void** addr, void* val)
+void alg_tm_write(void** addr, void* val)
 {
     TX* tx = Self;
 
@@ -227,8 +228,12 @@ static TM_FASTCALL void tm_write(void** addr, void* val)
     }
 }
 
+bool alg_tm_is_irrevocable(TX*) {
+    assert(false && "Unimplemented");
+    return false;
+}
+
 /**
  * Register the TM for adaptivity and for use as a standalone library
  */
 REGISTER_TM_FOR_ADAPTIVITY(OrecEagerRedo)
-REGISTER_TM_FOR_STANDALONE();

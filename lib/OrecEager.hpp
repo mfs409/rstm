@@ -42,11 +42,11 @@
  */
 
 #include <iostream>
-#include <setjmp.h>
+#include "tmabi-weak.hpp"
+#include "foreach.hpp"
 #include "MiniVector.hpp"
 #include "metadata.hpp"
 #include "WBMMPolicy.hpp"
-#include "Macros.hpp"
 #include "tx.hpp"
 #include "libitm.h"
 
@@ -62,7 +62,7 @@ using namespace stm;
 static pad_word_t timestamp = {0};
 
 template <class CM>
-static checkpoint_t* rollback(TX* tx)
+static void alg_tm_rollback(TX* tx)
 {
     ++tx->aborts;
 
@@ -72,7 +72,7 @@ static checkpoint_t* rollback(TX* tx)
     // release the locks and bump version numbers by one... track the highest
     // version number we write, in case it is greater than timestamp.val
     uintptr_t max = 0;
-    foreach (OrecList, j, tx->locks) {
+    FOREACH (OrecList, j, tx->locks) {
         uintptr_t newver = (*j)->p + 1;
         (*j)->v.all = newver;
         max = (newver > max) ? newver : max;
@@ -91,12 +91,11 @@ static checkpoint_t* rollback(TX* tx)
     tx->locks.reset();
 
     tx->allocator.onTxAbort();
-    return &tx->checkpoint;
 }
 
 /** only called for outermost transactions. */
 template <class CM>
-static uint32_t TM_FASTCALL tm_begin(uint32_t, TX* tx)
+static uint32_t TM_FASTCALL alg_tm_begin(uint32_t, TX* tx)
 {
     CM::onBegin(tx);
     // sample the timestamp and prepare local structures
@@ -108,7 +107,7 @@ static uint32_t TM_FASTCALL tm_begin(uint32_t, TX* tx)
 
 static NOINLINE void validate_commit(TX* tx)
 {
-    foreach (OrecList, i, tx->r_orecs) {
+    FOREACH (OrecList, i, tx->r_orecs) {
         // abort unless orec older than start or owned by me
         uintptr_t ivt = (*i)->v.all;
         if ((ivt > tx->start_time) && (ivt != tx->my_lock.all))
@@ -126,7 +125,7 @@ static NOINLINE void validate_commit(TX* tx)
  */
 static NOINLINE void validate(TX* tx)
 {
-    foreach (OrecList, i, tx->r_orecs) {
+    FOREACH (OrecList, i, tx->r_orecs) {
         // read this orec
         uintptr_t ivt = (*i)->v.all;
         // if unlocked and newer than start time, abort
@@ -144,7 +143,7 @@ static NOINLINE void validate(TX* tx)
  *    locks
  */
 template <class CM>
-static void tm_end()
+static void alg_tm_end()
 {
     TX* tx = Self;
     if (--tx->nesting_depth)
@@ -167,8 +166,9 @@ static void tm_end()
         validate_commit(tx);
 
     // release locks
-    foreach (OrecList, i, tx->locks)
-    (*i)->v.all = end_time;
+    FOREACH (OrecList, i, tx->locks) {
+        (*i)->v.all = end_time;
+    }
 
     // reset lock list and undo log
     CM::onCommit(tx);
@@ -184,7 +184,7 @@ static void tm_end()
  *
  *    Must check orec twice, and may need to validate
  */
-static TM_FASTCALL void* tm_read(void** addr)
+void* alg_tm_read(void** addr)
 {
     TX* tx = Self;
 
@@ -229,7 +229,7 @@ static TM_FASTCALL void* tm_read(void** addr)
  *
  *    Lock the orec, log the old value, do the write
  */
-static TM_FASTCALL void tm_write(void** addr, void* val)
+void alg_tm_write(void** addr, void* val)
 {
     TX* tx = Self;
 
@@ -271,4 +271,9 @@ static TM_FASTCALL void tm_write(void** addr, void* val)
         validate(tx);
         tx->start_time = newts;
     }
+}
+
+bool alg_tm_is_irrevocable(TX*) {
+    assert(false && "Unimplemented");
+    return false;
 }

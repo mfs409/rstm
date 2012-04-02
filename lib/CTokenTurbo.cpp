@@ -19,12 +19,11 @@
 #include <stdint.h>
 #include <iostream>
 #include <cassert>
-#include <setjmp.h>
 #include <unistd.h>
-#include "platform.hpp"
+#include "tmabi-weak.hpp"
+#include "foreach.hpp"
 #include "WriteSet.hpp"
 #include "WBMMPolicy.hpp"
-#include "Macros.hpp"
 #include "tx.hpp"
 #include "adaptivity.hpp"
 #include "tm_alloc.hpp"
@@ -39,7 +38,7 @@ static pad_word_t last_complete = {0};
 /**
  *  For querying to get the current algorithm name
  */
-static const char* tm_getalgname() {
+const char* alg_tm_getalgname() {
     return "CTokenTurbo";
 }
 
@@ -49,7 +48,7 @@ static const char* tm_getalgname() {
  *    NB: self-aborts in Turbo Mode are not supported.  We could add undo
  *        logging to address this, and add it in Pipeline too.
  */
-static checkpoint_t* rollback(TX* tx)
+void alg_tm_rollback(TX* tx)
 {
     ++tx->aborts;
 
@@ -71,7 +70,6 @@ static checkpoint_t* rollback(TX* tx)
     //     order, but restarts and is read-only, then it still must call
     //     commit_rw to finish in-order
     tx->allocator.onTxAbort();
-    return &tx->checkpoint;
 }
 
 /**
@@ -79,7 +77,7 @@ static checkpoint_t* rollback(TX* tx)
  */
 static NOINLINE void validate(TX* tx, uintptr_t finish_cache)
 {
-    foreach (OrecList, i, tx->r_orecs) {
+    FOREACH (OrecList, i, tx->r_orecs) {
         // read this orec
         uintptr_t ivt = (*i)->v.all;
         // if it has a timestamp of ts_cache or greater, abort
@@ -94,7 +92,7 @@ static NOINLINE void validate(TX* tx, uintptr_t finish_cache)
     if (tx->ts_cache == ((uintptr_t)tx->order - 1)) {
         if (tx->writes.size() != 0) {
             // mark every location in the write set, and perform write-back
-            foreach (WriteSet, i, tx->writes) {
+            FOREACH (WriteSet, i, tx->writes) {
                 orec_t* o = get_orec(i->addr);
                 o->v.all = tx->order;
                 CFENCE; // WBW
@@ -108,7 +106,7 @@ static NOINLINE void validate(TX* tx, uintptr_t finish_cache)
 /**
  *  CTokenTurbo begin: only called for outermost transactions.
  */
-static uint32_t TM_FASTCALL tm_begin(uint32_t, TX* tx)
+uint32_t alg_tm_begin(uint32_t, TX* tx)
 {
     tx->allocator.onTxBegin();
 
@@ -127,7 +125,7 @@ static uint32_t TM_FASTCALL tm_begin(uint32_t, TX* tx)
 /**
  *  CTokenTurbo commit (read-only):
  */
-static void tm_end()
+void alg_tm_end()
 {
     TX* tx = Self;
     if (--tx->nesting_depth)
@@ -163,7 +161,7 @@ static void tm_end()
     while (last_complete.val != ((uintptr_t)tx->order - 1)) { }
 
     // validate
-    foreach (OrecList, i, tx->r_orecs) {
+    FOREACH (OrecList, i, tx->r_orecs) {
         // read this orec
         uintptr_t ivt = (*i)->v.all;
         // if it has a timestamp of ts_cache or greater, abort
@@ -173,7 +171,7 @@ static void tm_end()
     // writeback
     if (tx->writes.size() != 0) {
         // mark every location in the write set, and perform write-back
-        foreach (WriteSet, i, tx->writes) {
+        FOREACH (WriteSet, i, tx->writes) {
             orec_t* o = get_orec(i->addr);
             o->v.all = tx->order;
             CFENCE; // WBW
@@ -215,7 +213,7 @@ static void* read_ro(TX* tx, void** addr)
     // possibly validate before returning
     if (last_complete.val > tx->ts_cache) {
         uintptr_t finish_cache = last_complete.val;
-        foreach (OrecList, i, tx->r_orecs) {
+        FOREACH (OrecList, i, tx->r_orecs) {
             // read this orec
             uintptr_t ivt_inner = (*i)->v.all;
             // if it has a timestamp of ts_cache or greater, abort
@@ -262,7 +260,7 @@ static void* read_rw(TX* tx, void** addr)
     return tmp;
 }
 
-static TM_FASTCALL void* tm_read(void** addr)
+void* alg_tm_read(void** addr)
 {
     TX* tx = Self;
     if (tx->turbo) {
@@ -278,7 +276,7 @@ static TM_FASTCALL void* tm_read(void** addr)
 /**
  *  CTokenTurbo write (read-only context)
  */
-static TM_FASTCALL void tm_write(void** addr, void* val)
+void alg_tm_write(void** addr, void* val)
 {
     TX* tx = Self;
 
@@ -309,9 +307,12 @@ static TM_FASTCALL void tm_write(void** addr, void* val)
     }
 }
 
+bool alg_tm_is_irrevocable(TX* tx) {
+    return (tx->turbo);
+}
+
 /**
  *  Register the TM for adaptivity and for use as a standalone library
  */
 REGISTER_TM_FOR_ADAPTIVITY(CTokenTurbo)
-REGISTER_TM_FOR_STANDALONE()
 
