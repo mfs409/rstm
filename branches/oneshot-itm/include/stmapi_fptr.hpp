@@ -39,7 +39,10 @@ namespace stm {
 // TODO: we can't currently call tx_begin_ directly through a function pointer,
 // because it doesn't handle nesting depth or make a checkpoint. Everything
 // else should work though.
-#define TM_BEGIN(x)      { _ITM_beginTransaction(0x1);
+//
+
+// The RSTM library APIs do not provide a cancel interface.
+#define TM_BEGIN(x)      { _ITM_beginTransaction(pr_instrumentedCode | pr_hasNoAbort);
 #define TM_END()           stm::tm_end_(); }
 #define TM_GET_ALGNAME() stm::tm_getalgname_()
 

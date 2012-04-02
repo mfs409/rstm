@@ -33,29 +33,27 @@ static const char* tm_getalgname() {
 }
 
 /**
- *  Start a transaction: if we're already in a tx, bump the nesting
- *  counter.  Otherwise, grab the lock.  Note that we have a null parameter
- *  so that the signature is identical to all other STMs (prereq for
- *  adaptivity)
- *
- *  This only gets called for the outermost scope.
+ *  This supports CGL in the context of AdaptTM. libCGL uses the weak
+ *  definition of _ITM_beginTransaction.
  */
-static uint32_t TM_FASTCALL tm_begin(uint32_t, TX*) {
+static uint32_t TM_FASTCALL tm_begin(uint32_t flags, TX*) {
+    assert(flags & pr_hasNoAbort && "CGL does not support cancel");
     tatas_acquire(&timestamp.val);
     return a_runInstrumentedCode;
 }
 
 /**
- *  This is a special external function call for the cglapi that bypasses the
- *  normal _ITM_beginTransaction call that performs a checkpoint.
+ *  Provide a weak implementation for _ITM_beginTransaction. This will be used
+ *  for libCGL, because it will be the only implementation of
+ *  _ITM_beginTransaction available.
  *
- *  TODO: We'll want a different solution for this in the future.
+ *  NB: This requires special build rules for libCGL---we don't want to include
+ *      checkpoint-asm.o in the build.
  */
-namespace stm {
-  void cgl_tm_begin() {
-      if (++Self->nesting_depth == 1)
-          tm_begin(0x02, NULL);
-  }
+uint32_t __attribute__((weak)) _ITM_beginTransaction(uint32_t flags, ...) {
+    assert(flags & pr_hasNoAbort && "CGL does not support cancel");
+    tatas_acquire(&timestamp.val);
+    return a_runInstrumentedCode;
 }
 
 /**
