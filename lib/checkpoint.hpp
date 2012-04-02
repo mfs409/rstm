@@ -57,8 +57,14 @@ namespace stm {
   /** Like a jmp_buf, a checkpoint_t is just a "big-enough" array of words. */
   typedef void* checkpoint_t[CHECKPOINT_SIZE];
 
+  /**
+   *  Called to restore the checkpoint. The continuation pointer is called
+   *  after we've restored the state to that of the time of the checkpoint, and
+   *  allows us to control the post-checkpoint behavior from the calling site
+   *  (i.e., _ITM_abortTransaction).
+   */
   void restore_checkpoint(tm_begin_t continuation, const TX* const tx)
-      asm("_rstm_restore_checkpoint") __attribute__((noreturn));
+      asm("_rstm_restore_checkpoint") NORETURN;
 }
 #endif // __cplusplus
 
