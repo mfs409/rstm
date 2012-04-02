@@ -63,6 +63,7 @@ void bench_init()
     TM_END_FAST_INITIALIZATION();
     assert(SET->isSane());
 }
+extern volatile uint32_t writer_lock;
 
 /*** Run a bunch of random transactions */
 void bench_test(uintptr_t, uint32_t* seed)
