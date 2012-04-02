@@ -64,9 +64,8 @@ static pad_word_t timestamp = {0};
  *    transactions.
  */
 template <class CM>
-static uint32_t tm_begin(uint32_t)
+static uint32_t tm_begin(uint32_t, TX* tx)
 {
-    TX* tx = Self;
     CM::onBegin(tx);
     tx->allocator.onTxBegin();
     tx->start_time = timestamp.val;

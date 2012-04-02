@@ -71,8 +71,7 @@ inline static void beforewrite_TML(TX* tx) {
  *  Start a (possibly flat nested) transaction. Only called for outer
  *  transactions.
  */
-static uint32_t tm_begin(uint32_t) {
-    TX* tx = Self;
+static uint32_t tm_begin(uint32_t, TX* tx) {
     // Sample the sequence lock until it is even (unheld)
     //
     // [mfs] Consider using NOrec trick to just decrease and start

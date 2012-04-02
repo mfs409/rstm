@@ -8,76 +8,85 @@
  *          Please see the file LICENSE.RSTM for licensing information
  */
 
-/// This contains ASM implementations for _ITM_beginTransaction, and
-/// the associated _rstm_checkpoint_restore.
+/**
+ *  This contains ASM implementations for _ITM_beginTransaction, and
+ *  the associated _rstm_checkpoint_restore.
+ */
         
 #include "checkpoint.hpp"
         
 #if defined(__x86_64__) && defined(__LP64__)
 
-// describe the checkpoint layout
-#define RBP 0
-#define RSP 8
-#define RIP 16
-#define RBX 24
-#define R12 32
-#define R13 40
-#define R14 48
-#define R15 56
-#define RDI 64
+// describe the descriptor layout
+#define DEPTH 0
+#define RBP 8
+#define RSP 16
+#define RIP 24
+#define RBX 32
+#define R12 40
+#define R13 48
+#define R14 56
+#define R15 64
+#define RDI 72
         
-///
-/// The x86_64 _ITM_beginTransaction gets a checkpoint (or NULL in a nested
-/// context), initializes it, and calls the appropriate post-checkpoint function
-/// using a sibling call (rstm::post_checkpoint's type must match
-/// _ITM_beginTransaction). The sibling call makes the varargs work.
-///
-/// - %rdi: flags
-///
+/**
+ *  The x86_64 _ITM_beginTransaction gets a checkpoint (or NULL in a nested
+ *  context), initializes it, and calls the appropriate post-checkpoint function
+ *  using a sibling call. We currently disregard the potential for useful flags
+ *  in the varargs to _ITM_beginTransaction.
+ * 
+ *  - %rdi: flags
+ */
         .text
-        /// .p2align 4,,15
+        .p2align 4,,15
         .globl _ITM_beginTransaction
         ASM_DOT_TYPE(_ITM_beginTransaction, @function)
 _ITM_beginTransaction:
         ASM_DOT_CFI_STARTPROC
-#ifdef __APPLE__                              // apple has stack aligment issues
-        pushq   %rsp
-        andq    $0xFFFFFFFFFFFFFFF0, %rsp
-#endif
-        call    _rstm_pre_checkpoint            // get the checkpoint (or NULL
-#ifdef __APPLE__
-        popq    %rsp
-#endif
-        testq   %rax, %rax                      // (if this is a nested begin)
-        je      _ITM_beginTransaction_nested
+        // Load the TLS descriptor and bump the nesting depth---if we're nested
+        // we can just return. I pretty much just copied this wholesale from a
+        // C implementation, except that I messed with the instruction
+        // scheduling to preserve registers that I need for the checkpoint.
+        movq	_ZN3stm4SelfE@gottpoff(%rip), %rsi
+	    movq	%fs:(%rsi), %rsi        // %rsi == tx
+	    movl	DEPTH(%rsi), %edx       // %edx == nesting_depth
+	    addl	$1, %edx                // if(++nesting_depth == 1)
+	    movl	%edx, DEPTH(%rsi)       //     goto nested
+	    cmpl	$1, %edx                // 
+        jne     _ITM_beginTransaction_nested
         
-        movq    (%rsp), %rcx                    // grab the return address
-        movq    %rcx, RIP(%rax)                 // from the stack
+        movq    (%rsp), %rcx            // grab the return address
+        movq    %rcx, RIP(%rsi)         // from the stack
         
-        movq    %rbp, RBP(%rax)
-        movq    %rsp, RSP(%rax)
-        movq    %rbx, RBX(%rax)
-        movq    %r12, R12(%rax)
-        movq    %r13, R13(%rax)
-        movq    %r14, R14(%rax)
-        movq    %r15, R15(%rax)
-        movq    %rdi, RDI(%rax) // not technically callee-saves, but we want
-        // the flags at abort
+        movq    %rbp, RBP(%rsi)
+        movq    %rsp, RSP(%rsi)
+        movq    %rbx, RBX(%rsi)
+        movq    %r12, R12(%rsi)
+        movq    %r13, R13(%rsi)
+        movq    %r14, R14(%rsi)
+        movq    %r15, R15(%rsi)
+        movq    %rdi, RDI(%rsi)         // save flags for abort path
 
-        jmp     _rstm_post_checkpoint           // jmp == sibling call
+        // stm::tm_begin(%edi=flags, %esi=TX*)
+        jmp     _ZN3stm8tm_beginEjPNS_2TXE
+
 _ITM_beginTransaction_nested:
-        jmp     _rstm_post_checkpoint_nested
+        // nested transactions take the instrumented path, but don't request
+        // that any saving be done locally, because we don't support nested
+        // abort/cancel at this point.
+        movl    0x1, %eax
+        ret
         
         ASM_DOT_CFI_ENDPROC
         ASM_DOT_SIZE(_ITM_beginTransaction, .-_ITM_beginTransaction)
 
-///
-/// The x86_64 restore_checkpoint just extracts the saved registers from the
-/// checkpoint, sticks the return address on the stack, and returns.
-///
-/// - %rdi: checkpoint
-/// - %esi: return value
-///
+/**
+ *  The x86_64 restore_checkpoint just extracts the saved registers from the
+ *  checkpoint, sticks the return address on the stack, and re-calls tm_begin.
+ * 
+ *  - %rdi: checkpoint
+ *  - %esi: return value
+ */
         .text
         .p2align 4,,15
         .globl _rstm_restore_checkpoint

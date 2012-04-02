@@ -98,9 +98,9 @@ namespace stm {
    *  This is ugly because rollback has a configuration-dependent signature.
    */
   void tm_abort(TX* tx) {
-      checkpoint_t* checkpoint = rollback(tx);
+      rollback(tx);
       tx->nesting_depth = 1;
-      restore_checkpoint(checkpoint);
+      restore_checkpoint(&*stm::Self);
   }
 
   // for CM

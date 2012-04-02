@@ -93,9 +93,8 @@ static checkpoint_t* rollback(TX* tx)
  *
  *    only called for outermost transactions.
  */
-static uint32_t tm_begin(uint32_t)
+static uint32_t tm_begin(uint32_t, TX* tx)
 {
-    TX* tx = Self;
     tx->allocator.onTxBegin();
     // Start after the last cleanup, instead of after the last commit, to
     // avoid spinning in begin()

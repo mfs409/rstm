@@ -108,9 +108,8 @@ static NOINLINE void validate(TX* tx, uintptr_t finish_cache)
 /**
  *  CTokenTurbo begin: only called for outermost transactions.
  */
-static uint32_t tm_begin(uint32_t)
+static uint32_t tm_begin(uint32_t, TX* tx)
 {
-    TX* tx = Self;
     tx->allocator.onTxBegin();
 
     // get time of last finished txn

@@ -28,7 +28,6 @@
 
 namespace stm {
   // These are called through function pointers.
-  extern uint32_t    (*tm_begin_)(uint32_t);
   extern void        (*tm_end_)();
   extern const char* (*tm_getalgname_)();
   extern void*       (*tm_alloc_)(size_t s);

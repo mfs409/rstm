@@ -40,8 +40,7 @@ static const char* tm_getalgname() {
  *
  *  This only gets called for the outermost scope.
  */
-static uint32_t tm_begin(uint32_t) {
-    TX* tx = Self;
+static uint32_t tm_begin(uint32_t, TX*) {
     tatas_acquire(&timestamp.val);
     return a_runInstrumentedCode;
 }
@@ -55,7 +54,7 @@ static uint32_t tm_begin(uint32_t) {
 namespace stm {
   void cgl_tm_begin() {
       if (++Self->nesting_depth == 1)
-          tm_begin(0x02);
+          tm_begin(0x02, NULL);
   }
 }
 

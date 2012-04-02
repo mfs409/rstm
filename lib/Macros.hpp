@@ -25,7 +25,7 @@
  * names depend on the architecture that we're dealing with.
  */
 #if defined(__x86_64__) && defined(__LP64__)
-#define TM_BEGIN_SYMBOL "_ZL8tm_beginj"
+#define TM_BEGIN_SYMBOL "_ZL8tm_beginjPN3stm2TXE"
 #define TM_END_SYMBOL "_ZL6tm_endv"
 #define TM_GETALGNAME_SYMBOL "_ZL13tm_getalgnamev"
 #define TM_ALLOC_SYMBOL "_ZL8tm_allocm"
@@ -38,7 +38,7 @@
 #define SPECIALIZE_TM_ROLLBACK_SYMBOL(CM, NCM)  \
     "_Z8rollbackIN3stm"#NCM#CM"EEPA9_PvPNS0_2TXE"
 #define SPECIALIZE_TM_BEGIN_SYMBOL(CM, NCM)     \
-    "_Z8tm_beginIN3stm"#NCM#CM"EEjj"
+    "_Z8tm_beginIN3stm"#NCM#CM"EEjjPNS0_2TXE"
 #define SPECIALIZE_TM_END_SYMBOL(CM, NCM)       \
     "_Z6tm_endIN3stm"#NCM#CM"EEvv"
 #elif defined(__x86_64__)
@@ -67,7 +67,7 @@
 #define REGISTER_TM_FOR_STANDALONE()                                    \
     namespace stm                                                       \
     {                                                                   \
-        uint32_t tm_begin(uint32_t)                                     \
+        uint32_t tm_begin(uint32_t, stm::TX*)                           \
         __attribute__((weak, alias(TM_BEGIN_SYMBOL)));                  \
         void tm_end()                                                   \
         __attribute__((weak, alias(TM_END_SYMBOL)));                    \
@@ -90,8 +90,8 @@
     static stm::checkpoint_t* rollback(TX*)                             \
         __attribute__((alias(SPECIALIZE_TM_ROLLBACK_SYMBOL(CM, NCM)))); \
                                                                         \
-    template uint32_t tm_begin<stm::CM>(uint32_t);                      \
-    static uint32_t tm_begin(uint32_t)                                  \
+    template uint32_t tm_begin<stm::CM>(uint32_t, stm::TX*);            \
+    static uint32_t tm_begin(uint32_t, stm::TX*)                        \
         __attribute__((alias(SPECIALIZE_TM_BEGIN_SYMBOL(CM, NCM))));    \
                                                                         \
     template void tm_end<stm::CM>();                                    \

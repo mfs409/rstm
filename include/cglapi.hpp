@@ -28,7 +28,6 @@
 
 namespace stm
 {
-  uint32_t    tm_begin(uint32_t);
   void        tm_end();
   const char* tm_getalgname();
   void*       tm_alloc(size_t s);
