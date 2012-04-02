@@ -89,7 +89,7 @@ namespace stm {
   tm_write_t        tm_write_;
 
   // forward all calls to the function pointers
-  uint32_t tm_begin(uint32_t flags, TX* tx) {
+  uint32_t TM_FASTCALL tm_begin(uint32_t flags, TX* tx) {
       return tm_begin_(flags, tx);
   }
 

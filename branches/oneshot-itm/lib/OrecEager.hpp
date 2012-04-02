@@ -96,7 +96,7 @@ static checkpoint_t* rollback(TX* tx)
 
 /** only called for outermost transactions. */
 template <class CM>
-static uint32_t tm_begin(uint32_t, TX* tx)
+static uint32_t TM_FASTCALL tm_begin(uint32_t, TX* tx)
 {
     CM::onBegin(tx);
     // sample the timestamp and prepare local structures

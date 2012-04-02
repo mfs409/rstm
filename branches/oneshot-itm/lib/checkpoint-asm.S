@@ -55,8 +55,8 @@ _ITM_beginTransaction:
 	    cmpl	$1, %edx                // 
         jne     _ITM_beginTransaction_nested
         
-        movq    (%rsp), %rcx            // grab the return address
-        movq    %rcx, RIP(%rsi)         // from the stack
+        movq    (%rsp), %rdx            // grab the return address
+        movq    %rdx, RIP(%rsi)         // from the stack
         
         movq    %rbp, RBP(%rsi)
         movq    %rsp, RSP(%rsi)
@@ -117,29 +117,30 @@ _rstm_restore_checkpoint:
 #elif defined(__i386__)
         
 // describe the checkpoint offsets
-#define EBP 0
-#define ESP 4
-#define EIP 8
-#define EBX 12
-#define ESI 16
-#define EDI 20
-#define EAX 24 // not callee-saves, but we use it to remember flags
+#define DEPTH 0
+#define EBP 4
+#define ESP 8
+#define EIP 12
+#define EBX 16
+#define ESI 20
+#define EDI 24
+#define EAX 28 // not callee-saves, but we use it to remember flags
 
-///
-/// The i386 _ITM_beginTransaction gets a checkpoint (or NULL in a nested
-/// context), initializes it, and calls the appropriate post-checkpoint function
-/// using a sibling call (rstm::post_checkpoint's type must match
-/// _ITM_beginTransaction). The sibling call makes the varargs work.
-///
-/// Note that the ITM_REGPARM calling convention on _ITM_beginTransaction is
-/// ignored because it is a varargs function. This means that even the first
-/// parameter (flags) is passed on the stack, which is fine but means we have to
-/// do some work to prepare for _rstm_pre_checkpoint.
-///
-/// -  (%esp): return address
-/// - 4(%esp): flags
-/// - X(%esp): ... (varargs param to _ITM_beginTransaction)
-///
+/**
+ *  The i386 _ITM_beginTransaction gets a checkpoint (or NULL in a nested
+ *  context), initializes it, and calls the appropriate post-checkpoint function
+ *  using a sibling call (rstm::post_checkpoint's type must match
+ *  _ITM_beginTransaction). The sibling call makes the varargs work.
+ * 
+ *  Note that the ITM_REGPARM calling convention on _ITM_beginTransaction is
+ *  ignored because it is a varargs function. This means that even the first
+ *  parameter (flags) is passed on the stack, which is fine but means we have to
+ *  do some work to prepare for _rstm_pre_checkpoint.
+ * 
+ *  -  (%esp): return address
+ *  - 4(%esp): flags
+ *  - X(%esp): ... (varargs param to _ITM_beginTransaction)
+ */
         .text        
         .p2align 4,,15
         .globl _ITM_beginTransaction
@@ -147,44 +148,46 @@ _rstm_restore_checkpoint:
 _ITM_beginTransaction:
         ASM_DOT_CFI_STARTPROC
         
-        movl    4(%esp), %eax                   // get a checkpoint (or NULL in
-#ifdef __APPLE__
-        pushl   %esp                          // apple has stack aligment issues
-        andl    $0xFFFFFFF0, %esp
-#endif
-        call    _rstm_pre_checkpoint            // a nested contet)---uses
-#ifdef __APPLE__
-        popl    %esp
-#endif
-        testl   %eax, %eax                      // regparm(1) to pass flags to 
-        je      _ITM_beginTransaction_nested   // _rstm_pre_checkpoint.
+        // At the moment, RSTM doesn't support nested aborts. We get the TX*
+        // and bump the depth, and only checkpoint the outermost transaction.
+	    movl	_ZN3stm4SelfE@indntpoff, %edx
+	    movl	%gs:(%edx), %edx
+    	movl	DEPTH(%edx), %eax       // %eax == nesting_depth
+	    addl	$1, %eax                // if(++nesting_depth == 1)
+	    movl	%eax, DEPTH(%edx)       //     goto nested
+	    cmpl	$1, %eax                //
+        jne     _ITM_beginTransaction_nested
 
-        movl    (%esp), %ecx                    // get the return address from
-        movl    %ecx, EIP(%eax)                 // the stack
+        movl    (%esp), %eax                    // get the return address from
+        movl    %eax, EIP(%edx)                 // the stack
 
-        movl    4(%esp), %ecx                   // remember flags in case we
-        movl    %ecx, EAX(%eax)                 // are aborted
+        movl    4(%esp), %eax                   // remember flags in case we
+        movl    %eax, EAX(%edx)                 // are aborted
 
-        movl    %esp, ESP(%eax)
-        movl    %ebp, EBP(%eax)
-        movl    %ebx, EBX(%eax)
-        movl    %esi, ESI(%eax)
-        movl    %edi, EDI(%eax)
+        movl    %esp, ESP(%edx)
+        movl    %ebp, EBP(%edx)
+        movl    %ebx, EBX(%edx)
+        movl    %esi, ESI(%edx)
+        movl    %edi, EDI(%edx)
+
+        // regparm(2) stm::tm_begin(%eax=flags, %edx=TX*)
+        movl    4(%esp), %eax 
+        jmp     _ZN3stm8tm_beginEjPNS_2TXE
         
-        jmp     _rstm_post_checkpoint           // jmp == sibling call, which
-_ITM_beginTransaction_nested:                  // is necessary to make varargs
-        jmp     _rstm_post_checkpoint_nested    // work
+_ITM_beginTransaction_nested:
+        movl    0x1, %eax
+        ret
 
         ASM_DOT_CFI_ENDPROC
         ASM_DOT_SIZE(_ITM_beginTransaction, .-_ITM_beginTransaction)
 
-///
-/// The i386 restore_checkpoint just extracts the saved registers from the
-/// checkpoint, sticks the return address on the stack, and returns.
-///
-/// - 4(%esp): the checkpoint_t*
-/// - 8(%esp): the return value
-///
+/**
+ *  The i386 restore_checkpoint just extracts the saved registers from the
+ *  checkpoint, sticks the return address on the stack, and returns.
+ * 
+ *  - 4(%esp): the checkpoint_t*
+ *  - 8(%esp): the return value
+ */
         .text
         .p2align 4,,15
         .globl _rstm_restore_checkpoint

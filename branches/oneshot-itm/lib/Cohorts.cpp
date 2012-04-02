@@ -95,7 +95,7 @@ static NOINLINE void validate(TX* tx) {
 /**
  *  only called for outermost transactions.
  */
-static uint32_t tm_begin(uint32_t, TX* tx) {
+static uint32_t TM_FASTCALL tm_begin(uint32_t, TX* tx) {
   S1:
     // wait until everyone is committed
     while (cpending != committed);
