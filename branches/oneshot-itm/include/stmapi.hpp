@@ -18,23 +18,8 @@
 
 #include <limits.h>
 #include <cstdlib>
+#include "tmabi.hpp"
 #include "libitm.h"
-
-#if defined(STM_CPU_X86) && defined(STM_CC_GCC)
-#    define TM_FASTCALL __attribute__((regparm(3)))
-#else
-#    define TM_FASTCALL
-#endif
-
-namespace stm
-{
-  void        tm_end();
-  const char* tm_getalgname();
-  void*       tm_alloc(size_t s);
-  void        tm_free(void* p);
-  void*       tm_read(void** addr) TM_FASTCALL;
-  void        tm_write(void** addr, void* val) TM_FASTCALL;
-}
 
 // The RSTM library APIs have no "Cancel" construction.
 #define TM_BEGIN(x)      { _ITM_beginTransaction(pr_instrumentedCode | pr_hasNoAbort);

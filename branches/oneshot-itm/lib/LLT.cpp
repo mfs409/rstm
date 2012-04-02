@@ -21,11 +21,12 @@
 
 #include <iostream>
 #include <setjmp.h>
+#include "tmabi-weak.hpp"               // the weak stm interface
+#include "foreach.hpp"                  // FOREACH macro
 #include "MiniVector.hpp"
 #include "metadata.hpp"
 #include "WriteSet.hpp"
 #include "WBMMPolicy.hpp"
-#include "Macros.hpp"
 #include "tx.hpp"
 #include "adaptivity.hpp"
 #include "tm_alloc.hpp"
@@ -33,18 +34,17 @@
 
 using namespace stm;
 
-
 /** For querying to get the current algorithm name */
-static const char* tm_getalgname() {
+const char* alg_tm_getalgname() {
     return "LLT";
 }
 
 /** Abort and roll back the transaction (e.g., on conflict). */
-static checkpoint_t* rollback(TX* tx) {
+void alg_tm_rollback(TX* tx) {
     ++tx->aborts;
 
     // release the locks and restore version numbers
-    foreach (OrecList, i, tx->locks) {
+    FOREACH (OrecList, i, tx->locks) {
         (*i)->v.all = (*i)->p;
     }
 
@@ -53,14 +53,13 @@ static checkpoint_t* rollback(TX* tx) {
     tx->writes.reset();
     tx->locks.reset();
     tx->allocator.onTxAbort();
-    return &tx->checkpoint;
 }
 
 /*** The only metadata we need is a single global padded lock ***/
 static pad_word_t timestamp = {0};
 
 /** LLT begin: only called for outermost transactions. */
-static uint32_t TM_FASTCALL tm_begin(uint32_t, TX* tx)
+uint32_t alg_tm_begin(uint32_t, TX* tx)
 {
     tx->allocator.onTxBegin();
     // get a start time
@@ -73,7 +72,7 @@ static uint32_t TM_FASTCALL tm_begin(uint32_t, TX* tx)
 static NOINLINE void validate(TX* tx)
 {
     // validate
-    foreach (OrecList, i, tx->r_orecs) {
+    FOREACH (OrecList, i, tx->r_orecs) {
         uintptr_t ivt = (*i)->v.all;
         // if unlocked and newer than start time, abort
         if ((ivt > tx->start_time) && (ivt != tx->my_lock.all))
@@ -82,7 +81,7 @@ static NOINLINE void validate(TX* tx)
 }
 
 /** LLT commit (read-only): */
-static void tm_end()
+void alg_tm_end()
 {
     TX* tx = Self;
     if (--tx->nesting_depth)
@@ -97,7 +96,7 @@ static void tm_end()
     }
 
     // acquire locks
-    foreach (WriteSet, i, tx->writes) {
+    FOREACH (WriteSet, i, tx->writes) {
         // get orec, read its version#
         orec_t* o = get_orec(i->addr);
         uintptr_t ivt = o->v.all;
@@ -129,7 +128,7 @@ static void tm_end()
 
     // release locks
     CFENCE;
-    foreach (OrecList, i, tx->locks)
+    FOREACH (OrecList, i, tx->locks)
     (*i)->v.all = end_time;
 
     // clean-up
@@ -146,8 +145,7 @@ static void tm_end()
  *
  *    We use "check twice" timestamps in LLT
  */
-static TM_FASTCALL
-void* tm_read(void** addr) {
+void* alg_tm_read(void** addr) {
     TX* tx = Self;
 
     if (tx->writes.size()) {
@@ -179,15 +177,17 @@ void* tm_read(void** addr) {
 }
 
 /** LLT write */
-static TM_FASTCALL
-void tm_write(void** addr, void* val)
+void alg_tm_write(void** addr, void* val)
 {
-    TX* tx = Self;
-    tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
+    Self->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
+}
+
+bool alg_tm_is_irrevocable(TX*) {
+    assert(false && "Unimplemented");
+    return false;
 }
 
 /**
  *  Register the TM for adaptivity and for use as a standalone library
  */
 REGISTER_TM_FOR_ADAPTIVITY(LLT);
-REGISTER_TM_FOR_STANDALONE();

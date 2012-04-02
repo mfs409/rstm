@@ -22,7 +22,7 @@ INSTANTIATE_FOR_CM(BackoffCM, 9)
 /**
  *  For querying to get the current algorithm name
  */
-static const char* tm_getalgname() {
+const char* alg_tm_getalgname() {
     return "OrecEagerBackoff";
 }
 
@@ -30,4 +30,4 @@ static const char* tm_getalgname() {
  *  Register the TM for adaptivity and for use as a standalone library
  */
 REGISTER_TM_FOR_ADAPTIVITY(OrecEagerBackoff)
-REGISTER_TM_FOR_STANDALONE()
+

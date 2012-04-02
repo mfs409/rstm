@@ -29,7 +29,7 @@ INSTANTIATE_FOR_CM(HyperAggressiveCM, 17)
 /**
  *  For querying to get the current algorithm name
  */
-static const char* tm_getalgname() {
+const char* alg_tm_getalgname() {
     return "OrecLazy";
 }
 
@@ -37,4 +37,3 @@ static const char* tm_getalgname() {
  *  Register the TM for adaptivity and for use as a standalone library
  */
 REGISTER_TM_FOR_ADAPTIVITY(OrecLazy)
-REGISTER_TM_FOR_STANDALONE()

@@ -27,7 +27,7 @@ INSTANTIATE_FOR_CM(HourglassBackoffCM, 18)
 /**
  *  For querying to get the current algorithm name
  */
-static const char* tm_getalgname() {
+const char* alg_tm_getalgname() {
     return "NOrecHB";
 }
 
@@ -35,4 +35,4 @@ static const char* tm_getalgname() {
  *  Register the TM for adaptivity and for use as a standalone library
  */
 REGISTER_TM_FOR_ADAPTIVITY(NOrecHB)
-REGISTER_TM_FOR_STANDALONE()
+

@@ -17,7 +17,6 @@
 #define UNDO_LOG_HPP__
 
 #include "MiniVector.hpp"
-#include "Macros.hpp"
 
 /**
  *  An undo log is a pretty simple structure. We never need to search it, so

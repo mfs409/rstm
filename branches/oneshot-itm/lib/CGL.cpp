@@ -11,6 +11,7 @@
 #include <stdint.h>
 #include <iostream>
 #include <cstdlib>
+#include "tmabi-weak.hpp"
 #include "tx.hpp"
 #include "platform.hpp"
 #include "locks.hpp"
@@ -28,7 +29,7 @@ static pad_word_t timestamp = {0};
 /**
  *  For querying to get the current algorithm name
  */
-static const char* tm_getalgname() {
+const char* alg_tm_getalgname() {
     return "CGL";
 }
 
@@ -36,7 +37,7 @@ static const char* tm_getalgname() {
  *  This supports CGL in the context of AdaptTM. libCGL uses the weak
  *  definition of _ITM_beginTransaction.
  */
-static uint32_t TM_FASTCALL tm_begin(uint32_t flags, TX*) {
+uint32_t alg_tm_begin(uint32_t flags, TX*) {
     assert(flags & pr_hasNoAbort && "CGL does not support cancel");
     tatas_acquire(&timestamp.val);
     return a_runInstrumentedCode;
@@ -60,7 +61,7 @@ uint32_t __attribute__((weak)) _ITM_beginTransaction(uint32_t flags, ...) {
  *  End a transaction: decrease the nesting level, then perhaps release the
  *  lock and increment the count of commits.
  */
-static void tm_end() {
+void alg_tm_end() {
     TX* tx = Self;
     if (--tx->nesting_depth)
         return;
@@ -71,39 +72,41 @@ static void tm_end() {
 /**
  *  In CGL, malloc doesn't need any special care
  */
-static void* tm_alloc(size_t s) {
+void* alg_tm_alloc(size_t s) {
     return malloc(s);
 }
 
 /**
  *  In CGL, free doesn't need any special care
  */
-static void tm_free(void* p) {
+void alg_tm_free(void* p) {
     free(p);
 }
 
 /**
  *  CGL read
  */
-static void* TM_FASTCALL tm_read(void** addr) {
+void* alg_tm_read(void** addr) {
     return *addr;
 }
 
 /**
  *  CGL write
  */
-static void TM_FASTCALL tm_write(void** addr, void* val) {
+void alg_tm_write(void** addr, void* val) {
     *addr = val;
 }
 
-static checkpoint_t* rollback(TX* tx) {
+void alg_tm_rollback(TX*) {
     assert(0 && "Rollback not supported in CGL");
     exit(-1);
-    return NULL;
+}
+
+bool alg_tm_is_irrevocable(TX*) {
+    return true;
 }
 
 /**
  *  Register the TM for adaptivity and for use as a standalone library
  */
 REGISTER_TM_FOR_ADAPTIVITY(CGL);
-REGISTER_TM_FOR_STANDALONE();

@@ -18,23 +18,8 @@
 
 #include <limits.h>
 #include <cstdlib>
+#include "tmabi-fptr.hpp"
 #include "libitm.h"
-
-#if defined(STM_CPU_X86) && defined(STM_CC_GCC)
-#    define TM_FASTCALL __attribute__((regparm(3)))
-#else
-#    define TM_FASTCALL
-#endif
-
-namespace stm {
-  // These are called through function pointers.
-  extern void        (*tm_end_)();
-  extern const char* (*tm_getalgname_)();
-  extern void*       (*tm_alloc_)(size_t s);
-  extern void        (*tm_free_)(void* p);
-  extern void*       (*tm_read_)(void** addr) TM_FASTCALL;
-  extern void        (*tm_write_)(void** addr, void* val) TM_FASTCALL;
-}
 
 // TODO: we can't currently call tx_begin_ directly through a function pointer,
 // because it doesn't handle nesting depth or make a checkpoint. Everything

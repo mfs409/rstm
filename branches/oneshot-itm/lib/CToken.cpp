@@ -19,12 +19,11 @@
 #include <stdint.h>
 #include <iostream>
 #include <cassert>
-#include <setjmp.h>
 #include <unistd.h>
-#include "platform.hpp"
+#include "tmabi-weak.hpp"
+#include "foreach.hpp"
 #include "WriteSet.hpp"
 #include "WBMMPolicy.hpp"
-#include "Macros.hpp"
 #include "tx.hpp"
 #include "adaptivity.hpp"
 #include "tm_alloc.hpp"
@@ -38,14 +37,14 @@ static pad_word_t last_complete = {0};
 /**
  *  For querying to get the current algorithm name
  */
-static const char* tm_getalgname() {
+const char* alg_tm_getalgname() {
     return "CToken";
 }
 
 /**
  *  CToken unwinder:
  */
-static checkpoint_t* rollback(TX* tx)
+void alg_tm_rollback(TX* tx)
 {
     ++tx->aborts;
 
@@ -61,7 +60,6 @@ static checkpoint_t* rollback(TX* tx)
     //     order, but restarts and is read-only, then it still must call
     //     commit_rw to finish in-order
     tx->allocator.onTxAbort();
-    return &tx->checkpoint;
 }
 
 /**
@@ -69,7 +67,7 @@ static checkpoint_t* rollback(TX* tx)
  */
 static NOINLINE void validate(TX* tx, uintptr_t finish_cache)
 {
-    foreach (OrecList, i, tx->r_orecs) {
+    FOREACH (OrecList, i, tx->r_orecs) {
         // read this orec
         uintptr_t ivt = (*i)->v.all;
         // if it has a timestamp of ts_cache or greater, abort
@@ -84,7 +82,7 @@ static NOINLINE void validate(TX* tx, uintptr_t finish_cache)
 /**
  *  CToken begin: only called for outermost transactions.
  */
-static uint32_t TM_FASTCALL tm_begin(uint32_t, TX* tx)
+uint32_t alg_tm_begin(uint32_t, TX* tx)
 {
     tx->allocator.onTxBegin();
 
@@ -96,7 +94,7 @@ static uint32_t TM_FASTCALL tm_begin(uint32_t, TX* tx)
 /**
  *  CToken commit (read-only):
  */
-static void tm_end()
+void alg_tm_end()
 {
     TX* tx = Self;
     if (--tx->nesting_depth)
@@ -122,7 +120,7 @@ static void tm_end()
     // writeback
     if (tx->writes.size() != 0) {
         // mark every location in the write set, and perform write-back
-        foreach (WriteSet, i, tx->writes) {
+        FOREACH (WriteSet, i, tx->writes) {
             orec_t* o = get_orec(i->addr);
             o->v.all = tx->order;
             CFENCE; // WBW
@@ -146,7 +144,7 @@ static void tm_end()
 /**
  *  CToken read (writing transaction)
  */
-static TM_FASTCALL void* tm_read(void** addr)
+void* alg_tm_read(void** addr)
 {
     TX* tx = Self;
 
@@ -181,7 +179,7 @@ static TM_FASTCALL void* tm_read(void** addr)
 /**
  *  CToken write (read-only context)
  */
-static TM_FASTCALL void tm_write(void** addr, void* val)
+void alg_tm_write(void** addr, void* val)
 {
     TX* tx = Self;
 
@@ -194,8 +192,12 @@ static TM_FASTCALL void tm_write(void** addr, void* val)
     tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
 }
 
+bool alg_tm_is_irrevocable(TX* tx) {
+    assert(false && "Unimplemented");
+    return false;
+}
+
 /**
  *  Register the TM for adaptivity and for use as a standalone library
  */
 REGISTER_TM_FOR_ADAPTIVITY(CToken)
-REGISTER_TM_FOR_STANDALONE()

@@ -20,8 +20,8 @@
  *    5) a high-resolution timer
  */
 
-#ifndef PLATFORM_HPP__
-#define PLATFORM_HPP__
+#ifndef RSTM_PLATFORM_H
+#define RSTM_PLATFORM_H
 
 #include <stdint.h>
 #include <limits.h>
@@ -432,4 +432,4 @@ inline uint64_t getElapsedTime()
 
 #endif // STM_OS_SOLARIS
 
-#endif // PLATFORM_HPP__
+#endif // RSTM_PLATFORM_H

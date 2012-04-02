@@ -19,12 +19,12 @@
  */
 
 #include <iostream>
-#include <setjmp.h>
+#include "tmabi-weak.hpp"
+#include "foreach.hpp"
 #include "MiniVector.hpp"
 #include "metadata.hpp"
 #include "WriteSet.hpp"
 #include "WBMMPolicy.hpp"
-#include "Macros.hpp"
 #include "locks.hpp"
 #include "tx.hpp"
 #include "libitm.h"
@@ -37,13 +37,14 @@ using namespace stm;
  *    To unwind, we must release locks, but we don't have an undo log to run.
  */
 template <class CM>
-static checkpoint_t* rollback(TX* tx)
+static void alg_tm_rollback(TX* tx)
 {
     ++tx->aborts;
 
     // release the locks and restore version numbers
-    foreach (OrecList, i, tx->locks)
-    (*i)->v.all = (*i)->p;
+    FOREACH (OrecList, i, tx->locks) {
+        (*i)->v.all = (*i)->p;
+    }
 
     // undo memory operations, reset lists
     CM::onAbort(tx);
@@ -51,7 +52,6 @@ static checkpoint_t* rollback(TX* tx)
     tx->writes.reset();
     tx->locks.reset();
     tx->allocator.onTxAbort();
-    return &tx->checkpoint;
 }
 
 /*** The only metadata we need is a single global padded lock ***/
@@ -64,7 +64,7 @@ static pad_word_t timestamp = {0};
  *    transactions.
  */
 template <class CM>
-static uint32_t TM_FASTCALL tm_begin(uint32_t, TX* tx)
+static uint32_t TM_FASTCALL alg_tm_begin(uint32_t, TX* tx)
 {
     CM::onBegin(tx);
     tx->allocator.onTxBegin();
@@ -80,10 +80,11 @@ static uint32_t TM_FASTCALL tm_begin(uint32_t, TX* tx)
  */
 static NOINLINE void validate(TX* tx)
 {
-    foreach (OrecList, i, tx->r_orecs)
-    // abort if orec locked, or if unlocked but timestamp too new
-    if ((*i)->v.all > tx->start_time)
-        tm_abort(tx);
+    FOREACH (OrecList, i, tx->r_orecs) {
+        // abort if orec locked, or if unlocked but timestamp too new
+        if ((*i)->v.all > tx->start_time)
+            tm_abort(tx);
+    }
 }
 
 /**
@@ -92,7 +93,7 @@ static NOINLINE void validate(TX* tx)
  *    Standard commit: we hold no locks, and we're valid, so just clean up
  */
 template <class CM>
-static void tm_end()
+static void alg_tm_end()
 {
     TX* tx = Self;
     if (--tx->nesting_depth)
@@ -110,7 +111,7 @@ static void tm_end()
     // OrecLazy... without the single-thread optimization
 
     // acquire locks
-    foreach (WriteSet, i, tx->writes) {
+    FOREACH (WriteSet, i, tx->writes) {
         // get orec, read its version#
         orec_t* o = get_orec(i->addr);
         uintptr_t ivt = o->v.all;
@@ -131,7 +132,7 @@ static void tm_end()
     }
 
     // validate
-    foreach (OrecList, i, tx->r_orecs) {
+    FOREACH (OrecList, i, tx->r_orecs) {
         uintptr_t ivt = (*i)->v.all;
         // if unlocked and newer than start time, abort
         if ((ivt > tx->start_time) && (ivt != tx->my_lock.all))
@@ -143,8 +144,9 @@ static void tm_end()
 
     // increment the global timestamp, release locks
     uintptr_t end_time = 1 + faiptr(&timestamp.val);
-    foreach (OrecList, i, tx->locks)
-    (*i)->v.all = end_time;
+    FOREACH (OrecList, i, tx->locks) {
+        (*i)->v.all = end_time;
+    }
 
     // clean up
     CM::onCommit(tx);
@@ -158,7 +160,7 @@ static void tm_end()
 /**
  *  OrecLazy read
  */
-static TM_FASTCALL void* tm_read(void** addr)
+void* alg_tm_read(void** addr)
 {
     TX* tx = Self;
 
@@ -202,10 +204,13 @@ static TM_FASTCALL void* tm_read(void** addr)
 /**
  *  OrecLazy write
  */
-static TM_FASTCALL void tm_write(void** addr, void* val)
+void alg_tm_write(void** addr, void* val)
 {
-    TX* tx = Self;
     // add to redo log
-    tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
+    Self->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
+}
 
+bool alg_tm_is_irrevocable(TX*) {
+    assert(false && "Unimplemented");
+    return false;
 }

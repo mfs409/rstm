@@ -20,16 +20,21 @@
 #include <stdint.h>
 #include <iostream>
 #include <cassert>
-#include <setjmp.h> // factor this out into the API?
+#include "tmabi-weak.hpp"               // the weak abi declarations
+#include "foreach.hpp"                  // the FOREACH macro
 #include "platform.hpp"
 #include "ValueList.hpp"
 #include "WriteSet.hpp"
 #include "WBMMPolicy.hpp"
-#include "Macros.hpp"
 #include "tx.hpp"
 #include "libitm.h"
 
-using namespace stm;
+using stm::TX;
+using stm::pad_word_t;
+using stm::WriteSetEntry;
+using stm::ValueList;
+using stm::ValueListEntry;
+using stm::Self;
 
 /*** The only metadata we need is a single global padded lock ***/
 static pad_word_t timestamp = {0};
@@ -51,8 +56,9 @@ static NOINLINE uintptr_t validate(TX* tx) {
         // don't branch in the loop---consider it backoff if we fail
         // validation early
         bool valid = true;
-        foreach (ValueList, i, tx->vlist)
-        valid &= STM_LOG_VALUE_IS_VALID(i, tx);
+        FOREACH (ValueList, i, tx->vlist) {
+            valid &= STM_LOG_VALUE_IS_VALID(i, tx);
+        }
 
         if (!valid)
             return VALIDATION_FAILED;
@@ -66,18 +72,17 @@ static NOINLINE uintptr_t validate(TX* tx) {
 
 /** Abort and roll back the transaction (e.g., on conflict). */
 template <class CM>
-static stm::checkpoint_t* rollback(TX* tx) {
+static void alg_tm_rollback(TX* tx) {
     ++tx->aborts;
     tx->vlist.reset();
     tx->writes.reset();
     tx->allocator.onTxAbort();
     CM::onAbort(tx);
-    return &tx->checkpoint;
 }
 
 /** only called for outermost transactions. */
 template <class CM>
-static uint32_t TM_FASTCALL tm_begin(uint32_t, TX* tx) {
+static uint32_t TM_FASTCALL alg_tm_begin(uint32_t, TX* tx) {
     CM::onBegin(tx);
 
     // Originally, NOrec required us to wait until the timestamp is even
@@ -95,7 +100,7 @@ static uint32_t TM_FASTCALL tm_begin(uint32_t, TX* tx) {
 
 /** Commit a (possibly flat nested) transaction. */
 template <class CM>
-static void tm_end() {
+static void alg_tm_end() {
     TX* tx = Self;
     if (--tx->nesting_depth)
         return;
@@ -130,7 +135,7 @@ static void tm_end() {
 }
 
 /** Transactional read */
-static TM_FASTCALL void* tm_read(void** addr) {
+void* alg_tm_read(void** addr) {
     TX* tx = Self;
 
     if (tx->writes.size()) {
@@ -165,8 +170,12 @@ static TM_FASTCALL void* tm_read(void** addr) {
 }
 
 /** Simple buffered transactional write. */
-static TM_FASTCALL void tm_write(void** addr, void* val) {
-    TX* tx = Self;
+void alg_tm_write(void** addr, void* val) {
     // just buffer the write
-    tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
+    Self->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
+}
+
+bool alg_tm_is_irrevocable(TX*) {
+    assert(false && "Unimplemented");
+    return false;
 }
