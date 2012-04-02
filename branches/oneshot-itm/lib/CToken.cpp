@@ -72,7 +72,7 @@ static NOINLINE void validate(TX* tx, uintptr_t finish_cache)
         uintptr_t ivt = (*i)->v.all;
         // if it has a timestamp of ts_cache or greater, abort
         if (ivt > tx->ts_cache)
-            tm_abort(tx);
+            _ITM_abortTransaction(TMConflict);
     }
     // now update the finish_cache to remember that at this time, we were
     // still valid
@@ -165,7 +165,7 @@ void* alg_tm_read(void** addr)
     uintptr_t ivt = o->v.all;
     // abort if this changed since the last time I saw someone finish
     if (ivt > tx->ts_cache)
-        tm_abort(tx);
+        _ITM_abortTransaction(TMConflict);
 
     // log orec
     tx->r_orecs.insert(o);

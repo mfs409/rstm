@@ -76,7 +76,7 @@ static NOINLINE void validate(TX* tx)
         uintptr_t ivt = (*i)->v.all;
         // if unlocked and newer than start time, abort
         if ((ivt > tx->start_time) && (ivt != tx->my_lock.all))
-            tm_abort(tx);
+            _ITM_abortTransaction(TMConflict);
     }
 }
 
@@ -105,14 +105,14 @@ void alg_tm_end()
         if (ivt <= tx->start_time) {
             // abort if cannot acquire
             if (!bcasptr(&o->v.all, ivt, tx->my_lock.all))
-                tm_abort(tx);
+                _ITM_abortTransaction(TMConflict);
             // save old version to o->p, remember that we hold the lock
             o->p = ivt;
             tx->locks.insert(o);
         }
         // else if we don't hold the lock abort
         else if (ivt != tx->my_lock.all) {
-            tm_abort(tx);
+            _ITM_abortTransaction(TMConflict);
         }
     }
 
@@ -172,7 +172,7 @@ void* alg_tm_read(void** addr) {
         return tmp;
     }
     // unreachable
-    tm_abort(tx);
+    _ITM_abortTransaction(TMConflict);
     return NULL;
 }
 

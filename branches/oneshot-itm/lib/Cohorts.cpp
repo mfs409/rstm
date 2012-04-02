@@ -87,7 +87,7 @@ static NOINLINE void validate(TX* tx) {
             // set self as completed
             last_complete.val = tx->order;
             // abort
-            tm_abort(tx);
+            _ITM_abortTransaction(TMConflict);
         }
     }
 }

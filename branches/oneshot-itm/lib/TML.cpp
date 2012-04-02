@@ -52,7 +52,7 @@ void alg_tm_rollback(TX* tx) {
 inline static void afterread_TML(TX* tx) {
     CFENCE;
     if (__builtin_expect(timestamp.val != tx->start_time, false))
-        tm_abort(tx);
+        _ITM_abortTransaction(TMConflict);
 }
 
 /**
@@ -61,7 +61,7 @@ inline static void afterread_TML(TX* tx) {
 inline static void beforewrite_TML(TX* tx) {
     // acquire the lock, abort on failure
     if (!bcasptr(&timestamp.val, tx->start_time, tx->start_time + 1))
-        tm_abort(tx);
+        _ITM_abortTransaction(TMConflict);
     ++tx->start_time;
     tx->turbo = true;
 }

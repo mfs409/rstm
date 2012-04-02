@@ -36,6 +36,7 @@
 // Don't include this part from a .S file.
 #ifdef __cplusplus
 #include <stdint.h>
+#include "adaptivity.hpp"               // tm_begin_t
 
 /** Sort out how big a checkpoint we actually need, based on the arch. */
 #if defined(__x86_64__) && defined(__LP64__)    /* x86_64 -m64 */
@@ -56,23 +57,8 @@ namespace stm {
   /** Like a jmp_buf, a checkpoint_t is just a "big-enough" array of words. */
   typedef void* checkpoint_t[CHECKPOINT_SIZE];
 
-  /**
-   *  Implemented in an architecture-specific asm file, along with
-   *  _ITM_beginTransaction. It must not modify the checkpoint because it will
-   *  get reused for a conflict abort, where the checkpoint will be reused.
-   */
-  struct TX;
-  void restore_checkpoint(const TX* const)
+  void restore_checkpoint(tm_begin_t continuation, const TX* const tx)
       asm("_rstm_restore_checkpoint") __attribute__((noreturn));
-
-  /**
-   *  Implemented in an algorithm-specific manner. Called from
-   *  _ITM_beginTransaction using a sibling call, which is the only reason
-   *  that the varargs work without more effort. Must return _ITM_actions to
-   *  take, as _ITM_beginTransaction is supposed to do.
-   */
-  uint32_t post_restart(uint32_t, ...)
-      asm("_rstm_post_restart");
 }
 #endif // __cplusplus
 

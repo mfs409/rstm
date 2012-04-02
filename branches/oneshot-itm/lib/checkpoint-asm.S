@@ -84,8 +84,8 @@ _ITM_beginTransaction_nested:
  *  The x86_64 restore_checkpoint just extracts the saved registers from the
  *  checkpoint, sticks the return address on the stack, and re-calls tm_begin.
  * 
- *  - %rdi: checkpoint
- *  - %esi: return value
+ *  - %rdi: continuation (type of tm_begin_t)
+ *  - %rsi: tx
  */
         .text
         .p2align 4,,15
@@ -94,20 +94,20 @@ _ITM_beginTransaction_nested:
 _rstm_restore_checkpoint:
         ASM_DOT_CFI_STARTPROC
 
-        movq    RBP(%rdi), %rbp
-        movq    RSP(%rdi), %rsp
-        movq    RBX(%rdi), %rbx
-        movq    R12(%rdi), %r12
-        movq    R13(%rdi), %r13
-        movq    R14(%rdi), %r14
-        movq    R15(%rdi), %r15
+        movq    RBP(%rsi), %rbp
+        movq    RSP(%rsi), %rsp
+        movq    RBX(%rsi), %rbx
+        movq    R12(%rsi), %r12
+        movq    R13(%rsi), %r13
+        movq    R14(%rsi), %r14
+        movq    R15(%rsi), %r15
 
-        movq    RIP(%rdi), %rax                 // put the return address on
-        movq    %rax, (%rsp)                    // the stack
+        movq    RIP(%rsi), %rax         // put the return address on
+        movq    %rax, (%rsp)            // the stack
 
-        movq    RDI(%rdi), %rdi                 // restore the flags
-        jmp     _rstm_post_restart              // and reenter the transaction
-                                                // as a sibling call
+        movq    %rdi, %rax              // restore the flags and call the 
+        movq    RDI(%rsi), %rdi         // continuation using a sibling call 
+        jmp     *%rax
         
         ASM_DOT_CFI_ENDPROC
         ASM_DOT_SIZE(_rstm_restore_checkpoint, .-_rstm_restore_checkpoint)
@@ -185,8 +185,8 @@ _ITM_beginTransaction_nested:
  *  The i386 restore_checkpoint just extracts the saved registers from the
  *  checkpoint, sticks the return address on the stack, and returns.
  * 
- *  - 4(%esp): the checkpoint_t*
- *  - 8(%esp): the return value
+ *  - 4(%esp): the continuation
+ *  - 8(%esp): the tx
  */
         .text
         .p2align 4,,15
@@ -195,26 +195,26 @@ _ITM_beginTransaction_nested:
 _rstm_restore_checkpoint:
         ASM_DOT_CFI_STARTPROC
 
-        // this doesn't work like longjmp, we don't pass in a return value, we
-        // reuse the flags that were originally passed to us
-        // movl    0x8(%esp), %eax                 // setup the return value
-        movl    0x4(%esp), %ecx                 // grab the buffer
-
-        movl    ESP(%ecx), %esp
-        movl    EBP(%ecx), %ebp
-        movl    EBX(%ecx), %ebx
-        movl    ESI(%ecx), %esi
-        movl    EDI(%ecx), %edi
-
-        // we're executing in the same stack fram as _ITM_begin was, fix some
-        // of the stack that we /know/ was there when we were checkpointed.
-        movl    EAX(%ecx), %eax                 // restore the flags
-        movl    %eax, 4(%esp)
+        movl    0x4(%esp), %ecx         // load the continuation and
+        movl    0x8(%esp), %edx         // grab the transaction, using %edx
+                                        // prepares for the regparm(2)
+                                        // continuation call, do these before
+                                        // we clobber esp/ebp
         
-        movl    EIP(%ecx), %ecx                 // restore the return address
-        movl    %ecx, (%esp)
+        movl    ESP(%edx), %esp         // restore the checkpoint registers and
+        movl    EBP(%edx), %ebp         // the return return address
+        movl    EBX(%edx), %ebx
+        movl    ESI(%edx), %esi
+        movl    EDI(%edx), %edi
+        movl    EIP(%edx), %eax         
+        movl    %eax, (%esp)
 
-        jmp     _rstm_post_restart              // reenter the transaction
+        movl    EAX(%edx), %eax         // restore the flags (eax is correct
+        movl    %eax, 0x4(%esp)         // for calling the continuation, stack
+                                        // write is probably useless)
+
+        jmp     *%ecx                   // call the continuation as a sibling
+                                        // call. 
                 
         ASM_DOT_CFI_ENDPROC
         ASM_DOT_SIZE(_rstm_restore_checkpoint, .-_rstm_restore_checkpoint)

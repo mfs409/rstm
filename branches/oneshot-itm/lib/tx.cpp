@@ -100,15 +100,6 @@ pthread_create(pthread_t *thread, const pthread_attr_t *attr,
 
 
 namespace stm {
-  /**
-   *  This is ugly because rollback has a configuration-dependent signature.
-   */
-  void tm_abort(TX* tx) {
-      tm_rollback(tx);
-      tx->nesting_depth = 1;
-      restore_checkpoint(&*stm::Self);
-  }
-
   // for CM
   pad_word_t fcm_timestamp = {0};
   pad_word_t epochs[MAX_THREADS] = {{0}};

@@ -109,7 +109,7 @@ static NOINLINE void validate_commit(TX* tx)
         // read this orec
         uintptr_t ivt = (*i)->v.all;
         if ((ivt > tx->start_time) && (ivt != tx->my_lock.all))
-            tm_abort(tx);
+            _ITM_abortTransaction(TMConflict);
     }
 }
 
@@ -142,14 +142,14 @@ void alg_tm_end()
         if (ivt <= tx->start_time) {
             // abort if cannot acquire
             if (!bcasptr(&o->v.all, ivt, tx->my_lock.all))
-                tm_abort(tx);
+                _ITM_abortTransaction(TMConflict);
             // save old version to o->p, log lock
             o->p = ivt;
             tx->locks.insert(o);
         }
         // else if we don't hold the lock abort
         else if (ivt != tx->my_lock.all) {
-            tm_abort(tx);
+            _ITM_abortTransaction(TMConflict);
         }
     }
     CFENCE;
@@ -198,7 +198,7 @@ static NOINLINE void privtest(TX* tx, uintptr_t ts)
     FOREACH (OrecList, i, tx->r_orecs) {
         // if orec locked or newer than start time, abort
         if ((*i)->v.all > tx->start_time)
-            tm_abort(tx);
+            _ITM_abortTransaction(TMConflict);
     }
     // careful here: we can't scale the start time past last_complete.val,
     // unless we want to re-introduce the need for prevalidation on every
@@ -262,7 +262,7 @@ void* alg_tm_read(void** addr)
         FOREACH (OrecList, i, tx->r_orecs) {
             // if orec locked or newer than start time, abort
             if ((*i)->v.all > tx->start_time)
-                tm_abort(tx);
+                _ITM_abortTransaction(TMConflict);
         }
         CFENCE;
         uintptr_t cs = last_complete.val;

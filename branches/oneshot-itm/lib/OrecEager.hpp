@@ -111,7 +111,7 @@ static NOINLINE void validate_commit(TX* tx)
         // abort unless orec older than start or owned by me
         uintptr_t ivt = (*i)->v.all;
         if ((ivt > tx->start_time) && (ivt != tx->my_lock.all))
-            tm_abort(tx);
+            _ITM_abortTransaction(TMConflict);
     }
 }
 
@@ -130,7 +130,7 @@ static NOINLINE void validate(TX* tx)
         uintptr_t ivt = (*i)->v.all;
         // if unlocked and newer than start time, abort
         if ((ivt > tx->start_time) && (ivt != tx->my_lock.all))
-            tm_abort(tx);
+            _ITM_abortTransaction(TMConflict);
     }
 }
 
@@ -215,7 +215,7 @@ void* alg_tm_read(void** addr)
 
         // abort if locked
         if (__builtin_expect(ivt.fields.lock, 0))
-            tm_abort(tx);
+            _ITM_abortTransaction(TMConflict);
 
         // scale timestamp if ivt is too new, then try again
         uintptr_t newts = timestamp.val;
@@ -243,7 +243,7 @@ void alg_tm_write(void** addr, void* val)
         // common case: uncontended location... try to lock it, abort on fail
         if (ivt.all <= tx->start_time) {
             if (!bcasptr(&o->v.all, ivt.all, tx->my_lock.all))
-                tm_abort(tx);
+                _ITM_abortTransaction(TMConflict);
 
             // save old value, log lock, do the write, and return
             o->p = ivt.all;
@@ -264,7 +264,7 @@ void alg_tm_write(void** addr, void* val)
 
         // fail if lock held by someone else
         if (ivt.fields.lock)
-            tm_abort(tx);
+            _ITM_abortTransaction(TMConflict);
 
         // unlocked but too new... scale forward and try again
         uintptr_t newts = timestamp.val;
