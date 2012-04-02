@@ -44,6 +44,11 @@ _ITM_transactionId_t _ITM_getTransactionId() {
     return Self->nesting_depth;
 }
 
+/** Used aas a restore_checkpoint continuation to cancel a transaction. */
+static uint32_t TM_FASTCALL cancel(uint32_t, TX*) {
+    return a_restoreLiveVariables | a_abortTransaction;
+}
+
 void _ITM_abortTransaction(_ITM_abortReason why) {
     TX* tx = Self;
     if (why & TMConflict) {
@@ -57,7 +62,7 @@ void _ITM_abortTransaction(_ITM_abortReason why) {
             abort();
         }
         tm_rollback(tx);
-        restore_checkpoint(stm::tm_begin, tx);
+        restore_checkpoint(cancel, tx);
     }
     else if (why & exceptionBlockAbort) {
         std::cerr << "Exception block aborts are not yet implemented\n";
