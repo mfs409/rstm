@@ -9,17 +9,29 @@
 
 #
 # The names of the different STM apis that must be targeted when building
-# benchmarks.  Note that this doesn't really work correctly with gcctm, as it
-# results in us building and linking ALGNAMES different executables when we
-# only need one
+# benchmarks
 #
-APIS = lockapi genericapi fptrapi
+LOCKAPI   = lockapi
+STMAPI    = stmapi
+CUSTOMAPI = fptrapi
+APIS      = $(LOCKAPI) $(STMAPI) $(CUSTOMAPI)
 
 #
-# The names of the STM algorithms, and of all supporting compilable files
+# The names of all the STM algorithms
 #
-ALGNAMES = CGL NOrec TML CohortsEager Cohorts CTokenTurbo CToken LLT \
-           OrecEagerRedo OrecELA OrecALA OrecLazy OrecEager NOrecHB  \
-           OrecLazyBackoff OrecLazyHB OrecLazyHour NOrecBackoff      \
-           NOrecHour OrecEagerHour OrecEagerHB OrecEagerBackoff      \
-           AdapTM
+STMALGS = NOrec TML CohortsEager Cohorts CTokenTurbo CToken LLT OrecEagerRedo \
+          OrecELA OrecALA OrecLazy OrecEager NOrecHB OrecLazyBackoff          \
+          OrecLazyHB OrecLazyHour NOrecBackoff NOrecHour OrecEagerHour        \
+          OrecEagerHB OrecEagerBackoff CGL AdapTM
+
+#
+# The names of the entries in $(STMALGS) that are able to use the LOCKAPI
+# instrumentation interface
+#
+LOCKALGS = CGL
+
+#
+# The names of the entries in $(STMALGS) that are able to use the FPTRAPI
+# instrumentation interface
+#
+CUSTOMALGS = AdapTM
