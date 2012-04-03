@@ -11,6 +11,7 @@
 #define RSTM_TMABI_WEAK_HPP
 
 #include "platform.hpp"                 // TM_FASTCALL
+#include "libitm.h"
 
 /**
  *  This header should be included by TM implementations that wish to be
@@ -94,8 +95,6 @@ namespace stm {
 
   uint32_t tm_begin(uint32_t, TX*)
       __attribute__((weak, alias(TM_BEGIN_SYMBOL))) TM_FASTCALL;
-  void tm_end()
-      __attribute__((weak, alias(TM_END_SYMBOL)));
   const char* tm_getalgname()
       __attribute__((weak, alias(TM_GETALGNAME_SYMBOL)));
   void* tm_alloc(size_t)
@@ -112,8 +111,11 @@ namespace stm {
       __attribute__((weak, alias(TM_IS_IRREVOCABLE_SYMBOL)));
 }
 
+static void alg_tm_end();
+void _ITM_commitTransaction() ITM_REGPARM
+    __attribute__((weak, alias(TM_END_SYMBOL)));
+
 static uint32_t    alg_tm_begin(uint32_t, stm::TX*) TM_FASTCALL;
-static void        alg_tm_end();
 static const char* alg_tm_getalgname();
 static void*       alg_tm_alloc(size_t);
 static void        alg_tm_free(void*);
@@ -123,3 +125,4 @@ static void        alg_tm_rollback(stm::TX*);
 static bool        alg_tm_is_irrevocable(stm::TX*);
 
 #endif // RSTM_TMABI_WEAK_HPP
+
