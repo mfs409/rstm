@@ -54,6 +54,7 @@ namespace {
       tm_rollback_t           tm_rollback;
       tm_get_alg_name_t       tm_getalgname;
       tm_alloc_t              tm_alloc;
+      tm_calloc_t             tm_calloc;
       tm_free_t               tm_free;
       tm_is_irrevocable_t     tm_is_irrevocable;
       tm_become_irrevocable_t tm_become_irrevocable;
@@ -68,6 +69,7 @@ namespace {
   static char* trueAlgName = NULL;
 
   // local function pointers that aren't exposed through the tmabi-fptr.h
+  static tm_calloc_t tm_calloc_;
   static tm_become_irrevocable_t tm_become_irrevocable_;
   static tm_is_irrevocable_t tm_is_irrevocable_;
 
@@ -109,6 +111,7 @@ namespace {
               tm_end_ = tm_info[i].tm_end;
               tm_getalgname_ = tm_info[i].tm_getalgname;
               tm_alloc_ = tm_info[i].tm_alloc;
+              tm_calloc_ = tm_info[i].tm_calloc;
               tm_free_ = tm_info[i].tm_free;
               tm_read_ = tm_info[i].tm_read;
               tm_write_ = tm_info[i].tm_write;
@@ -121,7 +124,6 @@ namespace {
       printf("STM library configured using config == %s\n", cfg);
   }
 }
-
 
 tm_begin_t          stm::tm_begin_;
 tm_end_t            stm::tm_end_;
@@ -143,6 +145,7 @@ void stm::registerTMAlg(int tmid,
                         tm_rollback_t tm_rollback,
                         tm_get_alg_name_t tm_getalgname,
                         tm_alloc_t tm_alloc,
+                        tm_calloc_t tm_calloc,
                         tm_free_t tm_free,
                         tm_is_irrevocable_t tm_is_irrevocable,
                         tm_become_irrevocable_t tm_become_irrevocable)
@@ -154,6 +157,7 @@ void stm::registerTMAlg(int tmid,
     tm_info[tmid].tm_rollback = tm_rollback;
     tm_info[tmid].tm_getalgname = tm_getalgname;
     tm_info[tmid].tm_alloc = tm_alloc;
+    tm_info[tmid].tm_calloc = tm_calloc;
     tm_info[tmid].tm_free = tm_free;
     tm_info[tmid].tm_is_irrevocable = tm_is_irrevocable;
     tm_info[tmid].tm_become_irrevocable = tm_become_irrevocable;
@@ -161,14 +165,6 @@ void stm::registerTMAlg(int tmid,
 
 uint32_t stm::tm_begin(uint32_t flags, TX* tx) {
     return tm_begin_(flags, tx);
-}
-
-void* stm::tm_alloc(size_t s) {
-    return tm_alloc_(s);
-}
-
-void stm::tm_free(void* p) {
-    tm_free_(p);
 }
 
 void* stm::tm_read(void** addr) {
@@ -208,4 +204,16 @@ void _ITM_commitTransaction() {
 
 void _ITM_changeTransactionMode(_ITM_transactionState s) {
     tm_become_irrevocable_(s);
+}
+
+void* _ITM_malloc(size_t s) {
+    return tm_alloc_(s);
+}
+
+void* _ITM_calloc(size_t n, size_t s) {
+    return tm_calloc_(n, s);
+}
+
+void _ITM_free(void* p) {
+    return tm_free_(p);
 }
