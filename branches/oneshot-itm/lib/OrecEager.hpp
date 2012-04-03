@@ -277,3 +277,8 @@ bool alg_tm_is_irrevocable(TX*) {
     assert(false && "Unimplemented");
     return false;
 }
+
+void alg_tm_become_irrevocable(_ITM_transactionState) {
+    assert(false && "Unimplemented");
+    return;
+}

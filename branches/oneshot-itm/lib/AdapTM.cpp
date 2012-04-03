@@ -30,22 +30,33 @@
 
 using namespace stm;
 
+/**
+ *  We don't need, and don't want, to use the REGISTER_TM_FOR_XYZ macros, but
+ *  we still need to make sure that there is an initTM<AdapTM> symbol. This is
+ *  because the name enum is manually generated.
+ */
+namespace stm {
+  template <> void initTM<AdapTM>() {
+  }
+}
+
+
 namespace {
   /**
    *  Stores the function pointers for the dynamically selectable algorithms,
    *  registered through registerTMAlg.
    */
   static struct {
-      int                 identifier;
-      tm_begin_t          tm_begin;
-      tm_end_t            tm_end;
-      tm_read_t           tm_read;
-      tm_write_t          tm_write;
-      tm_rollback_t       tm_rollback;
-      tm_get_alg_name_t   tm_getalgname;
-      tm_alloc_t          tm_alloc;
-      tm_free_t           tm_free;
-      tm_is_irrevocable_t tm_is_irrevocable;
+      tm_begin_t              tm_begin;
+      tm_end_t                tm_end;
+      tm_read_t               tm_read;
+      tm_write_t              tm_write;
+      tm_rollback_t           tm_rollback;
+      tm_get_alg_name_t       tm_getalgname;
+      tm_alloc_t              tm_alloc;
+      tm_free_t               tm_free;
+      tm_is_irrevocable_t     tm_is_irrevocable;
+      tm_become_irrevocable_t tm_become_irrevocable;
 
       // [TODO]
       // void (* switcher) ();
@@ -55,6 +66,10 @@ namespace {
   // [ld] why not a static inside of tm_getalgname? Are we avoiding the
   //      thread-safe initialization concern?
   static char* trueAlgName = NULL;
+
+  // local function pointers that aren't exposed through the tmabi-fptr.h
+  static tm_become_irrevocable_t tm_become_irrevocable_;
+  static tm_is_irrevocable_t tm_is_irrevocable_;
 
   /** Template Metaprogramming trick for initializing all STM algorithms. */
   template <int I>
@@ -97,6 +112,7 @@ namespace {
               tm_free_ = tm_info[i].tm_free;
               tm_read_ = tm_info[i].tm_read;
               tm_write_ = tm_info[i].tm_write;
+              tm_become_irrevocable_ = tm_info[i].tm_become_irrevocable;
               tm_is_irrevocable_ = tm_info[i].tm_is_irrevocable;
               found = true;
               break;
@@ -106,96 +122,90 @@ namespace {
   }
 }
 
-namespace stm {
-  tm_begin_t          tm_begin_;
-  tm_end_t            tm_end_;
-  tm_read_t           tm_read_;
-  tm_write_t          tm_write_;
-  tm_rollback_t       tm_rollback_;
-  tm_get_alg_name_t   tm_getalgname_;
-  tm_alloc_t          tm_alloc_;
-  tm_free_t           tm_free_;
-  tm_is_irrevocable_t tm_is_irrevocable_;
 
-  /**
-   *  A strong implementation of the registration algorithm.
-   */
-  void registerTMAlg(int identifier,
-                     tm_begin_t tm_begin,
-                     tm_end_t tm_end,
-                     tm_read_t tm_read,
-                     tm_write_t tm_write,
-                     tm_rollback_t tm_rollback,
-                     tm_get_alg_name_t tm_getalgname,
-                     tm_alloc_t tm_alloc,
-                     tm_free_t tm_free,
-                     tm_is_irrevocable_t tm_is_irrevocable)
-  {
-      tm_info[identifier].identifier = identifier;
-      tm_info[identifier].tm_begin = tm_begin;
-      tm_info[identifier].tm_end = tm_end;
-      tm_info[identifier].tm_read = tm_read;
-      tm_info[identifier].tm_write = tm_write;
-      tm_info[identifier].tm_rollback = tm_rollback;
-      tm_info[identifier].tm_getalgname = tm_getalgname;
-      tm_info[identifier].tm_alloc = tm_alloc;
-      tm_info[identifier].tm_free = tm_free;
-      tm_info[identifier].tm_is_irrevocable = tm_is_irrevocable;
-  }
+tm_begin_t          stm::tm_begin_;
+tm_end_t            stm::tm_end_;
+tm_read_t           stm::tm_read_;
+tm_write_t          stm::tm_write_;
+tm_rollback_t       stm::tm_rollback_;
+tm_get_alg_name_t   stm::tm_getalgname_;
+tm_alloc_t          stm::tm_alloc_;
+tm_free_t           stm::tm_free_;
 
-  // forward all calls to the function pointers
-  uint32_t tm_begin(uint32_t flags, TX* tx) {
-      return tm_begin_(flags, tx);
-  }
+/**
+ *  A strong implementation of the registration algorithm.
+ */
+void stm::registerTMAlg(int tmid,
+                        tm_begin_t tm_begin,
+                        tm_end_t tm_end,
+                        tm_read_t tm_read,
+                        tm_write_t tm_write,
+                        tm_rollback_t tm_rollback,
+                        tm_get_alg_name_t tm_getalgname,
+                        tm_alloc_t tm_alloc,
+                        tm_free_t tm_free,
+                        tm_is_irrevocable_t tm_is_irrevocable,
+                        tm_become_irrevocable_t tm_become_irrevocable)
+{
+    tm_info[tmid].tm_begin = tm_begin;
+    tm_info[tmid].tm_end = tm_end;
+    tm_info[tmid].tm_read = tm_read;
+    tm_info[tmid].tm_write = tm_write;
+    tm_info[tmid].tm_rollback = tm_rollback;
+    tm_info[tmid].tm_getalgname = tm_getalgname;
+    tm_info[tmid].tm_alloc = tm_alloc;
+    tm_info[tmid].tm_free = tm_free;
+    tm_info[tmid].tm_is_irrevocable = tm_is_irrevocable;
+    tm_info[tmid].tm_become_irrevocable = tm_become_irrevocable;
+}
 
-  void* tm_alloc(size_t s) {
-      return tm_alloc_(s);
-  }
+uint32_t stm::tm_begin(uint32_t flags, TX* tx) {
+    return tm_begin_(flags, tx);
+}
 
-  void tm_free(void* p) {
-      tm_free_(p);
-  }
+void* stm::tm_alloc(size_t s) {
+    return tm_alloc_(s);
+}
 
-  void* tm_read(void** addr) {
-      return tm_read_(addr);
-  }
+void stm::tm_free(void* p) {
+    tm_free_(p);
+}
 
-  void tm_write(void** addr, void* val) {
-      tm_write_(addr, val);
-  }
+void* stm::tm_read(void** addr) {
+    return tm_read_(addr);
+}
 
-  void tm_rollback(TX* tx) {
-      tm_rollback_(tx);
-  }
+void stm::tm_write(void** addr, void* val) {
+    tm_write_(addr, val);
+}
 
-  bool tm_is_irrevocable(TX* tx) {
-      return tm_is_irrevocable_(tx);
-  }
+void stm::tm_rollback(TX* tx) {
+    tm_rollback_(tx);
+}
 
-  const char* tm_getalgname() {
-      if (trueAlgName)
-          return trueAlgName;
+bool stm::tm_is_irrevocable(TX* tx) {
+    return tm_is_irrevocable_(tx);
+}
 
-      const char* s1 = "AdapTM";
-      const char* s2 = tm_getalgname_();
-      size_t l1 = strlen(s1);
-      size_t l2 = strlen(s2);
-      trueAlgName = (char*)malloc((l1+l2+3)*sizeof(char));
-      strcpy(trueAlgName, s1);
-      trueAlgName[l1] = trueAlgName[l1+1] = ':';
-      strcpy(&trueAlgName[l1+2], s2);
-      return trueAlgName;
-  }
+const char* stm::tm_getalgname() {
+    if (trueAlgName)
+        return trueAlgName;
 
-  /**
-   *  We don't need, and don't want, to use the REGISTER_TM_FOR_XYZ macros,
-   *  but we still need to make sure that there is an initTM<AdapTM>
-   *  symbol. This is because the name enum is manually generated.
-   */
-  template <> void initTM<AdapTM>() {
-  }
+    const char* s1 = "AdapTM";
+    const char* s2 = tm_getalgname_();
+    size_t l1 = strlen(s1);
+    size_t l2 = strlen(s2);
+    trueAlgName = (char*)malloc((l1+l2+3)*sizeof(char));
+    strcpy(trueAlgName, s1);
+    trueAlgName[l1] = trueAlgName[l1+1] = ':';
+    strcpy(&trueAlgName[l1+2], s2);
+    return trueAlgName;
 }
 
 void _ITM_commitTransaction() {
     tm_end_();
+}
+
+void _ITM_changeTransactionMode(_ITM_transactionState s) {
+    tm_become_irrevocable_(s);
 }

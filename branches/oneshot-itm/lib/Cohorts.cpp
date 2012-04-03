@@ -216,5 +216,10 @@ bool alg_tm_is_irrevocable(TX* tx) {
     return false;
 }
 
+void alg_tm_become_irrevocable(_ITM_transactionState) {
+    assert(false && "Unimplemented");
+    return;
+}
+
 /** Register the TM for adaptivity and for use as a standalone library */
 REGISTER_TM_FOR_ADAPTIVITY(Cohorts)
