@@ -26,6 +26,7 @@
 #include "locks.hpp"
 #include "metadata.hpp"
 #include "adaptivity.hpp"
+#include "libitm.h"                     // _ITM_commitTransaction
 
 using namespace stm;
 
@@ -147,10 +148,6 @@ namespace stm {
       return tm_begin_(flags, tx);
   }
 
-  void tm_end() {
-      tm_end_();
-  }
-
   void* tm_alloc(size_t s) {
       return tm_alloc_(s);
   }
@@ -197,4 +194,8 @@ namespace stm {
    */
   template <> void initTM<AdapTM>() {
   }
+}
+
+void _ITM_commitTransaction() {
+    tm_end_();
 }

@@ -51,7 +51,8 @@ uint32_t alg_tm_begin(uint32_t flags, TX*) {
  *  NB: This requires special build rules for libCGL---we don't want to include
  *      checkpoint-asm.o in the build.
  */
-uint32_t __attribute__((weak)) _ITM_beginTransaction(uint32_t flags, ...) {
+uint32_t ITM_REGPARM __attribute__((weak, returns_twice))
+_ITM_beginTransaction(uint32_t flags, ...) {
     assert(flags & pr_hasNoAbort && "CGL does not support cancel");
     if (++Self->nesting_depth > 1)
         return a_runInstrumentedCode;
