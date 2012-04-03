@@ -47,6 +47,7 @@
 #define TM_WRITE_SYMBOL "_ZL12alg_tm_writePPvS_"
 #define TM_ROLLBACK_SYMBOL "_ZL15alg_tm_rollbackPN3stm2TXE"
 #define TM_IS_IRREVOCABLE_SYMBOL "_ZL21alg_tm_is_irrevocablePN3stm2TXE"
+#define TM_BECOME_IRREVOCABLE_SYMBOL "_ZL25alg_tm_become_irrevocable21_ITM_transactionState"
 
 // Some of the tms use explicit template instatiations.
 #define SPECIALIZE_TM_ROLLBACK_SYMBOL(CM, NCM) "_Z15alg_tm_rollbackIN3stm"#NCM#CM"EEvPNS0_2TXE"
@@ -65,6 +66,7 @@
 #define TM_WRITE_SYMBOL "_ZL12alg_tm_writePPvS_"
 #define TM_ROLLBACK_SYMBOL "_ZL15alg_tm_rollbackPN3stm2TXE"
 #define TM_IS_IRREVOCABLE_SYMBOL "_ZL21alg_tm_is_irrevocablePN3stm2TXE"
+#define TM_BECOME_IRREVOCABLE_SYMBOL "_ZL25alg_tm_become_irrevocable21_ITM_transactionState"
 
 // Some of the tms use explicit template instatiations.
 #define SPECIALIZE_TM_ROLLBACK_SYMBOL(CM, NCM) "_Z15alg_tm_rollbackIN3stm"#NCM#CM"EEvPNS0_2TXE"
@@ -111,11 +113,19 @@ namespace stm {
       __attribute__((weak, alias(TM_IS_IRREVOCABLE_SYMBOL)));
 }
 
-static void alg_tm_end();
 void _ITM_commitTransaction() ITM_REGPARM
     __attribute__((weak, alias(TM_END_SYMBOL)));
 
+void _ITM_changeTransactionMode(_ITM_transactionState) ITM_REGPARM
+    __attribute__((weak, alias(TM_BECOME_IRREVOCABLE_SYMBOL)));
+
+/**
+ *  These are the algorithm specific functions that need to be implemented for
+ *  this header to work correctly. They're also used in the registration macro
+ *  in adaptivity.hpp.
+ */
 static uint32_t    alg_tm_begin(uint32_t, stm::TX*) TM_FASTCALL;
+static void        alg_tm_end();
 static const char* alg_tm_getalgname();
 static void*       alg_tm_alloc(size_t);
 static void        alg_tm_free(void*);
@@ -123,6 +133,7 @@ static void*       alg_tm_read(void**) TM_FASTCALL;
 static void        alg_tm_write(void**, void*) TM_FASTCALL;
 static void        alg_tm_rollback(stm::TX*);
 static bool        alg_tm_is_irrevocable(stm::TX*);
+static void        alg_tm_become_irrevocable(_ITM_transactionState) ITM_REGPARM;
 
 #endif // RSTM_TMABI_WEAK_HPP
 

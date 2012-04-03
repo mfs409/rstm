@@ -23,6 +23,10 @@ namespace stm {
    *       this, but we don't want to expose the autobuilt tmnames header. If
    *       we switch to constructor-based initialization we could use
    *       adaptivity.hpp.
+   *
+   *  [ld] We only have function pointers that are relevant to the stmapi_fptr
+   *       header, i.e., there are more per-algorithm behaviors, but they're
+   *       not relevent for this API.
    */
   struct TX;
 
@@ -34,7 +38,6 @@ namespace stm {
   extern void        (*tm_free_)(void*);
   extern const char* (*tm_getalgname_)();
   extern void        (*tm_rollback_)(TX*);
-  extern bool        (*tm_is_irrevocable_)(TX*);
 }
 
 #endif // RSTM_TMABI_FPTR_H

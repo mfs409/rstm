@@ -13,6 +13,7 @@
 
 #include <stdint.h>                     // uint32_t
 #include "platform.hpp"                 // TM_FASTCALL
+#include "libitm.h"                     // ITM_REGPARM, _ITM_*, etc.
 
 namespace stm {
   struct TX;
@@ -26,6 +27,7 @@ namespace stm {
   typedef const char* (*tm_get_alg_name_t)();
   typedef void        (*tm_rollback_t)(TX*);
   typedef bool        (*tm_is_irrevocable_t)(TX*);
+  typedef void (ITM_REGPARM *tm_become_irrevocable_t)(_ITM_transactionState);
 
   /**
    * Use this function to register your TM algorithm implementation.  It
@@ -34,7 +36,7 @@ namespace stm {
    */
   void registerTMAlg(int, tm_begin_t, tm_end_t, tm_read_t, tm_write_t,
                           tm_rollback_t, tm_get_alg_name_t, tm_alloc_t,
-                          tm_free_t, tm_is_irrevocable_t);
+                     tm_free_t, tm_is_irrevocable_t, tm_become_irrevocable_t);
 
   /**
    *  We don't want to have to declare an init function for each of the STM
@@ -57,11 +59,16 @@ namespace stm {
     namespace stm {                                                     \
       template <> void initTM<ALG>() {                                  \
           registerTMAlg(ALG,                                            \
-                        alg_tm_begin, alg_tm_end,                       \
-                        alg_tm_read, alg_tm_write,                      \
-                        alg_tm_rollback, alg_tm_getalgname,             \
-                        alg_tm_alloc, alg_tm_free,                      \
-                        alg_tm_is_irrevocable);                         \
+                        alg_tm_begin,                                   \
+                        alg_tm_end,                                     \
+                        alg_tm_read,                                    \
+                        alg_tm_write,                                   \
+                        alg_tm_rollback,                                \
+                        alg_tm_getalgname,                              \
+                        alg_tm_alloc,                                   \
+                        alg_tm_free,                                    \
+                        alg_tm_is_irrevocable,                          \
+                        alg_tm_become_irrevocable);                     \
       }                                                                 \
     }
 
