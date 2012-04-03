@@ -69,8 +69,8 @@ namespace stm
 #define TM_THREAD_SHUTDOWN()
 #define TM_SYS_INIT()
 #define TM_SYS_SHUTDOWN()
-#define TM_ALLOC(s)          stm::tm_alloc(s)
-#define TM_FREE(p)           stm::tm_free(p)
+#define TM_ALLOC(s)          _ITM_malloc(s)
+#define TM_FREE(p)           _ITM_free(p)
 #define TM_BEGIN_FAST_INITIALIZATION()
 #define TM_END_FAST_INITIALIZATION()
 #define TM_CALLABLE

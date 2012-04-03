@@ -42,6 +42,7 @@
 #define TM_END_SYMBOL "_ZL10alg_tm_endv"
 #define TM_GETALGNAME_SYMBOL "_ZL17alg_tm_getalgnamev"
 #define TM_ALLOC_SYMBOL "_ZL12alg_tm_allocm"
+#define TM_CALLOC_SYMBOL "_ZL13alg_tm_callocmm"
 #define TM_FREE_SYMBOL "_ZL11alg_tm_freePv"
 #define TM_READ_SYMBOL "_ZL11alg_tm_readPPv"
 #define TM_WRITE_SYMBOL "_ZL12alg_tm_writePPvS_"
@@ -61,6 +62,7 @@
 #define TM_END_SYMBOL "_ZL10alg_tm_endv"
 #define TM_GETALGNAME_SYMBOL "_ZL17alg_tm_getalgnamev"
 #define TM_ALLOC_SYMBOL "_ZL12alg_tm_allocj"
+#define TM_CALLOC_SYMBOL "_ZL13alg_tm_callocjj"
 #define TM_FREE_SYMBOL "_ZL11alg_tm_freePv"
 #define TM_READ_SYMBOL "_ZL11alg_tm_readPPv"
 #define TM_WRITE_SYMBOL "_ZL12alg_tm_writePPvS_"
@@ -92,6 +94,11 @@
     static void alg_tm_end()                                            \
         __attribute__((alias(SPECIALIZE_TM_END_SYMBOL(CM, NCM))));
 
+
+/**
+ *  The following weak aliases mean that, if we link to a library that doesn't
+ *  include AdapTM, the alg-specific symbols will be linked directly.
+ */
 namespace stm {
   struct TX;
 
@@ -100,7 +107,7 @@ namespace stm {
   const char* tm_getalgname()
       __attribute__((weak, alias(TM_GETALGNAME_SYMBOL)));
   void* tm_alloc(size_t)
-      __attribute__((weak, alias(TM_ALLOC_SYMBOL)));
+      __attribute__((malloc, weak, alias(TM_ALLOC_SYMBOL)));
   void tm_free(void*)
       __attribute__((weak, alias(TM_FREE_SYMBOL)));
   void* tm_read(void**)
@@ -119,6 +126,16 @@ void _ITM_commitTransaction() ITM_REGPARM
 void _ITM_changeTransactionMode(_ITM_transactionState) ITM_REGPARM
     __attribute__((weak, alias(TM_BECOME_IRREVOCABLE_SYMBOL)));
 
+void* _ITM_malloc(size_t)
+    __attribute__((malloc, weak, alias(TM_ALLOC_SYMBOL))) GCC_ITM_PURE;
+
+void* _ITM_calloc(size_t, size_t)
+    __attribute__((malloc, weak, alias(TM_CALLOC_SYMBOL))) GCC_ITM_PURE;
+
+void _ITM_free(void*)
+    __attribute__((weak, alias(TM_FREE_SYMBOL))) GCC_ITM_PURE;
+
+
 /**
  *  These are the algorithm specific functions that need to be implemented for
  *  this header to work correctly. They're also used in the registration macro
@@ -127,7 +144,8 @@ void _ITM_changeTransactionMode(_ITM_transactionState) ITM_REGPARM
 static uint32_t    alg_tm_begin(uint32_t, stm::TX*) TM_FASTCALL;
 static void        alg_tm_end();
 static const char* alg_tm_getalgname();
-static void*       alg_tm_alloc(size_t);
+static void*       alg_tm_alloc(size_t) __attribute__((malloc));
+static void*       alg_tm_calloc(size_t, size_t) __attribute__((malloc));
 static void        alg_tm_free(void*);
 static void*       alg_tm_read(void**) TM_FASTCALL;
 static void        alg_tm_write(void**, void*) TM_FASTCALL;

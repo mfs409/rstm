@@ -75,3 +75,42 @@ void _ITM_abortTransaction(_ITM_abortReason why) {
     }
 }
 
+/**
+ * From gcc's addendum:
+ *
+ *    Commit actions will get executed in the same order in which the
+ *    respective calls to _ITM_ addUserCommitAction happened. Only
+ *    _ITM_noTransactionId is allowed as value for the resumingTransactionId
+ *    argument. Commit actions get executed after privatization safety has been
+ *    ensured.
+*/
+void _ITM_addUserCommitAction(_ITM_userCommitFunction,
+                              _ITM_transactionId_t, void*) {
+    assert(false && "Unimplemented");
+}
+
+/**
+ * From gcc's addendum:
+ *
+ *    Undo actions will get executed in reverse order compared to the order in
+ *    which the respective calls to _ITM_addUserUndoAction happened. The
+ *    ordering of undo actions w.r.t. the roll-back of other actions (e.g.,
+ *    data transfers or memory allocations) is undefined.
+ */
+void _ITM_addUserUndoAction(_ITM_userUndoFunction, void*) {
+    assert(false && "Unimplemented");
+}
+
+/**
+ * From gcc's addendum:
+ *
+ *    _ITM_dropReferences is not supported currently because its semantics and
+ *    the intention behind it is not entirely clear. The specification suggests
+ *    that this function is necessary because of certain orderings of data
+ *    transfer undos and the releasing of memory regions (i.e.,
+ *    privatization). However, this ordering is never defined, nor is the
+ *    ordering of dropping references w.r.t. other events.
+ */
+void _ITM_dropReferences(void*, size_t) {
+    assert(false && "Unimplemented");
+}

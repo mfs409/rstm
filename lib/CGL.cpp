@@ -53,12 +53,10 @@ uint32_t alg_tm_begin(uint32_t flags, TX*) {
  */
 uint32_t ITM_REGPARM __attribute__((weak, returns_twice))
 _ITM_beginTransaction(uint32_t flags, ...) {
-    assert(flags & pr_hasNoAbort && "CGL does not support cancel");
     if (++Self->nesting_depth > 1)
         return a_runInstrumentedCode;
 
-    tatas_acquire(&timestamp.val);
-    return a_runInstrumentedCode;
+    return alg_tm_begin(flags, NULL);
 }
 
 /**
@@ -81,6 +79,13 @@ void alg_tm_end() {
  */
 void* alg_tm_alloc(size_t s) {
     return malloc(s);
+}
+
+/**
+ *  In CGL, calloc doesn't need any special care
+ */
+void* alg_tm_calloc(size_t n, size_t s) {
+    return calloc(n, s);
 }
 
 /**

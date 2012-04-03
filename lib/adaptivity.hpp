@@ -22,7 +22,8 @@ namespace stm {
   typedef void        (*tm_end_t)();
   typedef void*       (*tm_read_t)(void**) TM_FASTCALL;
   typedef void        (*tm_write_t)(void**, void*) TM_FASTCALL;
-  typedef void*       (*tm_alloc_t)(size_t);
+  typedef void*       (*tm_alloc_t)(size_t); //__attribute__((malloc))
+  typedef void*       (*tm_calloc_t)(size_t, size_t); //__attribute__((malloc))
   typedef void        (*tm_free_t)(void*);
   typedef const char* (*tm_get_alg_name_t)();
   typedef void        (*tm_rollback_t)(TX*);
@@ -36,7 +37,8 @@ namespace stm {
    */
   void registerTMAlg(int, tm_begin_t, tm_end_t, tm_read_t, tm_write_t,
                           tm_rollback_t, tm_get_alg_name_t, tm_alloc_t,
-                     tm_free_t, tm_is_irrevocable_t, tm_become_irrevocable_t);
+                          tm_calloc_t, tm_free_t, tm_is_irrevocable_t,
+                          tm_become_irrevocable_t);
 
   /**
    *  We don't want to have to declare an init function for each of the STM
@@ -66,6 +68,7 @@ namespace stm {
                         alg_tm_rollback,                                \
                         alg_tm_getalgname,                              \
                         alg_tm_alloc,                                   \
+                        alg_tm_calloc,                                  \
                         alg_tm_free,                                    \
                         alg_tm_is_irrevocable,                          \
                         alg_tm_become_irrevocable);                     \
