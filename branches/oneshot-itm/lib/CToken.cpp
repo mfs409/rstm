@@ -20,6 +20,7 @@
 #include <iostream>
 #include <cassert>
 #include <unistd.h>
+#include "byte-logging.hpp"
 #include "tmabi-weak.hpp"
 #include "foreach.hpp"
 #include "WriteSet.hpp"
@@ -144,17 +145,14 @@ void alg_tm_end()
 /**
  *  CToken read (writing transaction)
  */
-void* alg_tm_read(void** addr)
+static inline void* ALG_TM_READ_WORD(void** addr, TX* tx, uintptr_t mask)
 {
-    TX* tx = Self;
-
     // check the log for a RAW hazard, we expect to miss
     if (tx->writes.size()) {
         // check the log for a RAW hazard, we expect to miss
-        WriteSetEntry log(STM_WRITE_SET_ENTRY(addr, NULL, mask));
-        bool found = tx->writes.find(log);
-        if (found)
-            return log.val;
+        void* val;
+        if (tx->writes.find(addr, val))
+            return val;
     }
 
     void* tmp = *addr;
@@ -179,17 +177,23 @@ void* alg_tm_read(void** addr)
 /**
  *  CToken write (read-only context)
  */
-void alg_tm_write(void** addr, void* val)
+static inline void ALG_TM_WRITE_WORD(void** addr, void* val, TX* tx, uintptr_t mask)
 {
-    TX* tx = Self;
-
     if (tx->order == -1) {
         // we don't have any writes yet, so we need to get an order here
         tx->order = 1 + faiptr(&timestamp.val);
     }
 
     // record the new value in a redo log
-    tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
+    tx->writes.insert(WriteSetEntry(REDO_LOG_ENTRY(addr, val, mask)));
+}
+
+void* alg_tm_read(void** addr) {
+    return ALG_TM_READ_WORD(addr, Self, ~0);
+}
+
+void alg_tm_write(void** addr, void* val) {
+    ALG_TM_WRITE_WORD(addr, val, Self, ~0);
 }
 
 bool alg_tm_is_irrevocable(TX* tx) {

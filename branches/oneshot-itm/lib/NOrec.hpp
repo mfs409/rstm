@@ -20,9 +20,9 @@
 #include <stdint.h>
 #include <iostream>
 #include <cassert>
+#include "byte-logging.hpp"
 #include "tmabi-weak.hpp"               // the weak abi declarations
 #include "foreach.hpp"                  // the FOREACH macro
-#include "platform.hpp"
 #include "ValueList.hpp"
 #include "WriteSet.hpp"
 #include "WBMMPolicy.hpp"
@@ -135,20 +135,14 @@ static void alg_tm_end() {
 }
 
 /** Transactional read */
-void* alg_tm_read(void** addr) {
-    TX* tx = Self;
+static inline void* ALG_TM_READ_WORD(void** addr, TX* tx, uintptr_t mask) {
+    void* val = NULL;
+    uintptr_t found = tx->writes.find(addr, val);
+    if (REDO_RAW_CHECK(found, mask))
+        return val;
 
-    if (tx->writes.size()) {
-        // check the log for a RAW hazard, we expect to miss
-        WriteSetEntry log(STM_WRITE_SET_ENTRY(addr, NULL, mask));
-        bool found = tx->writes.find(log);
-        if (found)
-            return log.val;
-    }
-
-    // A read is valid iff it occurs during a period where the seqlock does
-    // not change and is even.  This code also polls for new changes that
-    // might necessitate a validation.
+    // we've either missed, or we've only partially hit--either way, we need to
+    // read from memory
 
     // read the location to a temp
     void* tmp = *addr;
@@ -163,16 +157,25 @@ void* alg_tm_read(void** addr) {
         CFENCE;
     }
 
-    // log the address and value, uses the macro to deal with
-    // STM_PROTECT_STACK
+    // log the address and value, uses the macro to deal with STM_PROTECT_STACK
     STM_LOG_VALUE(tx, addr, tmp, mask);
-    return tmp;
+    return REDO_RAW_MERGE(val, tmp, found);
 }
 
 /** Simple buffered transactional write. */
-void alg_tm_write(void** addr, void* val) {
+static inline void ALG_TM_WRITE_WORD(void** addr, void* val, TX* tx, uintptr_t mask) {
     // just buffer the write
-    Self->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
+    tx->writes.insert(WriteSetEntry(REDO_LOG_ENTRY(addr, val, mask)));
+}
+
+/** The library api interface to read an aligned word. */
+void* alg_tm_read(void** addr) {
+    return ALG_TM_READ_WORD(addr, Self, ~0);
+}
+
+/** The library api interface to write an aligned word. */
+void alg_tm_write(void** addr, void* val) {
+    ALG_TM_WRITE_WORD(addr, val, Self, ~0);
 }
 
 bool alg_tm_is_irrevocable(TX*) {
@@ -184,3 +187,4 @@ void alg_tm_become_irrevocable(_ITM_transactionState) {
     assert(false && "Unimplemented");
     return;
 }
+

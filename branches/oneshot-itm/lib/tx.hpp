@@ -94,6 +94,11 @@ namespace stm {
       TX(const TX&);
       TX& operator=(const TX&);
   };
+
+  /** We need access to the satck pointer to do filtering. */
+  static inline void* get_stack_pointer_from_checkpoint(const TX* const tx) {
+      return tx->checkpoint[CHECKPOINT_SP_OFFSET];
+  }
 }
 
 #endif // TX_HPP__

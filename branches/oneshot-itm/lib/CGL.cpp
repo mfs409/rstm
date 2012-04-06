@@ -11,9 +11,9 @@
 #include <stdint.h>
 #include <iostream>
 #include <cstdlib>
+#include "byte-logging.hpp"
 #include "tmabi-weak.hpp"
 #include "tx.hpp"
-#include "platform.hpp"
 #include "locks.hpp"
 #include "metadata.hpp"
 #include "adaptivity.hpp"
@@ -126,3 +126,23 @@ void alg_tm_become_irrevocable(_ITM_transactionState) {
  *  Register the TM for adaptivity and for use as a standalone library
  */
 REGISTER_TM_FOR_ADAPTIVITY(CGL);
+
+/**
+ *  Add weak implementations of all of the ITM read and write functions. These
+ *  will be used for libCGL.
+ */
+#define RSTM_LIBITM_READ(SYMBOL, CALLING_CONVENTION, TYPE) \
+    TYPE CALLING_CONVENTION __attribute__((weak)) SYMBOL(const TYPE* addr) {  \
+        return *addr;                                                   \
+    }
+
+#define RSTM_LIBITM_WRITE(SYMBOL, CALLING_CONVENTION, TYPE) \
+    void CALLING_CONVENTION __attribute__((weak)) SYMBOL(TYPE* addr, TYPE val) \
+    {                                                                   \
+        *addr = val;                                                    \
+    }
+
+#include "libitm-dtfns.def"
+
+#undef RSTM_LIBITM_WRITE
+#undef RSTM_LIBITM_READ

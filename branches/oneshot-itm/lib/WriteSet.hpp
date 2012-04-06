@@ -47,6 +47,10 @@ namespace stm
           : addr(paddr), val(pval)
       { }
 
+      uintptr_t getMask() const {
+          return ~0;
+      }
+
       /**
        *  Called when we are WAW an address, and we want to coalesce the
        *  write. Trivial for the word-based writeset, but complicated for the
@@ -128,6 +132,10 @@ namespace stm
           addr = paddr;
           val  = pval;
           mask = pmask;
+      }
+
+      uintptr_t getMask() const {
+          return mask;
       }
 
       /**
@@ -304,49 +312,19 @@ namespace stm
        *  mask is updated to reflect the bytes in the returned value that are
        *  valid. In the case that we don't find anything, the mask is set to 0.
        */
-      bool find(WriteSetEntry& log) const
-      {
-          size_t h = hash(log.addr);
+      uintptr_t find(void** addr, void*& val) {
+          size_t h = hash(addr);
 
           while (index[h].version == version) {
-              if (index[h].address != log.addr) {
+              if (index[h].address != addr) {
                   // continue probing
                   h = (h + 1) % ilength;
                   continue;
               }
-#if defined(STM_WS_WORDLOG)
-              log.val = list[index[h].index].val;
-              return true;
-#elif defined(STM_WS_BYTELOG)
-              // Need to intersect the mask to see if we really have a match. We
-              // may have a full intersection, in which case we can return the
-              // logged value. We can have no intersection, in which case we can
-              // return false. We can also have an awkward intersection, where
-              // we've written part of what we're trying to read. In that case,
-              // the "correct" thing to do is to read the word from memory, log
-              // it, and merge the returned value with the partially logged
-              // bytes.
-              WriteSetEntry& entry = list[index[h].index];
-              if (__builtin_expect((log.mask & entry.mask) == 0, false)) {
-                  log.mask = 0;
-                  return false;
-              }
-
-              // The update to the mask transmits the information the caller
-              // needs to know in order to distinguish between a complete and a
-              // partial intersection.
-              log.val = entry.val;
-              log.mask = entry.mask;
-              return true;
-#else
-#error "Preprocessor configuration error."
-#endif
+              val = list[index[h].index].val;
+              return list[index[h].index].getMask(); // -O3 should optimize
           }
-
-#if defined(STM_WS_BYTELOG)
-          log.mask = 0x0; // report that there were no intersecting bytes
-#endif
-          return false;
+          return 0;
       }
 
       /**

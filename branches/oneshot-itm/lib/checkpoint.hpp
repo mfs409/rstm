@@ -10,12 +10,13 @@
 #ifndef RSTM_CHECKPOINT_H
 #define RSTM_CHECKPOINT_H
 
-///
-/// The compiler ABI for STM in C++ requires that we implement checkpointing
-/// manually in asm. This file defines the necessary sizes, offsets, and
-/// interface in a platform-dependent manner.
-///
-/// Start with some ASM macros (this file can be included from .S files).
+/**
+ *  The compiler ABI for STM in C++ requires that we implement checkpointing
+ *  manually in asm. This file defines the necessary sizes, offsets, and
+ *  interface in a platform-dependent manner.
+ *
+ *  Start with some ASM macros (this file can be included from .S files).
+ */
 #if defined(__APPLE__)
 #   define ASM_DOT_TYPE(S, T)
 #   define ASM_DOT_SIZE(S, T)
@@ -56,6 +57,9 @@
 namespace stm {
   /** Like a jmp_buf, a checkpoint_t is just a "big-enough" array of words. */
   typedef void* checkpoint_t[CHECKPOINT_SIZE];
+  static const int CHECKPOINT_SP_OFFSET = 3;
+
+  struct TX;
 
   /**
    *  Called to restore the checkpoint. The continuation pointer is called

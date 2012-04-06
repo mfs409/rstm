@@ -17,10 +17,9 @@
 #include <stdint.h>
 #include <iostream>
 #include <cassert>
-#include <setjmp.h>                     // factor this out into the API?
+#include "byte-logging.hpp"
 #include "tmabi-weak.hpp"               // the weak interface
 #include "foreach.hpp"                  // FOREACH macro
-#include "platform.hpp"
 #include "WBMMPolicy.hpp" // todo: remove this, use something simpler
 #include "tx.hpp"
 #include "adaptivity.hpp"
@@ -185,16 +184,13 @@ void alg_tm_end()
 /**
  *  Transactional read
  */
-void* alg_tm_read(void** addr)
+static inline void* ALG_TM_READ_WORD(void** addr, TX* tx, uintptr_t mask)
 {
-    TX* tx = Self;
-
     if (tx->writes.size()) {
         // check the log for a RAW hazard, we expect to miss
-        WriteSetEntry log(STM_WRITE_SET_ENTRY(addr, NULL, mask));
-        bool found = tx->writes.find(log);
-        if (found)
-            return log.val;
+        void* val;
+        if (tx->writes.find(addr, val))
+            return val;
     }
 
     // log orec
@@ -205,10 +201,18 @@ void* alg_tm_read(void** addr)
 /**
  *  Simple buffered transactional write
  */
-void alg_tm_write(void** addr, void* val)
+static inline void ALG_TM_WRITE_WORD(void** addr, void* val, TX* tx, uintptr_t mask)
 {
     // record the new value in a redo log
-    Self->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
+    tx->writes.insert(WriteSetEntry(REDO_LOG_ENTRY(addr, val, mask)));
+}
+
+void* alg_tm_read(void** addr) {
+    return ALG_TM_READ_WORD(addr, Self, ~0);
+}
+
+void alg_tm_write(void** addr, void* val) {
+    ALG_TM_WRITE_WORD(addr, val, Self, ~0);
 }
 
 bool alg_tm_is_irrevocable(TX* tx) {

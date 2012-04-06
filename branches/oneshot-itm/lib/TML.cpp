@@ -20,6 +20,7 @@
  */
 
 #include <cassert>
+#include "byte-logging.hpp"
 #include "tmabi-weak.hpp"
 #include "tx.hpp"
 #include "adaptivity.hpp"
@@ -130,6 +131,8 @@ void alg_tm_write(void** addr, void* val) {
     beforewrite_TML(tx);
     *addr = val;
 }
+
+
 
 bool alg_tm_is_irrevocable(TX* tx) {
     return (tx->turbo);
