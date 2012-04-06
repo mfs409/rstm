@@ -42,6 +42,7 @@
  */
 
 #include <iostream>
+#include "byte-logging.hpp"
 #include "tmabi-weak.hpp"
 #include "foreach.hpp"
 #include "MiniVector.hpp"
@@ -184,10 +185,8 @@ static void alg_tm_end()
  *
  *    Must check orec twice, and may need to validate
  */
-void* alg_tm_read(void** addr)
+static inline void* ALG_TM_READ_WORD(void** addr, TX* tx, uintptr_t)
 {
-    TX* tx = Self;
-
     // get the orec addr, then start loop to read a consistent value
     orec_t* o = get_orec(addr);
     while (true) {
@@ -229,10 +228,8 @@ void* alg_tm_read(void** addr)
  *
  *    Lock the orec, log the old value, do the write
  */
-void alg_tm_write(void** addr, void* val)
+static inline void ALG_TM_WRITE_WORD(void** addr, void* val, TX* tx, uintptr_t mask)
 {
-    TX* tx = Self;
-
     // get the orec addr, then enter loop to get lock from a consistent state
     orec_t* o = get_orec(addr);
     while (true) {
@@ -248,7 +245,7 @@ void alg_tm_write(void** addr, void* val)
             // save old value, log lock, do the write, and return
             o->p = ivt.all;
             tx->locks.insert(o);
-            tx->undo_log.insert(UndoLogEntry(STM_UNDO_LOG_ENTRY(addr, *addr, ignored)));
+            tx->undo_log.insert(UndoLogEntry(UNDO_LOG_ENTRY(addr, *addr, mask)));
             *addr = val;
             return;
         }
@@ -257,7 +254,7 @@ void alg_tm_write(void** addr, void* val)
         // many locations hash to the same orec.  The lock does not mean I
         // have undo logged *this* location
         if (ivt.all == tx->my_lock.all) {
-            tx->undo_log.insert(UndoLogEntry(STM_UNDO_LOG_ENTRY(addr, *addr, ignored)));
+            tx->undo_log.insert(UndoLogEntry(UNDO_LOG_ENTRY(addr, *addr, mask)));
             *addr = val;
             return;
         }
@@ -271,6 +268,14 @@ void alg_tm_write(void** addr, void* val)
         validate(tx);
         tx->start_time = newts;
     }
+}
+
+void* alg_tm_read(void** addr) {
+    return ALG_TM_READ_WORD(addr, Self, ~0);
+}
+
+void alg_tm_write(void** addr, void* val) {
+    ALG_TM_WRITE_WORD(addr, val, Self, ~0);
 }
 
 bool alg_tm_is_irrevocable(TX*) {

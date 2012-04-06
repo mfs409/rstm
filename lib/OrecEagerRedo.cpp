@@ -19,6 +19,7 @@
  */
 
 #include <iostream>
+#include "byte-logging.hpp"
 #include "tmabi-weak.hpp"
 #include "foreach.hpp"
 #include "MiniVector.hpp"
@@ -145,10 +146,8 @@ void alg_tm_end()
 /**
  *  OrecEagerRedo read
  */
-void* alg_tm_read(void** addr)
+static inline void* ALG_TM_READ_WORD(void** addr, TX* tx, uintptr_t)
 {
-    TX* tx = Self;
-
     // get the orec addr
     orec_t* o = get_orec(addr);
     while (true) {
@@ -167,11 +166,7 @@ void* alg_tm_read(void** addr)
         // next best: locked by me
         if (ivt.all == tx->my_lock.all) {
             // check the log for a RAW hazard, we expect to miss
-            WriteSetEntry log(STM_WRITE_SET_ENTRY(addr, NULL, mask));
-            bool found = tx->writes.find(log);
-            if (found)
-                return log.val;
-            return *addr;
+            return (tx->writes.find(addr, tmp)) ? tmp : *addr;
         }
 
         // abort if locked by other
@@ -188,12 +183,10 @@ void* alg_tm_read(void** addr)
 /**
  *  OrecEagerRedo write
  */
-void alg_tm_write(void** addr, void* val)
+static inline void ALG_TM_WRITE_WORD(void** addr, void* val, TX* tx, uintptr_t mask)
 {
-    TX* tx = Self;
-
     // add to redo log
-    tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
+    tx->writes.insert(WriteSetEntry(UNDO_LOG_ENTRY(addr, val, mask)));
 
     // get the orec addr
     orec_t* o = get_orec(addr);
@@ -226,6 +219,14 @@ void alg_tm_write(void** addr, void* val)
         validate(tx);
         tx->start_time = newts;
     }
+}
+
+void* alg_tm_read(void** addr) {
+    return ALG_TM_READ_WORD(addr, Self, ~0);
+}
+
+void alg_tm_write(void** addr, void* val) {
+    ALG_TM_WRITE_WORD(addr, val, Self, ~0);
 }
 
 bool alg_tm_is_irrevocable(TX*) {
