@@ -20,7 +20,6 @@
 #include "RedoRAWUtils.hpp"
 
 // define atomic operations
-#define CAS __sync_val_compare_and_swap
 #define ADD __sync_add_and_fetch
 #define SUB __sync_sub_and_fetch
 #define OR  __sync_or_and_fetch
@@ -73,15 +72,18 @@ namespace {
   bool
   Fastlane::begin(TxThread* tx)
   {
+      tx->allocator.onTxBegin();
+
       // threads[1] is master
       if (tx->id == 1) {
-          // master request priority access
+          // Master request priority access
           OR(&cntr, MSB);
+
           // Wait for committing helpers
           while ((cntr & 0x01) != 0)
               spin64();
 
-          // Imcrement cntr from even to odd
+          // Increment cntr from even to odd
           cntr = (cntr & ~MSB) + 1;
           WBR;
 
@@ -94,7 +96,6 @@ namespace {
       tx->start_time = cntr & ~1 & ~MSB;
 
       // starts
-      tx->allocator.onTxBegin();
       return true;
   }
 
@@ -106,7 +107,7 @@ namespace {
   {
       CFENCE; //wbw between write back and change of cntr
       // Only master can write odd cntr, now cntr is even again
-      cntr ++;
+      cntr++;
       WBR;
 
       OnReadWriteCommit(tx, read_ro, write_ro, commit_ro);
@@ -138,7 +139,7 @@ namespace {
       // Attempt to CAS only after counter seen even
       do {
           c = WaitForEvenCounter();
-      }while (!bcas32(&cntr, c, c+1));
+      }while (!bcas32(&cntr, c, c + 1));
 
       // Release counter upon failed validation
       if (!validate(tx)) {
@@ -148,10 +149,10 @@ namespace {
 
       // [NB] Problem: cntr may be negative number now.
       // in the paper, write orec as cntr, which is wrong,
-      // should be c+1
+      // should be c + 1
 
-      // Write updates to memory, mark orec as c+1
-      EmitWriteSet(tx, c+1);
+      // Write updates to memory, mark orec as c + 1
+      EmitWriteSet(tx, c + 1);
 
       // Release counter by making it even again
       ADD(&cntr, 1);
@@ -173,7 +174,7 @@ namespace {
       uint32_t t = c + 1;
 
       // Likely commit: try acquiring counter
-      while (!bcas32(&cntr, c, c+ 1))
+      while (!bcas32(&cntr, c, c + 1))
           c = WaitForEvenCounter();
 
       // Check that validation still holds
@@ -185,7 +186,7 @@ namespace {
       }
 
       // Write updates to memory
-      EmitWriteSet(tx, c+1);
+      EmitWriteSet(tx, c + 1);
       // Release locks
       ADD(&cntr, 1);
       helper = 0;
