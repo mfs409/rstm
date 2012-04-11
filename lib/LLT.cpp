@@ -32,6 +32,7 @@
 #include "adaptivity.hpp"
 #include "tm_alloc.hpp"
 #include "libitm.h"
+#include "inst.hpp"                     // read<>/write<>
 
 using namespace stm;
 
@@ -146,14 +147,7 @@ void alg_tm_end()
  *
  *    We use "check twice" timestamps in LLT
  */
-static inline void* ALG_TM_READ_WORD(void** addr, TX* tx, uintptr_t) {
-    if (tx->writes.size()) {
-        // check the log for a RAW hazard, we expect to miss
-        void* val;
-        if (tx->writes.find(addr, val))
-            return val;
-    }
-
+static inline void* alg_tm_read_aligned_word(void** addr, TX* tx) {
     // get the orec addr
     orec_t* o = get_orec(addr);
 
@@ -163,15 +157,14 @@ static inline void* ALG_TM_READ_WORD(void** addr, TX* tx, uintptr_t) {
     void* tmp = *addr;
     CFENCE;
     uintptr_t ivt2 = o->v.all;
-    // if orec never changed, and isn't too new, the read is valid
-    if ((ivt <= tx->start_time) && (ivt == ivt2)) {
-        // log orec, return the value
-        tx->r_orecs.insert(o);
-        return tmp;
-    }
-    // unreachable
-    _ITM_abortTransaction(TMConflict);
-    return NULL;
+
+    // if orec is too new, or we didn't see a consistent version, abort
+    if ((ivt > tx->start_time) || (ivt != ivt2))
+        _ITM_abortTransaction(TMConflict);
+
+    // log orec, return the value
+    tx->r_orecs.insert(o);
+    return tmp;
 }
 
 /** LLT write */
@@ -181,7 +174,7 @@ static inline void ALG_TM_WRITE_WORD(void** addr, void* val, TX* tx, uintptr_t m
 }
 
 void* alg_tm_read(void** addr) {
-    return ALG_TM_READ_WORD(addr, Self, ~0);
+    return inst::read<void*, inst::NoFilter, inst::WordlogRAW, true>(addr);
 }
 
 void alg_tm_write(void** addr, void* val) {

@@ -30,6 +30,7 @@
 #include "adaptivity.hpp"
 #include "tm_alloc.hpp"
 #include "libitm.h"
+#include "inst.hpp"
 
 using namespace stm;
 
@@ -143,11 +144,8 @@ void alg_tm_end()
     ++tx->commits_rw;
 }
 
-/**
- *  OrecEagerRedo read
- */
-static inline void* ALG_TM_READ_WORD(void** addr, TX* tx, uintptr_t)
-{
+/** OrecEagerRedo read */
+static inline void* alg_tm_read_aligned_word(void** addr, TX* tx) {
     // get the orec addr
     orec_t* o = get_orec(addr);
     while (true) {
@@ -222,7 +220,7 @@ static inline void ALG_TM_WRITE_WORD(void** addr, void* val, TX* tx, uintptr_t m
 }
 
 void* alg_tm_read(void** addr) {
-    return ALG_TM_READ_WORD(addr, Self, ~0);
+    return inst::read<void*, inst::NoFilter, inst::NoRAW, true>(addr);
 }
 
 void alg_tm_write(void** addr, void* val) {

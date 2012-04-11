@@ -20,7 +20,8 @@
 #include "byte-logging.hpp"
 #include "tmabi-weak.hpp"               // the weak interface
 #include "foreach.hpp"                  // FOREACH macro
-#include "WBMMPolicy.hpp" // todo: remove this, use something simpler
+#include "inst.hpp"                     // read<>/write<>
+#include "WBMMPolicy.hpp"           // todo: remove this, use something simpler
 #include "tx.hpp"
 #include "adaptivity.hpp"
 #include "tm_alloc.hpp"
@@ -184,15 +185,7 @@ void alg_tm_end()
 /**
  *  Transactional read
  */
-static inline void* ALG_TM_READ_WORD(void** addr, TX* tx, uintptr_t mask)
-{
-    if (tx->writes.size()) {
-        // check the log for a RAW hazard, we expect to miss
-        void* val;
-        if (tx->writes.find(addr, val))
-            return val;
-    }
-
+static inline void* alg_tm_read_aligned_word(void** addr, TX* tx) {
     // log orec
     tx->r_orecs.insert(get_orec(addr));
     return *addr;
@@ -208,7 +201,7 @@ static inline void ALG_TM_WRITE_WORD(void** addr, void* val, TX* tx, uintptr_t m
 }
 
 void* alg_tm_read(void** addr) {
-    return ALG_TM_READ_WORD(addr, Self, ~0);
+    return inst::read<void*, inst::NoFilter, inst::WordlogRAW, true>(addr);
 }
 
 void alg_tm_write(void** addr, void* val) {

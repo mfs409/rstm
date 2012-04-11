@@ -13,7 +13,8 @@
 #include <stdint.h>
 #include "tx.hpp"
 #include "inst-alignment.hpp"
-
+#include "inst-stackfilter.hpp"         // not used directly here, but all
+#include "inst-raw.hpp"                 // specializers will need them
 /**
  *  The intrinsic read and write barriers are implemented by the TM.
  */

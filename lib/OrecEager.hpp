@@ -45,6 +45,7 @@
 #include "byte-logging.hpp"
 #include "tmabi-weak.hpp"
 #include "foreach.hpp"
+#include "inst.hpp"                     // read<>/write<>, etc
 #include "MiniVector.hpp"
 #include "metadata.hpp"
 #include "WBMMPolicy.hpp"
@@ -185,8 +186,7 @@ static void alg_tm_end()
  *
  *    Must check orec twice, and may need to validate
  */
-static inline void* ALG_TM_READ_WORD(void** addr, TX* tx, uintptr_t)
-{
+static inline void* alg_tm_read_aligned_word(void** addr, TX* tx) {
     // get the orec addr, then start loop to read a consistent value
     orec_t* o = get_orec(addr);
     while (true) {
@@ -271,7 +271,7 @@ static inline void ALG_TM_WRITE_WORD(void** addr, void* val, TX* tx, uintptr_t m
 }
 
 void* alg_tm_read(void** addr) {
-    return ALG_TM_READ_WORD(addr, Self, ~0);
+    return inst::read<void*, inst::NoFilter, inst::NoRAW, true>(addr);
 }
 
 void alg_tm_write(void** addr, void* val) {
