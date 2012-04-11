@@ -22,6 +22,7 @@
 #include "byte-logging.hpp"
 #include "tmabi-weak.hpp"
 #include "foreach.hpp"
+#include "inst.hpp"                     // read<>/write<>, etc.
 #include "MiniVector.hpp"
 #include "metadata.hpp"
 #include "WriteSet.hpp"
@@ -216,15 +217,7 @@ static NOINLINE void privtest(TX* tx, uintptr_t ts)
  *    Standard tl2-style read, but then we poll for potential privatization
  *    conflicts
  */
-static inline void* ALG_TM_READ_WORD(void** addr, TX* tx, uintptr_t mask)
-{
-    if (tx->writes.size()) {
-        // check the log for a RAW hazard, we expect to miss
-        void* val;
-        if (tx->writes.find(addr, val))
-            return val;
-    }
-
+static inline void* alg_tm_read_aligned_word(void** addr, TX* tx) {
     // read the location, log the orec
     void* tmp = *addr;
     orec_t* o = get_orec(addr);
@@ -254,7 +247,7 @@ static inline void ALG_TM_WRITE_WORD(void** addr, void* val, TX* tx, uintptr_t m
 }
 
 void* alg_tm_read(void** addr) {
-    return ALG_TM_READ_WORD(addr, Self, ~0);
+    return inst::read<void*, inst::NoFilter, inst::WordlogRAW, true>(addr);
 }
 
 void alg_tm_write(void** addr, void* val) {

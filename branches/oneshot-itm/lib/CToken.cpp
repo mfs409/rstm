@@ -23,6 +23,7 @@
 #include "byte-logging.hpp"
 #include "tmabi-weak.hpp"
 #include "foreach.hpp"
+#include "inst.hpp"
 #include "WriteSet.hpp"
 #include "WBMMPolicy.hpp"
 #include "tx.hpp"
@@ -145,16 +146,7 @@ void alg_tm_end()
 /**
  *  CToken read (writing transaction)
  */
-static inline void* ALG_TM_READ_WORD(void** addr, TX* tx, uintptr_t mask)
-{
-    // check the log for a RAW hazard, we expect to miss
-    if (tx->writes.size()) {
-        // check the log for a RAW hazard, we expect to miss
-        void* val;
-        if (tx->writes.find(addr, val))
-            return val;
-    }
-
+static inline void* alg_tm_read_aligned_word(void** addr, TX* tx) {
     void* tmp = *addr;
     CFENCE; // RBR between dereference and orec check
 
@@ -189,7 +181,7 @@ static inline void ALG_TM_WRITE_WORD(void** addr, void* val, TX* tx, uintptr_t m
 }
 
 void* alg_tm_read(void** addr) {
-    return ALG_TM_READ_WORD(addr, Self, ~0);
+    return inst::read<void*, inst::NoFilter, inst::WordlogRAW, true>(addr);
 }
 
 void alg_tm_write(void** addr, void* val) {

@@ -21,6 +21,7 @@
 #include "byte-logging.hpp"
 #include "tmabi-weak.hpp"               // the weak interface
 #include "foreach.hpp"                  // FOREACH macro
+#include "inst.hpp"
 #include "WriteSet.hpp"
 #include "WBMMPolicy.hpp" // todo: remove this, use something simpler
 #include "tx.hpp"
@@ -207,21 +208,24 @@ void alg_tm_end() {
     ++tx->commits_rw;
 }
 
+namespace {
+  /**
+   *  We need to customize our filter to deal with turbo transactions. We
+   *  forward to whatever the usual stack filter is after checking if we're in
+   *  turbo mode.
+   */
+  template <typename StackFilter>
+  struct CohortsEagerFilter {
+      static inline bool filter(void** addr, TX* tx) {
+          return ((tx->turbo) || StackFilter::filter(addr, tx));
+      }
+  };
+}
+
 /**
  *  Transactional read
  */
-static inline void* ALG_TM_READ_WORD(void** addr, TX* tx, uintptr_t mask) {
-    if (tx->turbo) {
-        return *addr;
-    }
-
-    if (tx->writes.size()) {
-        // check the log for a RAW hazard, we expect to miss
-        void* found;
-        if (tx->writes.find(addr, found))
-            return found;
-    }
-
+static inline void* alg_tm_read_aligned_word(void** addr, TX* tx) {
     // log orec
     tx->r_orecs.insert(get_orec(addr));
     return *addr;
@@ -268,7 +272,7 @@ static inline void ALG_TM_WRITE_WORD(void** addr, void* val, TX* tx, uintptr_t m
 }
 
 void* alg_tm_read(void** addr) {
-    return ALG_TM_READ_WORD(addr, Self, ~0);
+    return inst::read<void*, CohortsEagerFilter<inst::NoFilter>, inst::WordlogRAW, true>(addr);
 }
 
 void alg_tm_write(void** addr, void* val) {
