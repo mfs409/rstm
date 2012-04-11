@@ -37,8 +37,8 @@ using stm::last_order;
  *  circular dependencies.
  */
 namespace {
+  // inplace write flag
   volatile uint32_t inplace = 0;
-
   struct CohortsEF {
       static TM_FASTCALL bool begin(TxThread*);
       static TM_FASTCALL void* read_ro(STM_READ_SIG(,,));
@@ -106,20 +106,20 @@ namespace {
   void
   CohortsEF::commit_turbo(TxThread* tx)
   {
-      // increase # of tx waiting to commit
-      cpending.val ++;
+      // increase # of tx waiting to commit, and use it as the order
+      tx->order = ADD(&cpending.val ,1);
 
       // clean up
       tx->rf->clear();
       OnReadWriteCommit(tx, read_ro, write_ro, commit_ro);
 
       // wait for my turn, in this case, cpending is my order
-      while (last_complete.val != (uintptr_t)(cpending.val - 1));
+      while (last_complete.val != (uintptr_t)(tx->order - 1));
 
       // I must be the last in the cohort, so clean global_filter
       global_filter->clear();
-
       WBR;
+
       // reset in place write flag
       inplace = 0;
       WBR;
@@ -128,8 +128,9 @@ namespace {
       last_complete.val = cpending.val;
 
       // increase # of committed
-      committed.val ++;
-      WBR;
+      //committed.val ++;
+      //WBR;
+      ADD(&committed.val, 1);
   }
 
   /**
@@ -157,18 +158,20 @@ namespace {
 
       // do write back
       tx->writes.writeback();
+      WBR;
+
       //union tx local write filter with the global filter
       global_filter->unionwith (*(tx->wf));
-
       WBR;
-      // mark self as done
-      last_complete.val = tx->order;
 
       // If the last one in the cohort, save the order and clear the filter
       if ((uint32_t)tx->order == started.val) {
           last_order = started.val + 1;
           global_filter->clear();
       }
+
+      // mark self as done
+      last_complete.val = tx->order;
 
       // increase total number of committed tx
       // [NB] Using atomic instruction might be faster
