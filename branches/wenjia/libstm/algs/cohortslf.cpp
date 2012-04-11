@@ -134,6 +134,7 @@ namespace {
 
       // do write back
       tx->writes.writeback();
+      WBR;
 
       // union tx local write filter with the global filter
       global_filter->unionwith(*(tx->wf));

@@ -23,10 +23,6 @@
 #define ADD __sync_add_and_fetch
 #define SUB __sync_sub_and_fetch
 
-#define OLD
-//#define MASTER
-//#define PREVALIDATE// doesnt work after change cpending etc to pad_word_t
-
 using stm::TxThread;
 using stm::threads;
 using stm::threadcount;
@@ -38,18 +34,12 @@ using stm::started;
 using stm::cpending;
 using stm::committed;
 using stm::last_order;
-#ifdef PREVALIDATE
-using stm::temp_filter;
-#endif
 
 /**
  *  Declare the functions that we're going to implement, so that we can avoid
  *  circular dependencies.
  */
 namespace {
-#ifdef MASTER
-  volatile uint32_t master = 0;
-#endif
   struct CohortsFilter {
       static TM_FASTCALL bool begin(TxThread*);
       static TM_FASTCALL void* read_ro(STM_READ_SIG(,,));
@@ -63,7 +53,6 @@ namespace {
       static bool irrevoc(TxThread*);
       static void onSwitchTo();
       static NOINLINE void validate(TxThread* tx);
-      static NOINLINE void prevalidate(TxThread* tx);
   };
 
   /**
@@ -89,8 +78,6 @@ namespace {
           SUB(&started.val, 1);
           goto S1;
       }
-
-      tx->ts_cache = last_complete.val;
 
       tx->allocator.onTxBegin();
       return true;
@@ -119,7 +106,6 @@ namespace {
   void
   CohortsFilter::commit_rw(TxThread* tx)
   {
-#ifdef OLD
       // increment num of tx ready to commit, and use it as the order
       tx->order = ADD(&cpending.val, 1);
 
@@ -137,6 +123,8 @@ namespace {
 
       // do write back
       tx->writes.writeback();
+      // [NB] Intruder bench will abort if without this WBR fence
+      WBR;
 
       // union tx local write filter with the global filter
       global_filter->unionwith(*(tx->wf));
@@ -145,120 +133,20 @@ namespace {
       // atomic instruction.
       WBR;
 
-      // mark self as done
-      last_complete.val = tx->order;
-
       // If I'm the last one in the cohort, save the order and clear the filter
       if ((uint32_t)tx->order == started.val) {
           last_order = started.val + 1;
           global_filter->clear();
       }
-#endif
-#ifdef MASTER
-      // mark self unknown
-      // 4 is unknown
-      // 5 is alive
-      // 6 is dead
-      tx->status = 4;
 
-      // increment num of tx ready to commit
-      ADD(&cpending.val, 1);
-
-      while (cpending.val < started.val)
-          spin64();
-
-      // acquire the master lock
-      if (bcas32(&master, 0, 1)) {
-          // look at all others' local filter
-          for (uint32_t i = 0; i < threadcount.val; ++i)
-              // status is unknown and no same entry in global filter
-              if (threads[i]->status == 4)
-                  if (global_filter->intersect(threads[i]->rf) == 0 && global_filter->intersect(threads[i]->wf) == 0) {
-                      // you are alive
-                      threads[i]->status = 5;
-                      // union with global_filter
-                      global_filter->unionwith(*(threads[i]->wf));
-                      //WBR;
-                  }
-                  else
-                      // you are dead
-                      threads[i]->status = 6;
-
-          // clear the global filter
-          global_filter->clear();
-          WBR;
-          // release the master lock
-          CAS(&master, 1, 0);
-      }
-
-      // all threads spin for its own status
-      while (tx->status == 4);
-
-      if (tx->status == 5)
-          tx->writes.writeback();
-      else {
-          ADD(&committed.val, 1);
-          tx->tmabort(tx);
-      }
-#endif
-#ifdef PREVALIDATE
-
-      // increment num of tx ready to commit, and use it as the order
-      tx->order = ADD(&cpending.val, 1);
-
-      // Wait until all tx are ready to commit
-      while (cpending.val < started.val)
-          spin64();
-
-      // Wait for my previous tx's turn
-      while ((int)last_complete.val < (int)(tx->order - 2));
-
-      if (tx->order != last_order)
-          prevalidate(tx);
-
-      // Wait for my turn
-      while (last_complete.val != (uintptr_t)(tx->order - 1))
-          spin64();
-
-      if (tx->status == 6)
-          goto DEAD;
-
-      // validate read with previous committed.val tx
-      if (tx->order != last_order)
-          validate(tx);
-
-      // do write back
-      tx->writes.writeback();
-
-      // union tx local write filter with the global filter
-      global_filter->unionwith(*(tx->wf));
-
-      // save my write filter to the temp_filter
-      temp_filter->fastcopy(tx->wf);
-
-      // [NB] Intruder bench will abort if without this WBR but followed by a non
-      // atomic instruction.
-      WBR;
-
-    DEAD:
       // mark self as done
       last_complete.val = tx->order;
 
-      // If I'm the last one in the cohort, save the order and clear the filter
-      if ((uint32_t)tx->order == started.val) {
-          last_order = started.val + 1;
-          global_filter->clear();
-      }
-#endif
-      // increase total number of committed tx
       // [NB] atomic increment is faster here
       ADD(&committed.val, 1);
       // committed.val++;
       // WBR;
-#ifdef PREVALIDATE
-      if (tx->status == 6)
-        tx->tmabort(tx);
-#endif
+
       // commit all frees, reset all lists
       tx->rf->clear();
       tx->wf->clear();
@@ -356,16 +244,15 @@ namespace {
   void
   CohortsFilter::validate(TxThread* tx)
   {
-#ifdef OLD
       // If there is a same element in both global_filter and read_filter
       if (global_filter->intersect(tx->rf)) {
           // I'm the last one in the cohort, save the order and clear the filter
           if ((uint32_t)tx->order == started.val) {
               last_order = started.val + 1;
               global_filter->clear();
+              // [NB] Intruder bench will abort if without this WBR
+              WBR;
           }
-          // [NB] Intruder bench will abort if without this WBR
-          WBR;
           // set self as completed
           last_complete.val = tx->order;
           // increase total number of committed tx
@@ -373,32 +260,6 @@ namespace {
           // abort
           tx->tmabort(tx);
       }
-#else
-      if (temp_filter->intersect(tx->rf)) {
-          if ((uint32_t)tx->order == started.val) {
-              last_order = started.val + 1;
-              global_filter->clear();
-          }
-          WBR;
-          // set self as completed
-          last_complete.val = tx->order;
-          // increase total number of committed tx
-          ADD(&committed.val, 1);
-          // abort
-          tx->tmabort(tx);
-      }
-#endif
-  }
-
-  /**
-   *  CohortsFilter validation for commit: check that all reads are valid
-   */
-  void
-  CohortsFilter::prevalidate(TxThread* tx)
-  {
-      // If there is a same element in both global_filter and read_filter
-      if (global_filter->intersect(tx->rf))
-          tx->status = 6;
   }
 
   /**
