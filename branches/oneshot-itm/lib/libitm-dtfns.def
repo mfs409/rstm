@@ -1,4 +1,4 @@
-/**
+/** -*- c -*-
  *  Copyright (C) 2011
  *  University of Rochester Department of Computer Science
  *    and
@@ -131,7 +131,7 @@ extern "C" {
     RSTM_LIBITM_DTFN(_ITM_##suffix##T,                                  \
                          ITM_REGPARM,                          \
                          type,                                          \
-                         const type *)                                  \
+                         type *)                                  \
     RSTM_LIBITM_READ(_ITM_##suffix##T, ITM_REGPARM, type)      \
     RSTM_LIBITM_READ_##suffix(_ITM_##suffix##T, ITM_REGPARM, type)
 

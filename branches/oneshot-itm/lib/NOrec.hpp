@@ -29,6 +29,10 @@
 #include "tx.hpp"
 #include "libitm.h"
 
+#include "inst.hpp"                     // the generic R/W instrumentation
+#include "inst-stackfilter.hpp"         // FullFilter
+#include "inst-raw.hpp"
+
 using stm::TX;
 using stm::pad_word_t;
 using stm::WriteSetEntry;
@@ -80,7 +84,10 @@ static void alg_tm_rollback(TX* tx) {
     CM::onAbort(tx);
 }
 
-/** only called for outermost transactions. */
+/**
+ *  Begin an outermost transactions, nested begins are absorbed in the
+ *  _ITM_beginTransaction asm.
+ */
 template <class CM>
 static uint32_t TM_FASTCALL alg_tm_begin(uint32_t, TX* tx) {
     CM::onBegin(tx);
@@ -134,16 +141,11 @@ static void alg_tm_end() {
     ++tx->commits_rw;
 }
 
-/** Transactional read */
-static inline void* ALG_TM_READ_WORD(void** addr, TX* tx, uintptr_t mask) {
-    void* val = NULL;
-    uintptr_t found = tx->writes.find(addr, val);
-    if (REDO_RAW_CHECK(found, mask))
-        return val;
-
-    // we've either missed, or we've only partially hit--either way, we need to
-    // read from memory
-
+/**
+ *  The essence of the NOrec read algorithm, for use with the inst.hpp
+ *  infrastructure.
+ */
+static inline void* alg_tm_read_aligned_word(void** addr, TX* tx) {
     // read the location to a temp
     void* tmp = *addr;
     CFENCE;
@@ -157,9 +159,12 @@ static inline void* ALG_TM_READ_WORD(void** addr, TX* tx, uintptr_t mask) {
         CFENCE;
     }
 
-    // log the address and value, uses the macro to deal with STM_PROTECT_STACK
+    // tmp contains the value we want
+    //
+    // TODO: this isn't good enough because we don't know the mask here, we
+    //       need to push logging out into the generic level
     STM_LOG_VALUE(tx, addr, tmp, mask);
-    return REDO_RAW_MERGE(val, tmp, found);
+    return tmp;
 }
 
 /** Simple buffered transactional write. */
@@ -170,7 +175,7 @@ static inline void ALG_TM_WRITE_WORD(void** addr, void* val, TX* tx, uintptr_t m
 
 /** The library api interface to read an aligned word. */
 void* alg_tm_read(void** addr) {
-    return ALG_TM_READ_WORD(addr, Self, ~0);
+    return stm::inst::read<void*, stm::inst::NoFilter, stm::inst::WordlogRAW, true>(addr);
 }
 
 /** The library api interface to write an aligned word. */

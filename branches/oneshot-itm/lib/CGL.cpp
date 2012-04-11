@@ -11,7 +11,6 @@
 #include <stdint.h>
 #include <iostream>
 #include <cstdlib>
-#include "byte-logging.hpp"
 #include "tmabi-weak.hpp"
 #include "tx.hpp"
 #include "locks.hpp"
@@ -59,14 +58,13 @@ _ITM_beginTransaction(uint32_t flags, ...) {
     return alg_tm_begin(flags, NULL);
 }
 
-/**
- *  End a transaction: decrease the nesting level, then perhaps release the
- *  lock and increment the count of commits.
- *
- *  NB: we don't know if this is a writer or reader, so we just universally
- *      increment commits_rw.
- */
 void alg_tm_end() {
+    // End a transaction: decrease the nesting level, then perhaps release the
+    // lock and increment the count of commits.
+    //
+    // NB: we don't know if this is a writer or reader, so we just universally
+    //     increment commits_rw.
+
     TX* tx = Self;
     if (--tx->nesting_depth)
         return;
@@ -74,37 +72,25 @@ void alg_tm_end() {
     ++tx->commits_rw;
 }
 
-/**
- *  In CGL, malloc doesn't need any special care
- */
 void* alg_tm_alloc(size_t s) {
+    // Nothing special since CGL is always serial.
     return malloc(s);
 }
 
-/**
- *  In CGL, calloc doesn't need any special care
- */
 void* alg_tm_calloc(size_t n, size_t s) {
+    // Nothing special since CGL is always serial.
     return calloc(n, s);
 }
 
-/**
- *  In CGL, free doesn't need any special care
- */
 void alg_tm_free(void* p) {
+    // Nothing special since CGL is always serial.
     free(p);
 }
 
-/**
- *  CGL read
- */
 void* alg_tm_read(void** addr) {
     return *addr;
 }
 
-/**
- *  CGL write
- */
 void alg_tm_write(void** addr, void* val) {
     *addr = val;
 }
@@ -122,23 +108,22 @@ void alg_tm_become_irrevocable(_ITM_transactionState) {
     return;
 }
 
-/**
- *  Register the TM for adaptivity and for use as a standalone library
- */
+// Register the TM for adaptivity and for use as a standalone library
 REGISTER_TM_FOR_ADAPTIVITY(CGL);
 
 /**
  *  Add weak implementations of all of the ITM read and write functions. These
  *  will be used for libCGL.
  */
-#define RSTM_LIBITM_READ(SYMBOL, CALLING_CONVENTION, TYPE) \
-    TYPE CALLING_CONVENTION __attribute__((weak)) SYMBOL(const TYPE* addr) {  \
+#define RSTM_LIBITM_READ(SYMBOL, CALLING_CONVENTION, TYPE)              \
+    TYPE CALLING_CONVENTION __attribute__((weak))                       \
+    SYMBOL(TYPE* addr) {                                                \
         return *addr;                                                   \
     }
 
-#define RSTM_LIBITM_WRITE(SYMBOL, CALLING_CONVENTION, TYPE) \
-    void CALLING_CONVENTION __attribute__((weak)) SYMBOL(TYPE* addr, TYPE val) \
-    {                                                                   \
+#define RSTM_LIBITM_WRITE(SYMBOL, CALLING_CONVENTION, TYPE)             \
+    void CALLING_CONVENTION __attribute__((weak))                       \
+    SYMBOL(TYPE* addr, TYPE val) {                                      \
         *addr = val;                                                    \
     }
 

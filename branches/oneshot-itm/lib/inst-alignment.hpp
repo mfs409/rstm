@@ -44,8 +44,12 @@ namespace stm {
      *  The Aligned template. By default, accesses are
      *  unaligned---specializations of T, B, and A should define the value enum
      *  to be true.
+     *
+     *  We want to be able to force the output of an aligned barrier, so the
+     *  fourth parameter overrides the normal settings.
      */
     template <typename T,
+              bool ForceAligned = false,
               Arch A = DEFAULT_ARCH,
               size_t B = sizeof(T)>
     struct Aligned {
@@ -53,14 +57,29 @@ namespace stm {
     };
 
     /** all sparc accesses are aligned */
-    template <typename T, size_t B>
-    struct Aligned<T, sparc, B> {
+    template <typename T, bool ForceAligned,  size_t B>
+    struct Aligned<T, ForceAligned, sparc, B> {
         enum { value = true };
     };
 
-    /** all byte access are aligned */
+    /**
+     *  All byte access are aligned (we need both ForceAligned specializations
+     *  to avoid an ambiguous specialization problem with the ForceAligned=true
+     *  specialization below.
+     */
     template <typename T, Arch A>
-    struct Aligned<T, A, 1> {
+    struct Aligned<T, true, A, 1> {
+        enum { value = true };
+    };
+
+    template <typename T, Arch A>
+    struct Aligned<T, false, A, 1> {
+        enum { value = true };
+    };
+
+    /** when we force aligned, value is always true */
+    template <typename T, Arch A, size_t B>
+    struct Aligned<T, true, A, B> {
         enum { value = true };
     };
   }

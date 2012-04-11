@@ -30,19 +30,19 @@ namespace stm {
      *  account for this in the loop that actually performs the read.
      */
     template <typename T,
-              size_t M = sizeof(T) % sizeof(void*),
-              bool A = Aligned<T>::value>
+              bool ALIGNED,
+              size_t M = sizeof(T) % sizeof(void*)>
     struct Buffer;
 
     /** Aligned subword types only need 1 word. */
     template <typename T, size_t M>
-    struct Buffer<T, M, true> {
+    struct Buffer<T, true, M> {
         enum { WORDS = 1 };
     };
 
     /** Possibly unaligned subword types may need 2 words. */
     template <typename T, size_t M>
-    struct Buffer<T, M, false> {
+    struct Buffer<T, false, M> {
         enum { WORDS = 2 };
     };
 
@@ -54,7 +54,7 @@ namespace stm {
      *      with static-asserts, if we had them.
      */
     template <typename T>
-    struct Buffer<T, 0, true> {
+    struct Buffer<T, true, 0> {
         enum { WORDS = sizeof(T)/sizeof(void*) };
     };
 
@@ -66,7 +66,7 @@ namespace stm {
      *      with static-asserts, if we had them.
      */
     template <typename T>
-    struct Buffer<T, 0, false> {
+    struct Buffer<T, false, 0> {
         enum { WORDS = sizeof(T)/sizeof(void*) + 1 };
     };
 
@@ -75,8 +75,8 @@ namespace stm {
      *  may need to be adjusted to a word boundary.
      */
     template <typename T,
-              size_t M = sizeof(T) % sizeof(void*),
-              bool A = Aligned<T>::value>
+              bool ALIGNED,
+              size_t M = sizeof(T) % sizeof(void*)>
     struct Base {
         static inline void** of(T* addr) {
             const uintptr_t MASK = ~static_cast<uintptr_t>(sizeof(void*) - 1);
@@ -89,7 +89,7 @@ namespace stm {
      *  Aligned words (or multiples of words) don't need to be adjusted.
      */
     template <typename T>
-    struct Base<T, 0, true> {
+    struct Base<T, true, 0> {
         static inline void** of(T* addr) {
             return reinterpret_cast<void**>(addr);
         }
@@ -100,8 +100,8 @@ namespace stm {
      *  aligned words or multiword accesses.
      */
     template <typename T,
-              size_t M = sizeof(T) % sizeof(void*),
-              bool A = Aligned<T>::value>
+              bool ALIGNED,
+              size_t M = sizeof(T) % sizeof(void*)>
     struct Offset {
         static inline size_t of(const T* const addr) {
             const uintptr_t MASK = static_cast<uintptr_t>(sizeof(void*) - 1);
@@ -114,7 +114,7 @@ namespace stm {
      *  Aligned word and multiword accessed have a known offset of 0.
      */
     template <typename T>
-    struct Offset<T, 0, true> {
+    struct Offset<T, true, 0> {
         static inline size_t of(T* addr) {
             return 0;
         }
@@ -152,16 +152,19 @@ namespace stm {
      */
     template <typename T,
               class StackFilter,
-              class RAW>
-    T read(T* addr) {
+              class RAW,
+              bool ForceAligned>
+    static inline T read(T* addr) {
         TX* tx = Self;
 
         // see if this is a read from the stack
         if (StackFilter::filter((void**)addr, tx))
             return *addr;
 
+        const bool ALIGNED = Aligned<T, ForceAligned>::value;
+
         // using Buffer<T>::WORDS;
-        enum { W = Buffer<T>::WORDS };
+        enum { W = Buffer<T, ALIGNED>::WORDS };
 
         // the bytes union is used to deal with unaligned and/or subword data.
         union {
@@ -173,10 +176,10 @@ namespace stm {
         RAW raw;
 
         // adjust the base pointer for possibly non-word aligned accesses
-        void** base = Base<T>::of(addr);
+        void** base = Base<T, ALIGNED>::of(addr);
 
         // compute an offset for this address
-        const size_t off = Offset<T>::of(addr);
+        const size_t off = Offset<T, ALIGNED>::of(addr);
 
         // deal with the first word, there's always at least one
         uintptr_t mask = make_mask(off, min(sizeof(void*), off + sizeof(T)));
@@ -199,8 +202,12 @@ namespace stm {
             if (!raw.hit(base + W, words[W], tx, mask))
                 raw.merge(alg_tm_read_aligned_word(base + W, tx), words[W]);
         }
+
+        return *reinterpret_cast<T*>(bytes + off);
     }
   }
 }
+
+#define SPECIALIZE_INST_READ_SYMBOL(T, SF, RAW)
 
 #endif // RSTM_INST_H
