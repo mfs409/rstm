@@ -34,8 +34,8 @@ using stm::orec_t;
 using stm::get_orec;
 
 // Choose your commit implementation, according to the paper, OPT2 is better
-#define OPT1
-//#define OPT2
+//#define OPT1
+#define OPT2
 
 /**
  *  Declare the functions that we're going to implement, so that we can avoid
@@ -78,7 +78,8 @@ namespace {
       tx->allocator.onTxBegin();
 
       // Acquire master lock to become master
-      if (bcas32(&master, 0, 1)) {
+      if (master == 0 && bcas32(&master, 0, 1)) {
+
           // master request priority access
           OR(&cntr, MSB);
 
@@ -113,11 +114,9 @@ namespace {
       CFENCE; //wbw between write back and change of cntr
       // Only master can write odd cntr, now cntr is even again
       cntr ++;
-      WBR;
 
       // release master lock
       master = 0;
-      WBR;
       OnReadWriteCommit(tx, read_ro, write_ro, commit_ro);
   }
 

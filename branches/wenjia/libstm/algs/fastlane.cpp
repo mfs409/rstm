@@ -108,8 +108,6 @@ namespace {
       CFENCE; //wbw between write back and change of cntr
       // Only master can write odd cntr, now cntr is even again
       cntr++;
-      WBR;
-
       OnReadWriteCommit(tx, read_ro, write_ro, commit_ro);
   }
 
