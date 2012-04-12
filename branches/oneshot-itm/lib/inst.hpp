@@ -247,11 +247,23 @@ namespace stm {
         return *reinterpret_cast<T*>(bytes + off);
     }
     template <typename T, size_t N>
-    static inline void write_words(TX* tx, void* words[N], void** addr,
+    static inline void write_words(TX* tx, void* words[N], void** base,
                                    size_t off)
     {
         // store the first word, there is always at least one
         uintptr_t mask = make_mask(off, min(sizeof(void*), off + sizeof(T)));
+        alg_tm_write_aligned_word(base, words[0], tx, mask);
+
+        // deal with any middle words
+        mask = make_mask(0, sizeof(void*));
+        for (int i = 1, e = N - 1; i < e; ++i)
+            alg_tm_write_aligned_word(base + i, words[i], tx, mask);
+
+        // deal with the last word
+        if (N > 1 && off) {
+            mask = make_mask(0, off);
+            alg_tm_write_aligned_word(base + N, words[N], tx, mask);
+        }
     }
 
     template <typename T,
@@ -260,9 +272,11 @@ namespace stm {
     static inline void write(T* addr, T val) {
         TX* tx = Self;
 
-        // see if this is a read from the stack
-        if (PREFILTER::filter((void**)addr, tx))
-            return *addr;
+        // see if this is a write to the stack
+        if (PREFILTER::filter((void**)addr, tx)) {
+            *addr = val;
+            return;
+        }
 
         // sometimes we want to force the instrumentation to be aligned, even
         // if a T isn't guaranteed to be aligned on the architecture, for

@@ -179,7 +179,7 @@ void* alg_tm_read(void** addr) {
 
 /** The library api interface to write an aligned word. */
 void alg_tm_write(void** addr, void* val) {
-    alg_tm_write_aligned_word(addr, val, Self, ~0);
+    stm::inst::write<void*, stm::inst::NoFilter, true>(addr, val);
 }
 
 bool alg_tm_is_irrevocable(TX*) {
@@ -211,6 +211,15 @@ void alg_tm_become_irrevocable(_ITM_transactionState) {
                                false>(addr);                            \
     }
 
+#define RSTM_LIBITM_WRITE(SYMBOL, CALLING_CONVENTION, TYPE)             \
+    void CALLING_CONVENTION __attribute__((weak))                       \
+    SYMBOL(TYPE* addr, TYPE val) {                                      \
+        stm::inst::write<TYPE,                                          \
+                         stm::inst::FullFilter,                         \
+                         false>(addr, val);                             \
+    }
+
 #include "libitm-dtfns.def"
 
+#undef RSTM_LIBITM_WRITE
 #undef RSTM_LIBITM_READ
