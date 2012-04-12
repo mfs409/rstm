@@ -44,7 +44,7 @@ namespace stm {
      */
     struct WordlogRAW {
         bool hit(void** addr, void*& storage, TX* tx, uintptr_t) {
-            return (tx->writes.find(addr, storage));
+            return (tx->writes.size()) ? tx->writes.find(addr, storage) : 0;
         }
 
         void merge(void* val, void*& storage) {

@@ -85,7 +85,7 @@
     static void alg_tm_rollback(TX*)                                    \
         __attribute__((alias(SPECIALIZE_TM_ROLLBACK_SYMBOL(CM, NCM)))); \
                                                                         \
-    template uint32_t alg_tm_begin<stm::CM>(uint32_t, stm::TX*);        \
+    template uint32_t TM_FASTCALL alg_tm_begin<stm::CM>(uint32_t, stm::TX*); \
     static uint32_t alg_tm_begin(uint32_t, stm::TX*)                    \
         __attribute__((alias(SPECIALIZE_TM_BEGIN_SYMBOL(CM, NCM))))     \
         TM_FASTCALL;                                                    \
