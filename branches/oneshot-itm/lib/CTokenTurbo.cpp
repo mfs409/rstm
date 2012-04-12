@@ -21,6 +21,7 @@
 #include <cassert>
 #include <unistd.h>
 #include "byte-logging.hpp"
+#include "inst.hpp"
 #include "tmabi-weak.hpp"
 #include "foreach.hpp"
 #include "WriteSet.hpp"
@@ -196,8 +197,7 @@ void alg_tm_end()
 /**
  *  CTokenTurbo read (read-only transaction)
  */
-static void* read_ro(void** addr, TX* tx)
-{
+static inline void* alg_tm_read_aligned_word_ro(void** addr, TX* tx) {
     void* tmp = *addr;
     CFENCE; // RBR between dereference and orec check
 
@@ -231,16 +231,7 @@ static void* read_ro(void** addr, TX* tx)
 /**
  *  CTokenTurbo read (writing transaction)
  */
-static void* read_rw(void** addr, TX* tx)
-{
-    // check the log for a RAW hazard, we expect to miss
-    if (tx->writes.size()) {
-        // check the log for a RAW hazard, we expect to miss
-        void* val;
-        if (tx->writes.find(addr, val))
-            return val;
-    }
-
+static inline void* alg_tm_read_aligned_word(void** addr, TX* tx) {
     void* tmp = *addr;
     CFENCE; // RBR between dereference and orec check
 
@@ -259,16 +250,6 @@ static void* read_rw(void** addr, TX* tx)
         validate(tx, last_complete.val);
     return tmp;
 }
-
-static inline void* ALG_TM_READ_WORD(void** addr, TX* tx, uintptr_t)
-{
-    if (tx->turbo) {
-        CFENCE;
-        return *addr;
-    }
-    return (tx->order != -1) ? read_rw(addr, tx) : read_ro(addr, tx);
-}
-
 
 /**
  *  CTokenTurbo write (read-only context)
@@ -302,8 +283,21 @@ static inline void ALG_TM_WRITE_WORD(void** addr, void* val, TX* tx, uintptr_t m
     }
 }
 
+namespace {
+  struct CTokenTurboReadOnly {
+      static inline bool IsReadOnly(TX* tx) {
+          return (tx->order == -1);
+      }
+  };
+}
+
 void* alg_tm_read(void** addr) {
-    return ALG_TM_READ_WORD(addr, Self, ~0);
+    return inst::read<void*,
+                      inst::TurboFilter<inst::NoFilter>, // turbo filter
+                      inst::WordlogRAW,    // log at the word granularity
+                      CTokenTurboReadOnly, // check's tx order
+                      true                 // force align all accesses
+                      >(addr);
 }
 
 void alg_tm_write(void** addr, void* val) {

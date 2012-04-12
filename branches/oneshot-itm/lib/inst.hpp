@@ -15,14 +15,27 @@
 #include "inst-alignment.hpp"
 #include "inst-stackfilter.hpp"         // not used directly here, but all
 #include "inst-raw.hpp"                 // specializers will need them
+
 /**
  *  The intrinsic read and write barriers are implemented by the TM.
  */
 static void* alg_tm_read_aligned_word(void** addr, stm::TX*);
+static void* alg_tm_read_aligned_word_ro(void** addr, stm::TX*);
 static void alg_tm_write_aligned_word(void** addr, void* val, stm::TX*);
 
 namespace stm {
   namespace inst {
+    /**
+     *  This template should be used at the READ_ONLY template parameter for
+     *  the read<> function if there is no separate
+     *  alg_tm_read_aligned_word_ro instrumentation.
+     */
+    struct NoReadOnly {
+        static inline bool IsReadOnly(TX*) {
+            return false;
+        }
+    };
+
     /**
      *  This template gets specialized to tell us how many word-size accesses
      *  need to be done in order to satisfy an access to the given type. This
@@ -79,7 +92,7 @@ namespace stm {
               bool ALIGNED,
               size_t M = sizeof(T) % sizeof(void*)>
     struct Base {
-        static inline void** of(T* addr) {
+        static inline void** Of(T* addr) {
             const uintptr_t MASK = ~static_cast<uintptr_t>(sizeof(void*) - 1);
             const uintptr_t base = reinterpret_cast<uintptr_t>(addr) & MASK;
             return reinterpret_cast<void**>(base);
@@ -91,7 +104,7 @@ namespace stm {
      */
     template <typename T>
     struct Base<T, true, 0> {
-        static inline void** of(T* addr) {
+        static inline void** Of(T* addr) {
             return reinterpret_cast<void**>(addr);
         }
     };
@@ -104,7 +117,7 @@ namespace stm {
               bool ALIGNED,
               size_t M = sizeof(T) % sizeof(void*)>
     struct Offset {
-        static inline size_t of(const T* const addr) {
+        static inline size_t Of(const T* const addr) {
             const uintptr_t MASK = static_cast<uintptr_t>(sizeof(void*) - 1);
             const uintptr_t offset = reinterpret_cast<uintptr_t>(addr) & MASK;
             return static_cast<size_t>(offset);
@@ -116,7 +129,7 @@ namespace stm {
      */
     template <typename T>
     struct Offset<T, true, 0> {
-        static inline size_t of(T* addr) {
+        static inline size_t Of(T* addr) {
             return 0;
         }
     };
@@ -144,71 +157,97 @@ namespace stm {
         return (lhs < rhs) ? lhs : rhs;
     };
 
-    /**
-     *  This is a generic read instrumentation routine, that uses the client's
-     *  stack filter and read-after-write mechanism. The routine is completely
-     *  generic, but we've used as much compile-time logic as we can. We expect
-     *  that any modern compiler will be able to eliminate branches where
-     *  they're not needed.
-     */
-    template <typename T,
-              class StackFilter,
-              class RAW,
-              bool ForceAligned>
-    static inline T read(T* addr) {
-        TX* tx = Self;
+    struct ReadAlignedWord {
+        static inline void* Read(void** addr, TX* tx) {
+            return alg_tm_read_aligned_word(addr, tx);
+        }
+    };
 
-        // see if this is a read from the stack
-        if (StackFilter::filter((void**)addr, tx))
-            return *addr;
+    struct ReadAlignedWordRO {
+        static inline void* Read(void** addr, TX* tx) {
+            return alg_tm_read_aligned_word_ro(addr, tx);
+        }
+    };
 
-        const bool ALIGNED = Aligned<T, ForceAligned>::value;
-
-        // using Buffer<T>::WORDS;
-        enum { W = Buffer<T, ALIGNED>::WORDS };
-
-        // the bytes union is used to deal with unaligned and/or subword data.
-        union {
-            void* words[W];
-            uint8_t bytes[W * sizeof(void*)];
-        };
-
+    /** The intrinsic read loop. */
+    template <typename T, typename RAW, typename READ, size_t N>
+    static inline void read_words(TX* tx, void* words[N], void** const base,
+                                  const size_t off)
+    {
         // Some read-after-write algorithms need local storage.
         RAW raw;
-
-        // adjust the base pointer for possibly non-word aligned accesses
-        void** base = Base<T, ALIGNED>::of(addr);
-
-        // compute an offset for this address
-        const size_t off = Offset<T, ALIGNED>::of(addr);
 
         // deal with the first word, there's always at least one
         uintptr_t mask = make_mask(off, min(sizeof(void*), off + sizeof(T)));
         if (!raw.hit(base, words[0], tx, mask))
-            raw.merge(alg_tm_read_aligned_word(base, tx), words[0]);
+            raw.merge(READ::Read(base, tx), words[0]);
 
         // deal with any middle words
         mask = make_mask(0, sizeof(void*));
-        for (int i = 1, e = W - 1; i < e; ++i) {
+        for (int i = 1, e = N - 1; i < e; ++i) {
             if (raw.hit(base + i, words[i], tx, mask))
                 continue;
-            raw.merge(alg_tm_read_aligned_word(base + i, tx), words[i]);
+            raw.merge(READ::Read(base + i, tx), words[i]);
         }
 
         // deal with the last word, the second check is just offset, because we
         // already checked to see if an access overflowed in dealing with the
         // first word.
-        if (W > 1 && off) {
+        if (N > 1 && off) {
             mask = make_mask(0, off);
-            if (!raw.hit(base + W, words[W], tx, mask))
-                raw.merge(alg_tm_read_aligned_word(base + W, tx), words[W]);
+            if (!raw.hit(base + N, words[N], tx, mask))
+                raw.merge(READ::Read(base + N, tx), words[N]);
         }
+    }
+
+    /**
+     *  This is a generic read instrumentation routine, that uses the client's
+     *  stack filter and read-after-write mechanism. The routine is completely
+     *  generic, but we've used as much compile-time logic as we can. We expect
+     *  that any modern compiler will be able to eliminate branches where
+     *  they're not needed, and spot testing with gcc verifies this.
+     */
+    template <typename T,              // the type we're loading
+              class PRE_FILTER,        // code to run before anything else
+              class RAW,               // the read-after-write algorithm
+              class READ_ONLY,         // branch for read-only access
+              bool FORCE_ALIGNED>      // force the code to treat Ts as aligned
+    static inline T read(T* addr) {
+        TX* tx = Self;
+
+        // see if this is a read from the stack
+        if (PRE_FILTER::filter((void**)addr, tx))
+            return *addr;
+
+        // sometimes we want to force the instrumentation to be aligned, even
+        // if a T isn't guaranteed to be aligned on the architecture, for
+        // instance, the library API does this
+        const bool ALIGNED = Aligned<T, FORCE_ALIGNED>::value;
+
+        // adjust the base pointer for possibly non-word aligned accesses
+        void** base = Base<T, ALIGNED>::Of(addr);
+
+        // compute an offset for this address
+        size_t off = Offset<T, ALIGNED>::Of(addr);
+
+        // the bytes union is used to deal with unaligned and/or subword data.
+        enum { N = Buffer<T, ALIGNED>::WORDS };
+        union {
+            void* words[N];
+            uint8_t bytes[N * sizeof(void*)];
+        };
+
+        // branch eliminated for NoReadOnly policy (note readonly is
+        // instantiated with NoRAW policy
+        if (READ_ONLY::IsReadOnly(tx))
+            read_words<T, NoRAW, ReadAlignedWordRO, N>(tx, words, base, off);
+        else
+            read_words<T, RAW, ReadAlignedWord, N>(tx, words, base, off);
+
 
         return *reinterpret_cast<T*>(bytes + off);
     }
   }
 }
-
-#define SPECIALIZE_INST_READ_SYMBOL(T, SF, RAW)
 
 #endif // RSTM_INST_H
