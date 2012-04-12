@@ -197,7 +197,7 @@ void alg_tm_end()
 /**
  *  CTokenTurbo read (read-only transaction)
  */
-static inline void* alg_tm_read_aligned_word_ro(void** addr, TX* tx) {
+static inline void* alg_tm_read_aligned_word_ro(void** addr, TX* tx, uintptr_t) {
     void* tmp = *addr;
     CFENCE; // RBR between dereference and orec check
 
@@ -231,7 +231,7 @@ static inline void* alg_tm_read_aligned_word_ro(void** addr, TX* tx) {
 /**
  *  CTokenTurbo read (writing transaction)
  */
-static inline void* alg_tm_read_aligned_word(void** addr, TX* tx) {
+static inline void* alg_tm_read_aligned_word(void** addr, TX* tx, uintptr_t) {
     void* tmp = *addr;
     CFENCE; // RBR between dereference and orec check
 
@@ -254,7 +254,7 @@ static inline void* alg_tm_read_aligned_word(void** addr, TX* tx) {
 /**
  *  CTokenTurbo write (read-only context)
  */
-static inline void ALG_TM_WRITE_WORD(void** addr, void* val, TX* tx, uintptr_t mask)
+static inline void alg_tm_write_aligned_word(void** addr, void* val, TX* tx, uintptr_t mask)
 {
     if (tx->turbo) {
         // mark the orec, then update the location
@@ -268,7 +268,7 @@ static inline void ALG_TM_WRITE_WORD(void** addr, void* val, TX* tx, uintptr_t m
         tx->order = 1 + faiptr(&timestamp.val);
 
         // record the new value in a redo log
-        tx->writes.insert(WriteSetEntry(REDO_LOG_ENTRY(addr, val, mask)));
+        tx->writes.insert(addr, val, mask);
 
         // go turbo?
         //
@@ -279,7 +279,7 @@ static inline void ALG_TM_WRITE_WORD(void** addr, void* val, TX* tx, uintptr_t m
     }
     else {
         // record the new value in a redo log
-        tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
+        tx->writes.insert(addr, val, mask);
     }
 }
 
@@ -301,7 +301,7 @@ void* alg_tm_read(void** addr) {
 }
 
 void alg_tm_write(void** addr, void* val) {
-    ALG_TM_WRITE_WORD(addr, val, Self, ~0);
+    alg_tm_write_aligned_word(addr, val, Self, ~0);
 }
 
 bool alg_tm_is_irrevocable(TX* tx) {

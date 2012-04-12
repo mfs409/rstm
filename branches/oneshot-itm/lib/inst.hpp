@@ -19,9 +19,9 @@
 /**
  *  The intrinsic read and write barriers are implemented by the TM.
  */
-static void* alg_tm_read_aligned_word(void** addr, stm::TX*);
-static void* alg_tm_read_aligned_word_ro(void** addr, stm::TX*);
-static void alg_tm_write_aligned_word(void** addr, void* val, stm::TX*);
+static void* alg_tm_read_aligned_word(void** addr, stm::TX*, uintptr_t mask);
+static void* alg_tm_read_aligned_word_ro(void** addr, stm::TX*, uintptr_t mask);
+static void alg_tm_write_aligned_word(void** addr, void* val, stm::TX*, uintptr_t mask);
 
 namespace stm {
   namespace inst {
@@ -158,14 +158,14 @@ namespace stm {
     };
 
     struct ReadAlignedWord {
-        static inline void* Read(void** addr, TX* tx) {
-            return alg_tm_read_aligned_word(addr, tx);
+        static inline void* Read(void** addr, TX* tx, uintptr_t mask) {
+            return alg_tm_read_aligned_word(addr, tx, mask);
         }
     };
 
     struct ReadAlignedWordRO {
-        static inline void* Read(void** addr, TX* tx) {
-            return alg_tm_read_aligned_word_ro(addr, tx);
+        static inline void* Read(void** addr, TX* tx, uintptr_t mask) {
+            return alg_tm_read_aligned_word_ro(addr, tx, mask);
         }
     };
 
@@ -180,14 +180,14 @@ namespace stm {
         // deal with the first word, there's always at least one
         uintptr_t mask = make_mask(off, min(sizeof(void*), off + sizeof(T)));
         if (!raw.hit(base, words[0], tx, mask))
-            raw.merge(READ::Read(base, tx), words[0]);
+            raw.merge(READ::Read(base, tx, mask), words[0]);
 
         // deal with any middle words
         mask = make_mask(0, sizeof(void*));
         for (int i = 1, e = N - 1; i < e; ++i) {
             if (raw.hit(base + i, words[i], tx, mask))
                 continue;
-            raw.merge(READ::Read(base + i, tx), words[i]);
+            raw.merge(READ::Read(base + i, tx, mask), words[i]);
         }
 
         // deal with the last word, the second check is just offset, because we
@@ -196,7 +196,7 @@ namespace stm {
         if (N > 1 && off) {
             mask = make_mask(0, off);
             if (!raw.hit(base + N, words[N], tx, mask))
-                raw.merge(READ::Read(base + N, tx), words[N]);
+                raw.merge(READ::Read(base + N, tx, mask), words[N]);
         }
     }
 
@@ -208,7 +208,7 @@ namespace stm {
      *  they're not needed, and spot testing with gcc verifies this.
      */
     template <typename T,              // the type we're loading
-              class PRE_FILTER,        // code to run before anything else
+              class PREFILTER,         // code to run before anything else
               class RAW,               // the read-after-write algorithm
               class READ_ONLY,         // branch for read-only access
               bool FORCE_ALIGNED>      // force the code to treat Ts as aligned
@@ -216,7 +216,7 @@ namespace stm {
         TX* tx = Self;
 
         // see if this is a read from the stack
-        if (PRE_FILTER::filter((void**)addr, tx))
+        if (PREFILTER::filter((void**)addr, tx))
             return *addr;
 
         // sometimes we want to force the instrumentation to be aligned, even
@@ -234,7 +234,7 @@ namespace stm {
         enum { N = Buffer<T, ALIGNED>::WORDS };
         union {
             void* words[N];
-            uint8_t bytes[N * sizeof(void*)];
+            uint8_t bytes[sizeof(void*[N])];
         };
 
         // branch eliminated for NoReadOnly policy (note readonly is
@@ -244,8 +244,49 @@ namespace stm {
         else
             read_words<T, RAW, ReadAlignedWord, N>(tx, words, base, off);
 
-
         return *reinterpret_cast<T*>(bytes + off);
+    }
+    template <typename T, size_t N>
+    static inline void write_words(TX* tx, void* words[N], void** addr,
+                                   size_t off)
+    {
+        // store the first word, there is always at least one
+        uintptr_t mask = make_mask(off, min(sizeof(void*), off + sizeof(T)));
+    }
+
+    template <typename T,
+              class PREFILTER,
+              bool FORCE_ALIGNED>
+    static inline void write(T* addr, T val) {
+        TX* tx = Self;
+
+        // see if this is a read from the stack
+        if (PREFILTER::filter((void**)addr, tx))
+            return *addr;
+
+        // sometimes we want to force the instrumentation to be aligned, even
+        // if a T isn't guaranteed to be aligned on the architecture, for
+        // instance, the library API does this
+        const bool ALIGNED = Aligned<T, FORCE_ALIGNED>::value;
+
+        // adjust the base pointer for possibly non-word aligned accesses
+        void** base = Base<T, ALIGNED>::Of(addr);
+
+        // compute an offset for this address
+        size_t off = Offset<T, ALIGNED>::Of(addr);
+
+        // the bytes union is used to deal with unaligned and/or subword data.
+        enum { N = Buffer<T, ALIGNED>::WORDS };
+        union {
+            void* words[N];
+            uint8_t bytes[sizeof(void*[N])];
+        };
+
+        // put the value into the right place on the stack
+        *reinterpret_cast<T*>(bytes + off) = val;
+
+        // loop through the words and write each one
+        write_words<T, N>(tx, words, base, off);
     }
   }
 }

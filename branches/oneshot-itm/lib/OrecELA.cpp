@@ -217,7 +217,7 @@ static NOINLINE void privtest(TX* tx, uintptr_t ts)
  *    However, we also poll the timestamp counter and validate any time a new
  *    transaction has committed, in order to catch doomed transactions.
  */
-static inline void* alg_tm_read_aligned_word(void** addr, TX* tx) {
+static inline void* alg_tm_read_aligned_word(void** addr, TX* tx, uintptr_t) {
     // get the orec addr, read the orec's version#
     orec_t* o = get_orec(addr);
     while (true) {
@@ -267,9 +267,9 @@ static inline void* alg_tm_read_aligned_word(void** addr, TX* tx) {
  *
  *    Simply buffer the write and switch to a writing context
  */
-static inline void ALG_TM_WRITE_WORD(void** addr, void* val, TX* tx, uintptr_t mask)
+static inline void alg_tm_write_aligned_word(void** addr, void* val, TX* tx, uintptr_t mask)
 {
-    tx->writes.insert(WriteSetEntry(REDO_LOG_ENTRY(addr, val, mask)));
+    tx->writes.insert(addr, val, mask);
 }
 
 
@@ -283,7 +283,7 @@ void* alg_tm_read(void** addr) {
 }
 
 void alg_tm_write(void** addr, void* val) {
-    ALG_TM_WRITE_WORD(addr, val, Self, ~0);
+    alg_tm_write_aligned_word(addr, val, Self, ~0);
 }
 
 bool alg_tm_is_irrevocable(TX*) {

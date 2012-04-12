@@ -186,7 +186,7 @@ static void alg_tm_end()
  *
  *    Must check orec twice, and may need to validate
  */
-static inline void* alg_tm_read_aligned_word(void** addr, TX* tx) {
+static inline void* alg_tm_read_aligned_word(void** addr, TX* tx, uintptr_t) {
     // get the orec addr, then start loop to read a consistent value
     orec_t* o = get_orec(addr);
     while (true) {
@@ -228,7 +228,7 @@ static inline void* alg_tm_read_aligned_word(void** addr, TX* tx) {
  *
  *    Lock the orec, log the old value, do the write
  */
-static inline void ALG_TM_WRITE_WORD(void** addr, void* val, TX* tx, uintptr_t mask)
+static inline void alg_tm_write_aligned_word(void** addr, void* val, TX* tx, uintptr_t mask)
 {
     // get the orec addr, then enter loop to get lock from a consistent state
     orec_t* o = get_orec(addr);
@@ -245,7 +245,7 @@ static inline void ALG_TM_WRITE_WORD(void** addr, void* val, TX* tx, uintptr_t m
             // save old value, log lock, do the write, and return
             o->p = ivt.all;
             tx->locks.insert(o);
-            tx->undo_log.insert(UndoLogEntry(UNDO_LOG_ENTRY(addr, *addr, mask)));
+            tx->undo_log.insert(addr, *addr, mask);
             *addr = val;
             return;
         }
@@ -254,7 +254,7 @@ static inline void ALG_TM_WRITE_WORD(void** addr, void* val, TX* tx, uintptr_t m
         // many locations hash to the same orec.  The lock does not mean I
         // have undo logged *this* location
         if (ivt.all == tx->my_lock.all) {
-            tx->undo_log.insert(UndoLogEntry(UNDO_LOG_ENTRY(addr, *addr, mask)));
+            tx->undo_log.insert(addr, *addr, mask);
             *addr = val;
             return;
         }
@@ -280,7 +280,7 @@ void* alg_tm_read(void** addr) {
 }
 
 void alg_tm_write(void** addr, void* val) {
-    ALG_TM_WRITE_WORD(addr, val, Self, ~0);
+    alg_tm_write_aligned_word(addr, val, Self, ~0);
 }
 
 bool alg_tm_is_irrevocable(TX*) {
