@@ -51,12 +51,17 @@ namespace stm
           return ~0;
       }
 
+      void set(void** addr, void* val, uintptr_t) {
+          this->addr = addr;
+          this->val = val;
+      }
+
       /**
        *  Called when we are WAW an address, and we want to coalesce the
        *  write. Trivial for the word-based writeset, but complicated for the
        *  byte-based version.
        */
-      void update(const WordLoggingWriteSetEntry& rhs) { val = rhs.val; }
+      void update(void* val, uintptr_t) { this->val = val; }
 
       /**
        * Check to see if the entry is completely contained within the given
@@ -138,6 +143,12 @@ namespace stm
           return mask;
       }
 
+      void set(void** addr, void* val, uintptr_t mask) {
+          this->addr = addr;
+          this->val = val;
+          this->mask = mask;
+      }
+
       /**
        *  Called when we are WAW an address, and we want to coalesce the
        *  write. Trivial for the word-based writeset, but complicated for the
@@ -147,23 +158,23 @@ namespace stm
        *  existing value, we mask out the bytes we want from the incoming word,
        *  mask the existing word, and union them.
        */
-      void update(const ByteLoggingWriteSetEntry& rhs)
+      void update(void* val, uintptr_t mask)
       {
           // fastpath for full replacement
-          if (__builtin_expect(rhs.mask == (uintptr_t)~0x0, true)) {
-              val = rhs.val;
-              mask = rhs.mask;
+          if (__builtin_expect(mask == (uintptr_t)~0x0, true)) {
+              this->val = val;
+              this->mask = mask;
               return;
           }
 
           // bit twiddling for awkward intersection, avoids looping
-          uintptr_t new_val = (uintptr_t)rhs.val;
-          new_val &= rhs.mask;
-          new_val |= (uintptr_t)val & ~rhs.mask;
+          uintptr_t new_val = (uintptr_t)val;
+          new_val &= mask;
+          new_val |= (uintptr_t)val & ~mask;
           val = (void*)new_val;
 
           // the new mask is the union of the old mask and the new mask
-          mask |= rhs.mask;
+          this->mask |= mask;
       }
 
       /**
@@ -357,30 +368,30 @@ namespace stm
        *  Inserts an entry in the write set.  Coalesces writes, which can
        *  appear as write reordering in a data-racy program.
        */
-      void insert(const WriteSetEntry& log)
+      void insert(void** addr, void* val, uintptr_t mask)
       {
-          size_t h = hash(log.addr);
+          size_t h = hash(addr);
 
           //  Find the slot that this address should hash to. If we find it,
           //  update the value. If we find an unused slot then it's a new
           //  insertion.
           while (index[h].version == version) {
-              if (index[h].address != log.addr) {
+              if (index[h].address != addr) {
                   h = (h + 1) % ilength;
                   continue; // continue probing at new h
               }
 
               // there /is/ an existing entry for this word, we'll be updating
               // it no matter what at this point
-              list[index[h].index].update(log);
+              list[index[h].index].update(val, mask);
               return;
           }
 
           // add the log to the list (guaranteed to have space)
-          list[lsize] = log;
+          list[lsize].set(addr, val, mask);
 
           // update the index
-          index[h].address = log.addr;
+          index[h].address = addr;
           index[h].version = version;
           index[h].index   = lsize;
 

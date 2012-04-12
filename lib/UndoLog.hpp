@@ -39,7 +39,7 @@ namespace stm
       void** addr;
       void*  val;
 
-      WordLoggingUndoLogEntry(void** addr, void* val)
+      WordLoggingUndoLogEntry(void** addr, void* val, uintptr_t)
           : addr(addr), val(val)
       { }
 
@@ -161,11 +161,9 @@ namespace stm
    */
 #if defined(STM_WS_WORDLOG)
   typedef WordLoggingUndoLogEntry UndoLogEntry;
-#define STM_UNDO_LOG_ENTRY(addr, val, mask) addr, val
 #define STM_DO_MASKED_WRITE(addr, val, mask) *addr = val
 #elif defined(STM_WS_BYTELOG)
   typedef ByteLoggingUndoLogEntry UndoLogEntry;
-#define STM_UNDO_LOG_ENTRY(addr, val, mask) addr, val, mask
 #define STM_DO_MASKED_WRITE(addr, val, mask) \
     stm::ByteLoggingUndoLogEntry::DoMaskedWrite(addr, val, mask)
 #else
@@ -177,6 +175,9 @@ namespace stm
     public:
       UndoLog(const uintptr_t cap) : stm::MiniVector<UndoLogEntry>(cap) { }
 
+      inline void insert(void** addr, void* val, uintptr_t mask) {
+          MiniVector<UndoLogEntry>::insert(UndoLogEntry(addr, val, mask));
+      }
       /**
        * A utility for undo-log implementations that undoes all of the accesses
        * in a write log except for those that took place to an exception object

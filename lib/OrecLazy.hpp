@@ -162,7 +162,7 @@ static void alg_tm_end()
 /**
  *  OrecLazy read
  */
-static inline void* alg_tm_read_aligned_word(void** addr, TX* tx) {
+static inline void* alg_tm_read_aligned_word(void** addr, TX* tx, uintptr_t) {
     // get the orec addr
     orec_t* o = get_orec(addr);
     while (true) {
@@ -195,10 +195,10 @@ static inline void* alg_tm_read_aligned_word(void** addr, TX* tx) {
 /**
  *  OrecLazy write
  */
-static inline void ALG_TM_WRITE_WORD(void** addr, void* val, TX* tx, uintptr_t mask)
+static inline void alg_tm_write_aligned_word(void** addr, void* val, TX* tx, uintptr_t mask)
 {
     // add to redo log
-    tx->writes.insert(WriteSetEntry(REDO_LOG_ENTRY(addr, val, mask)));
+    tx->writes.insert(addr, val, mask);
 }
 
 void* alg_tm_read(void** addr) {
@@ -211,7 +211,7 @@ void* alg_tm_read(void** addr) {
 }
 
 void alg_tm_write(void** addr, void* val) {
-    ALG_TM_WRITE_WORD(addr, val, Self, ~0);
+    alg_tm_write_aligned_word(addr, val, Self, ~0);
 }
 
 bool alg_tm_is_irrevocable(TX*) {

@@ -142,7 +142,7 @@ static void alg_tm_end() {
  *  The essence of the NOrec read algorithm, for use with the inst.hpp
  *  infrastructure.
  */
-static inline void* alg_tm_read_aligned_word(void** addr, TX* tx) {
+static inline void* alg_tm_read_aligned_word(void** addr, TX* tx, uintptr_t mask) {
     // read the location to a temp
     void* tmp = *addr;
     CFENCE;
@@ -157,17 +157,14 @@ static inline void* alg_tm_read_aligned_word(void** addr, TX* tx) {
     }
 
     // tmp contains the value we want
-    //
-    // TODO: this isn't good enough because we don't know the mask here, we
-    //       need to push logging out into the generic level
-    STM_LOG_VALUE(tx, addr, tmp, mask);
+    tx->vlist.insert(addr, tmp, mask);
     return tmp;
 }
 
 /** Simple buffered transactional write. */
-static inline void ALG_TM_WRITE_WORD(void** addr, void* val, TX* tx, uintptr_t mask) {
+static inline void alg_tm_write_aligned_word(void** addr, void* val, TX* tx, uintptr_t mask) {
     // just buffer the write
-    tx->writes.insert(WriteSetEntry(REDO_LOG_ENTRY(addr, val, mask)));
+    tx->writes.insert(addr, val, mask);
 }
 
 /** The library api interface to read an aligned word. */
@@ -182,7 +179,7 @@ void* alg_tm_read(void** addr) {
 
 /** The library api interface to write an aligned word. */
 void alg_tm_write(void** addr, void* val) {
-    ALG_TM_WRITE_WORD(addr, val, Self, ~0);
+    alg_tm_write_aligned_word(addr, val, Self, ~0);
 }
 
 bool alg_tm_is_irrevocable(TX*) {

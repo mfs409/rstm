@@ -50,7 +50,7 @@ namespace stm {
       void* val;
 
     public:
-      WordLoggingValueListEntry(void** a, void* v) : addr(a), val(v) {
+      WordLoggingValueListEntry(void** a, void* v, uintptr_t) : addr(a), val(v) {
       }
 
       /**
@@ -147,7 +147,7 @@ namespace stm {
    */
 #if defined(STM_WS_WORDLOG) || defined(STM_USE_WORD_LOGGING_VALUELIST)
   typedef WordLoggingValueListEntry ValueListEntry;
-#define STM_VALUE_LIST_ENTRY(addr, val, mask) ValueListEntry(addr, val)
+#define STM_VALUE_LIST_ENTRY(addr, val, mask) ValueListEntry(addr, val, mask)
 #elif defined(STM_WS_BYTELOG)
   typedef ByteLoggingValueListEntry ValueListEntry;
 #define STM_VALUE_LIST_ENTRY(addr, val, mask) ValueListEntry(addr, val, mask)
@@ -159,25 +159,9 @@ namespace stm {
       ValueList(const unsigned long cap) : MiniVector<ValueListEntry>(cap) {
       }
 
-#ifdef STM_PROTECT_STACK
-      /**
-       *  We override the minivector insert to track a "low water mark" for the
-       *  stack address when we're stack filtering. The alternative is to do a
-       *  range check here and avoid actually inserting values that are in the
-       *  current local stack.
-       */
-      TM_INLINE void insert(ValueListEntry data, void**& low) {
-          // we're inside the TM right now, so __builtin_frame_address is fine.
-          low = (__builtin_frame_address(0) > low) ?
-                    low : (void**)__builtin_frame_address(0);
-          MiniVector<ValueListEntry>::insert(data);
+      inline void insert(void** addr, void* val, uintptr_t mask) {
+          MiniVector<ValueListEntry>::insert(ValueListEntry(addr, val, mask));
       }
-#define STM_LOG_VALUE(tx, addr, val, mask)                      \
-      tx->vlist.insert(STM_VALUE_LIST_ENTRY(addr, val, mask), tx->stack_low);
-#else
-#define STM_LOG_VALUE(tx, addr, val, mask)                      \
-      tx->vlist.insert(STM_VALUE_LIST_ENTRY(addr, val, mask));
-#endif
   };
 }
 
