@@ -1,4 +1,4 @@
-/**
+B1;2c/**
  *  Copyright (C) 2011
  *  University of Rochester Department of Computer Science
  *    and
@@ -75,6 +75,9 @@ namespace {
   bool
   PTM::begin(TxThread* tx)
   {
+      // starts
+      tx->allocator.onTxBegin();
+
       // For Read-Only transactions
       if (tx->read_only) {
           // Read the global version to tx_version
@@ -100,8 +103,6 @@ namespace {
 
           // Go read-write mode
           GoTurbo(tx, read_rw, write_rw, commit_rw);
-          // starts
-          tx->allocator.onTxBegin();
       }
       return true;
   }
