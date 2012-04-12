@@ -208,20 +208,6 @@ void alg_tm_end() {
     ++tx->commits_rw;
 }
 
-namespace {
-  /**
-   *  We need to customize our filter to deal with turbo transactions. We
-   *  forward to whatever the usual stack filter is after checking if we're in
-   *  turbo mode.
-   */
-  template <typename StackFilter>
-  struct CohortsEagerFilter {
-      static inline bool filter(void** addr, TX* tx) {
-          return ((tx->turbo) || StackFilter::filter(addr, tx));
-      }
-  };
-}
-
 /**
  *  Transactional read
  */
@@ -272,7 +258,12 @@ static inline void ALG_TM_WRITE_WORD(void** addr, void* val, TX* tx, uintptr_t m
 }
 
 void* alg_tm_read(void** addr) {
-    return inst::read<void*, CohortsEagerFilter<inst::NoFilter>, inst::WordlogRAW, true>(addr);
+        return inst::read<void*,
+                          inst::TurboFilter<inst::NoFilter>, // turbo filter
+                          inst::WordlogRAW, // log at the word granularity
+                          inst::NoReadOnly, // no separate read-only code
+                          true              // force align all accesses
+                          >(addr);
 }
 
 void alg_tm_write(void** addr, void* val) {

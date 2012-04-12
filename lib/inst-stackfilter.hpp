@@ -87,6 +87,18 @@ namespace stm {
         }
     };
 
+    /**
+     *  This allows prefiltering using the transaction's turbo flag, which is
+     *  used in a number of different algorithms. It chains a stack filtering
+     *  algorithm, so explicit instantiations should look something like:
+     *  'TurboFilter<FullFilter>'.
+     */
+    template <typename StackFilter>
+    struct TurboFilter {
+        static inline bool filter(void** addr, TX* tx) {
+            return ((tx->turbo) || StackFilter::filter(addr, tx));
+        }
+    };
   }
 }
 

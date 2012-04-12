@@ -181,7 +181,12 @@ static inline void ALG_TM_WRITE_WORD(void** addr, void* val, TX* tx, uintptr_t m
 }
 
 void* alg_tm_read(void** addr) {
-    return inst::read<void*, inst::NoFilter, inst::WordlogRAW, true>(addr);
+        return inst::read<void*,
+                          inst::NoFilter,   // don't prefilter accesses
+                          inst::WordlogRAW, // log at the word granularity
+                          inst::NoReadOnly, // no separate read-only code
+                          true              // force align all accesses
+                          >(addr);
 }
 
 void alg_tm_write(void** addr, void* val) {

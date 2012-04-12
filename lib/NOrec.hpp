@@ -28,10 +28,7 @@
 #include "WBMMPolicy.hpp"
 #include "tx.hpp"
 #include "libitm.h"
-
 #include "inst.hpp"                     // the generic R/W instrumentation
-#include "inst-stackfilter.hpp"         // FullFilter
-#include "inst-raw.hpp"
 
 using stm::TX;
 using stm::pad_word_t;
@@ -175,7 +172,12 @@ static inline void ALG_TM_WRITE_WORD(void** addr, void* val, TX* tx, uintptr_t m
 
 /** The library api interface to read an aligned word. */
 void* alg_tm_read(void** addr) {
-    return stm::inst::read<void*, stm::inst::NoFilter, stm::inst::WordlogRAW, true>(addr);
+    return stm::inst::read<void*,                 //
+                           stm::inst::NoFilter,   // don't pre-filter accesses
+                           stm::inst::WordlogRAW, // log at the word granularity
+                           stm::inst::NoReadOnly, // no separate read-only code
+                           true                   // force align all accesses
+                           >(addr);
 }
 
 /** The library api interface to write an aligned word. */
@@ -205,7 +207,11 @@ void alg_tm_become_irrevocable(_ITM_transactionState) {
  */
 #define RSTM_LIBITM_READ(SYMBOL, CALLING_CONVENTION, TYPE)              \
     TYPE CALLING_CONVENTION __attribute__((weak)) SYMBOL(TYPE* addr) {  \
-        return stm::inst::read<TYPE, stm::inst::FullFilter, stm::inst::WordlogRAW, false>(addr); \
+        return stm::inst::read<TYPE,                                    \
+                               stm::inst::FullFilter,                   \
+                               stm::inst::WordlogRAW,                   \
+                               stm::inst::NoReadOnly,                   \
+                               false>(addr);                            \
     }
 
 #include "libitm-dtfns.def"
