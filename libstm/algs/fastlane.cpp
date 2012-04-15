@@ -42,7 +42,11 @@ using stm::get_orec;
  */
 namespace {
   const uint32_t MSB = 0x80000000;
+
+  // [mfs] Should these be on their own cache lines?  For that matter, why do
+  // we need cntr?  Can't we use an existing thing, like timestamp?
   volatile uint32_t cntr = 0;
+  // [mfs] helper should probably be on a different line than cntr.
   volatile uint32_t helper = 0;
 
   struct Fastlane {
@@ -84,6 +88,8 @@ namespace {
               spin64();
 
           // Increment cntr from even to odd
+          //
+          // [mfs] I do not think the WBR is needed.
           cntr = (cntr & ~MSB) + 1;
           WBR;
 
@@ -94,8 +100,6 @@ namespace {
 
       // helpers get even counter (discard LSD & MSB)
       tx->start_time = cntr & ~1 & ~MSB;
-
-      // starts
       return true;
   }
 
@@ -108,6 +112,8 @@ namespace {
       CFENCE; //wbw between write back and change of cntr
       // Only master can write odd cntr, now cntr is even again
       cntr++;
+      // [mfs] could we use XXX_master here, and somehow avoid the GoTurbo call
+      // above?
       OnReadWriteCommit(tx, read_ro, write_ro, commit_ro);
   }
 
@@ -136,11 +142,27 @@ namespace {
       // Try to acquiring counter
       // Attempt to CAS only after counter seen even
       do {
+          // [mfs] It would probably be best to write this code directly, to be
+          //       sure that it isn't being inlined, and to be sure that the
+          //       control flow is optimal.  We probably should have the
+          //       control flow rewritten to optimize for the common case
+          //       (e.g., taking first branch directly leads to CAS).
           c = WaitForEvenCounter();
-      }while (!bcas32(&cntr, c, c + 1));
+      } while (!bcas32(&cntr, c, c + 1));
 
       // Release counter upon failed validation
+      //
+      // [mfs] since this call is always performed, it would be good to ensure
+      //       that it is always inlined.
       if (!validate(tx)) {
+          // [mfs] if we unioned the counter with an array of volatile bytes,
+          // then we could simply clear the lsb of the lowest byte of the
+          // counter.  IIRC, the only reason we have an atomic here is to
+          // handle the case where the master already did an /or/.  Since this
+          // algorithm is already locked-into being x86 only (we don't have an
+          // atomic-OR implementation for sparc right now), we could even
+          // simply cast a pointer and skip the union (note: endianness bug
+          // when we move to SPARC exists even without the cast).
           SUB(&cntr, 1);
           tx->tmabort(tx);
       }
@@ -153,11 +175,19 @@ namespace {
       EmitWriteSet(tx, c + 1);
 
       // Release counter by making it even again
+      //
+      // [mfs] As above, we should be able to use a union to avoid needing an
+      //       atomic operation here.
       ADD(&cntr, 1);
 #endif
 
 #ifdef OPT2
       // Only one helper at a time (FIFO lock)
+      //
+      // [mfs] this isn't really a FIFO lock, it's just a spin lock.  It should
+      //       be rewritten so that the CAS isn't issued unless the value is
+      //       zero.  This style of algorithm can lead to lots of unnecessary
+      //       bus traffic.
       while (!bcas32(&helper, 0, 1));
 
       c = WaitForEvenCounter();
@@ -178,6 +208,7 @@ namespace {
       // Check that validation still holds
       if (cntr > t && !validate(tx)) {
           // Release locks upon failed validation
+          // [mfs] see above: an atomic SUB is not strictly needed
           SUB(&cntr, 1);
           helper = 0;
           tx->tmabort(tx);
@@ -186,6 +217,8 @@ namespace {
       // Write updates to memory
       EmitWriteSet(tx, c + 1);
       // Release locks
+      //
+      // [mfs] as above, it isn't really necessary to use an atomic ADD here
       ADD(&cntr, 1);
       helper = 0;
 #endif
@@ -221,6 +254,8 @@ namespace {
 
       // log orec
       tx->r_orecs.insert(o);
+
+      // [mfs] this CFENCE should not be necessary
       CFENCE;
 
       return val;
@@ -250,6 +285,17 @@ namespace {
   Fastlane::write_master(STM_WRITE_SIG(tx,addr,val,mask))
   {
       orec_t* o = get_orec(addr);
+      // [mfs] strictly speaking, cntr is a volatile, and reading it here means
+      //       that there is no hope of caching the value between successive
+      //       writes.  However, since this instrumentation is reached across a
+      //       function pointer, there is no caching anyway, so it's not too
+      //       much of an issue.  However, if we inlined the instrumentation,
+      //       we'd see unnecessary overhead.  It might be better to save the
+      //       value of cntr in a field of the tx object, so that we can use
+      //       that instead.  In fact, doing so would at least ensure no cache
+      //       misses due to failed CASes by other threads on the cntr
+      //       variable.  Since cntr isn't in its own cache line, this could
+      //       actually be very common.
       o->v.all = cntr; // mark orec
       CFENCE;
       *addr = val; // in place write
@@ -261,11 +307,17 @@ namespace {
   void
   Fastlane::write_ro(STM_WRITE_SIG(tx,addr,val,mask))
   {
+      // [mfs] I don't understand this line: why would we need to abort for a
+      //       WAW conflict?  This should be fine unless we've also read the
+      //       location, but in fastlane we validate before grabbing locks, so
+      //       this shouldn't be needed.
       // get orec
       orec_t *o = get_orec(addr);
       // validate
       if (o->v.all > tx->start_time)
           tx->tmabort(tx);
+      // [mfs] END concern area
+
       // Add to write set
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
       OnFirstWrite(tx, read_rw, write_rw, commit_rw);
@@ -277,6 +329,9 @@ namespace {
   void
   Fastlane::write_rw(STM_WRITE_SIG(tx,addr,val,mask))
   {
+      // [mfs] as above, I don't think the next three lines of code should be
+      // needed
+      //
       // get orec
       orec_t *o = get_orec(addr);
       // validate
@@ -323,6 +378,9 @@ namespace {
   bool
   Fastlane::validate(TxThread* tx)
   {
+      // [mfs] Consider using same technique Luke has been employing elsewhere,
+      //       in which we don't have branches in the validation loop.
+
       // check reads
       foreach (OrecList, i, tx->r_orecs){
           // If orec changed , return false
@@ -330,6 +388,9 @@ namespace {
               return false;
           }
       }
+
+      // [mfs] I don't understand why we need to validate writes.  I think we
+      //       can cut this code.
 
       // check writes
       foreach (WriteSet, j, tx->writes) {
@@ -345,6 +406,9 @@ namespace {
 
   /**
    *  Fastlane helper function: wait for even counter
+   *
+   *  [mfs] We should get rid of this function, in order to ensure optimal
+   *        control flow and minimal instruction counts.
    */
   uint32_t
   Fastlane::WaitForEvenCounter()
@@ -358,6 +422,8 @@ namespace {
 
   /**
    *  Fastlane helper function: Emit WriteSet
+   *
+   *  [mfs] Make sure this is always inlined.
    */
   void
   Fastlane::EmitWriteSet(TxThread* tx, uint32_t version)

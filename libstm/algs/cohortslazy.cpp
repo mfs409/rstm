@@ -12,7 +12,10 @@
  *  CohortsLazy Implementation
  *
  *  Cohorts with only one CAS in commit_rw to get an order. Using
- *  txn local status instead of 3 global accumulators. 
+ *  txn local status instead of 3 global accumulators.
+ *
+ * "Lazy" isn't a good name for this... if I understand correctly, this is
+ * Cohorts with a distributed mechanism for tracking the state of the cohort.
  */
 #include "../profiling.hpp"
 #include "algs.hpp"
@@ -117,6 +120,9 @@ namespace {
   CohortsLazy::commit_rw(TxThread* tx)
   {
       // Mark a global flag, no one is allowed to begin now
+      //
+      // [mfs] If we used ADD on gatekeper, we wouldn't need to do a FAI on
+      //       timestamp.val later
       gatekeeper = 1;
 
       // Mark self pending to commit
@@ -129,6 +135,12 @@ namespace {
       bool lastone = true;
 
       // Wait until all tx are ready to commit
+      //
+      // [mfs] Some key information is lost here.  If I am the first
+      // transaction, then when I do this loop, I could easily figure out
+      // exactly how many transactions are in the cohort.  If I then set that
+      // value in a global, nobody else would later have to go searching around
+      // to try to figure out if they are the oldest or not.
       for (uint32_t i = 0; i < threadcount.val; ++i)
           while (threads[i]->status == COHORTS_STARTED);
 
@@ -256,6 +268,7 @@ namespace {
   void
   CohortsLazy::validate(TxThread* tx)
   {
+      // [mfs] use the luke trick on this loop
       foreach (OrecList, i, tx->r_orecs) {
           // read this orec
           uintptr_t ivt = (*i)->v.all;

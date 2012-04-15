@@ -16,6 +16,10 @@
  *  supports master-switching.
  */
 
+/**
+ * [mfs] Be sure to address all performance concerns raised in fastlane.cpp
+ */
+
 #include "../profiling.hpp"
 #include "algs.hpp"
 #include "RedoRAWUtils.hpp"
@@ -77,6 +81,19 @@ namespace {
       // starts
       tx->allocator.onTxBegin();
 
+      // [mfs] I think this is going to lead to too much synchronization.  It
+      //       would be worth trying the following:
+      //       1 - read cntr
+      //       2 - if cntr MSB 0 and cntr LSB 0, try to cas so that both are 1
+      //         -- if fail goto 5 else goto 4
+      //       3 - else if cntr MSB 0 and LSB 1, try to cas so that both are 1
+      //         -- if succeed, wait for cntr.LSB 0, then set to 1, then goto 4
+      //         -- else goto 5
+      //       4 - call GoTurbo and return (no WBR is ever needed)
+      //       5 - use the slowpath
+      //
+      //       This would eliminate the need for the MASTER field.
+
       // Acquire master lock to become master
       if (master == 0 && bcas32(&master, 0, 1)) {
 
@@ -87,7 +104,7 @@ namespace {
           while ((cntr & 0x01) != 0)
               spin64();
 
-          // Imcrement cntr from even to odd
+          // Increment cntr from even to odd
           cntr = (cntr & ~MSB) + 1;
           WBR;
 
@@ -100,6 +117,9 @@ namespace {
       tx->start_time = cntr & ~1 & ~MSB;
 
       // Go helper mode
+      //
+      // [mfs] I don't think this is needed... the prior commit should have
+      // reset these to the _ro variants already.
       GoTurbo (tx, read_ro, write_ro, commit_ro);
 
       return true;

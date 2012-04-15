@@ -14,6 +14,17 @@
  *  This algs is based on LLT, except that we add cohorts' properties.
  *  But unlike cohorts, we do not give orders at the beginning of any
  *  commits.
+ *
+ *  [mfs] It might be a good idea to add some internal adaptivity, so that we
+ *        can use a simple write set (fixed size vector) when the number of
+ *        writes is small, and only switch to the hashtable when the number of
+ *        writes gets bigger.  Doing that could potentially make the code much
+ *        faster for small transactions.
+ *
+ *  [mfs] Another question to consider is whether it would be a good idea to
+ *        have the different threads take turns acquiring orecs... this would
+ *        mean no parallel acquisition, but also no need for BCASPTR
+ *        instructions.
  */
 
 #include "../profiling.hpp"

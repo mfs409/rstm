@@ -11,6 +11,8 @@
 /**
  *  CohortsLF Implementation
  *  CohortsLazy with filter for validations.
+ *
+ *  [mfs] see notes for lazy and filter implementations
  */
 #include "../profiling.hpp"
 #include "algs.hpp"

@@ -24,6 +24,7 @@ B1;2c/**
 #define MY activity_array[th_id]
 
 // Maxmium threads supported
+// [mfs] why do we only support 8 threads
 #define MAXTHREADS 8
 
 using stm::TxThread;
@@ -43,11 +44,16 @@ namespace {
      volatile uint32_t tx_version;
      volatile bool writer_waiting;
   };
+  // [mfs] It would probably be good to pad these array entries.  Note that L2
+  //       stride prefetching might require us to pad to 128 bytes :(
   static struct Activity activity_array[MAXTHREADS] =
       {{0xFFFFFFFF, false},{0xFFFFFFFF, false},{0xFFFFFFFF, false},
        {0xFFFFFFFF, false},{0xFFFFFFFF, false},{0xFFFFFFFF, false},
        {0xFFFFFFFF, false},{0xFFFFFFFF, false}};
 
+  // [mfs] These should probably be padded too.  Also, could we use the
+  //       timestamp field to do both tasks?  LSB could be writer_lock, and the
+  //       rest could be the version...
   volatile uint32_t global_version = 1;
   volatile uint32_t writer_lock = 0;
 
@@ -83,6 +89,9 @@ namespace {
           // Read the global version to tx_version
           MY.tx_version = global_version;
 
+          // [mfs] This should not be necessary, since the cleanup from the
+          //       last transaction should have reset these pointer.
+          //
           // go read-only mode
           GoTurbo(tx, read_ro, write_read_only, commit_read_only);
       }
@@ -92,7 +101,14 @@ namespace {
           // Set the thread's entry writer_waiting to TRUE
           MY.writer_waiting = true;
 
-          // Try to aquire the gloabl lock, and set myself wait-free
+          // Try to aquire the global lock, and set myself wait-free
+          //
+          // NB: since we've got the baton mechanism for passing the writer
+          // token, we may not actually need to do the CAS to get the lock.
+          //
+          // [mfs] Should we use TAS instead of CAS?  It's probably cheaper.
+          //       Also, we probably want some sort of backoff or at least a
+          //       test before the CAS to prevent bus traffic.
           while (MY.writer_waiting == true) {
               if (bcas32(&writer_lock, 0, 1))
                   MY.writer_waiting = false;
@@ -114,7 +130,7 @@ namespace {
   void
   PTM::commit_read_only(TxThread* tx)
   {
-      // Set the tx_version maximum value
+      // Set the tx_version to the maximum value
       MY.tx_version = 0xFFFFFFFF;
 
       // clean up
@@ -126,7 +142,9 @@ namespace {
   /**
    *  PTM commit (read-only):
    *  For those who did not mark themselves read_only
-   *  at the begining of each transactions
+   *  at the begining of each transactions, but who do not have any writes
+   *
+   *  [mfs] Is this optimal?  There might be a fast path we can employ here.
    */
   void
   PTM::commit_ro(TxThread* tx)
@@ -137,6 +155,8 @@ namespace {
   /**
    *  PTM commit (writing context):
    *
+   *  [mfs] This function needs more documentation.  The algorithm is not
+   *        particularly clear from the code.
    */
   void
   PTM::commit_rw(TxThread* tx)
@@ -153,7 +173,10 @@ namespace {
       UpdateWriteSetVersions(tx, MY.tx_version + 1);
 
       // First global version increment, global_version will be even
-      global_version ++;
+      global_version++;
+
+      // [mfs] We could use an atomic_swapXXX instruction from the platform.hpp
+      // file to do the above write and the ordering at the same time.
       WBR;
       // update my local version
       MY.tx_version = global_version;
@@ -166,6 +189,8 @@ namespace {
               CFENCE;
               activity_array[(i+th_id) % MAXTHREADS].writer_waiting = false;
               CFENCE;
+              // [mfs] need to get rid of GOTO.  setting a flag and then
+              //       'break' would suffice.
               goto NEXT;
           }
       }
@@ -183,9 +208,13 @@ namespace {
       // Now do write back
       foreach (WriteSet, i, tx->writes)
           *i->addr = i->val;
+      // [mfs] WBR isn't needed for WBW.  CFENCE will suffice.
       WBR; //WBW
 
-      //Second global version increment, now global_version becomes odd
+      // [mfs] Would we save by simply writing to the global version, using a
+      // value that we saved earlier?
+      //
+      // Second global version increment, now global_version becomes odd
       global_version ++;
 
       // Set the tx_version maximum value
@@ -204,6 +233,11 @@ namespace {
   PTM::read_ro(STM_READ_SIG(tx,addr,))
   {
       // read_only tx only wait for one round at most
+      //
+      // [mfs] We could use multiple versions of the read instrumentation to
+      //       work around this without any branches.  We could also use some
+      //       sort of notification so that a completed writeback would allow
+      //       this reader to never need to check again.
       if (tx->progress_is_seen != true) {
           orec_t *o = get_orec(addr);
           if (o->v.all != MY.tx_version)
@@ -270,6 +304,9 @@ namespace {
   stm::scope_t*
   PTM::rollback(STM_ROLLBACK_SIG(tx, except, len))
   {
+      // [mfs] this should never be called!
+      UNRECOVERABLE("Aborts are not possible in Pessimistic TM");
+
       PreRollback(tx);
 
       // Perform writes to the exception object if there were any... taking the
@@ -295,6 +332,8 @@ namespace {
 
   /**
    *  PTM helper function: Write (tx_version + 1) as Orec version
+   *
+   *  [mfs] Verify that this is being inlined all the time
    */
   void
   PTM::UpdateWriteSetVersions(TxThread* tx, uint32_t version)

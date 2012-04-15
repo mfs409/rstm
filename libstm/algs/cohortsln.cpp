@@ -13,6 +13,11 @@
  *
  *  CohortsLazy Norec Version
  */
+
+/**
+ * [mfs] see comments in lazy and norec codes elsewhere
+ */
+
 #include "../profiling.hpp"
 #include "algs.hpp"
 #include "RedoRAWUtils.hpp"

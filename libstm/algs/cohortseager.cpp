@@ -42,6 +42,11 @@ using stm::last_order;
 
 /** Implementation Choice: OLD, LOSE, EO&EOTIGHT, EO&EOLOSE*/
 
+/**
+ * [mfs] The below options should be split out into separate files.  This is
+ * too confusing.
+ */
+
 #define OLD    // the original implementation, tight condition to go turbo
 //#define LOSE   // lose condition to go turbo
 
