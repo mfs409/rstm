@@ -223,6 +223,12 @@ static inline void* alg_tm_read_aligned_word(void** addr, TX* tx, uintptr_t) {
     }
 }
 
+static inline void* alg_tm_read_aligned_word_ro(void** addr, TX* tx,
+                                                uintptr_t mask)
+{
+    return alg_tm_read_aligned_word(addr, tx, mask);
+}
+
 /**
  *  OrecEager write:
  *

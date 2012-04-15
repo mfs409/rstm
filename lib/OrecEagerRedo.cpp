@@ -24,7 +24,6 @@
 #include "foreach.hpp"
 #include "MiniVector.hpp"
 #include "metadata.hpp"
-#include "WriteSet.hpp"
 #include "WBMMPolicy.hpp"
 #include "tx.hpp"
 #include "adaptivity.hpp"
@@ -57,7 +56,7 @@ void alg_tm_rollback(TX* tx)
 
     // undo memory operations, reset lists
     tx->r_orecs.reset();
-    tx->writes.reset();
+    tx->writes.clear();
     tx->locks.reset();
     tx->allocator.onTxAbort();
 }
@@ -126,7 +125,7 @@ void alg_tm_end()
     }
 
     // run the redo log
-    tx->writes.writeback();
+    tx->writes.redo();
 
     // we're a writer, so increment the global timestamp
     uintptr_t end_time = 1 + faiptr(&timestamp.val);
@@ -138,7 +137,7 @@ void alg_tm_end()
 
     // clean up
     tx->r_orecs.reset();
-    tx->writes.reset();
+    tx->writes.clear();
     tx->locks.reset();
     tx->allocator.onTxCommit();
     ++tx->commits_rw;
@@ -162,9 +161,12 @@ static inline void* alg_tm_read_aligned_word(void** addr, TX* tx, uintptr_t) {
         }
 
         // next best: locked by me
+        // [TODO] This needs to deal with byte logging. Both the RAW and the
+        // *addr are dangerous.
         if (ivt.all == tx->my_lock.all) {
-            // check the log for a RAW hazard, we expect to miss
-            return (tx->writes.find(addr, tmp)) ? tmp : *addr;
+            // check the log for a RAW hazard
+            const WriteSet::Word* const found = tx->writes.find(addr);
+            return (found->mask()) ? found->value() : *addr;
         }
 
         // abort if locked by other
@@ -178,13 +180,19 @@ static inline void* alg_tm_read_aligned_word(void** addr, TX* tx, uintptr_t) {
     }
 }
 
+static inline void* alg_tm_read_aligned_word_ro(void** addr, TX* tx,
+                                                uintptr_t mask)
+{
+    return alg_tm_read_aligned_word(addr, tx, mask);
+}
+
 /**
  *  OrecEagerRedo write
  */
 static inline void alg_tm_write_aligned_word(void** addr, void* val, TX* tx, uintptr_t mask)
 {
     // add to redo log
-    tx->writes.insert(addr, val, mask);
+    tx->writes.insert(addr, WriteSet::Word(val, mask));
 
     // get the orec addr
     orec_t* o = get_orec(addr);
@@ -222,7 +230,7 @@ static inline void alg_tm_write_aligned_word(void** addr, void* val, TX* tx, uin
 void* alg_tm_read(void** addr) {
     return stm::inst::read<void*,                 //
                            stm::inst::NoFilter,   // don't pre-filter accesses
-                           stm::inst::WordlogRAW, // log at the word granularity
+                           stm::inst::NoRAW,      // RAW is done internally
                            stm::inst::NoReadOnly, // no separate read-only code
                            true                   // force align all accesses
                            >(addr);

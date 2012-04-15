@@ -24,7 +24,6 @@
 #include "tmabi-weak.hpp"               // the weak abi declarations
 #include "foreach.hpp"                  // the FOREACH macro
 #include "ValueList.hpp"
-#include "WriteSet.hpp"
 #include "WBMMPolicy.hpp"
 #include "tx.hpp"
 #include "libitm.h"
@@ -32,7 +31,7 @@
 
 using stm::TX;
 using stm::pad_word_t;
-using stm::WriteSetEntry;
+using stm::WriteSet;
 using stm::ValueList;
 using stm::ValueListEntry;
 using stm::Self;
@@ -76,7 +75,7 @@ template <class CM>
 static void alg_tm_rollback(TX* tx) {
     ++tx->aborts;
     tx->vlist.reset();
-    tx->writes.reset();
+    tx->writes.clear();
     tx->allocator.onTxAbort();
     CM::onAbort(tx);
 }
@@ -126,14 +125,14 @@ static void alg_tm_end() {
         if ((tx->start_time = validate(tx)) == VALIDATION_FAILED)
             _ITM_abortTransaction(TMConflict);
 
-    tx->writes.writeback();
+    tx->writes.redo();
 
     // Release the sequence lock, then clean up
     CFENCE;
     timestamp.val = tx->start_time + 2;
     CM::onCommit(tx);
     tx->vlist.reset();
-    tx->writes.reset();
+    tx->writes.clear();
     tx->allocator.onTxCommit();
     ++tx->commits_rw;
 }
@@ -161,10 +160,16 @@ static inline void* alg_tm_read_aligned_word(void** addr, TX* tx, uintptr_t mask
     return tmp;
 }
 
+static inline void* alg_tm_read_aligned_word_ro(void** addr, TX* tx,
+                                                uintptr_t mask)
+{
+    return alg_tm_read_aligned_word(addr, tx, mask);
+}
+
 /** Simple buffered transactional write. */
 static inline void alg_tm_write_aligned_word(void** addr, void* val, TX* tx, uintptr_t mask) {
     // just buffer the write
-    tx->writes.insert(addr, val, mask);
+    tx->writes.insert(addr, WriteSet::Word(val, mask));
 }
 
 /** The library api interface to read an aligned word. */

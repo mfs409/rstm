@@ -26,7 +26,6 @@
 #include "foreach.hpp"                  // FOREACH macro
 #include "MiniVector.hpp"
 #include "metadata.hpp"
-#include "WriteSet.hpp"
 #include "WBMMPolicy.hpp"
 #include "tx.hpp"
 #include "adaptivity.hpp"
@@ -52,7 +51,7 @@ void alg_tm_rollback(TX* tx) {
 
     // undo memory operations, reset lists
     tx->r_orecs.reset();
-    tx->writes.reset();
+    tx->writes.clear();
     tx->locks.reset();
     tx->allocator.onTxAbort();
 }
@@ -100,7 +99,7 @@ void alg_tm_end()
     // acquire locks
     FOREACH (WriteSet, i, tx->writes) {
         // get orec, read its version#
-        orec_t* o = get_orec(i->addr);
+        orec_t* o = get_orec(i->address());
         uintptr_t ivt = o->v.all;
 
         // lock all orecs, unless already locked
@@ -126,7 +125,7 @@ void alg_tm_end()
         validate(tx);
 
     // run the redo log
-    tx->writes.writeback();
+    tx->writes.redo();
 
     // release locks
     CFENCE;
@@ -135,7 +134,7 @@ void alg_tm_end()
 
     // clean-up
     tx->r_orecs.reset();
-    tx->writes.reset();
+    tx->writes.clear();
     tx->locks.reset();
 
     tx->allocator.onTxCommit();
@@ -167,10 +166,16 @@ static inline void* alg_tm_read_aligned_word(void** addr, TX* tx, uintptr_t) {
     return tmp;
 }
 
+static inline void* alg_tm_read_aligned_word_ro(void** addr, TX* tx,
+                                                uintptr_t mask)
+{
+    return alg_tm_read_aligned_word(addr, tx, mask);
+}
+
 /** LLT write */
 static inline void alg_tm_write_aligned_word(void** addr, void* val, TX* tx, uintptr_t mask)
 {
-    tx->writes.insert(addr, val, mask);
+    tx->writes.insert(addr, WriteSet::Word(val, mask));
 }
 
 void* alg_tm_read(void** addr) {

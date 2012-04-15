@@ -339,21 +339,6 @@ namespace stm
       }
 
       /**
-       *  Support for abort-on-throw rollback tricky.  We might need to write
-       *  to an exception object.
-       *
-       *  NB: We use a macro to hide the fact that some rollback calls are
-       *      really simple.  This gets called by ~30 STM implementations
-       */
-#if !defined (STM_ABORT_ON_THROW)
-      void rollback() { }
-#   define STM_ROLLBACK(log, exception, len) log.rollback()
-#else
-      void rollback(void**, size_t);
-#   define STM_ROLLBACK(log, exception, len) log.rollback(exception, len)
-#endif
-
-      /**
        *  Encapsulate writeback in this routine, so that we can avoid making
        *  modifications to lots of STMs when we need to change writeback for a
        *  particular compiler.

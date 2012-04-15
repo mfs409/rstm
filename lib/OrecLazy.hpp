@@ -25,7 +25,6 @@
 #include "inst.hpp"                     // read<>/write<>, etc
 #include "MiniVector.hpp"
 #include "metadata.hpp"
-#include "WriteSet.hpp"
 #include "WBMMPolicy.hpp"
 #include "locks.hpp"
 #include "tx.hpp"
@@ -51,7 +50,7 @@ static void alg_tm_rollback(TX* tx)
     // undo memory operations, reset lists
     CM::onAbort(tx);
     tx->r_orecs.reset();
-    tx->writes.reset();
+    tx->writes.clear();
     tx->locks.reset();
     tx->allocator.onTxAbort();
 }
@@ -115,7 +114,7 @@ static void alg_tm_end()
     // acquire locks
     FOREACH (WriteSet, i, tx->writes) {
         // get orec, read its version#
-        orec_t* o = get_orec(i->addr);
+        orec_t* o = get_orec(i->address());
         uintptr_t ivt = o->v.all;
 
         // lock all orecs, unless already locked
@@ -141,8 +140,7 @@ static void alg_tm_end()
             _ITM_abortTransaction(TMConflict);
     }
 
-    // run the redo log
-    tx->writes.writeback();
+    tx->writes.redo();
 
     // increment the global timestamp, release locks
     uintptr_t end_time = 1 + faiptr(&timestamp.val);
@@ -153,7 +151,7 @@ static void alg_tm_end()
     // clean up
     CM::onCommit(tx);
     tx->r_orecs.reset();
-    tx->writes.reset();
+    tx->writes.clear();
     tx->locks.reset();
     tx->allocator.onTxCommit();
     ++tx->commits_rw;
@@ -192,13 +190,19 @@ static inline void* alg_tm_read_aligned_word(void** addr, TX* tx, uintptr_t) {
     }
 }
 
+static inline void* alg_tm_read_aligned_word_ro(void** addr, TX* tx,
+                                                uintptr_t mask)
+{
+    return alg_tm_read_aligned_word(addr, tx, mask);
+}
+
 /**
  *  OrecLazy write
  */
 static inline void alg_tm_write_aligned_word(void** addr, void* val, TX* tx, uintptr_t mask)
 {
     // add to redo log
-    tx->writes.insert(addr, val, mask);
+    tx->writes.insert(addr, WriteSet::Word(val, mask));
 }
 
 void* alg_tm_read(void** addr) {

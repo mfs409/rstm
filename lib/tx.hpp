@@ -15,12 +15,27 @@
 #include "metadata.hpp"
 #include "MiniVector.hpp"
 #include "WBMMPolicy.hpp"
-#include "WriteSet.hpp"
+// #include "WriteSet.hpp"
 #include "ValueList.hpp"
 #include "UndoLog.hpp"
 #include "checkpoint.hpp"
 
+#include "RedoLog.hpp"
+
+#include <vector>
+#include <map>
+
 namespace stm {
+  template <typename Key, typename Value>
+  struct Map : public std::map<Key, Value> {
+  };
+
+  template <typename T>
+  struct List : public std::vector<T> {
+  };
+
+  typedef RedoLog<Word, Map, List> WriteSet;
+
   typedef MiniVector<orec_t*> OrecList;     // vector of orecs
 
   /**

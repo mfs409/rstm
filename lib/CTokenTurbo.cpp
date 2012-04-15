@@ -24,7 +24,6 @@
 #include "inst.hpp"
 #include "tmabi-weak.hpp"
 #include "foreach.hpp"
-#include "WriteSet.hpp"
 #include "WBMMPolicy.hpp"
 #include "tx.hpp"
 #include "adaptivity.hpp"
@@ -60,13 +59,8 @@ void alg_tm_rollback(TX* tx)
         exit(-1);
     }
 
-    // Perform writes to the exception object if there were any... taking the
-    // branch overhead without concern because we're not worried about
-    // rollback overheads.
-    STM_ROLLBACK(tx->writes, except, len);
-
     tx->r_orecs.reset();
-    tx->writes.reset();
+    tx->writes.clear();
     // NB: we can't reset pointers here, because if the transaction
     //     performed some writes, then it has an order.  If it has an
     //     order, but restarts and is read-only, then it still must call
@@ -95,10 +89,10 @@ static NOINLINE void validate(TX* tx, uintptr_t finish_cache)
         if (tx->writes.size() != 0) {
             // mark every location in the write set, and perform write-back
             FOREACH (WriteSet, i, tx->writes) {
-                orec_t* o = get_orec(i->addr);
+                orec_t* o = get_orec(i->address());
                 o->v.all = tx->order;
                 CFENCE; // WBW
-                *i->addr = i->val;
+                i->value().writeTo(i->address());
             }
             tx->turbo = true;
         }
@@ -142,7 +136,7 @@ void alg_tm_end()
 
         // commit all frees, reset all lists
         tx->r_orecs.reset();
-        tx->writes.reset();
+        tx->writes.clear();
         tx->allocator.onTxCommit();
         ++tx->commits_rw;
         tx->turbo = false;
@@ -174,10 +168,10 @@ void alg_tm_end()
     if (tx->writes.size() != 0) {
         // mark every location in the write set, and perform write-back
         FOREACH (WriteSet, i, tx->writes) {
-            orec_t* o = get_orec(i->addr);
+            orec_t* o = get_orec(i->address());
             o->v.all = tx->order;
             CFENCE; // WBW
-            *i->addr = i->val;
+            i->value().writeTo(i->address());
         }
     }
 
@@ -189,7 +183,7 @@ void alg_tm_end()
 
     // commit all frees, reset all lists
     tx->r_orecs.reset();
-    tx->writes.reset();
+    tx->writes.clear();
     tx->allocator.onTxCommit();
     ++tx->commits_rw;
 }
@@ -268,7 +262,7 @@ static inline void alg_tm_write_aligned_word(void** addr, void* val, TX* tx, uin
         tx->order = 1 + faiptr(&timestamp.val);
 
         // record the new value in a redo log
-        tx->writes.insert(addr, val, mask);
+        tx->writes.insert(addr, WriteSet::Word(val, mask));
 
         // go turbo?
         //
@@ -279,7 +273,7 @@ static inline void alg_tm_write_aligned_word(void** addr, void* val, TX* tx, uin
     }
     else {
         // record the new value in a redo log
-        tx->writes.insert(addr, val, mask);
+        tx->writes.insert(addr, WriteSet::Word(val, mask));
     }
 }
 

@@ -65,7 +65,7 @@ const char* alg_tm_getalgname() {
 void alg_tm_rollback(TX* tx) {
     ++tx->aborts;
     tx->r_orecs.reset();
-    tx->writes.reset();
+    tx->writes.clear();
     tx->allocator.onTxAbort();
 }
 
@@ -150,7 +150,7 @@ void alg_tm_end()
 
     FOREACH (WriteSet, i, tx->writes) {
         // get orec
-        orec_t* o = get_orec(i->addr);
+        orec_t* o = get_orec(i->address());
         // mark orec
         o->v.all = tx->order;
     }
@@ -160,7 +160,7 @@ void alg_tm_end()
 
     // do write back
     FOREACH (WriteSet, i, tx->writes) {
-        *i->addr = i->val;
+        i->value().writeTo(i->address());
     }
 
     // update last_order
@@ -177,7 +177,7 @@ void alg_tm_end()
 
     // commit all frees, reset all lists
     tx->r_orecs.reset();
-    tx->writes.reset();
+    tx->writes.clear();
     tx->allocator.onTxCommit();
     ++tx->commits_rw;
 }
@@ -191,13 +191,19 @@ static inline void* alg_tm_read_aligned_word(void** addr, TX* tx, uintptr_t) {
     return *addr;
 }
 
+static inline void* alg_tm_read_aligned_word_ro(void** addr, TX* tx,
+                                                uintptr_t mask)
+{
+    return alg_tm_read_aligned_word(addr, tx, mask);
+}
+
 /**
  *  Simple buffered transactional write
  */
 static inline void alg_tm_write_aligned_word(void** addr, void* val, TX* tx, uintptr_t mask)
 {
     // record the new value in a redo log
-    tx->writes.insert(addr, val, mask);
+    tx->writes.insert(addr, WriteSet::Word(val, mask));
 }
 
 void* alg_tm_read(void** addr) {
@@ -210,7 +216,7 @@ void* alg_tm_read(void** addr) {
 }
 
 void alg_tm_write(void** addr, void* val) {
-    alg_tm_write_aligned_word(addr, val, Self, ~0);
+    inst::write<void*, inst::NoFilter, true>(addr, val);
 }
 
 bool alg_tm_is_irrevocable(TX* tx) {
