@@ -11,7 +11,6 @@
 #define RSTM_INST_RAW_H
 
 #include "tx.hpp"
-#include "WriteSet.hpp"
 
 /**
  *  This header define the read-afeter-write algorithms used in the read
@@ -44,7 +43,15 @@ namespace stm {
      */
     struct WordlogRAW {
         bool hit(void** addr, void*& storage, TX* tx, uintptr_t) {
-            return (tx->writes.size()) ? tx->writes.find(addr, storage) : 0;
+            if (!tx->writes.size())
+                return 0;
+
+            if (const WriteSet::Word* const found = tx->writes.find(addr)) {
+                storage = found->value();
+                return found->mask();
+            }
+
+            return 0;
         }
 
         void merge(void* val, void*& storage) {
@@ -60,8 +67,16 @@ namespace stm {
         uintptr_t missing_;
 
         bool hit(void** addr, void*& storage, TX* tx, uintptr_t mask) {
-            missing_ = mask & ~tx->writes.find(addr, storage);
-            return !missing_;
+            if (!tx->writes.size())
+                return 0;
+
+            if (const WriteSet::Word* const found = tx->writes.find(addr)) {
+                storage = found->value();
+                missing_ = mask & ~found->mask();
+                return !missing_;
+            }
+
+            return 0;
         }
 
         void* merge(void* val, void*& storage) {

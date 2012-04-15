@@ -22,7 +22,6 @@
 #include "tmabi-weak.hpp"               // the weak interface
 #include "foreach.hpp"                  // FOREACH macro
 #include "inst.hpp"
-#include "WriteSet.hpp"
 #include "WBMMPolicy.hpp" // todo: remove this, use something simpler
 #include "tx.hpp"
 #include "adaptivity.hpp"
@@ -68,7 +67,7 @@ const char* alg_tm_getalgname() {
 void alg_tm_rollback(TX* tx) {
     ++tx->aborts;
     tx->r_orecs.reset();
-    tx->writes.reset();
+    tx->writes.clear();
     tx->allocator.onTxAbort();
 }
 
@@ -182,11 +181,11 @@ void alg_tm_end() {
 
     FOREACH (WriteSet, i, tx->writes) {
         // get orec
-        orec_t* o = get_orec(i->addr);
+        orec_t* o = get_orec(i->address());
         // mark orec
         o->v.all = tx->order;
         // do write back
-        *i->addr = i->val;
+        i->value().writeTo(i->address());
     }
 
     // increase total number of committed tx
@@ -203,7 +202,7 @@ void alg_tm_end() {
 
     // commit all frees, reset all lists
     tx->r_orecs.reset();
-    tx->writes.reset();
+    tx->writes.clear();
     tx->allocator.onTxCommit();
     ++tx->commits_rw;
 }
@@ -215,6 +214,12 @@ static inline void* alg_tm_read_aligned_word(void** addr, TX* tx, uintptr_t) {
     // log orec
     tx->r_orecs.insert(get_orec(addr));
     return *addr;
+}
+
+static inline void* alg_tm_read_aligned_word_ro(void** addr, TX* tx,
+                                                uintptr_t mask)
+{
+    return alg_tm_read_aligned_word(addr, tx, mask);
 }
 
 /**
@@ -250,12 +255,12 @@ static inline void alg_tm_write_aligned_word(void** addr, void* val, TX* tx,
             // reset flag
             inplace = 0;
         }
-        tx->writes.insert(addr, val, mask);
+        tx->writes.insert(addr, WriteSet::Word(val, mask));
         return;
     }
 
     // record the new value in a redo log
-    tx->writes.insert(addr, val, mask);
+    tx->writes.insert(addr, WriteSet::Word(val, mask));
 }
 
 void* alg_tm_read(void** addr) {
@@ -268,7 +273,7 @@ void* alg_tm_read(void** addr) {
 }
 
 void alg_tm_write(void** addr, void* val) {
-    alg_tm_write_aligned_word(addr, val, Self, ~0);
+    inst::write<void*, inst::NoFilter, true>(addr, val);
 }
 
 bool alg_tm_is_irrevocable(TX* tx) {

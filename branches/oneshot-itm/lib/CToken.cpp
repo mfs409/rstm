@@ -24,7 +24,6 @@
 #include "tmabi-weak.hpp"
 #include "foreach.hpp"
 #include "inst.hpp"
-#include "WriteSet.hpp"
 #include "WBMMPolicy.hpp"
 #include "tx.hpp"
 #include "adaptivity.hpp"
@@ -49,14 +48,8 @@ const char* alg_tm_getalgname() {
 void alg_tm_rollback(TX* tx)
 {
     ++tx->aborts;
-
-    // Perform writes to the exception object if there were any... taking the
-    // branch overhead without concern because we're not worried about
-    // rollback overheads.
-    STM_ROLLBACK(tx->writes, except, len);
-
     tx->r_orecs.reset();
-    tx->writes.reset();
+    tx->writes.clear();
     // NB: we can't reset pointers here, because if the transaction
     //     performed some writes, then it has an order.  If it has an
     //     order, but restarts and is read-only, then it still must call
@@ -123,10 +116,10 @@ void alg_tm_end()
     if (tx->writes.size() != 0) {
         // mark every location in the write set, and perform write-back
         FOREACH (WriteSet, i, tx->writes) {
-            orec_t* o = get_orec(i->addr);
+            orec_t* o = get_orec(i->address());
             o->v.all = tx->order;
             CFENCE; // WBW
-            *i->addr = i->val;
+            i->value().writeTo(i->address());
         }
     }
 
@@ -138,7 +131,7 @@ void alg_tm_end()
 
     // commit all frees, reset all lists
     tx->r_orecs.reset();
-    tx->writes.reset();
+    tx->writes.clear();
     tx->allocator.onTxCommit();
     ++tx->commits_rw;
 }
@@ -166,6 +159,12 @@ static inline void* alg_tm_read_aligned_word(void** addr, TX* tx, uintptr_t) {
     return tmp;
 }
 
+static inline void* alg_tm_read_aligned_word_ro(void** addr, TX* tx,
+                                                uintptr_t mask)
+{
+    return alg_tm_read_aligned_word(addr, tx, mask);
+}
+
 /**
  *  CToken write (read-only context)
  */
@@ -177,7 +176,7 @@ static inline void alg_tm_write_aligned_word(void** addr, void* val, TX* tx, uin
     }
 
     // record the new value in a redo log
-    tx->writes.insert(addr, val, mask);
+    tx->writes.insert(addr, WriteSet::Word(val, mask));
 }
 
 void* alg_tm_read(void** addr) {
@@ -190,7 +189,7 @@ void* alg_tm_read(void** addr) {
 }
 
 void alg_tm_write(void** addr, void* val) {
-    alg_tm_write_aligned_word(addr, val, Self, ~0);
+    inst::write<void*, inst::NoFilter, true>(addr, val);
 }
 
 bool alg_tm_is_irrevocable(TX* tx) {

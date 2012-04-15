@@ -215,7 +215,7 @@ namespace stm {
     static inline T read(T* addr) {
         TX* tx = Self;
 
-        // see if this is a read from the stack
+        // see if this read should be done in-place
         if (PREFILTER::filter((void**)addr, tx))
             return *addr;
 
@@ -246,25 +246,24 @@ namespace stm {
 
         return *reinterpret_cast<T*>(bytes + off);
     }
-    template <typename T, size_t N>
-    static inline void write_words(TX* tx, void* words[N], void** base,
-                                   size_t off)
-    {
-        // store the first word, there is always at least one
-        uintptr_t mask = make_mask(off, min(sizeof(void*), off + sizeof(T)));
-        alg_tm_write_aligned_word(base, words[0], tx, mask);
 
-        // deal with any middle words
-        mask = make_mask(0, sizeof(void*));
-        for (int i = 1, e = N - 1; i < e; ++i)
-            alg_tm_write_aligned_word(base + i, words[i], tx, mask);
-
-        // deal with the last word
-        if (N > 1 && off) {
-            mask = make_mask(0, off);
-            alg_tm_write_aligned_word(base + N, words[N], tx, mask);
+    struct WriteWord {
+        static inline void Write(void** addr, void* val, uintptr_t) {
+            *addr = val;
         }
-    }
+    };
+
+    struct WriteMaskedWord {
+        static inline void Write(void** addr, void* val, uintptr_t mask) {
+            // special case to write the entire word
+            if (mask == ~0) {
+                *addr = val;
+                return;
+            }
+
+            //
+        }
+    };
 
     template <typename T,
               class PREFILTER,
@@ -272,7 +271,7 @@ namespace stm {
     static inline void write(T* addr, T val) {
         TX* tx = Self;
 
-        // see if this is a write to the stack
+        // see if this write should be done in-place
         if (PREFILTER::filter((void**)addr, tx)) {
             *addr = val;
             return;
@@ -299,8 +298,20 @@ namespace stm {
         // put the value into the right place on the stack
         *reinterpret_cast<T*>(bytes + off) = val;
 
-        // loop through the words and write each one
-        write_words<T, N>(tx, words, base, off);
+        // store the first word, there is always at least one
+        uintptr_t mask = make_mask(off, min(sizeof(void*), off + sizeof(T)));
+        alg_tm_write_aligned_word(base, words[0], tx, mask);
+
+        // deal with any middle words
+        mask = make_mask(0, sizeof(void*));
+        for (int i = 1, e = N - 1; i < e; ++i)
+            alg_tm_write_aligned_word(base + i, words[i], tx, mask);
+
+        // deal with the last word
+        if (N > 1 && off) {
+            mask = make_mask(0, off);
+            alg_tm_write_aligned_word(base + N, words[N], tx, mask);
+        }
     }
   }
 }
