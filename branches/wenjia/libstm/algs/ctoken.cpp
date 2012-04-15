@@ -90,11 +90,17 @@ namespace {
       // wait until it is our turn to commit, then validate, acquire, and do
       // writeback
       while (last_complete.val != (uintptr_t)(tx->order - 1)) {
+          // Check if we need to abort due to an adaptivity event
           if (TxThread::tmbegin != begin)
               tx->tmabort(tx);
       }
 
       // since we have the token, we can validate before getting locks
+      //
+      // [mfs] should this be guarded with code like "if (last_complete.val >
+      //       tx->ts_cache)" to prevent unnecessary validations by
+      //       single-threaded code?
+
       validate(tx, last_complete.val);
 
       // if we had writes, then aborted, then restarted, and then didn't have
@@ -236,6 +242,8 @@ namespace {
   CToken::validate(TxThread* tx, uintptr_t finish_cache)
   {
       // check that all reads are valid
+      //
+      // [mfs] Consider using Luke's trick here
       foreach (OrecList, i, tx->r_orecs) {
           // read this orec
           uintptr_t ivt = (*i)->v.all;

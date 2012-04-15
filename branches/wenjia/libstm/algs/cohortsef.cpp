@@ -11,6 +11,8 @@
 /**
  *  CohortsEF Implementation
  *  CohortsEager with Filter
+ *
+ *  See notes in Eager and Filter implementations
  */
 
 #include "../profiling.hpp"

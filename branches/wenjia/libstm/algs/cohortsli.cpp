@@ -83,6 +83,9 @@ namespace {
       while (gatekeeper == 1);
 
       // set started
+      //
+      // [mfs] using an atomicswapXXX function would be cheaper than a store
+      //       followed by a WBR
       tx->status = COHORTS_STARTED;
       WBR;
 
@@ -255,6 +258,25 @@ namespace {
   void
   CohortsLI::write_ro(STM_WRITE_SIG(tx,addr,val,mask))
   {
+      // [mfs] this code is not in the best location.  Consider the following
+      // alternative:
+      //
+      // - when a thread reaches the commit function, it seals the cohort
+      // - then it counts the number of transactions in the cohort
+      // - then it waits for all of them to finish
+      // - while waiting, it eventually knows when there is exactly one left.
+      // - at that point, it can set a flag to indicate that the last one is
+      //   in-flight.
+      // - all transactions can check that flag on every read/write
+      //
+      // There are a few challenges.  First, the current code waits on the
+      // first thread, then the next, then the next...  Obviously that won't do
+      // anymore.  Second, there can be a "flicker" when a thread sets a flag,
+      // then reads the gatekeeper, then backs out.  Lastly, RO transactions
+      // will require some sort of special attention.  But the tradeoff is more
+      // potential to switch (not just first write), and without so much
+      // redundant checking.
+
       uint32_t count = 0;
       // scan to check others' status
       for (uint32_t i = 0; i < threadcount.val && count < 2; ++i)

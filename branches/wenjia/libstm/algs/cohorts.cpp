@@ -75,6 +75,14 @@ namespace {
   bool
   Cohorts::begin(TxThread* tx)
   {
+      // [mfs] Could we merge all of the fields into a single word?  We would
+      //       not need last_complete or ts_cache if we made such a change, and
+      //       then the last transaction in a cohort could simply zero the word
+      //       to let the next cohort begin.  Note that doing so would look
+      //       different in different versions of Cohorts (e.g., in this one
+      //       we'd still need a timestamp, though without atomic ops; in NOrec
+      //       no timestamp would be needed).
+
     S1:
       // wait until everyone is committed
       while (cpending.val != committed.val);
@@ -130,6 +138,8 @@ namespace {
           validate(tx);
 
       // Last one in cohort can pass the orec marking process
+      //
+      // [mfs] Do we use this trick in all of our algorithms?  We should!
       if ((uint32_t)tx->order != started.val) {
           // mark orec
           foreach (WriteSet, i, tx->writes) {
@@ -153,6 +163,9 @@ namespace {
       // mark self as done
       last_complete.val = tx->order;
 
+      // [mfs] Why do we need the atomic increment?  What ordering is actually
+      //       required?  I think we actually want to move this up above the
+      //       last_complete.val line, and we'd be good
       // increase total number of committed tx
       // [NB] atomic increment is faster here
       ADD(&committed.val, 1);
@@ -252,6 +265,7 @@ namespace {
   void
   Cohorts::validate(TxThread* tx)
   {
+      // [mfs] use the luke trick?
       foreach (OrecList, i, tx->r_orecs) {
           // read this orec
           uintptr_t ivt = (*i)->v.all;
@@ -303,4 +317,3 @@ namespace stm {
       stms[Cohorts].privatization_safe = true;
   }
 }
-

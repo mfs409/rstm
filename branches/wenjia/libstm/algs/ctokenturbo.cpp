@@ -99,10 +99,15 @@ namespace {
   {
       // we need to transition to fast here, but not till our turn
       while (last_complete.val != ((uintptr_t)tx->order - 1)) {
+          // check if an adaptivity event necessitates that we abort to change
+          // modes
           if (TxThread::tmbegin != begin)
               tx->tmabort(tx);
       }
       // validate
+      //
+      // [mfs] Should we use Luke's technique to get the branches out of the
+      //       loop?
       foreach (OrecList, i, tx->r_orecs) {
           // read this orec
           uintptr_t ivt = (*i)->v.all;
@@ -170,9 +175,16 @@ namespace {
       // log orec
       tx->r_orecs.insert(o);
 
-      // possibly validate before returning
+      // possibly validate before returning.
+      //
+      // [mfs] Polling like this is necessary for privatization safety, but
+      //       otherwise we could cut it out, since we know we're RO and hence
+      //       not going to be able to switch to turbo mode
       if (last_complete.val > tx->ts_cache) {
+          // [mfs] Should outline this code since it is unlikely
           uintptr_t finish_cache = last_complete.val;
+          // [mfs] again: use Luke's trick to reduce this cost.  We're not in a
+          //       critical section, so doing so can't hurt other transactions
           foreach (OrecList, i, tx->r_orecs) {
               // read this orec
               uintptr_t ivt_inner = (*i)->v.all;
@@ -314,6 +326,12 @@ namespace {
    */
   void CTokenTurbo::validate(TxThread* tx, uintptr_t finish_cache)
   {
+      // [mfs] There is a performance bug here: we should be looking at the
+      //       ts_cache to know if we even need to do this loop.  Consider
+      //       single-threaded code: it does a write, it goes to this code, and
+      //       then it validates even though it doesn't need to validate, ever!
+
+      // [mfs] consider using Luke's trick here
       foreach (OrecList, i, tx->r_orecs) {
           // read this orec
           uintptr_t ivt = (*i)->v.all;
@@ -321,9 +339,12 @@ namespace {
           if (ivt > tx->ts_cache)
               tx->tmabort(tx);
       }
+
       // now update the finish_cache to remember that at this time, we were
       // still valid
       tx->ts_cache = finish_cache;
+
+      // [mfs] End performance concern
 
       // and if we are now the oldest thread, transition to fast mode
       if (tx->ts_cache == ((uintptr_t)tx->order - 1)) {

@@ -12,6 +12,16 @@
  *  CohortsFilter Implementation
  *
  *  Cohorts using BitFilter for validations
+ *
+ * [mfs] We should have another version of this with TINY filters (eg 64 bits).
+ *
+ * [mfs] I am worried about the WBRs in this code.  It would seem that CFENCE
+ *       would suffice.  The problem could relate to the use of SSE.  It would
+ *       be good to verify that the WBRs can't be replaced with CFENCEs when
+ *       SSE is turned off.  It would also be good to implement with 64-bit
+ *       filters, which wouldn't use SSE, to see if that eliminated the need
+ *       for WBR to get proper behavior.  It's possible that the WBR is just
+ *       enforcing WAW behavior between SSE registers and non-SSE registers.
  */
 
 #include "../profiling.hpp"
@@ -114,6 +124,7 @@ namespace {
           spin64();
 
       // Wait for my turn
+      // [mfs] this is the start of the critical section
       while (last_complete.val != (uintptr_t)(tx->order - 1))
           spin64();
 
@@ -129,8 +140,8 @@ namespace {
       // union tx local write filter with the global filter
       global_filter->unionwith(*(tx->wf));
 
-      // [NB] Intruder bench will abort if without this WBR but followed by a non
-      // atomic instruction.
+      // [NB] Intruder bench will abort if without this WBR but followed by a
+      // non atomic instruction.
       WBR;
 
       // If I'm the last one in the cohort, save the order and clear the filter
@@ -140,6 +151,7 @@ namespace {
       }
 
       // mark self as done
+      // [mfs] this is the end of the critical section
       last_complete.val = tx->order;
 
       // [NB] atomic increment is faster here
@@ -174,8 +186,6 @@ namespace {
       WriteSetEntry log(STM_WRITE_SET_ENTRY(addr, NULL, mask));
       bool found = tx->writes.find(log);
       REDO_RAW_CHECK(found, log, mask);
-
-      tx->rf->add(addr);
 
       void* val = *addr;
       REDO_RAW_CLEANUP(val, found, log, mask);

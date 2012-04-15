@@ -116,12 +116,16 @@ namespace {
     // Wait until all tx are ready to commit
     while (cpending.val < started.val);
 
+    // [mfs] this is over-synchronized.  If we kept the return value of the
+    //       above ADD, we could simply use it as the order.  Also, note that
+    //       if we did that, the first thread would not need to validate.
+
     // get the lock and validate (use RingSTM obstruction-free technique)
     while (!bcasptr(&timestamp.val, tx->start_time, tx->start_time + 1))
-      if ((tx->start_time = validate(tx)) == VALIDATION_FAILED) {
-    ADD(&committed.val, 1);
-    tx->tmabort(tx);
-      }
+        if ((tx->start_time = validate(tx)) == VALIDATION_FAILED) {
+            ADD(&committed.val, 1);
+            tx->tmabort(tx);
+        }
 
     // do write back
     tx->writes.writeback();
@@ -131,6 +135,10 @@ namespace {
     timestamp.val = tx->start_time + 2;
 
     // increase total number of committed tx
+    //
+    // [mfs] if we used this as the indicator for when the next one could start
+    //       validating, we wouldn't need timestamp and we wouldn't need an
+    //       atomic op here.
     ADD(&committed.val, 1);
 
     // commit all frees, reset all lists
@@ -145,8 +153,8 @@ namespace {
   void*
   CohortsNOrec::read_ro(STM_READ_SIG(tx,addr,))
   {
-    void * tmp = *addr;
-    STM_LOG_VALUE(tx, addr, tmp, mask);
+      void * tmp = *addr;
+      STM_LOG_VALUE(tx, addr, tmp, mask);
       return tmp;
   }
 
@@ -220,34 +228,37 @@ namespace {
 
   /**
    *  CohortsNOrec validation for commit: check that all reads are valid
+   *
+   *  [mfs] We should be able to validate without any checks of the
+   *        timestamp...
    */
- uintptr_t
- validate(TxThread* tx)
+  uintptr_t
+  validate(TxThread* tx)
   {
-    while (true) {
-      // read the lock until it is even
-      uintptr_t s = timestamp.val;
-      if ((s & 1) == 1)
-    continue;
+      while (true) {
+          // read the lock until it is even
+          uintptr_t s = timestamp.val;
+          if ((s & 1) == 1)
+              continue;
 
-      // check the read set
-      CFENCE;
-      // don't branch in the loop---consider it backoff if we fail
-      // validation early
-      bool valid = true;
-      foreach (ValueList, i, tx->vlist)
-    valid &= STM_LOG_VALUE_IS_VALID(i, tx);
+          // check the read set
+          CFENCE;
+          // don't branch in the loop---consider it backoff if we fail
+          // validation early
+          bool valid = true;
+          foreach (ValueList, i, tx->vlist)
+              valid &= STM_LOG_VALUE_IS_VALID(i, tx);
 
-      if (!valid)
-    return VALIDATION_FAILED;
+          if (!valid)
+              return VALIDATION_FAILED;
 
-      // restart if timestamp changed during read set iteration
-      CFENCE;
-      if (timestamp.val == s)
-    return s;
+          // restart if timestamp changed during read set iteration
+          CFENCE;
+          if (timestamp.val == s)
+              return s;
 
-    }
-}
+      }
+  }
 
   /**
    *  Switch to CohortsNOrec:
