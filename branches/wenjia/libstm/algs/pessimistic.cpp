@@ -1,4 +1,4 @@
-B1;2c/**
+/**
  *  Copyright (C) 2011
  *  University of Rochester Department of Computer Science
  *    and
