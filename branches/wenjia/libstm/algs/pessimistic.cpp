@@ -25,7 +25,7 @@
 
 // Maxmium threads supported
 // [mfs] why do we only support 8 threads
-#define MAXTHREADS 8
+#define MAXTHREADS 12
 
 using stm::TxThread;
 using stm::WriteSet;
@@ -33,6 +33,8 @@ using stm::UNRECOVERABLE;
 using stm::WriteSetEntry;
 using stm::orec_t;
 using stm::get_orec;
+using stm::global_version;
+using stm::writer_lock;
 
 /**
  *  Declare the functions that we're going to implement, so that we can avoid
@@ -41,21 +43,15 @@ using stm::get_orec;
 namespace {
   // ThreadID associated array to record each txn's activity
   struct Activity {
-     volatile uint32_t tx_version;
-     volatile bool writer_waiting;
+      volatile uint32_t tx_version;
+      volatile bool writer_waiting;
+      char _padding_[128-sizeof(uint32_t)-sizeof(bool)];
   };
-  // [mfs] It would probably be good to pad these array entries.  Note that L2
-  //       stride prefetching might require us to pad to 128 bytes :(
   static struct Activity activity_array[MAXTHREADS] =
       {{0xFFFFFFFF, false},{0xFFFFFFFF, false},{0xFFFFFFFF, false},
        {0xFFFFFFFF, false},{0xFFFFFFFF, false},{0xFFFFFFFF, false},
-       {0xFFFFFFFF, false},{0xFFFFFFFF, false}};
-
-  // [mfs] These should probably be padded too.  Also, could we use the
-  //       timestamp field to do both tasks?  LSB could be writer_lock, and the
-  //       rest could be the version...
-  volatile uint32_t global_version = 1;
-  volatile uint32_t writer_lock = 0;
+       {0xFFFFFFFF, false},{0xFFFFFFFF, false},{0xFFFFFFFF, false},
+       {0xFFFFFFFF, false},{0xFFFFFFFF, false},{0xFFFFFFFF, false}};
 
   struct PTM {
       static TM_FASTCALL bool begin(TxThread*);
@@ -71,7 +67,6 @@ namespace {
       static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
       static void onSwitchTo();
-      static NOINLINE void UpdateWriteSetVersions(TxThread* tx, uint32_t version);
   };
 
   /**
@@ -87,11 +82,13 @@ namespace {
       // For Read-Only transactions
       if (tx->read_only) {
           // Read the global version to tx_version
-          MY.tx_version = global_version;
+          MY.tx_version = global_version.val;
+
 
           // [mfs] This should not be necessary, since the cleanup from the
           //       last transaction should have reset these pointer.
           //
+          // [wer210] read-onlyness may change
           // go read-only mode
           GoTurbo(tx, read_ro, write_read_only, commit_read_only);
       }
@@ -110,12 +107,14 @@ namespace {
           //       Also, we probably want some sort of backoff or at least a
           //       test before the CAS to prevent bus traffic.
           while (MY.writer_waiting == true) {
-              if (bcas32(&writer_lock, 0, 1))
+              if (writer_lock.val == 0 && bcas32(&writer_lock.val, 0, 1))
                   MY.writer_waiting = false;
+              else
+                  spin64();
           }
 
           // Read the global version to tx_version
-          MY.tx_version = global_version;
+          MY.tx_version = global_version.val;
 
           // Go read-write mode
           GoTurbo(tx, read_rw, write_rw, commit_rw);
@@ -164,41 +163,42 @@ namespace {
       // Wait if tx_version is even
       if ((MY.tx_version & 0x01) == 0) {
           // Wait for version progress
-          while (global_version == MY.tx_version)
+          while (global_version.val == MY.tx_version)
               spin64();
-          MY.tx_version = global_version;
+          MY.tx_version = global_version.val;
       }
 
       // Mark orecs of locations in Writeset, version is (tx_version + 1)
-      UpdateWriteSetVersions(tx, MY.tx_version + 1);
+      uint32_t version = MY.tx_version + 1;
+      foreach (WriteSet, i, tx->writes) {
+          // get orec
+          orec_t* o = get_orec(i->addr);
+          // mark orec
+          o->v.all = version;
+      }
 
-      // First global version increment, global_version will be even
-      global_version++;
+      // First global version increment, global_version.val will be even
+      atomicswap32(&global_version.val, global_version.val + 1);
 
-      // [mfs] We could use an atomic_swapXXX instruction from the platform.hpp
-      // file to do the above write and the ordering at the same time.
-      WBR;
       // update my local version
-      MY.tx_version = global_version;
+      MY.tx_version = global_version.val;
 
       // Signal the next writer
       // Scan from (th_id + 1) to the end of the array
       // and start over from 0 to the (th_id)
+      bool found = false;
       for (uint32_t i = 1; i <= MAXTHREADS; i++) {
           if (activity_array[(i+th_id) % MAXTHREADS].writer_waiting == true) {
-              CFENCE;
               activity_array[(i+th_id) % MAXTHREADS].writer_waiting = false;
-              CFENCE;
-              // [mfs] need to get rid of GOTO.  setting a flag and then
-              //       'break' would suffice.
-              goto NEXT;
+              found = true;
+              break;
           }
       }
 
-      // Otherwise, release the global writer_lock
-      writer_lock = 0;
+      if (!found)
+          // Otherwise, release the global writer_lock.val
+          writer_lock.val = 0;
 
-    NEXT:
       // Quiescence, wait for all read-only tx started before
       // first global version increment to finish their commits
       for (uint32_t k = 0; k < MAXTHREADS; ++k)
@@ -208,14 +208,11 @@ namespace {
       // Now do write back
       foreach (WriteSet, i, tx->writes)
           *i->addr = i->val;
-      // [mfs] WBR isn't needed for WBW.  CFENCE will suffice.
-      WBR; //WBW
 
-      // [mfs] Would we save by simply writing to the global version, using a
-      // value that we saved earlier?
-      //
-      // Second global version increment, now global_version becomes odd
-      global_version ++;
+      CFENCE; //WBW
+
+      // Second global version increment, now global_version.val becomes odd
+      global_version.val = MY.tx_version + 1;
 
       // Set the tx_version maximum value
       MY.tx_version = 0xFFFFFFFF;
@@ -243,7 +240,7 @@ namespace {
           if (o->v.all != MY.tx_version)
               return *addr;
           // A writer has not yet finished writeback, Wait for version progress
-          while (global_version == MY.tx_version)
+          while (global_version.val == MY.tx_version)
               spin64();
           tx->progress_is_seen = true;
       }
@@ -304,20 +301,7 @@ namespace {
   stm::scope_t*
   PTM::rollback(STM_ROLLBACK_SIG(tx, except, len))
   {
-      // [mfs] this should never be called!
-      UNRECOVERABLE("Aborts are not possible in Pessimistic TM");
-
-      PreRollback(tx);
-
-      // Perform writes to the exception object if there were any... taking the
-      // branch overhead without concern because we're not worried about
-      // rollback overheads.
-      STM_ROLLBACK(tx->writes, except, len);
-
-      // reset all lists
-      tx->writes.reset();
-
-      return PostRollback(tx);
+      return NULL;
   }
 
   /**
@@ -331,30 +315,14 @@ namespace {
   }
 
   /**
-   *  PTM helper function: Write (tx_version + 1) as Orec version
-   *
-   *  [mfs] Verify that this is being inlined all the time
-   */
-  void
-  PTM::UpdateWriteSetVersions(TxThread* tx, uint32_t version)
-  {
-      foreach (WriteSet, i, tx->writes) {
-          // get orec
-          orec_t* o = get_orec(i->addr);
-          // mark orec
-          o->v.all = version;
-      }
-  }
-
-  /**
    *  Switch to PTM:
    *
    */
   void
   PTM::onSwitchTo()
   {
-      writer_lock = 0;
-      global_version = 1;
+      writer_lock.val = 0;
+      global_version.val = 1;
   }
 }
 

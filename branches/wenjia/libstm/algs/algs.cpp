@@ -77,8 +77,13 @@ namespace stm
   filter_t* global_filter = (filter_t*)FILTER_ALLOC(sizeof(filter_t));
   filter_t* temp_filter = (filter_t*)FILTER_ALLOC(sizeof(filter_t));
   AddressList addrs = AddressList (64);
+
   /*** for Fastlane*/
   pad_word_t helper = {0};
+
+  /*** for PTM*/
+  pad_word_t global_version = {1};
+  pad_word_t writer_lock = {0};
 
   /*** Store descriptions of the STM algorithms */
   alg_t stms[ALG_MAX];

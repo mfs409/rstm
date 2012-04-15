@@ -109,6 +109,10 @@ namespace stm
   // Global variables for Fastlane
   extern pad_word_t helper;
 
+  // Global variables for PTM
+  extern pad_word_t global_version;
+  extern pad_word_t writer_lock;
+
   /**
    *  To describe an STM algorithm, we provide a name, a set of function
    *  pointers, and some other information
