@@ -122,17 +122,14 @@ namespace {
   void
   Fastlane1::commit_rw(TxThread* tx)
   {
-      volatile uint32_t c;
-      uint32_t temp;
+      uint32_t c;
 
       // Try to acquiring counter
       // Attempt to CAS only after counter seen even
       // [mfs] e.g., taking first branch directly leads to CAS.
       do {
-          temp = timestamp.val;
-          while ((temp & 0x01) != 0)
-              temp = timestamp.val;
-          c = temp & ~MSB;
+          while (((c = timestamp.val) & 0x01) != 0);
+          c = c & ~MSB;
       } while(!bcas32(&timestamp.val, c, c + 1));
 
       // Release counter upon failed validation
