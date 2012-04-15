@@ -19,12 +19,10 @@
 #include "RedoRAWUtils.hpp"
 
 // define atomic operations
-#define CAS __sync_val_compare_and_swap
 #define ADD __sync_add_and_fetch
 #define SUB __sync_sub_and_fetch
 
 using stm::TxThread;
-using stm::timestamp;
 using stm::UNRECOVERABLE;
 using stm::WriteSetEntry;
 using stm::ValueList;
@@ -33,6 +31,7 @@ using stm::ValueListEntry;
 using stm::started;
 using stm::cpending;
 using stm::committed;
+using stm::last_complete;
 using stm::last_order;
 
 /**
@@ -41,7 +40,7 @@ using stm::last_order;
  */
 namespace {
   const uintptr_t VALIDATION_FAILED = 1;
-  NOINLINE uintptr_t validate(TxThread* tx);
+  NOINLINE bool validate(TxThread* tx);
 
   struct CohortsNOrec {
       static TM_FASTCALL bool begin(TxThread*);
@@ -67,6 +66,8 @@ namespace {
   bool
   CohortsNOrec::begin(TxThread* tx)
   {
+      tx->allocator.onTxBegin();
+
     S1:
       // wait until everyone is committed
       while (cpending.val != committed.val);
@@ -79,11 +80,6 @@ namespace {
           SUB(&started.val, 1);
           goto S1;
       }
-
-      // Sample the sequence lock, if it is even decrement by 1
-      tx->start_time = timestamp.val & ~(1L);
-
-      tx->allocator.onTxBegin();
 
       return true;
   }
@@ -111,40 +107,40 @@ namespace {
   void
   CohortsNOrec::commit_rw(TxThread* tx)
   {
-    ADD(&cpending.val, 1);
+      tx->order = ADD(&cpending.val, 1);
 
-    // Wait until all tx are ready to commit
-    while (cpending.val < started.val);
+      // Wait for my turn
+      while (last_complete.val != (uintptr_t)(tx->order - 1));
 
-    // [mfs] this is over-synchronized.  If we kept the return value of the
-    //       above ADD, we could simply use it as the order.  Also, note that
-    //       if we did that, the first thread would not need to validate.
+      // get the lock and validate (use RingSTM obstruction-free technique)
+      if (tx->order != last_order)
+          if (!validate(tx)) {
+              committed.val++;
+              CFENCE;
+              last_complete.val = tx->order;
+              tx->tmabort(tx);
+          }
 
-    // get the lock and validate (use RingSTM obstruction-free technique)
-    while (!bcasptr(&timestamp.val, tx->start_time, tx->start_time + 1))
-        if ((tx->start_time = validate(tx)) == VALIDATION_FAILED) {
-            ADD(&committed.val, 1);
-            tx->tmabort(tx);
-        }
+      // Wait until all tx are ready to commit
+      while (cpending.val < started.val);
 
-    // do write back
-    tx->writes.writeback();
+      // do write back
+      tx->writes.writeback();
 
-    // Release the sequence lock, then clean up
-    CFENCE;
-    timestamp.val = tx->start_time + 2;
+      // update last_order
+      last_order = started.val + 1;
 
-    // increase total number of committed tx
-    //
-    // [mfs] if we used this as the indicator for when the next one could start
-    //       validating, we wouldn't need timestamp and we wouldn't need an
-    //       atomic op here.
-    ADD(&committed.val, 1);
+      // increase total number of committed tx
+      committed.val++;
+      CFENCE;
 
-    // commit all frees, reset all lists
-    tx->vlist.reset();
-    tx->writes.reset();
-    OnReadWriteCommit(tx, read_ro, write_ro, commit_ro);
+      // set myself as last completed tx
+      last_complete.val = tx->order;
+
+      // commit all frees, reset all lists
+      tx->vlist.reset();
+      tx->writes.reset();
+      OnReadWriteCommit(tx, read_ro, write_ro, commit_ro);
   }
 
   /**
@@ -228,36 +224,15 @@ namespace {
 
   /**
    *  CohortsNOrec validation for commit: check that all reads are valid
-   *
-   *  [mfs] We should be able to validate without any checks of the
-   *        timestamp...
    */
-  uintptr_t
+  bool
   validate(TxThread* tx)
   {
-      while (true) {
-          // read the lock until it is even
-          uintptr_t s = timestamp.val;
-          if ((s & 1) == 1)
-              continue;
-
-          // check the read set
-          CFENCE;
-          // don't branch in the loop---consider it backoff if we fail
-          // validation early
-          bool valid = true;
-          foreach (ValueList, i, tx->vlist)
-              valid &= STM_LOG_VALUE_IS_VALID(i, tx);
-
-          if (!valid)
-              return VALIDATION_FAILED;
-
-          // restart if timestamp changed during read set iteration
-          CFENCE;
-          if (timestamp.val == s)
-              return s;
-
+      foreach (ValueList, i, tx->vlist) {
+          bool valid = STM_LOG_VALUE_IS_VALID(i, tx);
+          if (!valid) return false;
       }
+      return true;
   }
 
   /**
@@ -271,8 +246,7 @@ namespace {
   void
   CohortsNOrec::onSwitchTo()
   {
-    if (timestamp.val & 1)
-      ++timestamp.val;
+      last_complete.val = 0;
   }
 }
 

@@ -50,6 +50,9 @@ using stm::last_order;
  *  circular dependencies.
  */
 namespace {
+
+  NOINLINE bool validate(TxThread* tx);
+
   struct Cohorts {
       static TM_FASTCALL bool begin(TxThread*);
       static TM_FASTCALL void* read_ro(STM_READ_SIG(,,));
@@ -62,7 +65,6 @@ namespace {
       static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
       static void onSwitchTo();
-      static NOINLINE void validate(TxThread* tx);
   };
 
   /**
@@ -135,7 +137,12 @@ namespace {
 
       // If I'm not the first one in a cohort to commit, validate reads
       if (tx->order != last_order)
-          validate(tx);
+          if (!validate(tx)) {
+              committed.val++;
+              CFENCE;
+              last_complete.val = tx->order;
+              tx->tmabort(tx);
+          }
 
       // Last one in cohort can pass the orec marking process
       //
@@ -160,17 +167,12 @@ namespace {
       // update last_order
       last_order = started.val + 1;
 
+      // increment number of committed tx
+      committed.val++;
+      CFENCE;
+
       // mark self as done
       last_complete.val = tx->order;
-
-      // [mfs] Why do we need the atomic increment?  What ordering is actually
-      //       required?  I think we actually want to move this up above the
-      //       last_complete.val line, and we'd be good
-      // increase total number of committed tx
-      // [NB] atomic increment is faster here
-      ADD(&committed.val, 1);
-      // committed.val++;
-      // WBR;
 
       // commit all frees, reset all lists
       tx->r_orecs.reset();
@@ -259,27 +261,18 @@ namespace {
       return false;
   }
 
-  /**
-   *  Cohorts validation for commit: check that all reads are valid
-   */
-  void
-  Cohorts::validate(TxThread* tx)
+  bool
+  validate(TxThread* tx)
   {
       // [mfs] use the luke trick?
       foreach (OrecList, i, tx->r_orecs) {
-          // read this orec
-          uintptr_t ivt = (*i)->v.all;
           // If orec changed, abort
-          if (ivt > tx->ts_cache) {
-              // increase total number of committed tx
-              ADD(&committed.val, 1);
-              // set self as completed
-              last_complete.val = tx->order;
-              // abort
-              tx->tmabort(tx);
-          }
+          if ((*i)->v.all > tx->ts_cache)
+              return false;
       }
+      return true;
   }
+
 
   /**
    *  Switch to Cohorts:
