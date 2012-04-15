@@ -123,17 +123,14 @@ namespace {
   void
   Fastlane2::commit_rw(TxThread* tx)
   {
-      volatile uint32_t c;
-      uint32_t temp;
+      uint32_t c;
 
       // Only one helper at a time
       while (helper.val == 1 && !bcas32(&helper.val, 0, 1));
 
       // Wait for even counter
-      temp = timestamp.val;
-      while ((temp & 0x01) != 0)
-          temp = timestamp.val;
-      c = temp & ~MSB;
+      while (((c = timestamp.val) & 0x01) != 0);
+      c = c & ~MSB;
 
       // Pre-validate before acquiring counter
       foreach (OrecList, i, tx->r_orecs)
@@ -150,10 +147,8 @@ namespace {
 
       // Likely commit: try acquiring counter
       while (!bcas32(&timestamp.val, c, c + 1)) {
-          temp = timestamp.val;
-          while ((temp & 0x01) != 0)
-              temp = timestamp.val;
-          c = temp & ~MSB;
+          while (((c = timestamp.val) & 0x01) != 0);
+          c = c & ~MSB;
       }
 
       // Check that validation still holds
