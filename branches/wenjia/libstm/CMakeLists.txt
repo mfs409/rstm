@@ -66,8 +66,9 @@ set(sources
   algs/cohortsln.cpp
   algs/cohortsfilter.cpp
   algs/cohortslf.cpp
-  algs/cohortsef.cpp                
-  algs/fastlane.cpp
+  algs/cohortsef.cpp               
+  algs/fastlane1.cpp
+  algs/fastlane2.cpp  
   algs/pessimistic.cpp
   algs/fastlaneswitch.cpp
   policies/cbr.cpp

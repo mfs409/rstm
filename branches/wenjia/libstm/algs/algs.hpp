@@ -47,7 +47,7 @@ namespace stm
       NOrec,     NOrecHour,     NOrecBackoff,     NOrecHB,
       Wealth, Cohorts, Cohortsnoorder, Cohortsold, CohortsLazy, CohortsEager,
       CohortsLI, CohortsNOrec, CohortsLN, CohortsFilter, CohortsLF, CohortsEF,
-      Fastlane, PTM, FastlaneSwitch,
+      Fastlane1, Fastlane2, PTM, FastlaneSwitch,
       // ProfileTM support.  These are not true STMs
       ProfileTM, ProfileAppAvg, ProfileAppMax, ProfileAppAll,
       // end with a distinct value
@@ -97,14 +97,17 @@ namespace stm
   // Global variables for Cohorts
   extern volatile uint32_t locks[9];  // a big lock at locks[0], and
                                       // small locks from locks[1] to locks[8]
-  extern volatile pad_word_t started;    // number of tx started
-  extern volatile pad_word_t cpending;   // number of tx waiting to commit
-  extern volatile pad_word_t committed;  // number of tx committed
+  extern  pad_word_t started;         // number of tx started
+  extern  pad_word_t cpending;        // number of tx waiting to commit
+  extern  pad_word_t committed;       // number of tx committed
   extern volatile int32_t last_order; // order of last tx in a cohort + 1
   extern volatile uint32_t gatekeeper;// indicating whether tx can start
   extern filter_t* global_filter;     // global filter
   extern filter_t* temp_filter;       // temp filter
-  extern AddressList addrs;          // temp address list
+  extern AddressList addrs;           // temp address list
+
+  // Global variables for Fastlane
+  extern pad_word_t helper;
 
   /**
    *  To describe an STM algorithm, we provide a name, a set of function
