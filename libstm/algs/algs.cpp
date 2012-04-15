@@ -69,14 +69,16 @@ namespace stm
 
   /*** for Cohorts */
   volatile uint32_t locks[9] = {0};
-  volatile pad_word_t started = {0};
-  volatile pad_word_t cpending = {0};
-  volatile pad_word_t committed = {0};
+  pad_word_t started = {0};
+  pad_word_t cpending = {0};
+  pad_word_t committed = {0};
   volatile int32_t last_order = 1;
   volatile uint32_t gatekeeper = 0;
   filter_t* global_filter = (filter_t*)FILTER_ALLOC(sizeof(filter_t));
   filter_t* temp_filter = (filter_t*)FILTER_ALLOC(sizeof(filter_t));
   AddressList addrs = AddressList (64);
+  /*** for Fastlane*/
+  pad_word_t helper = {0};
 
   /*** Store descriptions of the STM algorithms */
   alg_t stms[ALG_MAX];
