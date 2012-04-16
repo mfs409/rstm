@@ -71,6 +71,7 @@ set(sources
   algs/fastlane2.cpp  
   algs/pessimistic.cpp
   algs/fastlaneswitch.cpp
+  algs/ctokenturboela.cpp
   policies/cbr.cpp
   policies/policies.cpp
   policies/static.cpp

@@ -9,7 +9,7 @@
  */
 
 /**
- *  CTokenTurbo Implementation
+ *  CTokenTurboELA Implementation
  *
  *    This code is like CToken, except we aggressively check if a thread is the
  *    'oldest', and if it is, we switch to an irrevocable 'turbo' mode with
@@ -40,7 +40,7 @@ using stm::WriteSetEntry;
  *  circular dependencies.
  */
 namespace {
-  struct CTokenTurbo {
+  struct CTokenTurboELA {
       static TM_FASTCALL bool begin(TxThread*);
       static TM_FASTCALL void* read_ro(STM_READ_SIG(,,));
       static TM_FASTCALL void* read_rw(STM_READ_SIG(,,));
@@ -59,10 +59,10 @@ namespace {
   };
 
   /**
-   *  CTokenTurbo begin:
+   *  CTokenTurboELA begin:
    */
   bool
-  CTokenTurbo::begin(TxThread* tx)
+  CTokenTurboELA::begin(TxThread* tx)
   {
       tx->allocator.onTxBegin();
 
@@ -79,10 +79,10 @@ namespace {
   }
 
   /**
-   *  CTokenTurbo commit (read-only):
+   *  CTokenTurboELA commit (read-only):
    */
   void
-  CTokenTurbo::commit_ro(TxThread* tx)
+  CTokenTurboELA::commit_ro(TxThread* tx)
   {
       tx->r_orecs.reset();
       tx->order = -1;
@@ -90,12 +90,12 @@ namespace {
   }
 
   /**
-   *  CTokenTurbo commit (writing context):
+   *  CTokenTurboELA commit (writing context):
    *
    *  Only valid with pointer-based adaptivity
    */
   void
-  CTokenTurbo::commit_rw(TxThread* tx)
+  CTokenTurboELA::commit_rw(TxThread* tx)
   {
       // we need to transition to fast here, but not till our turn
       while (last_complete.val != ((uintptr_t)tx->order - 1)) {
@@ -139,10 +139,10 @@ namespace {
   }
 
   /**
-   *  CTokenTurbo commit (turbo mode):
+   *  CTokenTurboELA commit (turbo mode):
    */
   void
-  CTokenTurbo::commit_turbo(TxThread* tx)
+  CTokenTurboELA::commit_turbo(TxThread* tx)
   {
       CFENCE; // wbw between writeback and last_complete.val update
       last_complete.val = tx->order;
@@ -157,10 +157,10 @@ namespace {
   }
 
   /**
-   *  CTokenTurbo read (read-only transaction)
+   *  CTokenTurboELA read (read-only transaction)
    */
   void*
-  CTokenTurbo::read_ro(STM_READ_SIG(tx,addr,))
+  CTokenTurboELA::read_ro(STM_READ_SIG(tx,addr,))
   {
       void* tmp = *addr;
       CFENCE; // RBR between dereference and orec check
@@ -175,35 +175,14 @@ namespace {
       // log orec
       tx->r_orecs.insert(o);
 
-      // possibly validate before returning.
-      //
-      // [mfs] Polling like this is necessary for privatization safety, but
-      //       otherwise we could cut it out, since we know we're RO and hence
-      //       not going to be able to switch to turbo mode
-      if (last_complete.val > tx->ts_cache) {
-          // [mfs] Should outline this code since it is unlikely
-          uintptr_t finish_cache = last_complete.val;
-          // [mfs] again: use Luke's trick to reduce this cost.  We're not in a
-          //       critical section, so doing so can't hurt other transactions
-          foreach (OrecList, i, tx->r_orecs) {
-              // read this orec
-              uintptr_t ivt_inner = (*i)->v.all;
-              // if it has a timestamp of ts_cache or greater, abort
-              if (ivt_inner > tx->ts_cache)
-                  tx->tmabort(tx);
-          }
-          // now update the ts_cache to remember that at this time, we were
-          // still valid
-          tx->ts_cache = finish_cache;
-      }
       return tmp;
   }
 
   /**
-   *  CTokenTurbo read (writing transaction)
+   *  CTokenTurboELA read (writing transaction)
    */
   void*
-  CTokenTurbo::read_rw(STM_READ_SIG(tx,addr,mask))
+  CTokenTurboELA::read_rw(STM_READ_SIG(tx,addr,mask))
   {
       // check the log for a RAW hazard, we expect to miss
       WriteSetEntry log(STM_WRITE_SET_ENTRY(addr, NULL, mask));
@@ -231,19 +210,19 @@ namespace {
   }
 
   /**
-   *  CTokenTurbo read (read-turbo mode)
+   *  CTokenTurboELA read (read-turbo mode)
    */
   void*
-  CTokenTurbo::read_turbo(STM_READ_SIG(,addr,))
+  CTokenTurboELA::read_turbo(STM_READ_SIG(,addr,))
   {
       return *addr;
   }
 
   /**
-   *  CTokenTurbo write (read-only context)
+   *  CTokenTurboELA write (read-only context)
    */
   void
-  CTokenTurbo::write_ro(STM_WRITE_SIG(tx,addr,val,mask))
+  CTokenTurboELA::write_ro(STM_WRITE_SIG(tx,addr,val,mask))
   {
       // we don't have any writes yet, so we need to get an order here
       tx->order = 1 + faiptr(&timestamp.val);
@@ -262,20 +241,20 @@ namespace {
   }
 
   /**
-   *  CTokenTurbo write (writing context)
+   *  CTokenTurboELA write (writing context)
    */
   void
-  CTokenTurbo::write_rw(STM_WRITE_SIG(tx,addr,val,mask))
+  CTokenTurboELA::write_rw(STM_WRITE_SIG(tx,addr,val,mask))
   {
       // record the new value in a redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
   }
 
   /**
-   *  CTokenTurbo write (turbo mode)
+   *  CTokenTurboELA write (turbo mode)
    */
   void
-  CTokenTurbo::write_turbo(STM_WRITE_SIG(tx,addr,val,mask))
+  CTokenTurboELA::write_turbo(STM_WRITE_SIG(tx,addr,val,mask))
   {
       // mark the orec, then update the location
       orec_t* o = get_orec(addr);
@@ -285,13 +264,13 @@ namespace {
   }
 
   /**
-   *  CTokenTurbo unwinder:
+   *  CTokenTurboELA unwinder:
    *
    *    NB: self-aborts in Turbo Mode are not supported.  We could add undo
    *        logging to address this, and add it in Pipeline too.
    */
   stm::scope_t*
-  CTokenTurbo::rollback(STM_ROLLBACK_SIG(tx, except, len))
+  CTokenTurboELA::rollback(STM_ROLLBACK_SIG(tx, except, len))
   {
       PreRollback(tx);
       // we cannot be in turbo mode
@@ -313,18 +292,18 @@ namespace {
   }
 
   /**
-   *  CTokenTurbo in-flight irrevocability:
+   *  CTokenTurboELA in-flight irrevocability:
    */
-  bool CTokenTurbo::irrevoc(TxThread*)
+  bool CTokenTurboELA::irrevoc(TxThread*)
   {
-      UNRECOVERABLE("CTokenTurbo Irrevocability not yet supported");
+      UNRECOVERABLE("CTokenTurboELA Irrevocability not yet supported");
       return false;
   }
 
   /**
-   *  CTokenTurbo validation
+   *  CTokenTurboELA validation
    */
-  void CTokenTurbo::validate(TxThread* tx, uintptr_t finish_cache)
+  void CTokenTurboELA::validate(TxThread* tx, uintptr_t finish_cache)
   {
       // [mfs] There is a performance bug here: we should be looking at the
       //       ts_cache to know if we even need to do this loop.  Consider
@@ -363,7 +342,7 @@ namespace {
   }
 
   /**
-   *  Switch to CTokenTurbo:
+   *  Switch to CTokenTurboELA:
    *
    *    The timestamp must be >= the maximum value of any orec.  Some algs use
    *    timestamp as a zero-one mutex.  If they do, then they back up the
@@ -374,7 +353,7 @@ namespace {
    *    Also, all threads' order values must be -1
    */
   void
-  CTokenTurbo::onSwitchTo()
+  CTokenTurboELA::onSwitchTo()
   {
       timestamp.val = MAXIMUM(timestamp.val, timestamp_max.val);
       last_complete.val = timestamp.val;
@@ -385,22 +364,22 @@ namespace {
 
 namespace stm {
   /**
-   *  CTokenTurbo initialization
+   *  CTokenTurboELA initialization
    */
   template<>
-  void initTM<CTokenTurbo>()
+  void initTM<CTokenTurboELA>()
   {
       // set the name
-      stms[CTokenTurbo].name      = "CTokenTurbo";
+      stms[CTokenTurboELA].name      = "CTokenTurboELA";
 
       // set the pointers
-      stms[CTokenTurbo].begin     = ::CTokenTurbo::begin;
-      stms[CTokenTurbo].commit    = ::CTokenTurbo::commit_ro;
-      stms[CTokenTurbo].read      = ::CTokenTurbo::read_ro;
-      stms[CTokenTurbo].write     = ::CTokenTurbo::write_ro;
-      stms[CTokenTurbo].rollback  = ::CTokenTurbo::rollback;
-      stms[CTokenTurbo].irrevoc   = ::CTokenTurbo::irrevoc;
-      stms[CTokenTurbo].switcher  = ::CTokenTurbo::onSwitchTo;
-      stms[CTokenTurbo].privatization_safe = true;
+      stms[CTokenTurboELA].begin     = ::CTokenTurboELA::begin;
+      stms[CTokenTurboELA].commit    = ::CTokenTurboELA::commit_ro;
+      stms[CTokenTurboELA].read      = ::CTokenTurboELA::read_ro;
+      stms[CTokenTurboELA].write     = ::CTokenTurboELA::write_ro;
+      stms[CTokenTurboELA].rollback  = ::CTokenTurboELA::rollback;
+      stms[CTokenTurboELA].irrevoc   = ::CTokenTurboELA::irrevoc;
+      stms[CTokenTurboELA].switcher  = ::CTokenTurboELA::onSwitchTo;
+      stms[CTokenTurboELA].privatization_safe = true;
   }
 }
