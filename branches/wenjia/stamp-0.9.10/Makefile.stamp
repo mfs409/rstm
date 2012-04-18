@@ -55,10 +55,10 @@ benchmark: $(GOAL)
 # two rules to handle ./ and ../lib
 $(ODIR)/%.o: ./%.c
 	@echo [${CXX}] $< "-->" $@
-	$(CXX) $(CXXFLAGS) -c $< -o $@
+	@$(CXX) $(CXXFLAGS) -c $< -o $@
 $(ODIR)/%.o: ../lib/%.c
 	@echo [${CXX}] $< "-->" $@
-	$(CXX) $(CXXFLAGS) -c $< -o $@
+	@$(CXX) $(CXXFLAGS) -c $< -o $@
 
 # build the executable.  Note the dependence on STMLIB, in case we rebuilt it
 # without changing any files upon which $(GOAL) depends
