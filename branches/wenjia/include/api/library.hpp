@@ -50,7 +50,6 @@
 #define API_LIBRARY_HPP__
 
 #include <setjmp.h>
-#include <stm/config.h>
 #include <common/platform.hpp>
 #include <stm/txthread.hpp>
 

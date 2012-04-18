@@ -22,7 +22,6 @@
 #define RAND_R_32_H__
 
 #include <stdlib.h>
-#include <stm/config.h>
 
 /* This algorithm is mentioned in the ISO C standard, here extended
    for 32 bits.  */

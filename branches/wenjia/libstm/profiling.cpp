@@ -16,7 +16,7 @@
 #include <signal.h>
 #include <sys/mman.h>
 #include "profiling.hpp"
-#include "algs/algs.hpp"
+#include "algs.hpp"
 #include "inst.hpp"
 
 using namespace stm;

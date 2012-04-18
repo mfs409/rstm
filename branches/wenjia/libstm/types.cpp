@@ -21,7 +21,7 @@
 #include "stm/WriteSet.hpp"
 #include "stm/UndoLog.hpp"
 #include "stm/ValueList.hpp"
-#include "policies/policies.hpp"
+#include "policies.hpp"
 
 #ifdef STM_USE_PMU
 #include <papi/papi.h>

@@ -16,7 +16,6 @@
  *  to many parts of the STM library.
  */
 
-#include <stm/config.h>
 #include <stm/metadata.hpp>
 
 namespace stm
