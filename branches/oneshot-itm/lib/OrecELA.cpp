@@ -34,6 +34,7 @@
 #include "libitm.h"
 
 using namespace stm;
+using namespace stm::inst;
 
 /**
  *  For querying to get the current algorithm name
@@ -63,7 +64,7 @@ void alg_tm_rollback(TX* tx)
         (*i)->v.all = (*i)->p;
     }
     tx->r_orecs.reset();
-    tx->writes.clear();
+    tx->writes.reset();
     tx->locks.reset();
 
     CFENCE;
@@ -136,7 +137,7 @@ void alg_tm_end()
     // acquire locks
     FOREACH (WriteSet, i, tx->writes) {
         // get orec, read its version#
-        orec_t* o = get_orec(i->address());
+        orec_t* o = get_orec(i->address);
         uintptr_t ivt = o->v.all;
 
         // if orec not locked, lock it and save old to orec.p
@@ -179,7 +180,7 @@ void alg_tm_end()
 
     // clean-up
     tx->r_orecs.reset();
-    tx->writes.clear();
+    tx->writes.reset();
     tx->locks.reset();
     tx->allocator.onTxCommit();
     ++tx->commits_rw;
@@ -267,28 +268,17 @@ static inline void* alg_tm_read_aligned_word_ro(void** addr, TX* tx,
     return alg_tm_read_aligned_word(addr, tx, mask);
 }
 
-/**
- *  OrecELA write (read-only context)
- *
- *    Simply buffer the write and switch to a writing context
- */
-static inline void alg_tm_write_aligned_word(void** addr, void* val, TX* tx, uintptr_t mask)
-{
-    tx->writes.insert(addr, WriteSet::Word(val, mask));
-}
-
-
 void* alg_tm_read(void** addr) {
-    return stm::inst::read<void*,                 //
-                           stm::inst::NoFilter,   // don't pre-filter accesses
-                           stm::inst::WordlogRAW, // log at the word granularity
-                           stm::inst::NoReadOnly, // no separate read-only code
-                           true                   // force align all accesses
-                           >(addr);
+    return read<void*,                  //
+                NoFilter,               // don't pre-filter accesses
+                WordlogRAW,             // log at the word granularity
+                NoReadOnly,             // no separate read-only code
+                true                    // force align all accesses
+                >(addr);
 }
 
 void alg_tm_write(void** addr, void* val) {
-    alg_tm_write_aligned_word(addr, val, Self, ~0);
+    write<void*, NoFilter, BufferedWrite, true>(addr, val);
 }
 
 bool alg_tm_is_irrevocable(TX*) {

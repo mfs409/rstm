@@ -16,6 +16,7 @@
 
 PLATFORMS = lib_gcc_linux_ia32_dbg     lib_gcc_linux_ia32_opt		\
             lib_gcc_linux_x86_64_dbg   lib_gcc_linux_x86_64_opt		\
+            lib_gcc_linux_x86_64_prof \
             lib_gcc_solaris_ia32_dbg   lib_gcc_solaris_ia32_opt		\
             lib_gcc_solaris_x86_64_dbg lib_gcc_solaris_x86_64_opt       \
             gcctm_solaris_ia32_dbg     gcctm_solaris_ia32_opt           \

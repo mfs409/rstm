@@ -13,8 +13,8 @@
  *  in in-place update STMs
  */
 
-#ifndef UNDO_LOG_HPP__
-#define UNDO_LOG_HPP__
+#ifndef RSTM_UNDO_LOG_H
+#define RSTM_UNDO_LOG_H
 
 #include "MiniVector.hpp"
 
@@ -32,166 +32,40 @@ namespace stm
    *  byte-logging then it has a mask, otherwise it's just an address-value
    *  pair.
    */
-
-  /***  Word-logging variant of undo log entries */
-  struct WordLoggingUndoLogEntry
+  template <typename WordType>
+  class GenericUndoLog
   {
-      void** addr;
-      void*  val;
+      struct ListEntry {
+          void** address;
+          WordType value;
 
-      WordLoggingUndoLogEntry(void** addr, void* val, uintptr_t)
-          : addr(addr), val(val)
-      { }
-
-      /***  for word logging, we undo an entry by simply writing it back */
-      inline void undo() const { *addr = val; }
-
-      /**
-       *  Called in order to find out if the logged word falls within the
-       *  address range. This is used to filter out undo operations to the
-       *  exception object.
-       *
-       *  Note that the wordlog can _only_ be completely filtered out, we don't
-       *  have support for partial filtering here. This is almost certainly ok,
-       *  since the stack is word aligned, and an exception object is probably
-       *  aligned as well, and at least a word large.
-       *
-       *  The bytelog version /can/ be partially filtered, which is just a
-       *  masking operation.
-       */
-      inline bool filter(void** lower, void** upper)
-      {
-          return (addr >= lower && addr + 1 < upper);
-      }
-  };
-
-  /***  Byte-logging variant of undo log entries */
-  struct ByteLoggingUndoLogEntry
-  {
-      // We use unions here to make our life easier, since we may access
-      // these as byte, bytes, or word
-      union {
-          void**   addr;
-          uint8_t* byte_addr;
-      };
-
-      union {
-          void*   val;
-          uint8_t byte_val[sizeof(void*)];
-      };
-
-      union {
-          uintptr_t mask;
-          uint8_t   byte_mask[sizeof(uintptr_t)];
-      };
-
-      /***  construction is simple, except for the unions */
-      ByteLoggingUndoLogEntry(void** paddr, void* pval, uintptr_t pmask)
-          : addr(), val(), mask()
-      {
-          addr = paddr;
-          val  = pval;
-          mask = pmask;
-      }
-
-      /*** write the masked bytes of an aligned word */
-      inline static void DoMaskedWrite(void** addr, void* val, uintptr_t mask)
-      {
-          // common case is word access
-          if (mask == ~(uintptr_t)0x0) {
-              *addr = val;
-              return;
+          ListEntry(void** a, const WordType& v) : address(a), value(v) {
           }
+      };
 
-          // simple check for null mask, which might result from a filter call
-          if (mask == 0x0)
-              return;
+      typedef MiniVector<ListEntry> ListType;
+      ListType list_;
 
-          union {
-              void**   word;
-              uint8_t* bytes;
-          } uaddr = { addr };
-
-          union {
-              void*   word;
-              uint8_t bytes[sizeof(void*)];
-          } uval = { val };
-
-          union {
-              uintptr_t word;
-              uint8_t   bytes[sizeof(uintptr_t)];
-          } umask = { mask };
-
-          // We're just going to write out individual bytes, which turns all
-          // subword accesses into byte accesses. This might be inefficient but
-          // should be correct, since the locations that we're writing to are
-          // supposed to be locked, and if there's a data race we can have any
-          // sort of behavior.
-          for (unsigned i = 0; i < sizeof(void*); ++i)
-              if (umask.bytes[i] == 0xFF)
-                  uaddr.bytes[i] = uval.bytes[i];
-      }
-
-      inline void undo() const { DoMaskedWrite(addr, val, mask); }
-
-      /**
-       *  The bytelog implementation of the filter operation support any sort
-       *  of intersection possible.
-       */
-      inline bool filter(void** lower, void** upper)
-      {
-          // fastpath when there's no intersection
-          return (addr + 1 < lower || addr >= upper)
-              ? false
-              : filterSlow(lower, upper);
-      }
-
-    private:
-
-      /**
-       *  We outline the slowpath filter. If this /ever/ happens it will be
-       *  such a corner case that it just doesn't matter. Plus this is an
-       *  abort path anyway.
-       */
-      bool filterSlow(void**, void**);
-  };
-
-  /**
-   * Macros for hiding the WS_(WORD/BYTE)MASK API differences.
-   */
-#if defined(STM_WS_WORDLOG)
-  typedef WordLoggingUndoLogEntry UndoLogEntry;
-#define STM_DO_MASKED_WRITE(addr, val, mask) *addr = val
-#elif defined(STM_WS_BYTELOG)
-  typedef ByteLoggingUndoLogEntry UndoLogEntry;
-#define STM_DO_MASKED_WRITE(addr, val, mask) \
-    stm::ByteLoggingUndoLogEntry::DoMaskedWrite(addr, val, mask)
-#else
-#   error Configuration logic error.
-#endif
-
-  class UndoLog : public stm::MiniVector<UndoLogEntry>
-  {
     public:
-      UndoLog(const uintptr_t cap) : stm::MiniVector<UndoLogEntry>(cap) { }
-
-      inline void insert(void** addr, void* val, uintptr_t mask) {
-          MiniVector<UndoLogEntry>::insert(UndoLogEntry(addr, val, mask));
+      GenericUndoLog(const uintptr_t cap) : list_(cap) {
       }
-      /**
-       * A utility for undo-log implementations that undoes all of the accesses
-       * in a write log except for those that took place to an exception object
-       * that is being thrown-on-abort. This is mainly to support the itm2stm
-       * shim at the moment, since baseline stm doesn't have abort-on-throw
-       * capabilities.
-       */
-#if !defined(STM_ABORT_ON_THROW)
-      void undo();
-#   define STM_UNDO(log, except, len) log.undo()
-#else
-      void undo(void** except, size_t len);
-#   define STM_UNDO(log, except, len) log.undo(except, len)
-#endif
+
+      ~GenericUndoLog() {
+      }
+
+      void reset() {
+          list_.reset();
+      }
+
+      void insert(void** addr, void* val, uintptr_t mask) {
+          list_.insert(ListEntry(addr, WordType(val, mask)));
+      }
+
+      void undo() const {
+          for (typename ListType::const_iterator i = list_.begin(),
+                                                 e = list_.end(); i != e; ++i)
+              i->value.writeTo(i->address);
+      }
   };
 }
-#endif // UNDO_LOG_HPP__
+#endif // RSTM_UNDO_LOG_H

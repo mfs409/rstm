@@ -31,6 +31,7 @@
 #include "libitm.h"
 
 using namespace stm;
+using namespace stm::inst;
 
 static pad_word_t timestamp = {0};
 static pad_word_t last_complete = {0};
@@ -49,7 +50,7 @@ void alg_tm_rollback(TX* tx)
 {
     ++tx->aborts;
     tx->r_orecs.reset();
-    tx->writes.clear();
+    tx->writes.reset();
     // NB: we can't reset pointers here, because if the transaction
     //     performed some writes, then it has an order.  If it has an
     //     order, but restarts and is read-only, then it still must call
@@ -116,10 +117,10 @@ void alg_tm_end()
     if (tx->writes.size() != 0) {
         // mark every location in the write set, and perform write-back
         FOREACH (WriteSet, i, tx->writes) {
-            orec_t* o = get_orec(i->address());
+            orec_t* o = get_orec(i->address);
             o->v.all = tx->order;
             CFENCE; // WBW
-            i->value().writeTo(i->address());
+            i->value.writeTo(i->address);
         }
     }
 
@@ -131,7 +132,7 @@ void alg_tm_end()
 
     // commit all frees, reset all lists
     tx->r_orecs.reset();
-    tx->writes.clear();
+    tx->writes.reset();
     tx->allocator.onTxCommit();
     ++tx->commits_rw;
 }
@@ -165,31 +166,34 @@ static inline void* alg_tm_read_aligned_word_ro(void** addr, TX* tx,
     return alg_tm_read_aligned_word(addr, tx, mask);
 }
 
+namespace {
 /**
- *  CToken write (read-only context)
+ *  CToken write
  */
-static inline void alg_tm_write_aligned_word(void** addr, void* val, TX* tx, uintptr_t mask)
-{
-    if (tx->order == -1) {
-        // we don't have any writes yet, so we need to get an order here
-        tx->order = 1 + faiptr(&timestamp.val);
-    }
+  struct CTokenWrite {
+      void operator()(void** addr, void* val, TX* tx, uintptr_t mask) {
+          if (tx->order == -1) {
+              // we don't have any writes yet, so we need to get an order here
+              tx->order = 1 + faiptr(&timestamp.val);
+          }
 
-    // record the new value in a redo log
-    tx->writes.insert(addr, WriteSet::Word(val, mask));
+          // record the new value in a redo log
+          tx->writes.insert(addr, val, mask);
+      }
+  };
 }
 
 void* alg_tm_read(void** addr) {
-        return inst::read<void*,
-                          inst::NoFilter,   // don't prefilter accesses
-                          inst::WordlogRAW, // log at the word granularity
-                          inst::NoReadOnly, // no separate read-only code
-                          true              // force align all accesses
-                          >(addr);
+    return read<void*,
+                NoFilter,               // don't prefilter accesses
+                WordlogRAW,             // log at the word granularity
+                NoReadOnly,             // no separate read-only code
+                true                    // force align all accesses
+                >(addr);
 }
 
 void alg_tm_write(void** addr, void* val) {
-    inst::write<void*, inst::NoFilter, true>(addr, val);
+    write<void*, NoFilter, CTokenWrite, true>(addr, val);
 }
 
 bool alg_tm_is_irrevocable(TX* tx) {

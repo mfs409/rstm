@@ -33,6 +33,7 @@
 #define SUB __sync_sub_and_fetch
 
 using namespace stm;
+using namespace stm::inst;
 
 // Global variables for Cohorts
 static volatile uint32_t locks[9] = {0};  // a big lock at locks[0], and
@@ -65,7 +66,7 @@ const char* alg_tm_getalgname() {
 void alg_tm_rollback(TX* tx) {
     ++tx->aborts;
     tx->r_orecs.reset();
-    tx->writes.clear();
+    tx->writes.reset();
     tx->allocator.onTxAbort();
 }
 
@@ -150,7 +151,7 @@ void alg_tm_end()
 
     FOREACH (WriteSet, i, tx->writes) {
         // get orec
-        orec_t* o = get_orec(i->address());
+        orec_t* o = get_orec(i->address);
         // mark orec
         o->v.all = tx->order;
     }
@@ -160,7 +161,7 @@ void alg_tm_end()
 
     // do write back
     FOREACH (WriteSet, i, tx->writes) {
-        i->value().writeTo(i->address());
+        i->value.writeTo(i->address);
     }
 
     // update last_order
@@ -177,7 +178,7 @@ void alg_tm_end()
 
     // commit all frees, reset all lists
     tx->r_orecs.reset();
-    tx->writes.clear();
+    tx->writes.reset();
     tx->allocator.onTxCommit();
     ++tx->commits_rw;
 }
@@ -191,32 +192,22 @@ static inline void* alg_tm_read_aligned_word(void** addr, TX* tx, uintptr_t) {
     return *addr;
 }
 
-static inline void* alg_tm_read_aligned_word_ro(void** addr, TX* tx,
-                                                uintptr_t mask)
-{
+static inline
+void* alg_tm_read_aligned_word_ro(void** addr, TX* tx, uintptr_t mask) {
     return alg_tm_read_aligned_word(addr, tx, mask);
 }
 
-/**
- *  Simple buffered transactional write
- */
-static inline void alg_tm_write_aligned_word(void** addr, void* val, TX* tx, uintptr_t mask)
-{
-    // record the new value in a redo log
-    tx->writes.insert(addr, WriteSet::Word(val, mask));
-}
-
 void* alg_tm_read(void** addr) {
-        return inst::read<void*,
-                          inst::NoFilter,   // don't prefilter accesses
-                          inst::WordlogRAW, // log at the word granularity
-                          inst::NoReadOnly, // no separate read-only code
-                          true              // force align all accesses
-                          >(addr);
+        return read<void*,
+                    NoFilter,           // don't prefilter accesses
+                    WordlogRAW,         // log at the word granularity
+                    NoReadOnly,         // no separate read-only code
+                    true                // force align all accesses
+                    >(addr);
 }
 
 void alg_tm_write(void** addr, void* val) {
-    inst::write<void*, inst::NoFilter, true>(addr, val);
+    write<void*, NoFilter, BufferedWrite, true>(addr, val);
 }
 
 bool alg_tm_is_irrevocable(TX* tx) {

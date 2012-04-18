@@ -67,7 +67,7 @@ const char* alg_tm_getalgname() {
 void alg_tm_rollback(TX* tx) {
     ++tx->aborts;
     tx->r_orecs.reset();
-    tx->writes.clear();
+    tx->writes.reset();
     tx->allocator.onTxAbort();
 }
 
@@ -181,11 +181,11 @@ void alg_tm_end() {
 
     FOREACH (WriteSet, i, tx->writes) {
         // get orec
-        orec_t* o = get_orec(i->address());
+        orec_t* o = get_orec(i->address);
         // mark orec
         o->v.all = tx->order;
         // do write back
-        i->value().writeTo(i->address());
+        i->value.writeTo(i->address);
     }
 
     // increase total number of committed tx
@@ -202,7 +202,7 @@ void alg_tm_end() {
 
     // commit all frees, reset all lists
     tx->r_orecs.reset();
-    tx->writes.clear();
+    tx->writes.reset();
     tx->allocator.onTxCommit();
     ++tx->commits_rw;
 }
@@ -225,44 +225,47 @@ static inline void* alg_tm_read_aligned_word_ro(void** addr, TX* tx,
 /**
  *  Simple buffered transactional write
  */
-static inline void alg_tm_write_aligned_word(void** addr, void* val, TX* tx,
-                                             uintptr_t mask) {
-    if (tx->turbo) {
-        orec_t* o = get_orec(addr);
-        o->v.all = started; // mark orec
-        *addr = val; // in place write
-        return;
-    }
+namespace {
+  template <typename Word>
+  struct CohortsEagerWrite {
+      void operator()(void** addr, void* val, TX* tx, uintptr_t mask) const {
+          if (tx->turbo) {
+              orec_t* o = get_orec(addr);
+              o->v.all = started; // mark orec
+              Word::Write(addr, val, mask); // in place write
+              return;
+          }
 
-    if (!tx->writes.size() && 0) {
-        // If everyone else is ready to commit, do in place write
-        if (cpending + 1 == started) {
-            // set up flag indicating in place write starts
-            // [NB] When testing on MacOS, better use CAS
-            inplace = 1;
-            WBR;
-            // double check is necessary
-            if (cpending + 1 == started) {
-                // mark orec
-                orec_t* o = get_orec(addr);
-                o->v.all = started;
-                // in place write
-                *addr = val;
-                // go turbo mode
-                tx->turbo = true;
-                return;
-            }
-            // reset flag
-            inplace = 0;
-        }
-        tx->writes.insert(addr, WriteSet::Word(val, mask));
-        return;
-    }
+          if (!tx->writes.size() && 0) {
+              // If everyone else is ready to commit, do in place write
+              if (cpending + 1 == started) {
+                  // set up flag indicating in place write starts
+                  // [NB] When testing on MacOS, better use CAS
+                  inplace = 1;
+                  WBR;
+                  // double check is necessary
+                  if (cpending + 1 == started) {
+                      // mark orec
+                      orec_t* o = get_orec(addr);
+                      o->v.all = started;
+                      // in place write
+                      Word::Write(addr, val, mask);
+                      // go turbo mode
+                      tx->turbo = true;
+                      return;
+                  }
+                  // reset flag
+                  inplace = 0;
+              }
+              tx->writes.insert(addr, val, mask);
+              return;
+          }
 
-    // record the new value in a redo log
-    tx->writes.insert(addr, WriteSet::Word(val, mask));
+          // record the new value in a redo log
+          tx->writes.insert(addr, val, mask);
+      }
+  };
 }
-
 void* alg_tm_read(void** addr) {
         return inst::read<void*,
                           inst::TurboFilter<inst::NoFilter>, // turbo filter
@@ -273,7 +276,8 @@ void* alg_tm_read(void** addr) {
 }
 
 void alg_tm_write(void** addr, void* val) {
-    inst::write<void*, inst::NoFilter, true>(addr, val);
+    using namespace stm::inst;
+    write<void*, NoFilter, CohortsEagerWrite<Word>, true>(addr, val);
 }
 
 bool alg_tm_is_irrevocable(TX* tx) {

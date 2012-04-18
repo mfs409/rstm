@@ -21,7 +21,6 @@
  */
 static void* alg_tm_read_aligned_word(void** addr, stm::TX*, uintptr_t mask);
 static void* alg_tm_read_aligned_word_ro(void** addr, stm::TX*, uintptr_t mask);
-static void alg_tm_write_aligned_word(void** addr, void* val, stm::TX*, uintptr_t mask);
 
 namespace stm {
   namespace inst {
@@ -144,8 +143,7 @@ namespace stm {
      *    become a simple constant in the binary when compiled with
      *    optimizations.
      */
-    static inline uintptr_t
-    make_mask(size_t i, size_t j) {
+    static inline uintptr_t make_mask(size_t i, size_t j) {
         // assert(0 <= i && i < j && j <= sizeof(void*) && "range is incorrect")
         uintptr_t mask = ~(uintptr_t)0;
         mask = mask >> (8 * (sizeof(void*) - j + i)); // shift 0s to the top
@@ -172,8 +170,7 @@ namespace stm {
     /** The intrinsic read loop. */
     template <typename T, typename RAW, typename READ, size_t N>
     static inline void read_words(TX* tx, void* words[N], void** const base,
-                                  const size_t off)
-    {
+                                  const size_t off) {
         // Some read-after-write algorithms need local storage.
         RAW raw;
 
@@ -195,7 +192,7 @@ namespace stm {
         // first word.
         if (N > 1 && off) {
             mask = make_mask(0, off);
-            if (!raw.hit(base + N, words[N], tx, mask))
+            if (!raw.hit(base + N, words[N - 1], tx, mask))
                 raw.merge(READ::Read(base + N, tx, mask), words[N]);
         }
     }
@@ -247,26 +244,9 @@ namespace stm {
         return *reinterpret_cast<T*>(bytes + off);
     }
 
-    struct WriteWord {
-        static inline void Write(void** addr, void* val, uintptr_t) {
-            *addr = val;
-        }
-    };
-
-    struct WriteMaskedWord {
-        static inline void Write(void** addr, void* val, uintptr_t mask) {
-            // special case to write the entire word
-            if (mask == ~0) {
-                *addr = val;
-                return;
-            }
-
-            //
-        }
-    };
-
     template <typename T,
               class PREFILTER,
+              class WRITE,
               bool FORCE_ALIGNED>
     static inline void write(T* addr, T val) {
         TX* tx = Self;
@@ -298,21 +278,36 @@ namespace stm {
         // put the value into the right place on the stack
         *reinterpret_cast<T*>(bytes + off) = val;
 
+        // template function object for writing
+        WRITE write;
+
         // store the first word, there is always at least one
         uintptr_t mask = make_mask(off, min(sizeof(void*), off + sizeof(T)));
-        alg_tm_write_aligned_word(base, words[0], tx, mask);
+        write(base, words[0], tx, mask);
 
         // deal with any middle words
         mask = make_mask(0, sizeof(void*));
         for (int i = 1, e = N - 1; i < e; ++i)
-            alg_tm_write_aligned_word(base + i, words[i], tx, mask);
+            write(base + i, words[i], tx, mask);
 
         // deal with the last word
         if (N > 1 && off) {
             mask = make_mask(0, off);
-            alg_tm_write_aligned_word(base + N, words[N], tx, mask);
+            write(base + N, words[N - 1], tx, mask);
         }
     }
+
+    /**
+     *  Our lazy STMs all basically do the same thing for writing, they simply
+     *  buffer the write in the write set. This functor can be used when
+     *  instantiating the write template for these TMs.
+     */
+    struct BufferedWrite {
+        void operator()(void** addr, void* val, TX* tx, uintptr_t mask) const {
+            // just buffer the write
+            tx->writes.insert(addr, val, mask);
+        }
+    };
   }
 }
 

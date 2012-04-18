@@ -23,7 +23,6 @@
 #include "byte-logging.hpp"
 #include "tmabi-weak.hpp"               // the weak abi declarations
 #include "foreach.hpp"                  // the FOREACH macro
-#include "ValueList.hpp"
 #include "WBMMPolicy.hpp"
 #include "tx.hpp"
 #include "libitm.h"
@@ -33,7 +32,6 @@ using stm::TX;
 using stm::pad_word_t;
 using stm::WriteSet;
 using stm::ValueList;
-using stm::ValueListEntry;
 using stm::Self;
 
 /*** The only metadata we need is a single global padded lock ***/
@@ -53,14 +51,7 @@ static NOINLINE uintptr_t validate(TX* tx) {
 
         // check the read set
         CFENCE;
-        // don't branch in the loop---consider it backoff if we fail
-        // validation early
-        bool valid = true;
-        FOREACH (ValueList, i, tx->vlist) {
-            valid &= STM_LOG_VALUE_IS_VALID(i, tx);
-        }
-
-        if (!valid)
+        if (!tx->vlist.validate())
             return VALIDATION_FAILED;
 
         // restart if timestamp changed during read set iteration
@@ -75,7 +66,7 @@ template <class CM>
 static void alg_tm_rollback(TX* tx) {
     ++tx->aborts;
     tx->vlist.reset();
-    tx->writes.clear();
+    tx->writes.reset();
     tx->allocator.onTxAbort();
     CM::onAbort(tx);
 }
@@ -132,7 +123,7 @@ static void alg_tm_end() {
     timestamp.val = tx->start_time + 2;
     CM::onCommit(tx);
     tx->vlist.reset();
-    tx->writes.clear();
+    tx->writes.reset();
     tx->allocator.onTxCommit();
     ++tx->commits_rw;
 }
@@ -160,17 +151,12 @@ static inline void* alg_tm_read_aligned_word(void** addr, TX* tx, uintptr_t mask
     return tmp;
 }
 
-static inline void* alg_tm_read_aligned_word_ro(void** addr, TX* tx,
-                                                uintptr_t mask)
-{
+static inline
+void* alg_tm_read_aligned_word_ro(void** addr, TX* tx, uintptr_t mask) {
     return alg_tm_read_aligned_word(addr, tx, mask);
 }
 
 /** Simple buffered transactional write. */
-static inline void alg_tm_write_aligned_word(void** addr, void* val, TX* tx, uintptr_t mask) {
-    // just buffer the write
-    tx->writes.insert(addr, WriteSet::Word(val, mask));
-}
 
 /** The library api interface to read an aligned word. */
 void* alg_tm_read(void** addr) {
@@ -184,7 +170,8 @@ void* alg_tm_read(void** addr) {
 
 /** The library api interface to write an aligned word. */
 void alg_tm_write(void** addr, void* val) {
-    stm::inst::write<void*, stm::inst::NoFilter, true>(addr, val);
+    using namespace stm::inst;
+    write<void*, NoFilter, BufferedWrite, true>(addr, val);
 }
 
 bool alg_tm_is_irrevocable(TX*) {
@@ -221,6 +208,7 @@ void alg_tm_become_irrevocable(_ITM_transactionState) {
     SYMBOL(TYPE* addr, TYPE val) {                                      \
         stm::inst::write<TYPE,                                          \
                          stm::inst::FullFilter,                         \
+                         stm::inst::BufferedWrite,                      \
                          false>(addr, val);                             \
     }
 

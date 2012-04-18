@@ -31,6 +31,7 @@
 #include "libitm.h"
 
 using namespace stm;
+using namespace stm::inst;
 
 /*** The only metadata we need is a single global padded lock ***/
 static pad_word_t timestamp = {0};
@@ -60,7 +61,7 @@ void alg_tm_rollback(TX* tx)
     }
 
     tx->r_orecs.reset();
-    tx->writes.clear();
+    tx->writes.reset();
     // NB: we can't reset pointers here, because if the transaction
     //     performed some writes, then it has an order.  If it has an
     //     order, but restarts and is read-only, then it still must call
@@ -89,10 +90,10 @@ static NOINLINE void validate(TX* tx, uintptr_t finish_cache)
         if (tx->writes.size() != 0) {
             // mark every location in the write set, and perform write-back
             FOREACH (WriteSet, i, tx->writes) {
-                orec_t* o = get_orec(i->address());
+                orec_t* o = get_orec(i->address);
                 o->v.all = tx->order;
                 CFENCE; // WBW
-                i->value().writeTo(i->address());
+                i->value.writeTo(i->address);
             }
             tx->turbo = true;
         }
@@ -136,7 +137,7 @@ void alg_tm_end()
 
         // commit all frees, reset all lists
         tx->r_orecs.reset();
-        tx->writes.clear();
+        tx->writes.reset();
         tx->allocator.onTxCommit();
         ++tx->commits_rw;
         tx->turbo = false;
@@ -168,10 +169,10 @@ void alg_tm_end()
     if (tx->writes.size() != 0) {
         // mark every location in the write set, and perform write-back
         FOREACH (WriteSet, i, tx->writes) {
-            orec_t* o = get_orec(i->address());
+            orec_t* o = get_orec(i->address);
             o->v.all = tx->order;
             CFENCE; // WBW
-            i->value().writeTo(i->address());
+            i->value.writeTo(i->address);
         }
     }
 
@@ -183,7 +184,7 @@ void alg_tm_end()
 
     // commit all frees, reset all lists
     tx->r_orecs.reset();
-    tx->writes.clear();
+    tx->writes.reset();
     tx->allocator.onTxCommit();
     ++tx->commits_rw;
 }
@@ -245,57 +246,57 @@ static inline void* alg_tm_read_aligned_word(void** addr, TX* tx, uintptr_t) {
     return tmp;
 }
 
-/**
- *  CTokenTurbo write (read-only context)
- */
-static inline void alg_tm_write_aligned_word(void** addr, void* val, TX* tx, uintptr_t mask)
-{
-    if (tx->turbo) {
-        // mark the orec, then update the location
-        orec_t* o = get_orec(addr);
-        o->v.all = tx->order;
-        CFENCE;
-        *addr = val;
-    }
-    else if (tx->order == -1) {
-        // we don't have any writes yet, so we need to get an order here
-        tx->order = 1 + faiptr(&timestamp.val);
-
-        // record the new value in a redo log
-        tx->writes.insert(addr, WriteSet::Word(val, mask));
-
-        // go turbo?
-        //
-        // NB: we test this on first write, but not subsequent writes, because up
-        //     until now we didn't have an order, and thus weren't allowed to use
-        //     turbo mode
-        validate(tx, last_complete.val);
-    }
-    else {
-        // record the new value in a redo log
-        tx->writes.insert(addr, WriteSet::Word(val, mask));
-    }
-}
-
 namespace {
   struct CTokenTurboReadOnly {
       static inline bool IsReadOnly(TX* tx) {
           return (tx->order == -1);
       }
   };
+
+  /** CTokenTurbo write */
+  template <typename Word>
+  struct CTokenTurboWrite {
+      void operator()(void** addr, void* val, TX* tx, uintptr_t mask) {
+          if (tx->turbo) {
+              // mark the orec, then update the location
+              orec_t* o = get_orec(addr);
+              o->v.all = tx->order;
+              CFENCE;
+              Word::Write(addr, val, mask);
+          }
+          else if (tx->order == -1) {
+              // we don't have any writes yet, so we need to get an order here
+              tx->order = 1 + faiptr(&timestamp.val);
+
+              // record the new value in a redo log
+              tx->writes.insert(addr, val, mask);
+
+              // go turbo?
+              //
+              // NB: we test this on first write, but not subsequent writes,
+              //     because up until now we didn't have an order, and thus
+              //     weren't allowed to use turbo mode
+              validate(tx, last_complete.val);
+          }
+          else {
+              // record the new value in a redo log
+              tx->writes.insert(addr, val, mask);
+          }
+      }
+  };
 }
 
 void* alg_tm_read(void** addr) {
-    return inst::read<void*,
-                      inst::TurboFilter<inst::NoFilter>, // turbo filter
-                      inst::WordlogRAW,    // log at the word granularity
-                      CTokenTurboReadOnly, // check's tx order
-                      true                 // force align all accesses
-                      >(addr);
+    return read<void*,
+                TurboFilter<NoFilter>,  // turbo filter
+                WordlogRAW,             // log at the word granularity
+                CTokenTurboReadOnly,    // check's tx order
+                true                    // force align all accesses
+                >(addr);
 }
 
 void alg_tm_write(void** addr, void* val) {
-    alg_tm_write_aligned_word(addr, val, Self, ~0);
+    write<void*, NoFilter, CTokenTurboWrite<Word>, true>(addr, val);
 }
 
 bool alg_tm_is_irrevocable(TX* tx) {

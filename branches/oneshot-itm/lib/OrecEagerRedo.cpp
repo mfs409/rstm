@@ -32,6 +32,7 @@
 #include "inst.hpp"
 
 using namespace stm;
+using namespace stm::inst;
 
 /**
  *  For querying to get the current algorithm name
@@ -56,7 +57,7 @@ void alg_tm_rollback(TX* tx)
 
     // undo memory operations, reset lists
     tx->r_orecs.reset();
-    tx->writes.clear();
+    tx->writes.reset();
     tx->locks.reset();
     tx->allocator.onTxAbort();
 }
@@ -137,7 +138,7 @@ void alg_tm_end()
 
     // clean up
     tx->r_orecs.reset();
-    tx->writes.clear();
+    tx->writes.reset();
     tx->locks.reset();
     tx->allocator.onTxCommit();
     ++tx->commits_rw;
@@ -163,11 +164,9 @@ static inline void* alg_tm_read_aligned_word(void** addr, TX* tx, uintptr_t) {
         // next best: locked by me
         // [TODO] This needs to deal with byte logging. Both the RAW and the
         // *addr are dangerous.
-        if (ivt.all == tx->my_lock.all) {
+        if (ivt.all == tx->my_lock.all)
             // check the log for a RAW hazard
-            const WriteSet::Word* const found = tx->writes.find(addr);
-            return (found->mask()) ? found->value() : *addr;
-        }
+            return (tx->writes.find(addr, tmp)) ? tmp : *addr;
 
         // abort if locked by other
         if (ivt.fields.lock)
@@ -186,59 +185,63 @@ static inline void* alg_tm_read_aligned_word_ro(void** addr, TX* tx,
     return alg_tm_read_aligned_word(addr, tx, mask);
 }
 
-/**
- *  OrecEagerRedo write
- */
-static inline void alg_tm_write_aligned_word(void** addr, void* val, TX* tx, uintptr_t mask)
-{
-    // add to redo log
-    tx->writes.insert(addr, WriteSet::Word(val, mask));
+namespace {
+  /**
+   *  OrecEagerRedo write
+   */
+  struct OrecEagerRedoWrite {
+      void operator()(void** addr, void* val, TX* tx, uintptr_t mask) const {
+          // add to redo log
+          tx->writes.insert(addr, val, mask);
 
-    // get the orec addr
-    orec_t* o = get_orec(addr);
-    while (true) {
-        // read the orec version number
-        id_version_t ivt;
-        ivt.all = o->v.all;
+          // get the orec addr
+          orec_t* o = get_orec(addr);
+          while (true) {
+              // read the orec version number
+              id_version_t ivt;
+              ivt.all = o->v.all;
 
-        // common case: uncontended location... lock it
-        if (ivt.all <= tx->start_time) {
-            if (!bcasptr(&o->v.all, ivt.all, tx->my_lock.all))
-                _ITM_abortTransaction(TMConflict);
+              // common case: uncontended location... lock it
+              if (ivt.all <= tx->start_time) {
+                  if (!bcasptr(&o->v.all, ivt.all, tx->my_lock.all))
+                      _ITM_abortTransaction(TMConflict);
 
-            // save old, log lock, write, return
-            o->p = ivt.all;
-            tx->locks.insert(o);
-            return;
-        }
+                  // save old, log lock, write, return
+                  o->p = ivt.all;
+                  tx->locks.insert(o);
+                  return;
+              }
 
-        // next best: already have the lock
-        if (ivt.all == tx->my_lock.all)
-            return;
+              // next best: already have the lock
+              if (ivt.all == tx->my_lock.all)
+                  return;
 
-        // fail if lock held
-        if (ivt.fields.lock)
-            _ITM_abortTransaction(TMConflict);
+              // fail if lock held
+              if (ivt.fields.lock)
+                  _ITM_abortTransaction(TMConflict);
 
-        // unlocked but too new... scale forward and try again
-        uintptr_t newts = timestamp.val;
-        validate(tx);
-        tx->start_time = newts;
-    }
+              // unlocked but too new... scale forward and try again
+              uintptr_t newts = timestamp.val;
+              validate(tx);
+              tx->start_time = newts;
+          }
+      }
+  };
 }
 
 void* alg_tm_read(void** addr) {
-    return stm::inst::read<void*,                 //
-                           stm::inst::NoFilter,   // don't pre-filter accesses
-                           stm::inst::NoRAW,      // RAW is done internally
-                           stm::inst::NoReadOnly, // no separate read-only code
-                           true                   // force align all accesses
-                           >(addr);
+    return read<void*,                  //
+                NoFilter,               // don't pre-filter accesses
+                NoRAW,                  // RAW is done internally
+                NoReadOnly,             // no separate read-only code
+                true                    // force align all accesses
+                >(addr);
 
 }
 
 void alg_tm_write(void** addr, void* val) {
-    alg_tm_write_aligned_word(addr, val, Self, ~0);
+    write<void*, NoFilter, BufferedWrite, true>(addr, val);
+
 }
 
 bool alg_tm_is_irrevocable(TX*) {
