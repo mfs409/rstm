@@ -24,9 +24,8 @@
  */
 
 #include <cstdlib>
-#include <stm/config.h> // profiletrigger stuff
 #include <stm/txthread.hpp>
-#include "./policies/policies.hpp"
+#include "policies.hpp"
 
 namespace stm
 {

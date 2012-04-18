@@ -12,9 +12,9 @@
 #include "stm/lib_globals.hpp"   // AbortHandler
 #include "stm/macros.hpp"        // barrier signatures
 #include "stm/txthread.hpp"      // TxThread stuff
-#include "policies/policies.hpp" // curr_policy
-#include "algs/algs.hpp"         // stms
-#include "algs/tml_inline.hpp"
+#include "policies.hpp" // curr_policy
+#include "algs.hpp"         // stms
+#include "tml_inline.hpp"
 
 using stm::UNRECOVERABLE;
 using stm::TxThread;

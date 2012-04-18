@@ -13,7 +13,6 @@
 #ifndef INST_HPP__
 #define INST_HPP__
 
-#include <stm/config.h>
 #include <common/platform.hpp>
 
 namespace stm

@@ -19,8 +19,6 @@
 #ifndef STM_API_HPP__
 #define STM_API_HPP__
 
-#include <stm/config.h>
-
 #if defined(STM_API_CXXTM)
 #  include <api/cxxtm.hpp>
 #elif defined(STM_API_STAMP)

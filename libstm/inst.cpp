@@ -14,8 +14,8 @@
 
 #include <sys/mman.h>
 #include "inst.hpp"
-#include "policies/policies.hpp"
-#include "algs/algs.hpp"
+#include "policies.hpp"
+#include "algs.hpp"
 
 namespace stm
 {
@@ -46,12 +46,6 @@ namespace stm
    */
   void install_algorithm(int new_alg, TxThread* tx)
   {
-      // diagnostic: count total commits
-      int commits = 0;
-      for (unsigned i = 0; i < threadcount.val; ++i)
-          commits += tx->num_commits + tx->num_ro;
-      printf("Total commits thus far = %d\n", commits);
-
       // [mfs] when is tx null?
       // diagnostic message
       if (tx)

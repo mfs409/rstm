@@ -11,8 +11,6 @@
 #ifndef MACROS_HPP__
 #define MACROS_HPP__
 
-#include <stm/config.h>
-
 /**
  *  This file establishes a few helpful macros.  Some of these are obvious.
  *  Others are used to simplify some very redundant programming, particularly

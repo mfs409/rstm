@@ -17,7 +17,6 @@
 #ifndef BITFILTER_HPP__
 #define BITFILTER_HPP__
 
-#include <stm/config.h>
 #include <stdint.h>
 
 #if defined(STM_USE_SSE)
