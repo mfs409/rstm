@@ -10,7 +10,7 @@
 
 #
 # This makefile is for building the RSTM libraries and benchmarks using
-# library API, clang, Linux, x86_64, -O3
+# library API, GCC, Linux, x86_64, -O3
 #
 # Warning: This just handles platform configuration.  Everything else is
 #          handled via per-folder Makefiles
@@ -19,11 +19,11 @@
 #
 # Compiler config
 #
-PLATFORM  = lib_clang_linux_x86_64_opt
-CXX       = clang++
-CC       ?= clang
-CXXFLAGS += -O4 -m64 -msse2 -fno-exceptions -fno-rtti
-LDFLAGS  += -ldl -lrt -lpthread -m64
+PLATFORM  = lib_gcc_linux_x86_64_prof
+CXX       = g++
+CC       ?= gcc
+CXXFLAGS += -O3 -g -pg -m64 -march=native -mtune=native -msse2 -mfpmath=sse
+LDFLAGS  += -ldl -lrt -lpthread -m64 -pg
 
 #
 # Options to pass to STM files

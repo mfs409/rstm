@@ -20,7 +20,6 @@
 
 namespace stm {
   namespace inst {
-
     /**
      *  The NoRAW policy does not perform a read-after-write check, and is
      *  suitable for in-place accesses.
@@ -43,15 +42,7 @@ namespace stm {
      */
     struct WordlogRAW {
         bool hit(void** addr, void*& storage, TX* tx, uintptr_t) {
-            if (!tx->writes.size())
-                return 0;
-
-            if (const WriteSet::Word* const found = tx->writes.find(addr)) {
-                storage = found->value();
-                return found->mask();
-            }
-
-            return 0;
+            return (tx->writes.size()) ? tx->writes.find(addr, storage) : false;
         }
 
         void merge(void* val, void*& storage) {
@@ -67,21 +58,13 @@ namespace stm {
         uintptr_t missing_;
 
         bool hit(void** addr, void*& storage, TX* tx, uintptr_t mask) {
-            if (!tx->writes.size())
-                return 0;
-
-            if (const WriteSet::Word* const found = tx->writes.find(addr)) {
-                storage = found->value();
-                missing_ = mask & ~found->mask();
-                return !missing_;
-            }
-
-            return 0;
+            return (tx->writes.size()) ?
+            !(missing_ = mask & ~tx->writes.find(addr, storage)) : false;
         }
 
-        void* merge(void* val, void*& storage) {
-            return (void*)(((uintptr_t)storage & ~missing_) |
-                           ((uintptr_t)val & missing_));
+        void merge(void* val, void*& storage) {
+            storage = (void*)((uintptr_t)storage & ~missing_);
+            storage = (void*)((uintptr_t)storage | ((uintptr_t)val & missing_));
         }
     };
   }

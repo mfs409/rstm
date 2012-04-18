@@ -68,8 +68,7 @@ static void alg_tm_rollback(TX* tx)
 {
     ++tx->aborts;
 
-    // run the undo log
-    STM_UNDO(tx->undo_log, except, len);
+    tx->undo_log.undo();
 
     // release the locks and bump version numbers by one... track the highest
     // version number we write, in case it is greater than timestamp.val
@@ -229,64 +228,73 @@ static inline void* alg_tm_read_aligned_word_ro(void** addr, TX* tx,
     return alg_tm_read_aligned_word(addr, tx, mask);
 }
 
+namespace {
 /**
  *  OrecEager write:
  *
  *    Lock the orec, log the old value, do the write
  */
-static inline void alg_tm_write_aligned_word(void** addr, void* val, TX* tx, uintptr_t mask)
-{
-    // get the orec addr, then enter loop to get lock from a consistent state
-    orec_t* o = get_orec(addr);
-    while (true) {
-        // read the orec version number
-        id_version_t ivt;
-        ivt.all = o->v.all;
+  template <typename Word>
+  struct OrecEagerWrite {
+      void operator()(void** addr, void* val, TX* tx, uintptr_t mask) const {
+          // get the orec addr, then enter loop to get lock from a consistent
+          // state
+          orec_t* o = get_orec(addr);
+          while (true) {
+              // read the orec version number
+              id_version_t ivt;
+              ivt.all = o->v.all;
 
-        // common case: uncontended location... try to lock it, abort on fail
-        if (ivt.all <= tx->start_time) {
-            if (!bcasptr(&o->v.all, ivt.all, tx->my_lock.all))
-                _ITM_abortTransaction(TMConflict);
+              // common case: uncontended location... try to lock it, abort on
+              //              fail
+              if (ivt.all <= tx->start_time) {
+                  if (!bcasptr(&o->v.all, ivt.all, tx->my_lock.all))
+                      _ITM_abortTransaction(TMConflict);
 
-            // save old value, log lock, do the write, and return
-            o->p = ivt.all;
-            tx->locks.insert(o);
-            tx->undo_log.insert(addr, *addr, mask);
-            *addr = val;
-            return;
-        }
+                  // save old value, log lock, do the write, and return
+                  o->p = ivt.all;
+                  tx->locks.insert(o);
+                  tx->undo_log.insert(addr, *addr, mask);
+                  Word::Write(addr, val, mask);
+                  return;
+              }
 
-        // next best: I already have the lock... must log old value, because
-        // many locations hash to the same orec.  The lock does not mean I
-        // have undo logged *this* location
-        if (ivt.all == tx->my_lock.all) {
-            tx->undo_log.insert(addr, *addr, mask);
-            *addr = val;
-            return;
-        }
+              // next best: I already have the lock... must log old value,
+              //            because many locations hash to the same orec.  The
+              //            lock does not mean I have undo logged *this*
+              //            location
+              if (ivt.all == tx->my_lock.all) {
+                  tx->undo_log.insert(addr, *addr, mask);
+                  Word::Write(addr, val, mask);
+                  return;
+              }
 
-        // fail if lock held by someone else
-        if (ivt.fields.lock)
-            _ITM_abortTransaction(TMConflict);
+              // fail if lock held by someone else
+              if (ivt.fields.lock)
+                  _ITM_abortTransaction(TMConflict);
 
-        // unlocked but too new... scale forward and try again
-        uintptr_t newts = timestamp.val;
-        validate(tx);
-        tx->start_time = newts;
-    }
+              // unlocked but too new... scale forward and try again
+              uintptr_t newts = timestamp.val;
+              validate(tx);
+              tx->start_time = newts;
+          }
+      }
+  };
 }
 
 void* alg_tm_read(void** addr) {
-    return stm::inst::read<void*,
-                           stm::inst::NoFilter,   // don't pre-filter accesses
-                           stm::inst::NoRAW,      // no read-after-write
-                           stm::inst::NoReadOnly, // no separate read-only code
-                           true                   // force align all accesses
-                           >(addr);
+    using namespace stm::inst;
+    return read<void*,
+                NoFilter,               // don't pre-filter accesses
+                NoRAW,                  // no read-after-write
+                NoReadOnly,             // no separate read-only code
+                true                    // force align all accesses
+                >(addr);
 }
 
 void alg_tm_write(void** addr, void* val) {
-    alg_tm_write_aligned_word(addr, val, Self, ~0);
+    using namespace stm::inst;
+    write<void*, NoFilter, OrecEagerWrite<Word>, true>(addr, val);
 }
 
 bool alg_tm_is_irrevocable(TX*) {

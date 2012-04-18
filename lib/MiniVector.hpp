@@ -37,6 +37,10 @@ namespace stm
       void expand();
 
     public:
+      MiniVector() : m_cap(1), m_size(0),
+                     m_elements(static_cast<T*>(malloc(sizeof(T)*m_cap)))
+      {
+      }
 
       /*** Construct a minivector with a default size */
       MiniVector(const unsigned long capacity)
@@ -48,8 +52,14 @@ namespace stm
 
       ~MiniVector() { free(m_elements); }
 
+      void reserve(int n) {
+          while (n > m_cap)
+              expand();                 // [ld] silly way to do this
+      }
+
       /*** Reset the vector without destroying the elements it holds */
       TM_INLINE void reset() { m_size = 0; }
+      TM_INLINE void clear() { m_size = 0; } // used in redo-log
 
       /*** Insert an element into the minivector */
       TM_INLINE void insert(T data)
@@ -72,17 +82,25 @@ namespace stm
           expand();
       }
 
+      void push_back(T data) { insert(data); }
+
+      T& operator[](int i) { return m_elements[i]; }
+      const T& operator[](int i) const { return m_elements[i]; }
+
       /*** Simple getter to determine the array size */
       TM_INLINE unsigned long size() const { return m_size; }
 
       /*** iterator interface, just use a basic pointer */
       typedef T* iterator;
+      typedef const T* const_iterator;
 
       /*** iterator to the start of the array */
-      TM_INLINE iterator begin() const { return m_elements; }
+      TM_INLINE iterator begin() { return m_elements; }
+      TM_INLINE const_iterator begin() const { return m_elements; }
 
       /*** iterator to the end of the array */
-      TM_INLINE iterator end() const { return m_elements + m_size; }
+      TM_INLINE iterator end() { return m_elements + m_size; }
+      TM_INLINE const_iterator end() const { return m_elements + m_size; }
 
   }; // class MiniVector
 

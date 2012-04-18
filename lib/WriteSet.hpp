@@ -25,315 +25,167 @@
 #include <cstring>
 #endif
 #include <cassert>
+#include <climits>
+#include <stdint.h>
+#include <cstdio>
 
-namespace stm
-{
+namespace stm {
   /**
-   *  The WriteSet implementation is heavily influenced by the configuration
-   *  parameters, STM_WS_(WORD/BYTE)LOG, and STM_ABORT_ON_THROW. This means
-   *  that much of this file is ifdeffed accordingly.
+   *  hash function is straight from CLRS (that's where the magic constant
+   *  comes from).
    */
+  template <size_t S>
+  static uint32_t hash(void**, const int);
 
-  /**
-   * The log entry type when we're word-logging is pretty trivial, and just
-   * logs address/value pairs.
-   */
-  struct WordLoggingWriteSetEntry
+  template <>
+  uint32_t hash<4>(void** key, const int shift) {
+      static const uint64_t M = 0x9E3779B9;
+      uint64_t r = (((uintptr_t)key)) * M;
+      return (uint32_t)((r & 0xFFFFFFFF) >> shift);
+  }
+
+  template <>
+  uint32_t hash<8>(void** key, const int shift) {
+      static const uint64_t M = 0x9E3779B97F4A782F;
+      uint64_t r = (((uintptr_t)key)) * M;
+      return (uint32_t)((r & 0xFFFFFFFF) >> shift);
+  }
+
+  /** The write set is an indexed array of elements. */
+  template <typename WordType>
+  class GenericWriteSet
   {
-      void** addr;
-      void*  val;
-
-      WordLoggingWriteSetEntry(void** paddr, void* pval)
-          : addr(paddr), val(pval)
-      { }
-
-      uintptr_t getMask() const {
-          return ~0;
-      }
-
-      void set(void** addr, void* val, uintptr_t) {
-          this->addr = addr;
-          this->val = val;
-      }
-
-      /**
-       *  Called when we are WAW an address, and we want to coalesce the
-       *  write. Trivial for the word-based writeset, but complicated for the
-       *  byte-based version.
-       */
-      void update(void* val, uintptr_t) { this->val = val; }
-
-      /**
-       * Check to see if the entry is completely contained within the given
-       * address range. We have some preconditions here w.r.t. alignment and
-       * size of the range. It has to be at least word aligned and word
-       * sized. This is currently only used with stack addresses, so we don't
-       * include asserts because we don't want to pay for them in the common
-       * case writeback loop.
-       */
-      bool filter(void** lower, void** upper)
-      {
-          return !(addr + 1 < lower || addr >= upper);
-      }
-
-      /**
-       * Called during writeback to actually perform the logged write. This is
-       * trivial for the word-based set, but the byte-based set is more
-       * complicated.
-       */
-      void writeback() const { *addr = val; }
-
-      /**
-       * Called during rollback if there is an exception object that we need to
-       * perform writes to. The address range is the range of addresses that
-       * we're looking for. If this log entry is contained in the range, we
-       * perform the writeback.
-       *
-       * NB: We're assuming a pretty well defined address range, in terms of
-       *     size and alignment here, because the word-based writeset can only
-       *     handle word-sized data.
-       */
-      void rollback(void** lower, void** upper)
-      {
-          assert((uint8_t*)upper - (uint8_t*)lower >= (int)sizeof(void*));
-          assert((uintptr_t)upper % sizeof(void*) == 0);
-          if (addr >= lower && (addr + 1) <= upper)
-              writeback();
-      }
-  };
-
-  /**
-   * The log entry for byte logging is complicated by
-   *
-   *   1) the fact that we store a bitmask
-   *   2) that we need to treat the address/value/mask instance variables as
-   *      both word types, and byte types.
-   *
-   *  We do this with unions, which makes the use of these easier since it
-   *  reduces the huge number of casts we perform otherwise.
-   *
-   *  Union naming is important, since the outside world only directly deals
-   *  with the word-sized fields.
-   */
-  struct ByteLoggingWriteSetEntry
-  {
-      union {
-          void**   addr;
-          uint8_t* byte_addr;
-      };
-
-      union {
-          void*   val;
-          uint8_t byte_val[sizeof(void*)];
-      };
-
-      union {
-          uintptr_t mask;
-          uint8_t   byte_mask[sizeof(void*)];
-      };
-
-      ByteLoggingWriteSetEntry(void** paddr, void* pval, uintptr_t pmask)
-      {
-          addr = paddr;
-          val  = pval;
-          mask = pmask;
-      }
-
-      uintptr_t getMask() const {
-          return mask;
-      }
-
-      void set(void** addr, void* val, uintptr_t mask) {
-          this->addr = addr;
-          this->val = val;
-          this->mask = mask;
-      }
-
-      /**
-       *  Called when we are WAW an address, and we want to coalesce the
-       *  write. Trivial for the word-based writeset, but complicated for the
-       *  byte-based version.
-       *
-       *  The new value is the bytes from the incoming log injected into the
-       *  existing value, we mask out the bytes we want from the incoming word,
-       *  mask the existing word, and union them.
-       */
-      void update(void* val, uintptr_t mask)
-      {
-          // fastpath for full replacement
-          if (__builtin_expect(mask == (uintptr_t)~0x0, true)) {
-              this->val = val;
-              this->mask = mask;
-              return;
-          }
-
-          // bit twiddling for awkward intersection, avoids looping
-          uintptr_t new_val = (uintptr_t)val;
-          new_val &= mask;
-          new_val |= (uintptr_t)val & ~mask;
-          val = (void*)new_val;
-
-          // the new mask is the union of the old mask and the new mask
-          this->mask |= mask;
-      }
-
-      /**
-       *  Check to see if the entry is completely contained within the given
-       *  address range. We have some preconditions here w.r.t. alignment and
-       *  size of the range. It has to be at least word aligned and word
-       *  sized. This is currently only used with stack addresses, so we don't
-       *  include asserts because we don't want to pay for them in the common
-       *  case writeback loop.
-       *
-       *  The byte-logging writeset can actually accommodate awkward
-       *  intersections here using the mask, but we're not going to worry about
-       *  that given the expected size/alignment of the range.
-       */
-      bool filter(void** lower, void** upper)
-      {
-          return !(addr + 1 < lower || addr >= upper);
-      }
-
-      /**
-       *  If we're byte-logging, we'll write out each byte individually when
-       *  we're not writing a whole word. This turns all subword writes into
-       *  byte writes, so we lose the original atomicity of (say) half-word
-       *  writes in the original source. This isn't a correctness problem
-       *  because of our transactional synchronization, but could be a
-       *  performance problem if the system depends on sub-word writes for
-       *  performance.
-       */
-      void writeback() const
-      {
-          if (__builtin_expect(mask == (uintptr_t)~0x0, true)) {
-              *addr = val;
-              return;
-          }
-
-          // mask could be empty if we filtered out all of the bytes
-          if (mask == 0x0)
-              return;
-
-          // write each byte if its mask is set
-          for (unsigned i = 0; i < sizeof(val); ++i)
-              if (byte_mask[i] == 0xff)
-                  byte_addr[i] = byte_val[i];
-      }
-
-      /**
-       *  Called during the rollback loop in order to write out buffered writes
-       *  to an exception object (represented by the address range). We don't
-       *  assume anything about the alignment or size of the exception object.
-       */
-      void rollback(void** lower, void** upper)
-      {
-          // two simple cases first, no intersection or complete intersection.
-          if (addr + 1 < lower || addr >= upper)
-              return;
-
-          if (addr >= lower && addr + 1 <= upper) {
-              writeback();
-              return;
-          }
-
-          // odd intersection
-          for (unsigned i = 0; i < sizeof(void*); ++i) {
-              if ((byte_mask[i] == 0xff) &&
-                  (byte_addr + i >= (uint8_t*)lower ||
-                   byte_addr + i < (uint8_t*)upper))
-                  byte_addr[i] = byte_val[i];
-          }
-      }
-  };
-
-  /**
-   *  Pick a write-set implementation, based on the configuration.
-   */
-#if defined(STM_WS_WORDLOG)
-  typedef WordLoggingWriteSetEntry WriteSetEntry;
-#   define STM_WRITE_SET_ENTRY(addr, val, mask) addr, val
-#elif defined(STM_WS_BYTELOG)
-  typedef ByteLoggingWriteSetEntry WriteSetEntry;
-#   define STM_WRITE_SET_ENTRY(addr, val, mask) addr, val, mask
-#else
-#   error WriteSet logging granularity configuration error.
-#endif
-
-  /**
-   *  The write set is an indexed array of WriteSetEntry elements.  As with
-   *  MiniVector, we make sure that certain expensive but rare functions are
-   *  never inlined.
-   */
-  class WriteSet
-  {
-      /***  data type for the index */
-      struct index_t
-      {
+      /** data type for the index */
+      struct IndexType {
           size_t version;
-          void*  address;
-          size_t index;
+          void** address;
+          int index;
 
-          index_t() : version(0), address(NULL), index(0) { }
+          IndexType() : version(0), address(NULL), index(0) {
+          }
       };
 
-      index_t* index;                             // hash entries
-      size_t   shift;                             // for the hash function
-      size_t   ilength;                           // max size of hash
-      size_t   version;                           // version for fast clearing
+      IndexType* index;                 // hash table
+      uint32_t shift;                   // for the hash function
+      uint32_t ilength;                 // max size of hash
+      size_t version;                   // version for fast clearing
 
-      WriteSetEntry* list;                        // the array of actual data
-      size_t   capacity;                          // max array size
-      size_t   lsize;                             // elements in the array
+      /** data type for the list */
+      struct ListType {
+          void** address;
+          WordType value;
 
+          ListType() : address(NULL), value() {
+          }
 
-      /**
-       *  hash function is straight from CLRS (that's where the magic
-       *  constant comes from).
-       */
-      size_t hash(void* const key) const
-      {
-          static const unsigned long long s = 2654435769ull;
-          const unsigned long long r = ((unsigned long long)key) * s;
-          return (size_t)((r & 0xFFFFFFFF) >> shift);
-      }
+          ListType(void** addr, const WordType& val) : address(addr),
+                                                       value(val) {
+          }
+
+          void merge(const WordType& rhs) {
+              value.merge(rhs);
+          }
+
+          void redo() const {
+              value.writeTo(address);
+          }
+
+          void* getValue() const {
+              return value.value();
+          }
+
+          uintptr_t getMask() const {
+              return value.mask();
+          }
+      };
+
+      ListType* list;                   // the array of actual data
+      size_t capacity;                  // max array size
+      size_t lsize;                     // elements in the array
 
       /**
        *  This doubles the size of the index. This *does not* do anything as
-       *  far as actually doing memory allocation. Callers should delete[]
-       *  the index table, increment the table size, and then reallocate it.
+       *  far as actually doing memory allocation. Callers should delete[] the
+       *  index table, increment the table size, and then reallocate it.
        */
-      size_t doubleIndexLength();
+      size_t __attribute__((noinline)) doubleIndexLength() {
+          assert(shift != 0 &&
+                 "ERROR: the writeset doesn't support an index this large");
+          shift -= 1;
+          ilength = 1 << (8 * sizeof(uint32_t) - shift);
+          return ilength;
+      }
 
-      /**
-       *  Supporting functions for resizing.  Note that these are never
-       *  inlined.
-       */
-      void rebuild();
-      void resize();
-      void reset_internal();
+      /** Rebuilds the index when required. */
+      void __attribute__((noinline)) rebuild() {
+          assert(version != 0 && "ERROR: the version should *never* be 0");
+
+          // extend the index
+          delete[] index;
+          index = new IndexType[doubleIndexLength()];
+
+          for (int i = 0, e = lsize; i < e; ++i) {
+              void** address = list[i].address;
+              uint32_t h = hash<sizeof(void*)>(address, shift);
+
+              // search for the next available slot
+              while (index[h].version == version)
+                  h = (h + 1) % ilength;
+
+              index[h].address = address;
+              index[h].version = version;
+              index[h].index = i;
+          }
+      }
+
+      /** Grow the number of writeset entries. */
+      void __attribute__((noinline)) resize() {
+          ListType* temp = list;
+          capacity = capacity * 2;
+          list = new ListType[capacity];
+          __builtin_memcpy(list, temp, sizeof(ListType) * lsize);
+          delete[] temp;
+      }
+
+      /** Deals with version overflow. */
+      size_t __attribute__((noinline)) resetOverflow() {
+          __builtin_memset(index, 0, sizeof(IndexType) * ilength);
+          return (version = 1);
+      }
 
     public:
+      GenericWriteSet(int init) : index(NULL), shift(8 * sizeof(uint32_t)),
+                                  ilength(0), version(1), list(NULL),
+                                  capacity(init), lsize(0) {
+          // find a "good" index size for the initial capacity of the list
+          while (doubleIndexLength() < 3 * init)
+              ;
+          index = new IndexType[ilength];
+          list = new ListType[init];
+      }
 
-      WriteSet(const size_t initial_capacity);
-      ~WriteSet();
+      ~GenericWriteSet() {
+          delete[] index;
+          delete[] list;
+      }
 
       /**
-       *  Search function.  The log is an in/out parameter, and the bool
-       *  tells if the search succeeded. When we are byte-logging, the log's
-       *  mask is updated to reflect the bytes in the returned value that are
-       *  valid. In the case that we don't find anything, the mask is set to 0.
+       *  Search function.  The log is an in/out parameter, and the bool tells
+       *  if the search succeeded. When we are byte-logging, the log's mask is
+       *  updated to reflect the bytes in the returned value that are valid. In
+       *  the case that we don't find anything, the mask is set to 0.
        */
-      uintptr_t find(void** addr, void*& val) {
-          size_t h = hash(addr);
+      uintptr_t find(void** addr, void*& value) {
+          uint32_t h = hash<sizeof(void*)>(addr, shift);
 
           while (index[h].version == version) {
               if (index[h].address != addr) {
-                  // continue probing
-                  h = (h + 1) % ilength;
-                  continue;
+                  h = (h + 1) % ilength; // continue probing
               }
-              val = list[index[h].index].val;
-              return list[index[h].index].getMask(); // -O3 should optimize
+              else {
+                  value = list[index[h].index].getValue();
+                  return list[index[h].index].getMask();
+              }
           }
           return 0;
       }
@@ -343,37 +195,32 @@ namespace stm
        *  modifications to lots of STMs when we need to change writeback for a
        *  particular compiler.
        */
-      TM_INLINE void writeback()
-      {
-          for (iterator i = begin(), e = end(); i != e; ++i)
-              i->writeback();
+      void redo() const {
+          for (uintptr_t i = 0, e = lsize; i < e; ++i)
+              list[i].redo();
       }
 
       /**
        *  Inserts an entry in the write set.  Coalesces writes, which can
        *  appear as write reordering in a data-racy program.
        */
-      void insert(void** addr, void* val, uintptr_t mask)
-      {
-          size_t h = hash(addr);
+      void insert(void** addr, void* val, uintptr_t mask) {
+          uint32_t h = hash<sizeof(void*)>(addr, shift);
 
-          //  Find the slot that this address should hash to. If we find it,
-          //  update the value. If we find an unused slot then it's a new
-          //  insertion.
+          // Find the slot that this address should hash to. If we find it,
+          // update the value. If we find an unused slot then it's a new
+          // insertion.
           while (index[h].version == version) {
-              if (index[h].address != addr) {
-                  h = (h + 1) % ilength;
-                  continue; // continue probing at new h
+              if (index[h].address == addr) {
+                  list[index[h].index].merge(WordType(val, mask));
+                  return;
               }
-
-              // there /is/ an existing entry for this word, we'll be updating
-              // it no matter what at this point
-              list[index[h].index].update(val, mask);
-              return;
+              h = (h + 1) % ilength; // continue probing
           }
 
-          // add the log to the list (guaranteed to have space)
-          list[lsize].set(addr, val, mask);
+          // add the log to the list
+          list[lsize].address = addr;
+          list[lsize].value = WordType(val, mask);
 
           // update the index
           index[h].address = addr;
@@ -389,32 +236,43 @@ namespace stm
 
           // if we reach our load-factor
           // NB: load factor could be better handled rather than the magic
-          //     constant 3 (used in constructor too).
+          //     constant 3 (used in constructor too)
           if (__builtin_expect((lsize * 3) >= ilength, false))
               rebuild();
       }
 
       /*** size() lets us know if the transaction is read-only */
-      size_t size() const { return lsize; }
+      uintptr_t size() const {
+          return lsize;
+      }
 
       /**
        *  We use the version number to reset in O(1) time in the common case
        */
-      void reset()
-      {
-          lsize    = 0;
-          version += 1;
-
-          // check overflow
-          if (version != 0)
-              return;
-          reset_internal();
+      void reset() {
+          lsize = 0;
+          version = (INT_MAX - version == 1) ? resetOverflow() : version + 1;
       }
 
       /*** Iterator interface: iterate over the list, not the index */
-      typedef WriteSetEntry* iterator;
-      iterator begin() const { return list; }
-      iterator end()   const { return list + lsize; }
+      typedef ListType* iterator;
+      typedef const ListType* const_iterator;
+
+      iterator begin() {
+          return list;
+      }
+
+      const_iterator begin() const {
+          return list;
+      }
+
+      iterator end() {
+          return list + lsize;
+      }
+
+      const_iterator end() const {
+          return list + lsize;
+      }
   };
 }
 
