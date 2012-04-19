@@ -76,6 +76,8 @@ namespace {
   bool
   CohortsEN::begin(TxThread* tx)
   {
+      tx->allocator.onTxBegin();
+
     S1:
       // wait until everyone is committed
       while (cpending.val != committed.val);
@@ -89,8 +91,6 @@ namespace {
           SUB(&started.val, 1);
           goto S1;
       }
-
-      tx->allocator.onTxBegin();
 
       return true;
   }
@@ -117,24 +117,25 @@ namespace {
   CohortsEN::commit_turbo(TxThread* tx)
   {
       // increase # of tx waiting to commit, and use it as the order
-      ADD(&cpending.val, 1);
+      tx->order = ADD(&cpending.val, 1);
 
       // clean up
       tx->vlist.reset();
       tx->writes.reset();
       OnReadWriteCommit(tx, read_ro, write_ro, commit_ro);
 
-      // wait for my turn, in this case, cpending is my order
-      while (last_complete.val != (uintptr_t)(cpending.val - 1));
+      // wait for my turn
+      while (last_complete.val != (uintptr_t)(tx->order - 1));
 
       // reset in place write flag
       inplace = 0;
 
-      // mark self as done
-      last_complete.val = cpending.val;
-
       // increase # of committed
       committed.val ++;
+      CFENCE;
+
+      // mark self as done
+      last_complete.val = tx->order;
   }
 
   /**
@@ -230,7 +231,8 @@ namespace {
       // If everyone else is ready to commit, do in place write
       if (cpending.val + 1 == started.val) {
           // set up flag indicating in place write starts
-          bcas32(&inplace, 0, 1);
+          inplace = 1;
+          WBR;
           // double check is necessary
           if (cpending.val + 1 == started.val) {
               // in place write

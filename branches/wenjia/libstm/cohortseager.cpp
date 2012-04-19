@@ -77,6 +77,8 @@ namespace {
   bool
   CohortsEager::begin(TxThread* tx)
   {
+      tx->allocator.onTxBegin();
+
     S1:
       // wait until everyone is committed
       while (cpending.val != committed.val);
@@ -91,7 +93,6 @@ namespace {
           goto S1;
       }
 
-      tx->allocator.onTxBegin();
       // get time of last finished txn
       tx->ts_cache = last_complete.val;
 
@@ -120,7 +121,7 @@ namespace {
   CohortsEager::commit_turbo(TxThread* tx)
   {
       // increase # of tx waiting to commit, and use it as the order
-      ADD(&cpending.val, 1);
+      tx->order = ADD(&cpending.val, 1);
 
       // clean up
       tx->r_orecs.reset();
@@ -128,16 +129,16 @@ namespace {
       OnReadWriteCommit(tx, read_ro, write_ro, commit_ro);
 
       // wait for my turn, in this case, cpending is my order
-      while (last_complete.val != (uintptr_t)(cpending.val - 1));
+      while (last_complete.val != (uintptr_t)(tx->order - 1));
 
       // reset in place write flag
       inplace = 0;
 
-      // mark self as done
-      last_complete.val = cpending.val;
+      // increase total number of tx committed
+      committed.val++;
 
-      // increase # of committed
-      ADD(&committed.val, 1);
+      // mark self as done
+      last_complete.val = tx->order;
   }
 
   /**
@@ -150,7 +151,7 @@ namespace {
   CohortsEager::commit_rw(TxThread* tx)
   {
       // increase # of tx waiting to commit, and use it as the order
-      tx->order = ADD(&cpending.val ,1);
+      tx->order = ADD(&cpending.val, 1);
 
       // Wait for my turn
       while (last_complete.val != (uintptr_t)(tx->order - 1));
@@ -176,17 +177,15 @@ namespace {
       else
           tx->writes.writeback();
 
-      // increase total number of committed tx
-      // [NB] Using atomic instruction might be faster
-      ADD(&committed.val, 1);
-      // committed.val ++;
-      // WBR;
+      // update last_order
+      last_order = started.val + 1;
+
+      // increase total tx committed
+      committed.val++;
+      CFENCE;
 
       // mark self as done
       last_complete.val = tx->order;
-
-      // update last_order
-      last_order = started.val + 1;
 
       // commit all frees, reset all lists
       tx->r_orecs.reset();
@@ -242,14 +241,16 @@ namespace {
       // If everyone else is ready to commit, do in place write
       if (cpending.val + 1 == started.val) {
           // set up flag indicating in place write starts
-          // [NB]When testing on MacOS, better use CAS
           inplace = 1;
           WBR;
           // double check is necessary
           if (cpending.val + 1 == started.val) {
+              // get my order;
+              tx->order = cpending.val + 1;
+              CFENCE;
               // mark orec
               orec_t* o = get_orec(addr);
-              o->v.all = started.val;
+              o->v.all = tx->order;
               // in place write
               *addr = val;
               // go turbo mode
@@ -270,7 +271,7 @@ namespace {
   CohortsEager::write_turbo(STM_WRITE_SIG(tx,addr,val,mask))
   {
       orec_t* o = get_orec(addr);
-      o->v.all = started.val; // mark orec
+      o->v.all = tx->order; // mark orec
       *addr = val; // in place write
   }
 
@@ -328,7 +329,7 @@ namespace {
               // increase total number of committed tx
               // ADD(&committed.val, 1);
               committed.val ++;
-              WBR;
+              CFENCE;
               // set self as completed
               last_complete.val = tx->order;
               // abort
@@ -349,6 +350,7 @@ namespace {
   CohortsEager::onSwitchTo()
   {
       last_complete.val = 0;
+      inplace = 0;
   }
 }
 
