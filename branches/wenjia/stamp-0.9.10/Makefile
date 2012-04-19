@@ -14,3 +14,14 @@
 	@cd ssca2 && $(MAKE) $@
 	@cd vacation && $(MAKE) $@
 	@cd yada && $(MAKE) $@
+
+clean:
+	@cd bayes && rm -rf obj.*
+	@cd genome && rm -rf obj.*
+	@cd intruder && rm -rf obj.*
+	@cd kmeans && rm -rf obj.*
+	@cd labyrinth && rm -rf obj.*
+	@cd ssca2 && rm -rf obj.*
+	@cd vacation && rm -rf obj.*
+	@cd yada && rm -rf obj.*
+
