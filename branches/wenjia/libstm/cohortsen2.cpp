@@ -9,10 +9,10 @@
  */
 
 /**
- *  CohortsEN Implementation
+ *  CohortsEN2 Implementation
  *
- *  CohortsEN is CohortsNorec with inplace write if I'm the last one in the
- *  cohort.
+ *  CohortsEN2 is CohortsNorec with inplace write if I'm the last one in the
+ *  cohort. (LOSE CONDITION TO GO TURBO.)
  */
 
 #include "../profiling.hpp"
@@ -26,19 +26,17 @@
 
 using stm::TxThread;
 using stm::last_complete;
-using stm::timestamp;
-using stm::timestamp_max;
 using stm::WriteSet;
 using stm::UNRECOVERABLE;
 using stm::WriteSetEntry;
-
 using stm::ValueList;
 using stm::ValueListEntry;
 using stm::started;
 using stm::cpending;
 using stm::committed;
 using stm::last_order;
-
+using stm::threads;
+using stm::threadcount;
 
 /**
  *  Declare the functions that we're going to implement, so that we can avoid
@@ -49,7 +47,7 @@ namespace {
   volatile uint32_t inplace = 0;
   NOINLINE bool validate(TxThread* tx);
 
-  struct CohortsEN {
+  struct CohortsEN2 {
       static TM_FASTCALL bool begin(TxThread*);
       static TM_FASTCALL void* read_ro(STM_READ_SIG(,,));
       static TM_FASTCALL void* read_rw(STM_READ_SIG(,,));
@@ -67,14 +65,14 @@ namespace {
   };
 
   /**
-   *  CohortsEN begin:
-   *  CohortsEN has a strict policy for transactions to begin. At first,
+   *  CohortsEN2 begin:
+   *  CohortsEN2 has a strict policy for transactions to begin. At first,
    *  every tx can start, until one of the tx is ready to commit. Then no
    *  tx is allowed to start until all the transactions finishes their
    *  commits.
    */
   bool
-  CohortsEN::begin(TxThread* tx)
+  CohortsEN2::begin(TxThread* tx)
   {
       tx->allocator.onTxBegin();
 
@@ -96,10 +94,10 @@ namespace {
   }
 
   /**
-   *  CohortsEN commit (read-only):
+   *  CohortsEN2 commit (read-only):
    */
   void
-  CohortsEN::commit_ro(TxThread* tx)
+  CohortsEN2::commit_ro(TxThread* tx)
   {
       // decrease total number of tx started
       SUB(&started.val, 1);
@@ -110,11 +108,11 @@ namespace {
   }
 
   /**
-   *  CohortsEN commit (in place write commit): no validation, no write back
+   *  CohortsEN2 commit (in place write commit): no validation, no write back
    *  no other thread touches cpending
    */
   void
-  CohortsEN::commit_turbo(TxThread* tx)
+  CohortsEN2::commit_turbo(TxThread* tx)
   {
       // increase # of tx waiting to commit, and use it as the order
       tx->order = ADD(&cpending.val, 1);
@@ -139,13 +137,13 @@ namespace {
   }
 
   /**
-   *  CohortsEN commit (writing context):
+   *  CohortsEN2 commit (writing context):
    *
    *  RW commit is operated in turns. Transactions will be allowed to commit
    *  in an order which is given at the beginning of commit.
    */
   void
-  CohortsEN::commit_rw(TxThread* tx)
+  CohortsEN2::commit_rw(TxThread* tx)
   {
       // increase # of tx waiting to commit, and use it as the order
       tx->order = ADD(&cpending.val ,1);
@@ -186,19 +184,19 @@ namespace {
   }
 
   /**
-   *  CohortsEN read_turbo
+   *  CohortsEN2 read_turbo
    */
   void*
-  CohortsEN::read_turbo(STM_READ_SIG(tx,addr,))
+  CohortsEN2::read_turbo(STM_READ_SIG(tx,addr,))
   {
       return *addr;
   }
 
   /**
-   *  CohortsEN read (read-only transaction)
+   *  CohortsEN2 read (read-only transaction)
    */
   void*
-  CohortsEN::read_ro(STM_READ_SIG(tx,addr,))
+  CohortsEN2::read_ro(STM_READ_SIG(tx,addr,))
   {
       void *tmp = *addr;
       STM_LOG_VALUE(tx, addr, tmp, mask);
@@ -206,10 +204,10 @@ namespace {
   }
 
   /**
-   *  CohortsEN read (writing transaction)
+   *  CohortsEN2 read (writing transaction)
    */
   void*
-  CohortsEN::read_rw(STM_READ_SIG(tx,addr,mask))
+  CohortsEN2::read_rw(STM_READ_SIG(tx,addr,mask))
   {
       // check the log for a RAW hazard, we expect to miss
       WriteSetEntry log(STM_WRITE_SET_ENTRY(addr, NULL, mask));
@@ -223,10 +221,10 @@ namespace {
   }
 
   /**
-   *  CohortsEN write (read-only context): for first write
+   *  CohortsEN2 write (read-only context): for first write
    */
   void
-  CohortsEN::write_ro(STM_WRITE_SIG(tx,addr,val,mask))
+  CohortsEN2::write_ro(STM_WRITE_SIG(tx,addr,val,mask))
   {
       // If everyone else is ready to commit, do in place write
       if (cpending.val + 1 == started.val) {
@@ -248,29 +246,45 @@ namespace {
   }
 
   /**
-   *  CohortsEN write (in place write)
+   *  CohortsEN2 write (in place write)
    */
   void
-  CohortsEN::write_turbo(STM_WRITE_SIG(tx,addr,val,mask))
+  CohortsEN2::write_turbo(STM_WRITE_SIG(tx,addr,val,mask))
   {
       *addr = val; // in place write
   }
 
   /**
-   *  CohortsEN write (writing context)
+   *  CohortsEN2 write (writing context)
    */
   void
-  CohortsEN::write_rw(STM_WRITE_SIG(tx,addr,val,mask))
+  CohortsEN2::write_rw(STM_WRITE_SIG(tx,addr,val,mask))
   {
+      // Every write we test if I can go turbo
+      if (cpending.val + 1 == started.val) {
+          // set up flag indicating in place write starts
+          atomicswap32(&inplace, 1);
+          // double check is necessary
+          if (cpending.val + 1 == started.val) {
+              // write previous writeset back
+              tx->writes.writeback();
+              // in place write
+              *addr = val;
+              // go turbo mode
+              OnFirstWrite(tx, read_turbo, write_turbo, commit_turbo);
+              return;
+          }
+          inplace = 0;
+      }
       // record the new value in a redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
   }
 
   /**
-   *  CohortsEN unwinder:
+   *  CohortsEN2 unwinder:
    */
   stm::scope_t*
-  CohortsEN::rollback(STM_ROLLBACK_SIG(tx, except, len))
+  CohortsEN2::rollback(STM_ROLLBACK_SIG(tx, except, len))
   {
       PreRollback(tx);
 
@@ -287,17 +301,17 @@ namespace {
   }
 
   /**
-   *  CohortsEN in-flight irrevocability:
+   *  CohortsEN2 in-flight irrevocability:
    */
   bool
-  CohortsEN::irrevoc(TxThread*)
+  CohortsEN2::irrevoc(TxThread*)
   {
-      UNRECOVERABLE("CohortsEN Irrevocability not yet supported");
+      UNRECOVERABLE("CohortsEN2 Irrevocability not yet supported");
       return false;
   }
 
   /**
-   *  CohortsEN validation for commit: check that all reads are valid
+   *  CohortsEN2 validation for commit: check that all reads are valid
    */
   bool
   validate(TxThread* tx)
@@ -310,15 +324,11 @@ namespace {
   }
 
   /**
-   *  Switch to CohortsEN:
-   *
-   *    The timestamp must be >= the maximum value of any orec.  Some algs use
-   *    timestamp as a zero-one mutex.  If they do, then they back up the
-   *    timestamp first, in timestamp_max.
+   *  Switch to CohortsEN2:
    *
    */
   void
-  CohortsEN::onSwitchTo()
+  CohortsEN2::onSwitchTo()
   {
       last_complete.val = 0;
       inplace = 0;
@@ -327,22 +337,22 @@ namespace {
 
 namespace stm {
   /**
-   *  CohortsEN initialization
+   *  CohortsEN2 initialization
    */
   template<>
-  void initTM<CohortsEN>()
+  void initTM<CohortsEN2>()
   {
       // set the name
-      stms[CohortsEN].name      = "CohortsEN";
+      stms[CohortsEN2].name      = "CohortsEN2";
       // set the pointers
-      stms[CohortsEN].begin     = ::CohortsEN::begin;
-      stms[CohortsEN].commit    = ::CohortsEN::commit_ro;
-      stms[CohortsEN].read      = ::CohortsEN::read_ro;
-      stms[CohortsEN].write     = ::CohortsEN::write_ro;
-      stms[CohortsEN].rollback  = ::CohortsEN::rollback;
-      stms[CohortsEN].irrevoc   = ::CohortsEN::irrevoc;
-      stms[CohortsEN].switcher  = ::CohortsEN::onSwitchTo;
-      stms[CohortsEN].privatization_safe = true;
+      stms[CohortsEN2].begin     = ::CohortsEN2::begin;
+      stms[CohortsEN2].commit    = ::CohortsEN2::commit_ro;
+      stms[CohortsEN2].read      = ::CohortsEN2::read_ro;
+      stms[CohortsEN2].write     = ::CohortsEN2::write_ro;
+      stms[CohortsEN2].rollback  = ::CohortsEN2::rollback;
+      stms[CohortsEN2].irrevoc   = ::CohortsEN2::irrevoc;
+      stms[CohortsEN2].switcher  = ::CohortsEN2::onSwitchTo;
+      stms[CohortsEN2].privatization_safe = true;
   }
 }
 
