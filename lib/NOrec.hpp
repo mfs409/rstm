@@ -27,6 +27,7 @@
 #include "tx.hpp"
 #include "libitm.h"
 #include "inst3.hpp"                    // the generic R/W instrumentation
+#include "locks.hpp"                    // spin64();
 
 using stm::TX;
 using stm::pad_word_t;
@@ -46,8 +47,10 @@ static NOINLINE uintptr_t validate(TX* tx) {
     while (true) {
         // read the lock until it is even
         uintptr_t s = timestamp.val;
-        if ((s & 1) == 1)
+        if ((s & 1) == 1) {
+            spin64();                   // reduce cache traffic
             continue;
+        }
 
         // check the read set
         CFENCE;
