@@ -143,6 +143,56 @@ namespace stm {
           return (version = 1);
       }
 
+      /**
+       *  We outline this probing loop because it results in better code in the
+       *  read-barrier where the find routine is inlined.
+       */
+      uintptr_t __attribute__((noinline))
+      findSlow(void** addr, void*& value, size_t h) {
+          for (; index[h].version == version; h = (h + 1) % ilength) {
+              if (index[h].address == addr) {
+                  value = list[index[h].index].getValue();
+                  return list[index[h].index].getMask();
+              }
+          }
+          return 0;
+      }
+
+      void insertAtEnd(void** addr, void* val, uintptr_t mask, size_t h) {
+          // update the end of the list
+          size_t size = lsize++;
+
+          // add the log to the list
+          list[size].address = addr;
+          list[size].value = WordType(val, mask);
+
+          // update the index
+          index[h].address = addr;
+          index[h].version = version;
+          index[h].index = size;
+
+          // resize the list if needed
+          if (__builtin_expect(size + 1 == capacity, false))
+              resize();
+
+          // if we reach our load-factor
+          // NB: load factor could be better handled rather than the magic
+          //     constant 3 (used in constructor too)
+          if (__builtin_expect(ilength < (size + 1) * 3, false))
+              rebuild();
+      }
+
+      void __attribute__((noinline))
+      insertSlow(void** addr, void* val, uintptr_t mask, size_t h) {
+          for (; index[h].version == version; h = (h + 1) % ilength) {
+              if (index[h].address == addr) {
+                  list[index[h].index].merge(WordType(val, mask));
+                  return;
+              }
+          }
+          insertAtEnd(addr, val, mask, h);
+      }
+
     public:
       GenericWriteSet(int init) : index(NULL), shift(8 * sizeof(uintptr_t)),
                                   ilength(0), version(1), list(NULL),
@@ -167,15 +217,15 @@ namespace stm {
        */
       uintptr_t find(void** addr, void*& value) {
           size_t h = hash(addr);
+          if (index[h].version != version)
+              return 0;
 
-          while (index[h].version == version) {
-              if (index[h].address == addr) {
-                  value = list[index[h].index].getValue();
-                  return list[index[h].index].getMask();
-              }
-              h = (h + 1) % ilength; // continue probing
+          if (index[h].address == addr) {
+              value = list[index[h].index].getValue();
+              return list[index[h].index].getMask();
           }
-          return 0;
+
+          return findSlow(addr, value, (h + 1) % ilength);
       }
 
       /**
@@ -194,39 +244,12 @@ namespace stm {
        */
       void insert(void** addr, void* val, uintptr_t mask) {
           size_t h = hash(addr);
-
-          // Find the slot that this address should hash to. If we find it,
-          // update the value. If we find an unused slot then it's a new
-          // insertion.
-          while (index[h].version == version) {
-              if (index[h].address == addr) {
-                  list[index[h].index].merge(WordType(val, mask));
-                  return;
-              }
-              h = (h + 1) % ilength; // continue probing
-          }
-
-          // add the log to the list
-          list[lsize].address = addr;
-          list[lsize].value = WordType(val, mask);
-
-          // update the index
-          index[h].address = addr;
-          index[h].version = version;
-          index[h].index   = lsize;
-
-          // update the end of the list
-          lsize += 1;
-
-          // resize the list if needed
-          if (__builtin_expect(lsize == capacity, false))
-              resize();
-
-          // if we reach our load-factor
-          // NB: load factor could be better handled rather than the magic
-          //     constant 3 (used in constructor too)
-          if (__builtin_expect((lsize * 3) >= ilength, false))
-              rebuild();
+          if (index[h].version != version)
+              insertAtEnd(addr, val, mask, h);
+          else if (index[h].address == addr)
+              list[index[h].index].merge(WordType(val, mask));
+          else
+              insertSlow(addr, val, mask, (h + 1) % ilength);
       }
 
       /*** size() lets us know if the transaction is read-only */
