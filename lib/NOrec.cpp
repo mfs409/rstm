@@ -32,4 +32,3 @@ const char* alg_tm_getalgname() {
 // Register the TM for adaptivity and for use as a standalone library
 REGISTER_TM_FOR_ADAPTIVITY(NOrec)
 
-

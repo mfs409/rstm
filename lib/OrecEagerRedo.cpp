@@ -29,10 +29,9 @@
 #include "adaptivity.hpp"
 #include "tm_alloc.hpp"
 #include "libitm.h"
-#include "inst.hpp"
+#include "inst3.hpp"
 
 using namespace stm;
-using namespace stm::inst;
 
 /**
  *  For querying to get the current algorithm name
@@ -144,52 +143,48 @@ void alg_tm_end()
     ++tx->commits_rw;
 }
 
-/** OrecEagerRedo read */
-static inline void* alg_tm_read_aligned_word(void** addr, TX* tx, uintptr_t) {
-    // get the orec addr
-    orec_t* o = get_orec(addr);
-    while (true) {
-        // read the location
-        void* tmp = *addr;
-        CFENCE;
-        // read orec
-        id_version_t ivt; ivt.all = o->v.all;
-
-        // common case: new read to uncontended location
-        if (ivt.all <= tx->start_time) {
-            tx->r_orecs.insert(o);
-            return tmp;
-        }
-
-        // next best: locked by me
-        // [TODO] This needs to deal with byte logging. Both the RAW and the
-        // *addr are dangerous.
-        if (ivt.all == tx->my_lock.all)
-            // check the log for a RAW hazard
-            return (tx->writes.find(addr, tmp)) ? tmp : *addr;
-
-        // abort if locked by other
-        if (ivt.fields.lock)
-            _ITM_abortTransaction(TMConflict);
-
-        // scale timestamp if ivt is too new
-        uintptr_t newts = timestamp.val;
-        validate(tx);
-        tx->start_time = newts;
-    }
-}
-
-static inline void* alg_tm_read_aligned_word_ro(void** addr, TX* tx,
-                                                uintptr_t mask)
-{
-    return alg_tm_read_aligned_word(addr, tx, mask);
-}
-
 namespace {
+/** OrecEagerRedo read */
+  struct Read {
+      void* operator()(void** addr, TX* tx, uintptr_t)  const{
+          // get the orec addr
+          orec_t* o = get_orec(addr);
+          while (true) {
+              // read the location
+              void* tmp = *addr;
+              CFENCE;
+              // read orec
+              id_version_t ivt; ivt.all = o->v.all;
+
+              // common case: new read to uncontended location
+              if (ivt.all <= tx->start_time) {
+                  tx->r_orecs.insert(o);
+                  return tmp;
+              }
+
+              // next best: locked by me
+              // [TODO] This needs to deal with byte logging. Both the RAW and the
+              // *addr are dangerous.
+              if (ivt.all == tx->my_lock.all)
+                  // check the log for a RAW hazard
+                  return (tx->writes.find(addr, tmp)) ? tmp : *addr;
+
+              // abort if locked by other
+              if (ivt.fields.lock)
+                  _ITM_abortTransaction(TMConflict);
+
+              // scale timestamp if ivt is too new
+              uintptr_t newts = timestamp.val;
+              validate(tx);
+              tx->start_time = newts;
+          }
+      }
+  };
+
   /**
    *  OrecEagerRedo write
    */
-  struct OrecEagerRedoWrite {
+  struct Write {
       void operator()(void** addr, void* val, TX* tx, uintptr_t mask) const {
           // add to redo log
           tx->writes.insert(addr, val, mask);
@@ -227,21 +222,26 @@ namespace {
           }
       }
   };
+
+  template <typename T>
+  struct Inst {
+      typedef GenericInst<T, true, Word,
+                          CheckWritesetForReadOnly,
+                          NoFilter, Read, NullType,
+                          NoFilter, Write, NullType> RSTM;
+      typedef GenericInst<T, false, LoggingWordType,
+                          CheckWritesetForReadOnly,
+                          FullFilter, Read, NullType,
+                          FullFilter, Write, NullType> ITM;
+  };
 }
 
 void* alg_tm_read(void** addr) {
-    return read<void*,                  //
-                NoFilter,               // don't pre-filter accesses
-                NoRAW,                  // RAW is done internally
-                NoReadOnly,             // no separate read-only code
-                true                    // force align all accesses
-                >(addr);
-
+    return Inst<void*>::RSTM::Read(addr);
 }
 
 void alg_tm_write(void** addr, void* val) {
-    write<void*, NoFilter, BufferedWrite, true>(addr, val);
-
+    Inst<void*>::RSTM::Write(addr, val);
 }
 
 bool alg_tm_is_irrevocable(TX*) {
@@ -258,3 +258,29 @@ void alg_tm_become_irrevocable(_ITM_transactionState) {
  * Register the TM for adaptivity and for use as a standalone library
  */
 REGISTER_TM_FOR_ADAPTIVITY(OrecEagerRedo)
+
+/**
+ *  Instantiate our read template for all of the read types, and add weak
+ *  aliases for the LIBITM symbols to them.
+ *
+ *  TODO: We can't make weak aliases without mangling the symbol names, but
+ *        this is non-trivial for the instrumentation templates. For now, we
+ *        just inline the read templates into weak versions of the library. We
+ *        could use gcc's asm() exetension to instantiate the template with a
+ *        reasonable name...?
+ */
+#define RSTM_LIBITM_READ(SYMBOL, CALLING_CONVENTION, TYPE)              \
+    TYPE CALLING_CONVENTION __attribute__((weak)) SYMBOL(TYPE* addr) {  \
+        return Inst<TYPE>::ITM::Read(addr);                             \
+    }
+
+#define RSTM_LIBITM_WRITE(SYMBOL, CALLING_CONVENTION, TYPE)             \
+    void CALLING_CONVENTION __attribute__((weak))                       \
+        SYMBOL(TYPE* addr, TYPE val) {                                  \
+        Inst<TYPE>::ITM::Write(addr, val);                              \
+    }
+
+#include "libitm-dtfns.def"
+
+#undef RSTM_LIBITM_WRITE
+#undef RSTM_LIBITM_READ

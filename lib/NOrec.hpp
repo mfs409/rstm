@@ -26,7 +26,7 @@
 #include "WBMMPolicy.hpp"
 #include "tx.hpp"
 #include "libitm.h"
-#include "inst.hpp"                     // the generic R/W instrumentation
+#include "inst3.hpp"                    // the generic R/W instrumentation
 
 using stm::TX;
 using stm::pad_word_t;
@@ -132,46 +132,37 @@ static void alg_tm_end() {
  *  The essence of the NOrec read algorithm, for use with the inst.hpp
  *  infrastructure.
  */
-static inline void* alg_tm_read_aligned_word(void** addr, TX* tx, uintptr_t mask) {
-    // read the location to a temp
-    void* tmp = *addr;
-    CFENCE;
+namespace {
+  struct Read {
+      void* operator()(void** addr, TX* tx, uintptr_t mask) const {
+          // read the location to a temp
+          void* tmp = *addr;
+          CFENCE;
 
-    // if the timestamp has changed since the last read, we must validate and
-    // restart this read
-    while (tx->start_time != timestamp.val) {
-        if ((tx->start_time = validate(tx)) == VALIDATION_FAILED)
-            _ITM_abortTransaction(TMConflict);
-        tmp = *addr;
-        CFENCE;
-    }
+          // if the timestamp has changed since the last read, we must validate and
+          // restart this read
+          while (tx->start_time != timestamp.val) {
+              if ((tx->start_time = validate(tx)) == VALIDATION_FAILED)
+                  _ITM_abortTransaction(TMConflict);
+              tmp = *addr;
+              CFENCE;
+          }
 
-    // tmp contains the value we want
-    tx->vlist.insert(addr, tmp, mask);
-    return tmp;
+          // tmp contains the value we want
+          tx->vlist.insert(addr, tmp, mask);
+          return tmp;
+      }
+  };
 }
-
-static inline
-void* alg_tm_read_aligned_word_ro(void** addr, TX* tx, uintptr_t mask) {
-    return alg_tm_read_aligned_word(addr, tx, mask);
-}
-
-/** Simple buffered transactional write. */
 
 /** The library api interface to read an aligned word. */
 void* alg_tm_read(void** addr) {
-    return stm::inst::read<void*,                 //
-                           stm::inst::NoFilter,   // don't pre-filter accesses
-                           stm::inst::WordlogRAW, // log at the word granularity
-                           stm::inst::NoReadOnly, // no separate read-only code
-                           true                   // force align all accesses
-                           >(addr);
+    return Lazy<void*, Read>::RSTM::Read(addr);
 }
 
 /** The library api interface to write an aligned word. */
 void alg_tm_write(void** addr, void* val) {
-    using namespace stm::inst;
-    write<void*, NoFilter, BufferedWrite, true>(addr, val);
+    Lazy<void*, Read>::RSTM::Write(addr, val);
 }
 
 bool alg_tm_is_irrevocable(TX*) {
@@ -196,23 +187,17 @@ void alg_tm_become_irrevocable(_ITM_transactionState) {
  */
 #define RSTM_LIBITM_READ(SYMBOL, CALLING_CONVENTION, TYPE)              \
     TYPE CALLING_CONVENTION __attribute__((weak)) SYMBOL(TYPE* addr) {  \
-        return stm::inst::read<TYPE,                                    \
-                               stm::inst::FullFilter,                   \
-                               stm::inst::WordlogRAW,                   \
-                               stm::inst::NoReadOnly,                   \
-                               false>(addr);                            \
+        return Lazy<TYPE, Read>::ITM::Read(addr);                       \
     }
 
 #define RSTM_LIBITM_WRITE(SYMBOL, CALLING_CONVENTION, TYPE)             \
     void CALLING_CONVENTION __attribute__((weak))                       \
-    SYMBOL(TYPE* addr, TYPE val) {                                      \
-        stm::inst::write<TYPE,                                          \
-                         stm::inst::FullFilter,                         \
-                         stm::inst::BufferedWrite,                      \
-                         false>(addr, val);                             \
+        SYMBOL(TYPE* addr, TYPE val) {                                  \
+        Lazy<TYPE, Read>::ITM::Write(addr, val);                        \
     }
 
 #include "libitm-dtfns.def"
 
 #undef RSTM_LIBITM_WRITE
 #undef RSTM_LIBITM_READ
+

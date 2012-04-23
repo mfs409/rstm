@@ -21,7 +21,7 @@
 #include "byte-logging.hpp"
 #include "tmabi-weak.hpp"               // the weak interface
 #include "foreach.hpp"                  // FOREACH macro
-#include "inst.hpp"
+#include "inst3.hpp"
 #include "WBMMPolicy.hpp" // todo: remove this, use something simpler
 #include "tx.hpp"
 #include "adaptivity.hpp"
@@ -207,32 +207,28 @@ void alg_tm_end() {
     ++tx->commits_rw;
 }
 
-/**
- *  Transactional read
- */
-static inline void* alg_tm_read_aligned_word(void** addr, TX* tx, uintptr_t) {
-    // log orec
-    tx->r_orecs.insert(get_orec(addr));
-    return *addr;
-}
-
-static inline void* alg_tm_read_aligned_word_ro(void** addr, TX* tx,
-                                                uintptr_t mask)
-{
-    return alg_tm_read_aligned_word(addr, tx, mask);
-}
-
-/**
- *  Simple buffered transactional write
- */
 namespace {
-  template <typename Word>
-  struct CohortsEagerWrite {
+  struct Read {
+      /**
+       *  Eager transactional read just needs to log the orec (RAW is handled
+       *  externally).
+       */
+      void* operator()(void** addr, TX* tx, uintptr_t) const {
+          // log orec
+          tx->r_orecs.insert(get_orec(addr));
+          return *addr;
+      }
+  };
+  /**
+   *  Eager transactional write.
+   */
+  template <class WordType>
+  struct Write {
       void operator()(void** addr, void* val, TX* tx, uintptr_t mask) const {
           if (tx->turbo) {
               orec_t* o = get_orec(addr);
               o->v.all = started; // mark orec
-              Word::Write(addr, val, mask); // in place write
+              WordType::Write(addr, val, mask); // in place write
               return;
           }
 
@@ -249,7 +245,7 @@ namespace {
                       orec_t* o = get_orec(addr);
                       o->v.all = started;
                       // in place write
-                      Word::Write(addr, val, mask);
+                      WordType::Write(addr, val, mask);
                       // go turbo mode
                       tx->turbo = true;
                       return;
@@ -265,19 +261,27 @@ namespace {
           tx->writes.insert(addr, val, mask);
       }
   };
+
+  template <typename T>
+  struct Inst {
+      typedef GenericInst<T, true, Word,
+                          CheckWritesetForReadOnly,
+                          TurboFilter<NoFilter>, Read, NullType,
+                          NoFilter, Write<Word>, NullType> RSTM;
+
+      typedef GenericInst<T, false, LoggingWordType,
+                          CheckWritesetForReadOnly,
+                          TurboFilter<FullFilter>, Read, NullType,
+                          NoFilter, Write<LoggingWordType>, NullType> ITM;
+  };
 }
+
 void* alg_tm_read(void** addr) {
-        return inst::read<void*,
-                          inst::TurboFilter<inst::NoFilter>, // turbo filter
-                          inst::WordlogRAW, // log at the word granularity
-                          inst::NoReadOnly, // no separate read-only code
-                          true              // force align all accesses
-                          >(addr);
+    return Inst<void*>::RSTM::Read(addr);
 }
 
 void alg_tm_write(void** addr, void* val) {
-    using namespace stm::inst;
-    write<void*, NoFilter, CohortsEagerWrite<Word>, true>(addr, val);
+    Inst<void*>::RSTM::Write(addr, val);
 }
 
 bool alg_tm_is_irrevocable(TX* tx) {
@@ -294,4 +298,30 @@ void alg_tm_become_irrevocable(_ITM_transactionState) {
  *  Register the TM for adaptivity and for use as a standalone library
  */
 REGISTER_TM_FOR_ADAPTIVITY(CohortsEager)
+
+/**
+ *  Instantiate our read template for all of the read types, and add weak
+ *  aliases for the LIBITM symbols to them.
+ *
+ *  TODO: We can't make weak aliases without mangling the symbol names, but
+ *        this is non-trivial for the instrumentation templates. For now, we
+ *        just inline the read templates into weak versions of the library. We
+ *        could use gcc's asm() exetension to instantiate the template with a
+ *        reasonable name...?
+ */
+#define RSTM_LIBITM_READ(SYMBOL, CALLING_CONVENTION, TYPE)              \
+    TYPE CALLING_CONVENTION __attribute__((weak)) SYMBOL(TYPE* addr) {  \
+        return Inst<TYPE>::ITM::Read(addr);                             \
+    }
+
+#define RSTM_LIBITM_WRITE(SYMBOL, CALLING_CONVENTION, TYPE) \
+    void CALLING_CONVENTION __attribute__((weak))           \
+        SYMBOL(TYPE* addr, TYPE val) {                      \
+        Inst<TYPE>::ITM::Write(addr, val);                  \
+    }
+
+#include "libitm-dtfns.def"
+
+#undef RSTM_LIBITM_WRITE
+#undef RSTM_LIBITM_READ
 

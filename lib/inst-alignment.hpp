@@ -27,61 +27,59 @@
  */
 
 namespace stm {
-  namespace inst {
-    enum Arch {
-        x86, x86_64, sparc
-    };
+  enum Arch {
+      x86, x86_64, sparc
+  };
 
 #if defined(__i386__)
-    static const Arch DEFAULT_ARCH = x86;
+  static const Arch DEFAULT_ARCH = x86;
 #elif defined(__x86_64__) && defined (__LP64__)
-    static const Arch DEFAULT_ARCH = x86_64;
+  static const Arch DEFAULT_ARCH = x86_64;
 #elif defined(__sparc__)
-    static const Arch DEFAULT_ARCH = sparc;
+  static const Arch DEFAULT_ARCH = sparc;
 #endif
 
-    /**
-     *  The Aligned template. By default, accesses are
-     *  unaligned---specializations of T, B, and A should define the value enum
-     *  to be true.
-     *
-     *  We want to be able to force the output of an aligned barrier, so the
-     *  fourth parameter overrides the normal settings.
-     */
-    template <typename T,
-              bool ForceAligned = false,
-              Arch A = DEFAULT_ARCH,
-              size_t B = sizeof(T)>
-    struct Aligned {
-        enum { value = false };
-    };
+  /**
+   *  The Aligned template. By default, accesses are
+   *  unaligned---specializations of T, B, and A should define the value enum
+   *  to be true.
+   *
+   *  We want to be able to force the output of an aligned barrier, so the
+   *  fourth parameter overrides the normal settings.
+   */
+  template <typename T,
+            bool ForceAligned = false,
+            Arch A = DEFAULT_ARCH,
+            size_t B = sizeof(T)>
+  struct Aligned {
+      enum { value = false };
+  };
 
-    /** all sparc accesses are aligned */
-    template <typename T, bool ForceAligned,  size_t B>
-    struct Aligned<T, ForceAligned, sparc, B> {
-        enum { value = true };
-    };
+  /** all sparc accesses are aligned */
+  template <typename T, bool ForceAligned,  size_t B>
+  struct Aligned<T, ForceAligned, sparc, B> {
+      enum { value = true };
+  };
 
-    /**
-     *  All byte access are aligned (we need both ForceAligned specializations
-     *  to avoid an ambiguous specialization problem with the ForceAligned=true
-     *  specialization below.
-     */
-    template <typename T, Arch A>
-    struct Aligned<T, true, A, 1> {
-        enum { value = true };
-    };
+  /**
+   *  All byte access are aligned (we need both ForceAligned specializations
+   *  to avoid an ambiguous specialization problem with the ForceAligned=true
+   *  specialization below.
+   */
+  template <typename T, Arch A>
+  struct Aligned<T, true, A, 1> {
+      enum { value = true };
+  };
 
-    template <typename T, Arch A>
-    struct Aligned<T, false, A, 1> {
-        enum { value = true };
-    };
+  template <typename T, Arch A>
+  struct Aligned<T, false, A, 1> {
+      enum { value = true };
+  };
 
-    /** when we force aligned, value is always true */
-    template <typename T, Arch A, size_t B>
-    struct Aligned<T, true, A, B> {
-        enum { value = true };
-    };
-  }
+  /** when we force aligned, value is always true */
+  template <typename T, Arch A, size_t B>
+  struct Aligned<T, true, A, B> {
+      enum { value = true };
+  };
 }
 #endif // RSTM_INST_ALIGNMENT_H

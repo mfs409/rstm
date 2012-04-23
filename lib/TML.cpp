@@ -20,9 +20,9 @@
  */
 
 #include <cassert>
-#include "byte-logging.hpp"
 #include "tmabi-weak.hpp"
 #include "tx.hpp"
+#include "inst3.hpp"
 #include "adaptivity.hpp"
 #include "tm_alloc.hpp"
 #include "libitm.h"
@@ -105,34 +105,49 @@ void alg_tm_end() {
     }
 }
 
+namespace {
+  struct Read {
+      void* operator()(void** addr, TX* tx, uintptr_t mask) const {
+          void* val = *addr;
+          afterread_TML(tx);
+          return val;
+      }
+  };
+
+  template <class WordType>
+  struct Write {
+      void operator()(void** addr, void* val, TX* tx, uintptr_t mask) const {
+          beforewrite_TML(tx);
+          WordType::Write(addr, val, mask);
+      }
+  };
+
+  template <typename T>
+  struct Inst {
+      typedef GenericInst<T, true, Word,
+                          CheckWritesetForReadOnly,
+                          TurboFilter<NoFilter>, Read, NullType,
+                          NoFilter, Write<Word>, NullType> RSTM;
+      typedef GenericInst<T, false, LoggingWordType,
+                          CheckWritesetForReadOnly,
+                          TurboFilter<FullFilter>, Read, NullType,
+                          NoFilter, Write<LoggingWordType>, NullType> ITM;
+  };
+}
+
 /**
  *  Transactional read
  */
 void* alg_tm_read(void** addr) {
-    TX* tx = Self;
-    void* val = *addr;
-    if (tx->turbo)
-        return val;
-    // NB:  afterread_tml includes a CFENCE
-    afterread_TML(tx);
-    return val;
+    return Inst<void*>::RSTM::Read(addr);
 }
 
 /**
- *  Simple buffered transactional write
+ *  Transactional write
  */
 void alg_tm_write(void** addr, void* val) {
-    TX* tx = Self;
-    if (tx->turbo) {
-        *addr = val;
-        return;
-    }
-    // NB:  beforewrite_tml includes a fence via CAS
-    beforewrite_TML(tx);
-    *addr = val;
+    Inst<void*>::RSTM::Write(addr, val);
 }
-
-
 
 bool alg_tm_is_irrevocable(TX* tx) {
     return (tx->turbo);
@@ -147,3 +162,29 @@ void alg_tm_become_irrevocable(_ITM_transactionState) {
  *  Register the TM for adaptivity
  */
 REGISTER_TM_FOR_ADAPTIVITY(TML)
+
+/**
+ *  Instantiate our read template for all of the read types, and add weak
+ *  aliases for the LIBITM symbols to them.
+ *
+ *  TODO: We can't make weak aliases without mangling the symbol names, but
+ *        this is non-trivial for the instrumentation templates. For now, we
+ *        just inline the read templates into weak versions of the library. We
+ *        could use gcc's asm() exetension to instantiate the template with a
+ *        reasonable name...?
+ */
+#define RSTM_LIBITM_READ(SYMBOL, CALLING_CONVENTION, TYPE)              \
+    TYPE CALLING_CONVENTION __attribute__((weak)) SYMBOL(TYPE* addr) {  \
+        return Inst<TYPE>::ITM::Read(addr);                             \
+    }
+
+#define RSTM_LIBITM_WRITE(SYMBOL, CALLING_CONVENTION, TYPE)             \
+    void CALLING_CONVENTION __attribute__((weak))                       \
+    SYMBOL(TYPE* addr, TYPE val) {                                      \
+        Inst<TYPE>::ITM::Write(addr, val);                              \
+    }
+
+#include "libitm-dtfns.def"
+
+#undef RSTM_LIBITM_WRITE
+#undef RSTM_LIBITM_READ

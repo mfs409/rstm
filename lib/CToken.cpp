@@ -23,7 +23,7 @@
 #include "byte-logging.hpp"
 #include "tmabi-weak.hpp"
 #include "foreach.hpp"
-#include "inst.hpp"
+#include "inst3.hpp"
 #include "WBMMPolicy.hpp"
 #include "tx.hpp"
 #include "adaptivity.hpp"
@@ -31,7 +31,6 @@
 #include "libitm.h"
 
 using namespace stm;
-using namespace stm::inst;
 
 static pad_word_t timestamp = {0};
 static pad_word_t last_complete = {0};
@@ -137,41 +136,34 @@ void alg_tm_end()
     ++tx->commits_rw;
 }
 
+namespace {
 /**
  *  CToken read (writing transaction)
  */
-static inline void* alg_tm_read_aligned_word(void** addr, TX* tx, uintptr_t) {
-    void* tmp = *addr;
-    CFENCE; // RBR between dereference and orec check
+  struct Read {
+      void* operator()(void** addr, TX* tx, uintptr_t) const {
+          void* tmp = *addr;
+          CFENCE; // RBR between dereference and orec check
 
-    // get the orec addr, read the orec's version#
-    orec_t* o = get_orec(addr);
-    uintptr_t ivt = o->v.all;
-    // abort if this changed since the last time I saw someone finish
-    if (ivt > tx->ts_cache)
-        _ITM_abortTransaction(TMConflict);
+          // get the orec addr, read the orec's version#
+          orec_t* o = get_orec(addr);
+          uintptr_t ivt = o->v.all;
+          // abort if this changed since the last time I saw someone finish
+          if (ivt > tx->ts_cache)
+              _ITM_abortTransaction(TMConflict);
 
-    // log orec
-    tx->r_orecs.insert(o);
+          // log orec
+          tx->r_orecs.insert(o);
 
-    // validate, and if we have writes, then maybe switch to fast mode
-    if (last_complete.val > tx->ts_cache)
-        validate(tx, last_complete.val);
-    return tmp;
-}
+          // validate, and if we have writes, then maybe switch to fast mode
+          if (last_complete.val > tx->ts_cache)
+              validate(tx, last_complete.val);
+          return tmp;
+      }
+  };
 
-static inline void* alg_tm_read_aligned_word_ro(void** addr, TX* tx,
-                                                uintptr_t mask)
-{
-    return alg_tm_read_aligned_word(addr, tx, mask);
-}
-
-namespace {
-/**
- *  CToken write
- */
-  struct CTokenWrite {
-      void operator()(void** addr, void* val, TX* tx, uintptr_t mask) {
+  struct Write {
+      void operator()(void** addr, void* val, TX* tx, uintptr_t mask) const {
           if (tx->order == -1) {
               // we don't have any writes yet, so we need to get an order here
               tx->order = 1 + faiptr(&timestamp.val);
@@ -181,19 +173,27 @@ namespace {
           tx->writes.insert(addr, val, mask);
       }
   };
+
+  template <typename T>
+  struct Inst {
+      typedef GenericInst<T, true, Word,
+                          CheckWritesetForReadOnly,
+                          NoFilter, Read, NullType,
+                          NoFilter, Write, NullType> RSTM;
+
+      typedef GenericInst<T, false, LoggingWordType,
+                          CheckWritesetForReadOnly,
+                          FullFilter, Read, NullType,
+                          FullFilter, Write, NullType> ITM;
+  };
 }
 
 void* alg_tm_read(void** addr) {
-    return read<void*,
-                NoFilter,               // don't prefilter accesses
-                WordlogRAW,             // log at the word granularity
-                NoReadOnly,             // no separate read-only code
-                true                    // force align all accesses
-                >(addr);
+    return Inst<void*>::RSTM::Read(addr);
 }
 
 void alg_tm_write(void** addr, void* val) {
-    write<void*, NoFilter, CTokenWrite, true>(addr, val);
+    Inst<void*>::RSTM::Write(addr, val);
 }
 
 bool alg_tm_is_irrevocable(TX* tx) {
@@ -210,3 +210,29 @@ void alg_tm_become_irrevocable(_ITM_transactionState) {
  *  Register the TM for adaptivity and for use as a standalone library
  */
 REGISTER_TM_FOR_ADAPTIVITY(CToken)
+
+/**
+ *  Instantiate our read template for all of the read types, and add weak
+ *  aliases for the LIBITM symbols to them.
+ *
+ *  TODO: We can't make weak aliases without mangling the symbol names, but
+ *        this is non-trivial for the instrumentation templates. For now, we
+ *        just inline the read templates into weak versions of the library. We
+ *        could use gcc's asm() exetension to instantiate the template with a
+ *        reasonable name...?
+ */
+#define RSTM_LIBITM_READ(SYMBOL, CALLING_CONVENTION, TYPE)              \
+    TYPE CALLING_CONVENTION __attribute__((weak)) SYMBOL(TYPE* addr) {  \
+        return Inst<TYPE>::ITM::Read(addr);                             \
+    }
+
+#define RSTM_LIBITM_WRITE(SYMBOL, CALLING_CONVENTION, TYPE)             \
+    void CALLING_CONVENTION __attribute__((weak))                       \
+    SYMBOL(TYPE* addr, TYPE val) {                                      \
+        Inst<TYPE>::ITM::Write(addr, val);                              \
+    }
+
+#include "libitm-dtfns.def"
+
+#undef RSTM_LIBITM_WRITE
+#undef RSTM_LIBITM_READ
