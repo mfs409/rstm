@@ -36,8 +36,7 @@ CXXFLAGS += -MMD -I$(ODIR)
 #
 # Names of the supporting files that we need to build
 #
-COMMONNAMES = WBMMPolicy Common CommonLazy CommonOrec tx \
-              checkpoint adaptivity itm-common
+COMMONNAMES = WBMMPolicy Common CommonOrec tx checkpoint adaptivity itm-common
 
 
 #
