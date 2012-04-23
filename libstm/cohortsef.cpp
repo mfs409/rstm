@@ -41,6 +41,8 @@ using stm::last_order;
 namespace {
   // inplace write flag
   volatile uint32_t inplace = 0;
+  NOINLINE bool validate(TxThread* tx);
+
   struct CohortsEF {
       static TM_FASTCALL bool begin(TxThread*);
       static TM_FASTCALL void* read_ro(STM_READ_SIG(,,));
@@ -56,7 +58,6 @@ namespace {
       static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
       static void onSwitchTo();
-      static NOINLINE void validate(TxThread* tx);
   };
 
   /**
@@ -120,19 +121,16 @@ namespace {
 
       // I must be the last in the cohort, so clean global_filter
       global_filter->clear();
-      WBR;
 
       // reset in place write flag
       inplace = 0;
-      WBR;
-
-      // mark self as done
-      last_complete.val = cpending.val;
 
       // increase # of committed
-      //committed.val ++;
-      //WBR;
-      ADD(&committed.val, 1);
+      committed.val ++;
+      CFENCE;
+
+      // mark self as done
+      last_complete.val = tx->order;
   }
 
   /**
@@ -156,7 +154,12 @@ namespace {
       // If in place write occurred, all tx validate reads
       // Otherwise, only first one skips validation
       if (inplace == 1 || tx->order != last_order)
-          validate(tx);
+          if (!validate(tx)) {
+              committed.val ++;
+              CFENCE;
+              last_complete.val = tx->order;
+              tx->tmabort(tx);
+          }
 
       // do write back
       tx->writes.writeback();
@@ -172,15 +175,12 @@ namespace {
           global_filter->clear();
       }
 
+      // increase total number of committed tx
+      committed.val ++;
+      CFENCE;
+
       // mark self as done
       last_complete.val = tx->order;
-
-      // increase total number of committed tx
-      // [NB] Using atomic instruction might be faster
-      ADD(&committed.val, 1);
-      //WBR;
-      //committed.val ++;
-      //WBR;
 
       // commit all frees, reset all lists
       tx->rf->clear();
@@ -235,13 +235,11 @@ namespace {
       // If everyone else is ready to commit, do in place write
       if (cpending.val + 1 == started.val) {
           // set up flag indicating in place write starts
-          // [NB]When testing on MacOS, better use CAS
-          inplace = 1;
-          WBR;
+          atomicswap32(&inplace, 1);
           // double check is necessary
           if (cpending.val + 1 == started.val) {
               // in place write
-              *addr = val; // WBR;
+              *addr = val;
               // add entry to the global filter
               global_filter->add(addr);
               // go turbo mode
@@ -313,8 +311,8 @@ namespace {
   /**
    *  CohortsEF validation for commit: check that all reads are valid
    */
-  void
-  CohortsEF::validate(TxThread* tx)
+  bool
+  validate(TxThread* tx)
   {
       // If there is a same element in both global_filter and read_filter
       if (global_filter->intersect(tx->rf)) {
@@ -322,16 +320,10 @@ namespace {
           if ((uint32_t)tx->order == started.val) {
               last_order = started.val + 1;
               global_filter->clear();
-              // [NB] Intruder bench will abort if without this WBR
-              WBR;
           }
-          // set self as completed
-          last_complete.val = tx->order;
-          // increase total number of committed tx
-          ADD(&committed.val, 1);
-          // abort
-          tx->tmabort(tx);
+          return false;
       }
+      return true;
   }
 
   /**
