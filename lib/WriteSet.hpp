@@ -30,27 +30,6 @@
 #include <cstdio>
 
 namespace stm {
-  /**
-   *  hash function is straight from CLRS (that's where the magic constant
-   *  comes from).
-   */
-  template <size_t S>
-  static uint32_t hash(void**, const int);
-
-  template <>
-  uint32_t hash<4>(void** key, const int shift) {
-      static const uint64_t M = 0x9E3779B9;
-      uint64_t r = (((uintptr_t)key)) * M;
-      return (uint32_t)((r & 0xFFFFFFFF) >> shift);
-  }
-
-  template <>
-  uint32_t hash<8>(void** key, const int shift) {
-      static const uint64_t M = 0x9E3779B97F4A782F;
-      uint64_t r = (((uintptr_t)key)) * M;
-      return (uint32_t)((r & 0xFFFFFFFF) >> shift);
-  }
-
   /** The write set is an indexed array of elements. */
   template <typename WordType>
   class GenericWriteSet
@@ -59,15 +38,15 @@ namespace stm {
       struct IndexType {
           size_t version;
           void** address;
-          int index;
+          size_t index;
 
           IndexType() : version(0), address(NULL), index(0) {
           }
       };
 
       IndexType* index;                 // hash table
-      uint32_t shift;                   // for the hash function
-      uint32_t ilength;                 // max size of hash
+      size_t shift;                     // for the hash function
+      size_t ilength;                   // max size of hash
       size_t version;                   // version for fast clearing
 
       /** data type for the list */
@@ -104,6 +83,17 @@ namespace stm {
       size_t lsize;                     // elements in the array
 
       /**
+       *  The hash function is from CLRS. The magic constant is based on
+       *  Knuth's multiplicative techinique, and depends on the sizeof the
+       *  word.
+       */
+      size_t hash(void** key) {
+          static const uintptr_t s = (sizeof(void*) == 4) ? 0x9E3779B9 :
+                                                            0x9E3779B97F4A782F;
+          return s * (uintptr_t)key >> shift;
+      }
+
+      /**
        *  This doubles the size of the index. This *does not* do anything as
        *  far as actually doing memory allocation. Callers should delete[] the
        *  index table, increment the table size, and then reallocate it.
@@ -112,7 +102,7 @@ namespace stm {
           assert(shift != 0 &&
                  "ERROR: the writeset doesn't support an index this large");
           shift -= 1;
-          ilength = 1 << (8 * sizeof(uint32_t) - shift);
+          ilength = 1 << (8 * sizeof(uintptr_t) - shift);
           return ilength;
       }
 
@@ -126,7 +116,7 @@ namespace stm {
 
           for (int i = 0, e = lsize; i < e; ++i) {
               void** address = list[i].address;
-              uint32_t h = hash<sizeof(void*)>(address, shift);
+              size_t h = hash(address);
 
               // search for the next available slot
               while (index[h].version == version)
@@ -154,7 +144,7 @@ namespace stm {
       }
 
     public:
-      GenericWriteSet(int init) : index(NULL), shift(8 * sizeof(uint32_t)),
+      GenericWriteSet(int init) : index(NULL), shift(8 * sizeof(uintptr_t)),
                                   ilength(0), version(1), list(NULL),
                                   capacity(init), lsize(0) {
           // find a "good" index size for the initial capacity of the list
@@ -176,16 +166,14 @@ namespace stm {
        *  the case that we don't find anything, the mask is set to 0.
        */
       uintptr_t find(void** addr, void*& value) {
-          uint32_t h = hash<sizeof(void*)>(addr, shift);
+          size_t h = hash(addr);
 
           while (index[h].version == version) {
-              if (index[h].address != addr) {
-                  h = (h + 1) % ilength; // continue probing
-              }
-              else {
+              if (index[h].address == addr) {
                   value = list[index[h].index].getValue();
                   return list[index[h].index].getMask();
               }
+              h = (h + 1) % ilength; // continue probing
           }
           return 0;
       }
@@ -205,7 +193,7 @@ namespace stm {
        *  appear as write reordering in a data-racy program.
        */
       void insert(void** addr, void* val, uintptr_t mask) {
-          uint32_t h = hash<sizeof(void*)>(addr, shift);
+          size_t h = hash(addr);
 
           // Find the slot that this address should hash to. If we find it,
           // update the value. If we find an unused slot then it's a new
