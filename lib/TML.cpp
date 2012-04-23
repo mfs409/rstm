@@ -125,11 +125,11 @@ namespace {
   template <typename T>
   struct Inst {
       typedef GenericInst<T, true, NullType,
-                          CheckWritesetForReadOnly,
+                          NoReadOnly,
                           TurboFilter<NoFilter>, Read, NullType,
                           NoFilter, Write<Word>, NullType> RSTM;
       typedef GenericInst<T, false, NullType,
-                          CheckWritesetForReadOnly,
+                          NoReadOnly,
                           TurboFilter<FullFilter>, Read, NullType,
                           NoFilter, Write<LoggingWordType>, NullType> ITM;
   };
