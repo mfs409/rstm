@@ -13,13 +13,16 @@
 #include <stdint.h>
 #include "tx.hpp"
 #include "inst-alignment.hpp"
+#include "inst-buffer.hpp"
+#include "inst-offsetof.hpp"
+#include "inst-baseof.hpp"
 #include "inst-stackfilter.hpp"         // not used directly here, but all
 #include "inst-raw.hpp"                 // specializers will need them
 
 /**
  *  The intrinsic read and write barriers are implemented by the TM.
  */
-static void* alg_tm_read_aligned_word(void** addr, stm::TX*, uintptr_t mask);
+void* alg_tm_read_aligned_word(void** addr, stm::TX*, uintptr_t mask);
 static void* alg_tm_read_aligned_word_ro(void** addr, stm::TX*, uintptr_t mask);
 
 namespace stm {
@@ -34,105 +37,6 @@ namespace stm {
             return false;
         }
     };
-
-    /**
-     *  This template gets specialized to tell us how many word-size accesses
-     *  need to be done in order to satisfy an access to the given type. This
-     *  is a maximum size, it might be 1 word too big when the type isn't
-     *  guaranteed to be aligned, but the address is actually aligned. We
-     *  account for this in the loop that actually performs the read.
-     */
-    template <typename T,
-              bool ALIGNED,
-              size_t M = sizeof(T) % sizeof(void*)>
-    struct Buffer;
-
-    /** Aligned subword types only need 1 word. */
-    template <typename T, size_t M>
-    struct Buffer<T, true, M> {
-        enum { WORDS = 1 };
-    };
-
-    /** Possibly unaligned subword types may need 2 words. */
-    template <typename T, size_t M>
-    struct Buffer<T, false, M> {
-        enum { WORDS = 2 };
-    };
-
-    /**
-     *  Aligned word and multiword types
-     *
-     *  NB: we assume that this will not be instantiated with multiword types
-     *      that aren't multiples of the size of a word. We could check this
-     *      with static-asserts, if we had them.
-     */
-    template <typename T>
-    struct Buffer<T, true, 0> {
-        enum { WORDS = sizeof(T)/sizeof(void*) };
-    };
-
-    /**
-     *  Possibly unaligned word and multiword types may need an extra word.
-     *
-     *  NB: we assume that this will not be instantiated with multiword types
-     *      that aren't multiples of the size of a word. We could check this
-     *      with static-asserts, if we had them.
-     */
-    template <typename T>
-    struct Buffer<T, false, 0> {
-        enum { WORDS = sizeof(T)/sizeof(void*) + 1 };
-    };
-
-    /**
-     *  Addresses for everything other than aligned word and multiword accesses
-     *  may need to be adjusted to a word boundary.
-     */
-    template <typename T,
-              bool ALIGNED,
-              size_t M = sizeof(T) % sizeof(void*)>
-    struct Base {
-        static inline void** Of(T* addr) {
-            const uintptr_t MASK = ~static_cast<uintptr_t>(sizeof(void*) - 1);
-            const uintptr_t base = reinterpret_cast<uintptr_t>(addr) & MASK;
-            return reinterpret_cast<void**>(base);
-        }
-    };
-
-    /**
-     *  Aligned words (or multiples of words) don't need to be adjusted.
-     */
-    template <typename T>
-    struct Base<T, true, 0> {
-        static inline void** Of(T* addr) {
-            return reinterpret_cast<void**>(addr);
-        }
-    };
-
-    /**
-     *  We need to know the offset within a word for verything other than
-     *  aligned words or multiword accesses.
-     */
-    template <typename T,
-              bool ALIGNED,
-              size_t M = sizeof(T) % sizeof(void*)>
-    struct Offset {
-        static inline size_t Of(const T* const addr) {
-            const uintptr_t MASK = static_cast<uintptr_t>(sizeof(void*) - 1);
-            const uintptr_t offset = reinterpret_cast<uintptr_t>(addr) & MASK;
-            return static_cast<size_t>(offset);
-        }
-    };
-
-    /**
-     *  Aligned word and multiword accessed have a known offset of 0.
-     */
-    template <typename T>
-    struct Offset<T, true, 0> {
-        static inline size_t Of(T* addr) {
-            return 0;
-        }
-    };
-
     /**
      *  Whenever we need to perform a transactional load or store we need a
      *  mask that has 0xFF in all of the bytes that we are intersted in. This
@@ -222,13 +126,13 @@ namespace stm {
         const bool ALIGNED = Aligned<T, FORCE_ALIGNED>::value;
 
         // adjust the base pointer for possibly non-word aligned accesses
-        void** base = Base<T, ALIGNED>::Of(addr);
+        void** base = Base<T, ALIGNED>::BaseOf(addr);
 
         // compute an offset for this address
-        size_t off = Offset<T, ALIGNED>::Of(addr);
+        size_t off = Offset<T, ALIGNED>::OffsetOf(addr);
 
         // the bytes union is used to deal with unaligned and/or subword data.
-        enum { N = Buffer<T, ALIGNED>::WORDS };
+        enum { N = Buffer<T, ALIGNED>::Words };
         union {
             void* words[N];
             uint8_t bytes[sizeof(void*[N])];
@@ -263,13 +167,13 @@ namespace stm {
         const bool ALIGNED = Aligned<T, FORCE_ALIGNED>::value;
 
         // adjust the base pointer for possibly non-word aligned accesses
-        void** base = Base<T, ALIGNED>::Of(addr);
+        void** base = Base<T, ALIGNED>::BaseOf(addr);
 
         // compute an offset for this address
-        size_t off = Offset<T, ALIGNED>::Of(addr);
+        size_t off = Offset<T, ALIGNED>::OffsetOf(addr);
 
         // the bytes union is used to deal with unaligned and/or subword data.
-        enum { N = Buffer<T, ALIGNED>::WORDS };
+        enum { N = Buffer<T, ALIGNED>::Words };
         union {
             void* words[N];
             uint8_t bytes[sizeof(void*[N])];

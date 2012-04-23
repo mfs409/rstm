@@ -23,7 +23,7 @@
 #include "byte-logging.hpp"
 #include "tmabi-weak.hpp"
 #include "foreach.hpp"
-#include "inst.hpp"                     // read<>/write<?>, etc
+#include "inst3.hpp"                    // read<>/write<?>, etc
 #include "MiniVector.hpp"
 #include "metadata.hpp"
 #include "WBMMPolicy.hpp"
@@ -34,7 +34,6 @@
 #include "libitm.h"
 
 using namespace stm;
-using namespace stm::inst;
 
 /**
  *  For querying to get the current algorithm name
@@ -210,6 +209,7 @@ static NOINLINE void privtest(TX* tx, uintptr_t ts)
     tx->start_time = (ts < cs) ? ts : cs;
 }
 
+namespace {
 /**
  *  OrecELA read (read-only transaction)
  *
@@ -217,68 +217,60 @@ static NOINLINE void privtest(TX* tx, uintptr_t ts)
  *    However, we also poll the timestamp counter and validate any time a new
  *    transaction has committed, in order to catch doomed transactions.
  */
-static inline void* alg_tm_read_aligned_word(void** addr, TX* tx, uintptr_t) {
-    // get the orec addr, read the orec's version#
-    orec_t* o = get_orec(addr);
-    while (true) {
-        // read the location
-        void* tmp = *addr;
-        CFENCE;
-        // check the orec.  Note: we don't need prevalidation because we
-        // have a global clean state via the last_complete.val field.
-        id_version_t ivt;
-        ivt.all = o->v.all;
+  struct Read {
+      void* operator()(void** addr, TX* tx, uintptr_t) const {
+          // get the orec addr, read the orec's version#
+          orec_t* o = get_orec(addr);
+          while (true) {
+              // read the location
+              void* tmp = *addr;
+              CFENCE;
+              // check the orec.  Note: we don't need prevalidation because we
+              // have a global clean state via the last_complete.val field.
+              id_version_t ivt;
+              ivt.all = o->v.all;
 
-        // common case: new read to uncontended location
-        if (ivt.all <= tx->start_time) {
-            tx->r_orecs.insert(o);
-            // privatization safety: avoid the "doomed transaction" half
-            // of the privatization problem by polling a global and
-            // validating if necessary
-            uintptr_t ts = timestamp.val;
-            CFENCE;
-            if (ts != tx->start_time)
-                privtest(tx, ts);
-            return tmp;
-        }
+              // common case: new read to uncontended location
+              if (ivt.all <= tx->start_time) {
+                  tx->r_orecs.insert(o);
+                  // privatization safety: avoid the "doomed transaction" half
+                  // of the privatization problem by polling a global and
+                  // validating if necessary
+                  uintptr_t ts = timestamp.val;
+                  CFENCE;
+                  if (ts != tx->start_time)
+                      privtest(tx, ts);
+                  return tmp;
+              }
 
-        // if lock held, spin and retry
-        if (ivt.fields.lock) {
-            spin64();
-            continue;
-        }
+              // if lock held, spin and retry
+              if (ivt.fields.lock) {
+                  spin64();
+                  continue;
+              }
 
-        // unlocked but too new... validate and scale forward
-        uintptr_t newts = timestamp.val;
-        FOREACH (OrecList, i, tx->r_orecs) {
-            // if orec locked or newer than start time, abort
-            if ((*i)->v.all > tx->start_time)
-                _ITM_abortTransaction(TMConflict);
-        }
-        CFENCE;
-        uintptr_t cs = last_complete.val;
-        // need to pick cs or newts
-        tx->start_time = (newts < cs) ? newts : cs;
-    }
-}
-
-static inline void* alg_tm_read_aligned_word_ro(void** addr, TX* tx,
-                                                uintptr_t mask)
-{
-    return alg_tm_read_aligned_word(addr, tx, mask);
+              // unlocked but too new... validate and scale forward
+              uintptr_t newts = timestamp.val;
+              FOREACH (OrecList, i, tx->r_orecs) {
+                  // if orec locked or newer than start time, abort
+                  if ((*i)->v.all > tx->start_time)
+                      _ITM_abortTransaction(TMConflict);
+              }
+              CFENCE;
+              uintptr_t cs = last_complete.val;
+              // need to pick cs or newts
+              tx->start_time = (newts < cs) ? newts : cs;
+          }
+      }
+  };
 }
 
 void* alg_tm_read(void** addr) {
-    return read<void*,                  //
-                NoFilter,               // don't pre-filter accesses
-                WordlogRAW,             // log at the word granularity
-                NoReadOnly,             // no separate read-only code
-                true                    // force align all accesses
-                >(addr);
+    return Lazy<void*, Read>::RSTM::Read(addr);
 }
 
 void alg_tm_write(void** addr, void* val) {
-    write<void*, NoFilter, BufferedWrite, true>(addr, val);
+    Lazy<void*, Read>::RSTM::Write(addr, val);
 }
 
 bool alg_tm_is_irrevocable(TX*) {
@@ -295,3 +287,29 @@ void alg_tm_become_irrevocable(_ITM_transactionState) {
  * Register the TM for adaptivity and for use as a standalone library
  */
 REGISTER_TM_FOR_ADAPTIVITY(OrecELA)
+
+/**
+ *  Instantiate our read template for all of the read types, and add weak
+ *  aliases for the LIBITM symbols to them.
+ *
+ *  TODO: We can't make weak aliases without mangling the symbol names, but
+ *        this is non-trivial for the instrumentation templates. For now, we
+ *        just inline the read templates into weak versions of the library. We
+ *        could use gcc's asm() exetension to instantiate the template with a
+ *        reasonable name...?
+ */
+#define RSTM_LIBITM_READ(SYMBOL, CALLING_CONVENTION, TYPE)              \
+    TYPE CALLING_CONVENTION __attribute__((weak)) SYMBOL(TYPE* addr) {  \
+        return Lazy<TYPE, Read>::ITM::Read(addr);                       \
+    }
+
+#define RSTM_LIBITM_WRITE(SYMBOL, CALLING_CONVENTION, TYPE)             \
+    void CALLING_CONVENTION __attribute__((weak))                       \
+        SYMBOL(TYPE* addr, TYPE val) {                                  \
+        Lazy<TYPE, Read>::ITM::Write(addr, val);                        \
+    }
+
+#include "libitm-dtfns.def"
+
+#undef RSTM_LIBITM_WRITE
+#undef RSTM_LIBITM_READ

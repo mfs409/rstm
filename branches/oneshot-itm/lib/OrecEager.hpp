@@ -45,7 +45,7 @@
 #include "byte-logging.hpp"
 #include "tmabi-weak.hpp"
 #include "foreach.hpp"
-#include "inst.hpp"                     // read<>/write<>, etc
+#include "inst3.hpp"                    // read<>/write<>, etc
 #include "MiniVector.hpp"
 #include "metadata.hpp"
 #include "WBMMPolicy.hpp"
@@ -180,62 +180,53 @@ static void alg_tm_end()
     ++tx->commits_rw;
 }
 
+namespace {
 /**
  *  OrecEager read:
  *
  *    Must check orec twice, and may need to validate
  */
-static inline void* alg_tm_read_aligned_word(void** addr, TX* tx, uintptr_t) {
-    // get the orec addr, then start loop to read a consistent value
-    orec_t* o = get_orec(addr);
-    while (true) {
-        // read the orec BEFORE we read anything else
-        id_version_t ivt;
-        ivt.all = o->v.all;
-        CFENCE;
+  struct Read {
+      void* operator()(void** addr, TX* tx, uintptr_t) const {
+          // get the orec addr, then start loop to read a consistent value
+          orec_t* o = get_orec(addr);
+          while (true) {
+              // read the orec BEFORE we read anything else
+              id_version_t ivt;
+              ivt.all = o->v.all;
+              CFENCE;
 
-        // read the location
-        void* tmp = *addr;
+              // read the location
+              void* tmp = *addr;
 
-        // best case: I locked it already
-        if (ivt.all == tx->my_lock.all)
-            return tmp;
+              // best case: I locked it already
+              if (ivt.all == tx->my_lock.all)
+                  return tmp;
 
-        // re-read orec AFTER reading value
-        CFENCE;
-        uintptr_t ivt2 = o->v.all;
+              // re-read orec AFTER reading value
+              CFENCE;
+              uintptr_t ivt2 = o->v.all;
 
-        // common case: new read to an unlocked, old location
-        if ((ivt.all == ivt2) && (ivt.all <= tx->start_time)) {
-            tx->r_orecs.insert(o);
-            return tmp;
-        }
+              // common case: new read to an unlocked, old location
+              if ((ivt.all == ivt2) && (ivt.all <= tx->start_time)) {
+                  tx->r_orecs.insert(o);
+                  return tmp;
+              }
 
-        // abort if locked
-        if (__builtin_expect(ivt.fields.lock, 0))
-            _ITM_abortTransaction(TMConflict);
+              // abort if locked
+              if (__builtin_expect(ivt.fields.lock, 0))
+                  _ITM_abortTransaction(TMConflict);
 
-        // scale timestamp if ivt is too new, then try again
-        uintptr_t newts = timestamp.val;
-        validate(tx);
-        tx->start_time = newts;
-    }
-}
+              // scale timestamp if ivt is too new, then try again
+              uintptr_t newts = timestamp.val;
+              validate(tx);
+              tx->start_time = newts;
+          }
+      }
+  };
 
-static inline void* alg_tm_read_aligned_word_ro(void** addr, TX* tx,
-                                                uintptr_t mask)
-{
-    return alg_tm_read_aligned_word(addr, tx, mask);
-}
-
-namespace {
-/**
- *  OrecEager write:
- *
- *    Lock the orec, log the old value, do the write
- */
-  template <typename Word>
-  struct OrecEagerWrite {
+  template <typename WordType>
+  struct Write {
       void operator()(void** addr, void* val, TX* tx, uintptr_t mask) const {
           // get the orec addr, then enter loop to get lock from a consistent
           // state
@@ -255,7 +246,7 @@ namespace {
                   o->p = ivt.all;
                   tx->locks.insert(o);
                   tx->undo_log.insert(addr, *addr, mask);
-                  Word::Write(addr, val, mask);
+                  WordType::Write(addr, val, mask);
                   return;
               }
 
@@ -265,7 +256,7 @@ namespace {
               //            location
               if (ivt.all == tx->my_lock.all) {
                   tx->undo_log.insert(addr, *addr, mask);
-                  Word::Write(addr, val, mask);
+                  WordType::Write(addr, val, mask);
                   return;
               }
 
@@ -280,21 +271,26 @@ namespace {
           }
       }
   };
+
+  template <typename T>
+  struct Inst {
+      typedef GenericInst<T, true, Word,
+                          CheckWritesetForReadOnly,
+                          NoFilter, Read, NullType,
+                          NoFilter, Write<Word>, NullType> RSTM;
+      typedef GenericInst<T, false, LoggingWordType,
+                          CheckWritesetForReadOnly,
+                          FullFilter, Read, NullType,
+                          FullFilter, Write<LoggingWordType>, NullType> ITM;
+  };
 }
 
 void* alg_tm_read(void** addr) {
-    using namespace stm::inst;
-    return read<void*,
-                NoFilter,               // don't pre-filter accesses
-                NoRAW,                  // no read-after-write
-                NoReadOnly,             // no separate read-only code
-                true                    // force align all accesses
-                >(addr);
+    return Inst<void*>::RSTM::Read(addr);
 }
 
 void alg_tm_write(void** addr, void* val) {
-    using namespace stm::inst;
-    write<void*, NoFilter, OrecEagerWrite<Word>, true>(addr, val);
+    Inst<void*>::RSTM::Write(addr, val);
 }
 
 bool alg_tm_is_irrevocable(TX*) {
@@ -306,3 +302,29 @@ void alg_tm_become_irrevocable(_ITM_transactionState) {
     assert(false && "Unimplemented");
     return;
 }
+
+/**
+ *  Instantiate our read template for all of the read types, and add weak
+ *  aliases for the LIBITM symbols to them.
+ *
+ *  TODO: We can't make weak aliases without mangling the symbol names, but
+ *        this is non-trivial for the instrumentation templates. For now, we
+ *        just inline the read templates into weak versions of the library. We
+ *        could use gcc's asm() exetension to instantiate the template with a
+ *        reasonable name...?
+ */
+#define RSTM_LIBITM_READ(SYMBOL, CALLING_CONVENTION, TYPE)              \
+    TYPE CALLING_CONVENTION __attribute__((weak)) SYMBOL(TYPE* addr) {  \
+        return Inst<TYPE>::ITM::Read(addr);                             \
+    }
+
+#define RSTM_LIBITM_WRITE(SYMBOL, CALLING_CONVENTION, TYPE)             \
+    void CALLING_CONVENTION __attribute__((weak))                       \
+        SYMBOL(TYPE* addr, TYPE val) {                                  \
+        Inst<TYPE>::ITM::Write(addr, val);                              \
+    }
+
+#include "libitm-dtfns.def"
+
+#undef RSTM_LIBITM_WRITE
+#undef RSTM_LIBITM_READ

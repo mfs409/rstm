@@ -21,7 +21,7 @@
 #include <cassert>
 #include <unistd.h>
 #include "byte-logging.hpp"
-#include "inst.hpp"
+#include "inst3.hpp"
 #include "tmabi-weak.hpp"
 #include "foreach.hpp"
 #include "WBMMPolicy.hpp"
@@ -31,7 +31,6 @@
 #include "libitm.h"
 
 using namespace stm;
-using namespace stm::inst;
 
 /*** The only metadata we need is a single global padded lock ***/
 static pad_word_t timestamp = {0};
@@ -189,80 +188,86 @@ void alg_tm_end()
     ++tx->commits_rw;
 }
 
-/**
+namespace {
+  template <typename NextReadOnly>
+  struct IsReadOnly {
+      bool operator()(TX* tx) const {
+          NextReadOnly next_read_only;
+          return ((tx->order == -1) || (next_read_only(tx)));
+      }
+  };
+
+  /**
+   *  CTokenTurbo read (writing transaction)
+   */
+  struct Read {
+      void* operator()(void** addr, TX* tx, uintptr_t) const {
+          void* tmp = *addr;
+          CFENCE; // RBR between dereference and orec check
+
+          // get the orec addr, read the orec's version#
+          orec_t* o = get_orec(addr);
+          uintptr_t ivt = o->v.all;
+          // abort if this changed since the last time I saw someone finish
+          if (ivt > tx->ts_cache)
+              _ITM_abortTransaction(TMConflict);
+
+          // log orec
+          tx->r_orecs.insert(o);
+
+          // validate, and if we have writes, then maybe switch to fast mode
+          if (last_complete.val > tx->ts_cache)
+              validate(tx, last_complete.val);
+          return tmp;
+      }
+  };
+
+  /**
  *  CTokenTurbo read (read-only transaction)
  */
-static inline void* alg_tm_read_aligned_word_ro(void** addr, TX* tx, uintptr_t) {
-    void* tmp = *addr;
-    CFENCE; // RBR between dereference and orec check
+  struct ReadRO {
+      void* operator()(void** addr, TX* tx, uintptr_t) const {
+          void* tmp = *addr;
+          CFENCE; // RBR between dereference and orec check
 
-    // get the orec addr, read the orec's version#
-    orec_t* o = get_orec(addr);
-    uintptr_t ivt = o->v.all;
-    // abort if this changed since the last time I saw someone finish
-    if (ivt > tx->ts_cache)
-        _ITM_abortTransaction(TMConflict);
+          // get the orec addr, read the orec's version#
+          orec_t* o = get_orec(addr);
+          uintptr_t ivt = o->v.all;
+          // abort if this changed since the last time I saw someone finish
+          if (ivt > tx->ts_cache)
+              _ITM_abortTransaction(TMConflict);
 
-    // log orec
-    tx->r_orecs.insert(o);
+          // log orec
+          tx->r_orecs.insert(o);
 
-    // possibly validate before returning
-    if (last_complete.val > tx->ts_cache) {
-        uintptr_t finish_cache = last_complete.val;
-        FOREACH (OrecList, i, tx->r_orecs) {
-            // read this orec
-            uintptr_t ivt_inner = (*i)->v.all;
-            // if it has a timestamp of ts_cache or greater, abort
-            if (ivt_inner > tx->ts_cache)
-                _ITM_abortTransaction(TMConflict);
-        }
-        // now update the ts_cache to remember that at this time, we were
-        // still valid
-        tx->ts_cache = finish_cache;
-    }
-    return tmp;
-}
-
-/**
- *  CTokenTurbo read (writing transaction)
- */
-static inline void* alg_tm_read_aligned_word(void** addr, TX* tx, uintptr_t) {
-    void* tmp = *addr;
-    CFENCE; // RBR between dereference and orec check
-
-    // get the orec addr, read the orec's version#
-    orec_t* o = get_orec(addr);
-    uintptr_t ivt = o->v.all;
-    // abort if this changed since the last time I saw someone finish
-    if (ivt > tx->ts_cache)
-        _ITM_abortTransaction(TMConflict);
-
-    // log orec
-    tx->r_orecs.insert(o);
-
-    // validate, and if we have writes, then maybe switch to fast mode
-    if (last_complete.val > tx->ts_cache)
-        validate(tx, last_complete.val);
-    return tmp;
-}
-
-namespace {
-  struct CTokenTurboReadOnly {
-      static inline bool IsReadOnly(TX* tx) {
-          return (tx->order == -1);
+          // possibly validate before returning
+          if (last_complete.val > tx->ts_cache) {
+              uintptr_t finish_cache = last_complete.val;
+              FOREACH (OrecList, i, tx->r_orecs) {
+                  // read this orec
+                  uintptr_t ivt_inner = (*i)->v.all;
+                  // if it has a timestamp of ts_cache or greater, abort
+                  if (ivt_inner > tx->ts_cache)
+                      _ITM_abortTransaction(TMConflict);
+              }
+              // now update the ts_cache to remember that at this time, we were
+              // still valid
+              tx->ts_cache = finish_cache;
+          }
+          return tmp;
       }
   };
 
   /** CTokenTurbo write */
-  template <typename Word>
-  struct CTokenTurboWrite {
-      void operator()(void** addr, void* val, TX* tx, uintptr_t mask) {
+  template <class WordType>
+  struct Write {
+      void operator()(void** addr, void* val, TX* tx, uintptr_t mask) const {
           if (tx->turbo) {
               // mark the orec, then update the location
               orec_t* o = get_orec(addr);
               o->v.all = tx->order;
               CFENCE;
-              Word::Write(addr, val, mask);
+              WordType::Write(addr, val, mask);
           }
           else if (tx->order == -1) {
               // we don't have any writes yet, so we need to get an order here
@@ -284,19 +289,26 @@ namespace {
           }
       }
   };
+
+  template <typename T>
+  struct Inst {
+      typedef GenericInst<T, true, Word,
+                          IsReadOnly<CheckWritesetForReadOnly>,
+                          TurboFilter<NoFilter>, Read, ReadRO,
+                          NoFilter, Write<Word>, NullType> RSTM;
+      typedef GenericInst<T, false, LoggingWordType,
+                          IsReadOnly<CheckWritesetForReadOnly>,
+                          TurboFilter<FullFilter>, Read, ReadRO,
+                          FullFilter, Write<LoggingWordType>, NullType> ITM;
+  };
 }
 
 void* alg_tm_read(void** addr) {
-    return read<void*,
-                TurboFilter<NoFilter>,  // turbo filter
-                WordlogRAW,             // log at the word granularity
-                CTokenTurboReadOnly,    // check's tx order
-                true                    // force align all accesses
-                >(addr);
+    return Inst<void*>::RSTM::Read(addr);
 }
 
 void alg_tm_write(void** addr, void* val) {
-    write<void*, NoFilter, CTokenTurboWrite<Word>, true>(addr, val);
+    Inst<void*>::RSTM::Write(addr, val);
 }
 
 bool alg_tm_is_irrevocable(TX* tx) {

@@ -19,6 +19,10 @@
  *  logging in rstm.
  */
 namespace stm {
+
+  /** We use this type for metaprogramming. */
+  class NullType {};
+
   class Word {
     public:
       Word() : value_(NULL) {
@@ -130,16 +134,15 @@ namespace stm {
   };
 
 #if defined(STM_WS_WORDLOG)
-  typedef GenericWriteSet<Word> WriteSet;
-  typedef GenericValueList<Word> ValueList;
-  typedef GenericUndoLog<Word> UndoLog;
+  typedef Word LoggingWordType;
 #elif defined(STM_WS_BYTELOG)
-  typedef GenericWriteSet<MaskedWord> WriteSet;
-  typedef GenericValueList<MaskedWord> ValueList;
-  typedef GenericUndoLog<MaskedWord> UndoLog;
+  typedef MaskedWord LoggingWordType;
 #else
 #error WriteSet logging granularity configuration error.
 #endif
+  typedef GenericWriteSet<LoggingWordType> WriteSet;
+  typedef GenericValueList<LoggingWordType> ValueList;
+  typedef GenericUndoLog<LoggingWordType> UndoLog;
 }
 
 #endif // RSTM_BYTE_LOGGING_H

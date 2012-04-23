@@ -31,10 +31,9 @@
 #include "adaptivity.hpp"
 #include "tm_alloc.hpp"
 #include "libitm.h"
-#include "inst.hpp"                     // read<>/write<>
+#include "inst3.hpp"                     // read<>/write<>
 
 using namespace stm;
-using namespace stm::inst;
 
 /** For querying to get the current algorithm name */
 const char* alg_tm_getalgname() {
@@ -147,43 +146,36 @@ void alg_tm_end()
  *
  *    We use "check twice" timestamps in LLT
  */
-static inline void* alg_tm_read_aligned_word(void** addr, TX* tx, uintptr_t) {
-    // get the orec addr
-    orec_t* o = get_orec(addr);
+namespace {
+  struct Read {
+      void* operator()(void** addr, TX* tx, uintptr_t) const {
+          // get the orec addr
+          orec_t* o = get_orec(addr);
 
-    // read orec, then val, then orec
-    uintptr_t ivt = o->v.all;
-    CFENCE;
-    void* tmp = *addr;
-    CFENCE;
-    uintptr_t ivt2 = o->v.all;
+          // read orec, then val, then orec
+          uintptr_t ivt = o->v.all;
+          CFENCE;
+          void* tmp = *addr;
+          CFENCE;
+          uintptr_t ivt2 = o->v.all;
 
-    // if orec is too new, or we didn't see a consistent version, abort
-    if ((ivt > tx->start_time) || (ivt != ivt2))
-        _ITM_abortTransaction(TMConflict);
+          // if orec is too new, or we didn't see a consistent version, abort
+          if ((ivt > tx->start_time) || (ivt != ivt2))
+              _ITM_abortTransaction(TMConflict);
 
-    // log orec, return the value
-    tx->r_orecs.insert(o);
-    return tmp;
-}
-
-static inline void* alg_tm_read_aligned_word_ro(void** addr, TX* tx,
-                                                uintptr_t mask)
-{
-    return alg_tm_read_aligned_word(addr, tx, mask);
+          // log orec, return the value
+          tx->r_orecs.insert(o);
+          return tmp;
+      }
+  };
 }
 
 void* alg_tm_read(void** addr) {
-    return read<void*,                  //
-                NoFilter,               // don't pre-filter accesses
-                WordlogRAW,             // log at the word granularity
-                NoReadOnly,             // no separate read-only code
-                true                    // force align all accesses
-                >(addr);
+    return Lazy<void*, Read>::RSTM::Read(addr);
 }
 
 void alg_tm_write(void** addr, void* val) {
-    write<void*, NoFilter, BufferedWrite, true>(addr, val);
+    Lazy<void*, Read>::RSTM::Write(addr, val);
 }
 
 bool alg_tm_is_irrevocable(TX*) {
@@ -200,3 +192,29 @@ void alg_tm_become_irrevocable(_ITM_transactionState) {
  *  Register the TM for adaptivity and for use as a standalone library
  */
 REGISTER_TM_FOR_ADAPTIVITY(LLT);
+
+/**
+ *  Instantiate our read template for all of the read types, and add weak
+ *  aliases for the LIBITM symbols to them.
+ *
+ *  TODO: We can't make weak aliases without mangling the symbol names, but
+ *        this is non-trivial for the instrumentation templates. For now, we
+ *        just inline the read templates into weak versions of the library. We
+ *        could use gcc's asm() exetension to instantiate the template with a
+ *        reasonable name...?
+ */
+#define RSTM_LIBITM_READ(SYMBOL, CALLING_CONVENTION, TYPE)              \
+    TYPE CALLING_CONVENTION __attribute__((weak)) SYMBOL(TYPE* addr) {  \
+        return Lazy<TYPE, Read>::ITM::Read(addr);                       \
+    }
+
+#define RSTM_LIBITM_WRITE(SYMBOL, CALLING_CONVENTION, TYPE)             \
+    void CALLING_CONVENTION __attribute__((weak))                       \
+    SYMBOL(TYPE* addr, TYPE val) {                                      \
+        Lazy<TYPE, Read>::ITM::Write(addr, val);                        \
+    }
+
+#include "libitm-dtfns.def"
+
+#undef RSTM_LIBITM_WRITE
+#undef RSTM_LIBITM_READ
