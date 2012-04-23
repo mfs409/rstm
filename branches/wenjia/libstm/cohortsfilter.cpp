@@ -50,6 +50,8 @@ using stm::last_order;
  *  circular dependencies.
  */
 namespace {
+  NOINLINE bool validate(TxThread* tx);
+
   struct CohortsFilter {
       static TM_FASTCALL bool begin(TxThread*);
       static TM_FASTCALL void* read_ro(STM_READ_SIG(,,));
@@ -62,7 +64,6 @@ namespace {
       static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
       static void onSwitchTo();
-      static NOINLINE void validate(TxThread* tx);
   };
 
   /**
@@ -130,34 +131,36 @@ namespace {
 
       // If I'm not the first one in a cohort to commit, validate read
       if (tx->order != last_order)
-          validate(tx);
+          if (!validate(tx)) {
+              committed.val++;
+              CFENCE;
+              last_complete.val = tx->order;
+              tx->tmabort(tx);
+          }
 
       // do write back
       tx->writes.writeback();
       // [NB] Intruder bench will abort if without this WBR fence
+      // CFENCE doesn't work for 'intruder -t8'
       WBR;
 
       // union tx local write filter with the global filter
       global_filter->unionwith(*(tx->wf));
-
-      // [NB] Intruder bench will abort if without this WBR but followed by a
-      // non atomic instruction.
-      WBR;
+      CFENCE;
 
       // If I'm the last one in the cohort, save the order and clear the filter
       if ((uint32_t)tx->order == started.val) {
-          last_order = started.val + 1;
+          last_order = tx->order + 1;
           global_filter->clear();
       }
+
+      // Increase total tx committed
+      committed.val++;
+      CFENCE;
 
       // mark self as done
       // [mfs] this is the end of the critical section
       last_complete.val = tx->order;
-
-      // [NB] atomic increment is faster here
-      ADD(&committed.val, 1);
-      // committed.val++;
-      // WBR;
 
       // commit all frees, reset all lists
       tx->rf->clear();
@@ -186,6 +189,9 @@ namespace {
       WriteSetEntry log(STM_WRITE_SET_ENTRY(addr, NULL, mask));
       bool found = tx->writes.find(log);
       REDO_RAW_CHECK(found, log, mask);
+
+      // log the address
+      tx->rf->add(addr);
 
       void* val = *addr;
       REDO_RAW_CLEANUP(val, found, log, mask);
@@ -251,8 +257,8 @@ namespace {
   /**
    *  CohortsFilter validation for commit: check that all reads are valid
    */
-  void
-  CohortsFilter::validate(TxThread* tx)
+  bool
+  validate(TxThread* tx)
   {
       // If there is a same element in both global_filter and read_filter
       if (global_filter->intersect(tx->rf)) {
@@ -260,16 +266,10 @@ namespace {
           if ((uint32_t)tx->order == started.val) {
               last_order = started.val + 1;
               global_filter->clear();
-              // [NB] Intruder bench will abort if without this WBR
-              WBR;
           }
-          // set self as completed
-          last_complete.val = tx->order;
-          // increase total number of committed tx
-          ADD(&committed.val, 1);
-          // abort
-          tx->tmabort(tx);
+          return false;
       }
+      return true;
   }
 
   /**
