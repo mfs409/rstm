@@ -29,9 +29,9 @@ namespace stm
   template <class T>
   class MiniVector
   {
-      unsigned long m_cap;            // current vector capacity
-      unsigned long m_size;           // current number of used elements
-      T* m_elements;                  // the actual elements in the vector
+      size_t m_cap;                     // current vector capacity
+      size_t m_size;                    // current number of used elements
+      T* m_elements;                    // the actual elements in the vector
 
       /*** double the size of the minivector */
       void expand();
@@ -52,10 +52,8 @@ namespace stm
 
       ~MiniVector() { free(m_elements); }
 
-      void reserve(int n) {
-          while (n > m_cap)
-              expand();                 // [ld] silly way to do this
-      }
+      /** std::vector interface */
+      void reserve(size_t n);
 
       /*** Reset the vector without destroying the elements it holds */
       TM_INLINE void reset() { m_size = 0; }
@@ -71,13 +69,15 @@ namespace stm
           // constructor and (2) /data/ isn't that big relative to the number
           // of available registers.
 
-          // Push data onto the end of the array and increment the size
-          m_elements[m_size++] = data;
+          // Push data onto the end of the array and increment the size ("size"
+          // register eliminates m_size reload")
+          size_t size = m_size++;
+          m_elements[size] = data;
 
           // If the list is full, double the list size, allocate a new array
           // of elements, bitcopy the old array into the new array, and free
           // the old array. No destructors are called.
-          if (m_size != m_cap)
+          if (size + 1 != m_cap)
               return;
           expand();
       }
@@ -109,8 +109,25 @@ namespace stm
   NOINLINE
   void MiniVector<T>::expand()
   {
+      m_cap *= 2;                       // simple doubling
       T* temp = m_elements;
-      m_cap *= 2;
+      m_elements = static_cast<T*>(malloc(sizeof(T) * m_cap));
+      assert(m_elements);
+      memcpy(m_elements, temp, sizeof(T)*m_size);
+      free(temp);
+  }
+
+  template <class T>
+  NOINLINE
+  void MiniVector<T>::reserve(size_t n)
+  {
+      if (n <= m_cap)
+          return;
+
+      while (n > m_cap)
+          m_cap *= 2;
+
+      T* temp = m_elements;
       m_elements = static_cast<T*>(malloc(sizeof(T) * m_cap));
       assert(m_elements);
       memcpy(m_elements, temp, sizeof(T)*m_size);
