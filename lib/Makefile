@@ -36,8 +36,8 @@ CXXFLAGS += -MMD -I$(ODIR)
 #
 # Names of the supporting files that we need to build
 #
-COMMONNAMES = WBMMPolicy Common CommonOrec tx checkpoint adaptivity itm-common
-
+COMMONNAMES = WBMMPolicy Common CommonOrec tx checkpoint adaptivity \
+              itm-common gcc
 
 #
 # Transform all source names to .o files in the output directory

@@ -19,7 +19,7 @@
 #
 # Compiler config
 #
-PLATFORM  = gcctm_gcc_linux_x86_64_dbg
+PLATFORM  = gcctm_linux_x86_64_dbg
 CXX       = g++
 CC       ?= gcc
 CXXFLAGS += -O0 -g -m64 -march=native -mtune=native -msse2 -fgnu-tm

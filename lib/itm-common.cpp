@@ -15,22 +15,26 @@
 using stm::Self;
 using stm::TX;
 
-int _ITM_versionCompatible(int v) {
+int
+_ITM_versionCompatible(int v) {
     // [ld] is this correct? is there any guarantee of backwards compatibility
     //      that would make this an inequality instead?
     return v == _ITM_VERSION_NO;
 }
 
-const char* _ITM_libraryVersion(void) {
+const char*
+_ITM_libraryVersion(void) {
     return _ITM_VERSION;
 }
 
-void _ITM_error(const _ITM_srcLocation* src, int) {
+void
+_ITM_error(const _ITM_srcLocation* src, int) {
     std::cerr << "_ITM_error:" << src->psource << "\n";
     abort();
 }
 
-_ITM_howExecuting _ITM_inTransaction() {
+_ITM_howExecuting
+_ITM_inTransaction() {
     TX* tx = Self;
     if (!tx->nesting_depth)
         return outsideTransaction;
@@ -38,18 +42,21 @@ _ITM_howExecuting _ITM_inTransaction() {
                                           inRetryableTransaction;
 }
 
-_ITM_transactionId_t _ITM_getTransactionId() {
+_ITM_transactionId_t
+_ITM_getTransactionId() {
     // [ld] is this what this call is supposed to do? Do we need to keep a
     //      globally unique id?
     return Self->nesting_depth;
 }
 
 /** Used aas a restore_checkpoint continuation to cancel a transaction. */
-static uint32_t TM_FASTCALL cancel(uint32_t, TX*) {
+static uint32_t TM_FASTCALL
+cancel(uint32_t, TX*) {
     return a_restoreLiveVariables | a_abortTransaction;
 }
 
-void _ITM_abortTransaction(_ITM_abortReason why) {
+void
+_ITM_abortTransaction(_ITM_abortReason why) {
     TX* tx = Self;
     if (why & TMConflict) {
         tm_rollback(tx);
@@ -84,8 +91,9 @@ void _ITM_abortTransaction(_ITM_abortReason why) {
  *    argument. Commit actions get executed after privatization safety has been
  *    ensured.
 */
-void _ITM_addUserCommitAction(_ITM_userCommitFunction,
-                              _ITM_transactionId_t, void*) {
+void
+_ITM_addUserCommitAction(_ITM_userCommitFunction, _ITM_transactionId_t, void*)
+{
     assert(false && "Unimplemented");
 }
 
@@ -97,7 +105,8 @@ void _ITM_addUserCommitAction(_ITM_userCommitFunction,
  *    ordering of undo actions w.r.t. the roll-back of other actions (e.g.,
  *    data transfers or memory allocations) is undefined.
  */
-void _ITM_addUserUndoAction(_ITM_userUndoFunction, void*) {
+void
+_ITM_addUserUndoAction(_ITM_userUndoFunction, void*) {
     assert(false && "Unimplemented");
 }
 
@@ -111,6 +120,8 @@ void _ITM_addUserUndoAction(_ITM_userUndoFunction, void*) {
  *    privatization). However, this ordering is never defined, nor is the
  *    ordering of dropping references w.r.t. other events.
  */
-void _ITM_dropReferences(void*, size_t) {
+void
+_ITM_dropReferences(void*, size_t) {
     assert(false && "Unimplemented");
 }
+
