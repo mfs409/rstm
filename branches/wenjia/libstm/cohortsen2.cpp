@@ -12,7 +12,7 @@
  *  CohortsEN2 Implementation
  *
  *  CohortsEN2 is CohortsNorec with inplace write if I'm the last one in the
- *  cohort. (LOSE CONDITION TO GO TURBO.)
+ *  cohort. (Relexed CONDITION TO GO TURBO.)
  */
 
 #include "../profiling.hpp"
@@ -38,13 +38,13 @@ using stm::last_order;
 using stm::threads;
 using stm::threadcount;
 
+#define TURBO 5
+#define RESET 0
 /**
  *  Declare the functions that we're going to implement, so that we can avoid
  *  circular dependencies.
  */
 namespace {
-  const uintptr_t VALIDATION_FAILED = 1;
-  volatile uint32_t inplace = 0;
   NOINLINE bool validate(TxThread* tx);
 
   struct CohortsEN2 {
@@ -75,7 +75,6 @@ namespace {
   CohortsEN2::begin(TxThread* tx)
   {
       tx->allocator.onTxBegin();
-
     S1:
       // wait until everyone is committed
       while (cpending.val != committed.val);
@@ -84,11 +83,13 @@ namespace {
       ADD(&started.val, 1);
 
       // [NB] we must double check no one is ready to commit yet
-      // and no one entered in place write phase(turbo mode)
-      if (cpending.val > committed.val || inplace == 1){
+      if (cpending.val > committed.val) {
           SUB(&started.val, 1);
           goto S1;
       }
+
+      // reset tx->status;
+      tx->status = RESET;
 
       return true;
   }
@@ -115,7 +116,7 @@ namespace {
   CohortsEN2::commit_turbo(TxThread* tx)
   {
       // increase # of tx waiting to commit, and use it as the order
-      tx->order = ADD(&cpending.val, 1);
+      tx->order = ++cpending.val;
 
       // clean up
       tx->vlist.reset();
@@ -124,9 +125,6 @@ namespace {
 
       // wait for my turn
       while (last_complete.val != (uintptr_t)(tx->order - 1));
-
-      // reset in place write flag
-      inplace = 0;
 
       // increase # of committed
       committed.val ++;
@@ -146,7 +144,12 @@ namespace {
   CohortsEN2::commit_rw(TxThread* tx)
   {
       // increase # of tx waiting to commit, and use it as the order
-      tx->order = ADD(&cpending.val ,1);
+      tx->order = ADD(&cpending.val, 1);
+
+      // If I'm the next to the last, notify the last txn to go turbo
+      if (tx->order == started.val - 1)
+          for (uint32_t i = 0; i < threadcount.val; i++)
+              threads[i]->status = TURBO;
 
       // Wait for my turn
       while (last_complete.val != (uintptr_t)(tx->order - 1));
@@ -154,15 +157,13 @@ namespace {
       // Wait until all tx are ready to commit
       while (cpending.val < started.val);
 
-      // If in place write occurred, all tx validate reads
-      // Otherwise, only first one skips validation
-      if (inplace == 1 || tx->order != last_order)
-          if (!validate(tx)) {
-              committed.val++;
-              CFENCE;
-              last_complete.val = tx->order;
-              tx->tmabort(tx);
-          }
+      // Everyone must validate read
+      if (!validate(tx)) {
+          committed.val++;
+          CFENCE;
+          last_complete.val = tx->order;
+          tx->tmabort(tx);
+      }
 
       // do write back
       tx->writes.writeback();
@@ -226,21 +227,14 @@ namespace {
   void
   CohortsEN2::write_ro(STM_WRITE_SIG(tx,addr,val,mask))
   {
-      // If everyone else is ready to commit, do in place write
-      if (cpending.val + 1 == started.val) {
-          // set up flag indicating in place write starts
-          atomicswap32(&inplace, 1);
-          // double check is necessary
-          if (cpending.val + 1 == started.val) {
-              // in place write
-              *addr = val;
-              // go turbo mode
-              OnFirstWrite(tx, read_turbo, write_turbo, commit_turbo);
-              return;
-          }
-          // reset flag
-          inplace = 0;
+      if (tx->status == TURBO) {
+          // in place write
+          *addr = val;
+          // go turbo mode
+          OnFirstWrite(tx, read_turbo, write_turbo, commit_turbo);
+          return;
       }
+
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
       OnFirstWrite(tx, read_rw, write_rw, commit_rw);
   }
@@ -260,21 +254,16 @@ namespace {
   void
   CohortsEN2::write_rw(STM_WRITE_SIG(tx,addr,val,mask))
   {
-      // Every write we test if I can go turbo
-      if (cpending.val + 1 == started.val) {
-          // set up flag indicating in place write starts
-          atomicswap32(&inplace, 1);
-          // double check is necessary
-          if (cpending.val + 1 == started.val) {
-              // write previous writeset back
-              tx->writes.writeback();
-              // in place write
-              *addr = val;
-              // go turbo mode
-              OnFirstWrite(tx, read_turbo, write_turbo, commit_turbo);
-              return;
-          }
-          inplace = 0;
+      if (tx->status == TURBO) {
+          // write previous write set back
+          foreach (WriteSet, i, tx->writes)
+              *i->addr = i->val;
+          CFENCE;
+          // in place write
+          *addr = val;
+          // go turbo mode
+          OnFirstWrite(tx, read_turbo, write_turbo, commit_turbo);
+          return;
       }
       // record the new value in a redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
@@ -331,7 +320,6 @@ namespace {
   CohortsEN2::onSwitchTo()
   {
       last_complete.val = 0;
-      inplace = 0;
   }
 }
 
