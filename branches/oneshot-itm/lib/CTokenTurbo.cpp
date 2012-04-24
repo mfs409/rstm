@@ -325,3 +325,28 @@ void alg_tm_become_irrevocable(_ITM_transactionState) {
  */
 REGISTER_TM_FOR_ADAPTIVITY(CTokenTurbo)
 
+/**
+ *  Instantiate our read template for all of the read types, and add weak
+ *  aliases for the LIBITM symbols to them.
+ *
+ *  TODO: We can't make weak aliases without mangling the symbol names, but
+ *        this is non-trivial for the instrumentation templates. For now, we
+ *        just inline the read templates into weak versions of the library. We
+ *        could use gcc's asm() exetension to instantiate the template with a
+ *        reasonable name...?
+ */
+#define RSTM_LIBITM_READ(SYMBOL, CALLING_CONVENTION, TYPE)              \
+    TYPE CALLING_CONVENTION __attribute__((weak)) SYMBOL(TYPE* addr) {  \
+        return Inst<TYPE>::ITM::Read(addr);                             \
+    }
+
+#define RSTM_LIBITM_WRITE(SYMBOL, CALLING_CONVENTION, TYPE)             \
+    void CALLING_CONVENTION __attribute__((weak))                       \
+        SYMBOL(TYPE* addr, TYPE val) {                                  \
+        Inst<TYPE>::ITM::Write(addr, val);                              \
+    }
+
+#include "libitm-dtfns.def"
+
+#undef RSTM_LIBITM_WRITE
+#undef RSTM_LIBITM_READ
