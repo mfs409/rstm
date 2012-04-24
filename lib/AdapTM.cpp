@@ -80,6 +80,13 @@ namespace {
       // bool privatization_safe;
   } tm_info[TM_NAMES_MAX];
 
+  static void print_tm_names(FILE* f) {
+      for (int i = 0; i < TM_NAMES_MAX; ++i) {
+          if (tm_info[i].tm_getalgname)
+              fprintf(f, "\t%s\n", tm_info[i].tm_getalgname());
+      }
+  }
+
   /**
    *  Template metaprogramming cleverness for initialization. Initialize
    *  algorithm I and check to see if it's the algorithm that we've
@@ -113,33 +120,43 @@ namespace {
    */
   template <>
   void init<-1>(const char* const cfg) {
+      // if cfg was specified, but we didn't find it, then we were configured
+      // without a valid STM_CONFIG
       if (cfg) {
-          printf("----------------------------------------\n");
-          printf("Failed to initialize RSTM with config == %s\n", cfg);
-          printf("----------------------------------------\n");
-          printf("Valid options are:\n");
-          for (int i = 0; i < TM_NAMES_MAX; ++i) {
-              if (tm_info[i].tm_getalgname)
-                  printf("\t%s\n", tm_info[i].tm_getalgname());
-          }
-          printf("\nOr unset STM_CONFIG to use the default config.\n\n");
-          exit(-1);
+          fprintf(stderr,
+                  "-------------------------------------------\n"
+                  "Failed to initialize RSTM with config: %s\n"
+                  "-------------------------------------------\n"
+                  "Valid options are:\n", cfg);
+          print_tm_names(stderr);
+          exit(1);
       }
+
+      // if cfg is NULL, but tm_getalgname_ wasn't set, that indicates that
+      // getenv("STM_CONFIG") was null---we no longer have a default, so we
+      // need to complain.
+      if (!tm_getalgname_) {
+          fprintf(stderr,
+                  "-------------------------------------------------------\n"
+                  "You must set the STM_CONFIG environment variable with a\n"
+                  "valid algorithm name to use RSTM's adaptive interface.\n"
+                  "-------------------------------------------------------\n"
+                  "Valid options are:\n");
+          print_tm_names(stderr);
+          exit(1);
+      }
+
       printf("STM library configured using config == %s\n", tm_getalgname_());
   }
 
   /**
-   *  Initialize all of the TM algorithms from a static constructor. We
-   *  currently use "NOrec" as a default algorithm, and allow the user to
-   *  override it with the environment variable, STM_CONFIG.
+   *  Initialize all of the TM algorithms from a static constructor, using the
+   *  STM_CONFIG environment variable. If STM_CONFIG isn't set, no algorithm
+   *  will be installed, and we'll generate an error once all of the tm_info
+   *  slots have been filled.
    */
   static void __attribute__((constructor)) initialize_adaptivity() {
-      const char* cfg = getenv("STM_CONFIG");
-      if (!cfg) {
-          printf("STM_CONFIG environment variable not found... using NOrec\n");
-          cfg = "NOrec";
-      }
-      init<TM_NAMES_MAX - 1>(cfg);
+      init<TM_NAMES_MAX - 1>(getenv("STM_CONFIG"));
   }
 }
 
