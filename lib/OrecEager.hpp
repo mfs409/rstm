@@ -181,11 +181,11 @@ static void alg_tm_end()
 }
 
 namespace {
-/**
- *  OrecEager read:
- *
- *    Must check orec twice, and may need to validate
- */
+  /**
+   *  OrecEager read:
+   *
+   *    Must check orec twice, and may need to validate
+   */
   struct Read {
       void* operator()(void** addr, TX* tx, uintptr_t) const {
           // get the orec addr, then start loop to read a consistent value

@@ -30,17 +30,6 @@
 
 using namespace stm;
 
-/**
- *  We don't need, and don't want, to use the REGISTER_TM_FOR_XYZ macros, but
- *  we still need to make sure that there is an initTM<AdapTM> symbol. This is
- *  because the name enum is manually generated.
- */
-namespace stm {
-  template <> void initTM<AdapTM>() {
-  }
-}
-
-
 namespace {
   /**
    *  Stores the function pointers for the dynamically selectable algorithms,
@@ -76,24 +65,23 @@ namespace {
   /** Template Metaprogramming trick for initializing all STM algorithms. */
   template <int I>
   static void init_tm_info() {
-      initTM<(TM_NAMES)I>();
+      initTM<I>();
       init_tm_info<I-1>();
   }
 
+  /**
+   *  AdapTM doesn't do anything special, so it doesn't need an initTM method
+   */
   template <>
-  void init_tm_info<0>() {
-      initTM<(TM_NAMES)0>();
+  void init_tm_info<AdapTM>() {
+      init_tm_info<AdapTM-1>();
   }
 
-  static void init_tm_info() {
-      init_tm_info<TM_NAMES_MAX - 1>();
-  }
-
-  /** Initialize all of the TM algorithms. */
-  static void __attribute__((constructor)) tm_library_init() {
-      // call of the initTM, to have them register themselves with tm_info
-      init_tm_info();
-
+  /**
+   *  All of the algorithms have been initialized at this point.
+   */
+  template <>
+  void init_tm_info<-1>() {
       // guess a default configuration, then check env for a better option
       const char* cfg = "NOrec";
       const char* configstring = getenv("STM_CONFIG");
@@ -122,6 +110,12 @@ namespace {
           }
       }
       printf("STM library configured using config == %s\n", cfg);
+  }
+
+  /** Initialize all of the TM algorithms from a static constructor. */
+  template <>
+  void __attribute__((constructor)) init_tm_info<TM_NAMES_MAX>() {
+      init_tm_info<TM_NAMES_MAX - 1>();
   }
 }
 
