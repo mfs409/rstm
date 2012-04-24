@@ -54,4 +54,4 @@ default: info
 # Simple clean rule: kill all possible folders
 #
 clean:
-	@rm -rf $(LIBOUTDIRS) $(BENCHOUTDIRS)
+	$(_V)$(RM)r $(LIBOUTDIRS) $(BENCHOUTDIRS)

@@ -57,6 +57,9 @@ namespace stm {
 
       bool turbo; // tml haslock or ordered txn in turbo mode
 
+      uint32_t cxa_catch_count;         // gcctm exception handling
+      void *cxa_unthrown;               // "
+
       /*** number of RO commits ***/
       int commits_ro;
 

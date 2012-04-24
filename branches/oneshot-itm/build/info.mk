@@ -14,15 +14,15 @@
 # ensure that typing 'make' without a platform just spits out instructions
 #
 
-PLATFORMS = lib_gcc_linux_ia32_dbg     lib_gcc_linux_ia32_opt		\
-            lib_gcc_linux_x86_64_dbg   lib_gcc_linux_x86_64_opt		\
-            lib_gcc_linux_x86_64_prof \
-            gcctm_linux_x86_64_dbg gcctm_linux_x86_64_opt \
-            lib_gcc_solaris_ia32_dbg   lib_gcc_solaris_ia32_opt		\
-            lib_gcc_solaris_x86_64_dbg lib_gcc_solaris_x86_64_opt       \
-            gcctm_solaris_ia32_dbg     gcctm_solaris_ia32_opt           \
-            gcctm_solaris_x86_64_dbg   gcctm_solaris_x86_64_opt \
-            lib_clang_linux_x86_64_dbg lib_clang_linux_x86_64_opt
+PLATFORMS = lib_gcc_linux_ia32_dbg      lib_gcc_linux_ia32_opt		 \
+            lib_gcc_linux_x86_64_dbg    lib_gcc_linux_x86_64_opt	 \
+            lib_gcc_linux_x86_64_prof                                \
+            gcctm_linux_x86_64_dbg      gcctm_linux_x86_64_opt       \
+            lib_gcc_solaris_ia32_dbg    lib_gcc_solaris_ia32_opt     \
+            lib_gcc_solaris_x86_64_dbg  lib_gcc_solaris_x86_64_opt   \
+            gcctm_solaris_ia32_dbg      gcctm_solaris_ia32_opt       \
+            gcctm_solaris_x86_64_dbg    gcctm_solaris_x86_64_opt     \
+            lib_clang_linux_x86_64_dbg  lib_clang_linux_x86_64_opt
 
 info:
 	@echo "You must specify your platform as the build target."
