@@ -31,6 +31,15 @@
 using namespace stm;
 
 namespace {
+  // [ld] why not a static inside of tm_getalgname? Are we avoiding the
+  //      thread-safe initialization concern?
+  static char* trueAlgName = NULL;
+
+  // local function pointers that aren't exposed through the tmabi-fptr.h
+  static tm_calloc_t tm_calloc_;
+  static tm_become_irrevocable_t tm_become_irrevocable_;
+  static tm_is_irrevocable_t tm_is_irrevocable_;
+
   /**
    *  Stores the function pointers for the dynamically selectable algorithms,
    *  registered through registerTMAlg.
@@ -48,74 +57,89 @@ namespace {
       tm_is_irrevocable_t     tm_is_irrevocable;
       tm_become_irrevocable_t tm_become_irrevocable;
 
+      bool isName(const char* const name) const {
+          return (strcmp(name, tm_getalgname()) == 0);
+      }
+
+      void install() const {
+          tm_rollback_ = tm_rollback;
+          tm_begin_ = tm_begin;
+          tm_end_ = tm_end;
+          tm_getalgname_ = tm_getalgname;
+          tm_alloc_ = tm_alloc;
+          tm_calloc_ = tm_calloc;
+          tm_free_ = tm_free;
+          tm_read_ = tm_read;
+          tm_write_ = tm_write;
+          tm_become_irrevocable_ = tm_become_irrevocable;
+          tm_is_irrevocable_ = tm_is_irrevocable;
+      }
+
       // [TODO]
       // void (* switcher) ();
       // bool privatization_safe;
   } tm_info[TM_NAMES_MAX];
 
-  // [ld] why not a static inside of tm_getalgname? Are we avoiding the
-  //      thread-safe initialization concern?
-  static char* trueAlgName = NULL;
-
-  // local function pointers that aren't exposed through the tmabi-fptr.h
-  static tm_calloc_t tm_calloc_;
-  static tm_become_irrevocable_t tm_become_irrevocable_;
-  static tm_is_irrevocable_t tm_is_irrevocable_;
-
-  /** Template Metaprogramming trick for initializing all STM algorithms. */
+  /**
+   *  Template metaprogramming cleverness for initialization. Initialize
+   *  algorithm I and check to see if it's the algorithm that we've
+   */
   template <int I>
-  static void init_tm_info() {
+  static void init(const char* cfg) {
+      // initialize this algorithm
       initTM<I>();
-      init_tm_info<I-1>();
-  }
 
-  /**
-   *  AdapTM doesn't do anything special, so it doesn't need an initTM method
-   */
-  template <>
-  void init_tm_info<AdapTM>() {
-      init_tm_info<AdapTM-1>();
-  }
-
-  /**
-   *  All of the algorithms have been initialized at this point.
-   */
-  template <>
-  void init_tm_info<-1>() {
-      // guess a default configuration, then check env for a better option
-      const char* cfg = "NOrec";
-      const char* configstring = getenv("STM_CONFIG");
-      if (configstring)
-          cfg = configstring;
-      else
-          printf("STM_CONFIG environment variable not found... using %s\n", cfg);
-
-      bool found = false;
-      for (int i = 0; i < TM_NAMES_MAX; ++i) {
-          const char* name = tm_info[i].tm_getalgname();
-          if (0 == strcmp(cfg, name)) {
-              tm_rollback_ = tm_info[i].tm_rollback;
-              tm_begin_ = tm_info[i].tm_begin;
-              tm_end_ = tm_info[i].tm_end;
-              tm_getalgname_ = tm_info[i].tm_getalgname;
-              tm_alloc_ = tm_info[i].tm_alloc;
-              tm_calloc_ = tm_info[i].tm_calloc;
-              tm_free_ = tm_info[i].tm_free;
-              tm_read_ = tm_info[i].tm_read;
-              tm_write_ = tm_info[i].tm_write;
-              tm_become_irrevocable_ = tm_info[i].tm_become_irrevocable;
-              tm_is_irrevocable_ = tm_info[i].tm_is_irrevocable;
-              found = true;
-              break;
-          }
+      // if we're still looking for the right algorithm, and this one is it,
+      // then install its pointers and set cfg to NULL to indicate that we
+      // found what we needed (tm_info[I] has been initialized).
+      if (cfg && tm_info[I].isName(cfg)) {
+          tm_info[I].install();
+          cfg = NULL;
       }
-      printf("STM library configured using config == %s\n", cfg);
+
+      // initialize the next algorthim
+      init<I-1>(cfg);
   }
 
-  /** Initialize all of the TM algorithms from a static constructor. */
+  /** AdapTM doesn't do anything special, just forward to the next init. */
   template <>
-  void __attribute__((constructor)) init_tm_info<TM_NAMES_MAX>() {
-      init_tm_info<TM_NAMES_MAX - 1>();
+  void init<AdapTM>(const char* cfg) {
+      init<AdapTM-1>(cfg);
+  }
+
+  /**
+   *  All of the algorithms have been initialized at this point, do some error
+   *  checking and terminate init recursion.
+   */
+  template <>
+  void init<-1>(const char* const cfg) {
+      if (cfg) {
+          printf("----------------------------------------\n");
+          printf("Failed to initialize RSTM with config == %s\n", cfg);
+          printf("----------------------------------------\n");
+          printf("Valid options are:\n");
+          for (int i = 0; i < TM_NAMES_MAX; ++i) {
+              if (tm_info[i].tm_getalgname)
+                  printf("\t%s\n", tm_info[i].tm_getalgname());
+          }
+          printf("\nOr unset STM_CONFIG to use the default config.\n\n");
+          exit(-1);
+      }
+      printf("STM library configured using config == %s\n", tm_getalgname_());
+  }
+
+  /**
+   *  Initialize all of the TM algorithms from a static constructor. We
+   *  currently use "NOrec" as a default algorithm, and allow the user to
+   *  override it with the environment variable, STM_CONFIG.
+   */
+  static void __attribute__((constructor)) initialize_adaptivity() {
+      const char* cfg = getenv("STM_CONFIG");
+      if (!cfg) {
+          printf("STM_CONFIG environment variable not found... using NOrec\n");
+          cfg = "NOrec";
+      }
+      init<TM_NAMES_MAX - 1>(cfg);
   }
 }
 
