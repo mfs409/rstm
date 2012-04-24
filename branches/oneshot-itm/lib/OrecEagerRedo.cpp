@@ -144,9 +144,36 @@ void alg_tm_end()
 }
 
 namespace {
-/** OrecEagerRedo read */
+  /**
+   *  OrecEagerRedo read
+   *
+   *  OrecEagerRedo is a bit of an odd beast in that it acquires eager
+   *  ownership of to-write locations, but also buffers the writes that it will
+   *  perform. This doesn't fit well into our generic read/write
+   *  instrumentation scheme. In particular, the rest of the lazy-versioning
+   *  STMs perform RAW checks before executing any algorithm-specific read
+   *  instrumentation, while OrecEagerRedo is written instead to perform RAW
+   *  checks only when it detects that an orec is owned by itself.
+   */
+  template <typename WordType>
   struct Read {
-      void* operator()(void** addr, TX* tx, uintptr_t)  const{
+      /**
+       *  The RAW lookup should use the standard RAW instrumentation, in order to
+       *  correctly deal with byte-logging configurations. If we are byte-logging,
+       *  and we only get a partial hit, then we need to extract the missing
+       *  bytes from the word in memory, but we don't need to acquire any sort
+       *  of additional ownership of the orec (we already own the orec for
+       *  writing). This "PlainReader" policy is used to instantiate the Raw
+       *  class, which Raw uses to get the word from memory. (note that this
+       *  code is also used when we have an orec collision on something we own)
+       */
+      struct PlainReader {
+          void* operator()(void** address, TX*, uintptr_t) const {
+              return *address;
+          }
+      };
+
+      void* operator()(void** addr, TX* tx, uintptr_t mask)  const{
           // get the orec addr
           orec_t* o = get_orec(addr);
           while (true) {
@@ -163,11 +190,13 @@ namespace {
               }
 
               // next best: locked by me
-              // [TODO] This needs to deal with byte logging. Both the RAW and the
-              // *addr are dangerous.
-              if (ivt.all == tx->my_lock.all)
-                  // check the log for a RAW hazard
-                  return (tx->writes.find(addr, tmp)) ? tmp : *addr;
+              if (ivt.all == tx->my_lock.all) {
+                  // check the log for a RAW hazard, the Raw class handles the
+                  // possibility of partial RAW hits due to byte-logging
+                  Raw<PlainReader, WordType> raw(tx);
+                  raw(addr, tmp, mask);
+                  return tmp;
+              }
 
               // abort if locked by other
               if (ivt.fields.lock)
@@ -227,11 +256,11 @@ namespace {
   struct Inst {
       typedef GenericInst<T, true, NullType,
                           NoReadOnly,
-                          NoFilter, Read, NullType,
+                          NoFilter, Read<Word>, NullType,
                           NoFilter, Write, NullType> RSTM;
       typedef GenericInst<T, false, NullType,
                           NoReadOnly,
-                          FullFilter, Read, NullType,
+                          FullFilter, Read<LoggingWordType>, NullType,
                           FullFilter, Write, NullType> ITM;
   };
 }
