@@ -18,6 +18,7 @@
 #define METADATA_HPP__
 
 #include "stm/MiniVector.hpp"
+#include "stm/BitFilter64.hpp"
 #include "stm/BitFilter.hpp"
 
 namespace stm
@@ -180,7 +181,8 @@ namespace stm
   typedef MiniVector<rrec_t*>      RRecList;     // vector of rrecs
   typedef MiniVector<bytelock_t*>  ByteLockList; // vector of bytelocks
   typedef MiniVector<bitlock_t*>   BitLockList;  // vector of bitlocks
-  typedef BitFilter<1024>          filter_t;     // flat 1024-bit Bloom filter
+  typedef BitFilter<128>           filter_t;     // flat 1024-bit Bloom filter
+  typedef BitFilter64              filter64_t;   // flat 64-bit Bloom filter
   typedef MiniVector<nanorec_t>    NanorecList;  // <orec,val> pairs
   typedef MiniVector<void*>        AddressList;  // for the mmpolicy
 
