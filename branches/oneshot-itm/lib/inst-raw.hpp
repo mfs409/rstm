@@ -60,7 +60,7 @@ namespace stm {
       operator()(void** address, void*& w, uintptr_t mask) const {
           if (uintptr_t missing = mask & ~tx->writes.find(address, w)) {
               uintptr_t mem = (uintptr_t)read(address, tx, missing);
-              w = (void*)((uintptr_t)w ^ (((uintptr_t)w ^ mem) ^ missing));
+              w = (void*)((uintptr_t)w ^ (((uintptr_t)w ^ mem) & missing));
           }
       }
   };

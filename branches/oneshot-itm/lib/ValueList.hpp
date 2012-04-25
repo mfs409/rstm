@@ -49,8 +49,10 @@ namespace stm {
       bool validate() const {
           // don't branch in the loop---consider it backoff if we fail
           // validation early
+          //
           // TODO: we've never checked to see if this "backoff" strategy makes
-          //       any difference, of if validating front-back makes and sense
+          //       any difference, or if validating back to front makes any
+          //       sense
           bool valid = true;
           for (typename ListType::const_iterator i = list_.begin(),
                                                  e = list_.end(); i != e; ++i)

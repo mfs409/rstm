@@ -57,7 +57,7 @@
 namespace stm {
   /** Like a jmp_buf, a checkpoint_t is just a "big-enough" array of words. */
   typedef void* checkpoint_t[CHECKPOINT_SIZE];
-  static const int CHECKPOINT_SP_OFFSET = 3;
+  static const int CHECKPOINT_SP_OFFSET = 1;
 
   struct TX;
 

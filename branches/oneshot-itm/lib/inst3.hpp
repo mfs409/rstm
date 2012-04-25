@@ -89,7 +89,7 @@ namespace {
               f(base + i, words[i], mask);
 
           // if we have a final word to read, do so
-          if (N > 1 && off) {
+          if (N > 1 && (off + sizeof(T) > sizeof(void*))) {
               mask = make_mask(0, off);
               f(base + N - 1, words[N - 1], mask);
           }
@@ -180,17 +180,13 @@ namespace {
    */
   template <typename T, typename Read>
   struct Lazy {
-      typedef GenericInst<T, true, Word,
-                          CheckWritesetForReadOnly,
+      typedef GenericInst<T, true, Word, CheckWritesetForReadOnly,
                           NoFilter, Read, NullType,
-                          NoFilter, BufferedWrite, NullType>
-      RSTM;
+                          NoFilter, BufferedWrite, NullType> RSTM;
 
-      typedef GenericInst<T, false, LoggingWordType,
-                          CheckWritesetForReadOnly,
+      typedef GenericInst<T, false, LoggingWordType, CheckWritesetForReadOnly,
                           FullFilter, Read, NullType,
-                          NoFilter, BufferedWrite, NullType>
-      ITM;
+                          FullFilter, BufferedWrite, NullType> ITM;
   };
 }
 
