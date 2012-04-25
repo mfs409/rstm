@@ -21,6 +21,7 @@
 #include <cassert>
 #include <cstdlib>
 #include <string.h>
+#include <iterator>
 #include "platform.hpp"
 
 namespace stm
@@ -92,14 +93,42 @@ namespace stm
       /*** iterator interface, just use a basic pointer */
       typedef T* iterator;
       typedef const T* const_iterator;
+      typedef std::reverse_iterator<iterator> reverse_iterator;
+      typedef std::reverse_iterator<const_iterator> const_reverse_iterator;
 
       /*** iterator to the start of the array */
-      TM_INLINE iterator begin() { return m_elements; }
-      TM_INLINE const_iterator begin() const { return m_elements; }
+      TM_INLINE iterator begin() {
+          return m_elements;
+      }
+
+      TM_INLINE const_iterator begin() const {
+          return m_elements;
+      }
+
+      TM_INLINE reverse_iterator rend() {
+          return reverse_iterator(begin());
+      }
+
+      TM_INLINE const_reverse_iterator rend() const {
+          return const_reverse_iterator(begin());
+      }
 
       /*** iterator to the end of the array */
-      TM_INLINE iterator end() { return m_elements + m_size; }
-      TM_INLINE const_iterator end() const { return m_elements + m_size; }
+      TM_INLINE iterator end() {
+          return m_elements + m_size;
+      }
+
+      TM_INLINE const_iterator end() const {
+          return m_elements + m_size;
+      }
+
+      TM_INLINE reverse_iterator rbegin() {
+          return reverse_iterator(end());
+      }
+
+      TM_INLINE const_reverse_iterator rbegin() const {
+          return const_reverse_iterator(end());
+      }
 
   }; // class MiniVector
 

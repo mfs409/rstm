@@ -101,7 +101,7 @@ _ITM_getTMCloneSafe(void *ptr) {
 extern void *__cxa_allocate_exception (size_t) __attribute__((weak));
 extern void __cxa_throw (void *, void *, void *) __attribute__((weak));
 extern void *__cxa_begin_catch (void *) __attribute__((weak));
-extern void *__cxa_end_catch (void) __attribute__((weak));
+extern void __cxa_end_catch (void) __attribute__((weak));
 extern void __cxa_tm_cleanup (void *, void *, unsigned int) __attribute__((weak));
 
 void *
