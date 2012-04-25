@@ -127,11 +127,11 @@ namespace {
       typedef GenericInst<T, true, NullType,
                           NoReadOnly,
                           TurboFilter<NoFilter>, Read, NullType,
-                          NoFilter, Write<Word>, NullType> RSTM;
+                          TurboFilter<NoFilter>, Write<Word>, NullType> RSTM;
       typedef GenericInst<T, false, NullType,
                           NoReadOnly,
                           TurboFilter<FullFilter>, Read, NullType,
-                          NoFilter, Write<LoggingWordType>, NullType> ITM;
+                          TurboFilter<NoFilter>, Write<LoggingWordType>, NullType> ITM;
   };
 }
 
