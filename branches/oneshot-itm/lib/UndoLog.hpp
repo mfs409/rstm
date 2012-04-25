@@ -62,8 +62,9 @@ namespace stm
       }
 
       void undo() const {
-          for (typename ListType::const_iterator i = list_.begin(),
-                                                 e = list_.end(); i != e; ++i)
+          for (typename ListType::const_reverse_iterator i = list_.rbegin(),
+                                                         e = list_.rend();
+               i != e; ++i)
               i->value.writeTo(i->address);
       }
   };
