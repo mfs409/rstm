@@ -71,7 +71,7 @@ inline static void beforewrite_TML(TX* tx) {
  *  Start a (possibly flat nested) transaction. Only called for outer
  *  transactions.
  */
-uint32_t alg_tm_begin(uint32_t, TX* tx) {
+uint32_t alg_tm_begin(uint32_t, TX* tx, uint32_t extra) {
     // Sample the sequence lock until it is even (unheld)
     //
     // [mfs] Consider using NOrec trick to just decrease and start
@@ -80,7 +80,7 @@ uint32_t alg_tm_begin(uint32_t, TX* tx) {
 
     // notify the allocator
     tx->allocator.onTxBegin();
-    return a_runInstrumentedCode;
+    return extra | a_runInstrumentedCode;
 }
 
 /**

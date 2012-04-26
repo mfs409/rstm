@@ -77,13 +77,13 @@ static NOINLINE void validate(TX* tx, uintptr_t finish_cache)
 /**
  *  CToken begin: only called for outermost transactions.
  */
-uint32_t alg_tm_begin(uint32_t, TX* tx)
+uint32_t alg_tm_begin(uint32_t, TX* tx, uint32_t extra)
 {
     tx->allocator.onTxBegin();
 
     // get time of last finished txn
     tx->ts_cache = last_complete.val;
-    return a_runInstrumentedCode;
+    return extra | a_runInstrumentedCode;
 }
 
 /**

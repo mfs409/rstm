@@ -99,7 +99,7 @@ static NOINLINE void validate(TX* tx) {
 /**
  * only called for outermost transactions.
  */
-uint32_t alg_tm_begin(uint32_t, TX* tx) {
+uint32_t alg_tm_begin(uint32_t, TX* tx, uint32_t extra) {
   S1:
     // wait until everyone is committed
     while (cpending != committed);
@@ -118,7 +118,7 @@ uint32_t alg_tm_begin(uint32_t, TX* tx) {
     // get time of last finished txn
     tx->ts_cache = last_complete.val;
 
-    return a_runInstrumentedCode;
+    return extra | a_runInstrumentedCode;
 }
 
 /**

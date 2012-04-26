@@ -94,14 +94,14 @@ void alg_tm_rollback(TX* tx)
  *
  *    only called for outermost transactions.
  */
-uint32_t alg_tm_begin(uint32_t, TX* tx)
+uint32_t alg_tm_begin(uint32_t, TX* tx, uint32_t extra)
 {
     tx->allocator.onTxBegin();
     // Start after the last cleanup, instead of after the last commit, to
     // avoid spinning in begin()
     tx->start_time = last_complete.val;
     tx->end_time = 0;
-    return a_runInstrumentedCode;
+    return extra | a_runInstrumentedCode;
 }
 
 static NOINLINE void validate_commit(TX* tx)

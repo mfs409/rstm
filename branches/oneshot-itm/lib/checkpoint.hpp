@@ -67,7 +67,7 @@ namespace stm {
    *  allows us to control the post-checkpoint behavior from the calling site
    *  (i.e., _ITM_abortTransaction).
    */
-  void restore_checkpoint(tm_begin_t continuation, const TX* const tx)
+  void restore_checkpoint(uint32_t (*)(uint32_t, TX*) TM_FASTCALL, const TX* const)
       asm("_rstm_restore_checkpoint") NORETURN;
 }
 #endif // __cplusplus

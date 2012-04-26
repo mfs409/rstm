@@ -95,7 +95,7 @@ void alg_tm_rollback(TX* tx)
  *        scaling
  *        only called for outermost transactions.
  */
-uint32_t alg_tm_begin(uint32_t, TX* tx)
+uint32_t alg_tm_begin(uint32_t, TX* tx, uint32_t extra)
 {
     tx->allocator.onTxBegin();
 
@@ -104,7 +104,7 @@ uint32_t alg_tm_begin(uint32_t, TX* tx)
     tx->start_time = last_complete.val;
     tx->ts_cache = tx->start_time;
     tx->end_time = 0;
-    return a_runInstrumentedCode;
+    return extra | a_runInstrumentedCode;
 }
 
 static NOINLINE void validate_commit(TX* tx)

@@ -49,10 +49,16 @@ _ITM_getTransactionId() {
     return Self->nesting_depth;
 }
 
-/** Used aas a restore_checkpoint continuation to cancel a transaction. */
+/** Used as a restore_checkpoint continuation to cancel a transaction. */
 static uint32_t TM_FASTCALL
 cancel(uint32_t, TX*) {
     return a_restoreLiveVariables | a_abortTransaction;
+}
+
+/** Used as a restore_checkpoint continuation to restart a transaction. */
+static uint32_t TM_FASTCALL
+restart(uint32_t flags, TX* tx) {
+    return stm::tm_begin(flags, tx, a_restoreLiveVariables);
 }
 
 void
@@ -61,7 +67,7 @@ _ITM_abortTransaction(_ITM_abortReason why) {
     if (why & TMConflict) {
         tm_rollback(tx);
         tx->nesting_depth = 1;          // no closed nesting yet.
-        restore_checkpoint(stm::tm_begin, tx);
+        restore_checkpoint(restart, tx);
     }
     else if (why & userAbort) {
         if (tx->nesting_depth != 1 && why & ~outerAbort) {

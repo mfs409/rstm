@@ -30,7 +30,7 @@ namespace stm {
    */
   struct TX;
 
-  extern uint32_t    (*tm_begin_)(uint32_t, TX*) TM_FASTCALL;
+  extern uint32_t    (*tm_begin_)(uint32_t, TX*, uint32_t) TM_FASTCALL;
   extern void        (*tm_end_)();
   extern void*       (*tm_read_)(void**) TM_FASTCALL;
   extern void        (*tm_write_)(void**, void*) TM_FASTCALL;

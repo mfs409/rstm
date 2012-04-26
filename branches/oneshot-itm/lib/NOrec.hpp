@@ -79,7 +79,7 @@ static void alg_tm_rollback(TX* tx) {
  *  _ITM_beginTransaction asm.
  */
 template <class CM>
-static uint32_t TM_FASTCALL alg_tm_begin(uint32_t, TX* tx) {
+static uint32_t TM_FASTCALL alg_tm_begin(uint32_t, TX* tx, uint32_t extra) {
     CM::onBegin(tx);
 
     // Originally, NOrec required us to wait until the timestamp is even
@@ -92,7 +92,7 @@ static uint32_t TM_FASTCALL alg_tm_begin(uint32_t, TX* tx) {
     // notify the allocator
     tx->allocator.onTxBegin();
 
-    return a_runInstrumentedCode;
+    return extra | a_runInstrumentedCode;
 }
 
 /** Commit a (possibly flat nested) transaction. */
