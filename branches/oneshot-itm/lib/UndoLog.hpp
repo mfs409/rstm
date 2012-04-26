@@ -16,6 +16,8 @@
 #ifndef RSTM_UNDO_LOG_H
 #define RSTM_UNDO_LOG_H
 
+#include <utility>
+#include <algorithm>
 #include "MiniVector.hpp"
 
 /**
@@ -35,16 +37,18 @@ namespace stm
   template <typename WordType>
   class GenericUndoLog
   {
-      struct ListEntry {
-          void** address;
-          WordType value;
-
-          ListEntry(void** a, const WordType& v) : address(a), value(v) {
-          }
-      };
-
+      typedef std::pair<void**, WordType> ListEntry;
       typedef MiniVector<ListEntry> ListType;
       ListType list_;
+
+      static void UndoEntry(const ListEntry& i) {
+          i.second.writeTo(i.first);
+      }
+
+      void __attribute__((noinline)) undoSlow() {
+          std::for_each(list_.rbegin(), list_.rend(), UndoEntry);
+          reset();
+      }
 
     public:
       GenericUndoLog(const uintptr_t cap) : list_(cap) {
@@ -58,15 +62,14 @@ namespace stm
       }
 
       void insert(void** addr, void* val, uintptr_t mask) {
-          list_.insert(ListEntry(addr, WordType(val, mask)));
+          list_.insert(std::make_pair(addr, WordType(val, mask)));
       }
 
-      void undo() const {
-          for (typename ListType::const_reverse_iterator i = list_.rbegin(),
-                                                         e = list_.rend();
-               i != e; ++i)
-              i->value.writeTo(i->address);
+      void undo() {
+          if (list_.size())
+              undoSlow();
       }
+
   };
 }
 #endif // RSTM_UNDO_LOG_H

@@ -23,7 +23,7 @@
 #include "byte-logging.hpp"
 #include "tmabi-weak.hpp"
 #include "foreach.hpp"
-#include "inst3.hpp"
+#include "inst.hpp"
 #include "WBMMPolicy.hpp"
 #include "tx.hpp"
 #include "adaptivity.hpp"
@@ -48,6 +48,7 @@ const char* alg_tm_getalgname() {
 void alg_tm_rollback(TX* tx)
 {
     ++tx->aborts;
+    tx->undo_log.undo();
     tx->r_orecs.reset();
     tx->writes.reset();
     // NB: we can't reset pointers here, because if the transaction
@@ -100,6 +101,7 @@ void alg_tm_end()
     //     after our first write.  In that case, we need to participate in
     //     ordered commit, and can't take the RO fastpath
     if (tx->order == -1) {
+        tx->undo_log.reset();
         tx->r_orecs.reset();
         tx->allocator.onTxCommit();
         ++tx->commits_ro;
@@ -132,6 +134,7 @@ void alg_tm_end()
     tx->order = -1;
 
     // commit all frees, reset all lists
+    tx->undo_log.reset();
     tx->r_orecs.reset();
     tx->writes.reset();
     tx->allocator.onTxCommit();
@@ -235,7 +238,14 @@ REGISTER_TM_FOR_ADAPTIVITY(CToken)
         Inst<TYPE>::ITM::Write(addr, val);                              \
     }
 
+#define RSTM_LIBITM_LOG(SYMBOL, CALLING_CONVENTION, TYPE)   \
+    void CALLING_CONVENTION __attribute__((weak))           \
+        SYMBOL(TYPE* addr) {                                \
+        Inst<TYPE>::ITM::Log(addr);                         \
+    }
+
 #include "libitm-dtfns.def"
 
+#undef RSTM_LIBITM_LOG
 #undef RSTM_LIBITM_WRITE
 #undef RSTM_LIBITM_READ

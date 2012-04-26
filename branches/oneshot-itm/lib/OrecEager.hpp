@@ -45,7 +45,7 @@
 #include "byte-logging.hpp"
 #include "tmabi-weak.hpp"
 #include "foreach.hpp"
-#include "inst3.hpp"                    // read<>/write<>, etc
+#include "inst.hpp"                    // read<>/write<>, etc
 #include "MiniVector.hpp"
 #include "metadata.hpp"
 #include "WBMMPolicy.hpp"
@@ -68,7 +68,7 @@ static void alg_tm_rollback(TX* tx)
 {
     ++tx->aborts;
 
-    tx->undo_log.undo();
+    tx->undo_log.undo();                // (also undoes _ITM_LOG)
 
     // release the locks and bump version numbers by one... track the highest
     // version number we write, in case it is greater than timestamp.val
@@ -88,7 +88,6 @@ static void alg_tm_rollback(TX* tx)
     // reset all lists
     CM::onAbort(tx);
     tx->r_orecs.reset();
-    tx->undo_log.reset();
     tx->locks.reset();
 
     tx->allocator.onTxAbort();
@@ -153,6 +152,7 @@ alg_tm_end() {
 
     // use the lockset size to identify if tx is read-only
     if (!tx->locks.size()) {
+        tx->undo_log.reset();           // ITM _ITM_LOG support
         tx->r_orecs.reset();
         tx->allocator.onTxCommit();
         ++tx->commits_ro;
@@ -176,7 +176,7 @@ alg_tm_end() {
     // reset lock list and undo log
     CM::onCommit(tx);
     tx->locks.reset();
-    tx->undo_log.reset();
+    tx->undo_log.reset();               // (also does _ITM_LOG)
     tx->r_orecs.reset();
     tx->allocator.onTxCommit();
     ++tx->commits_rw;
@@ -332,7 +332,14 @@ alg_tm_become_irrevocable(_ITM_transactionState) {
         Inst<TYPE>::ITM::Write(addr, val);                              \
     }
 
+#define RSTM_LIBITM_LOG(SYMBOL, CALLING_CONVENTION, TYPE)   \
+    void CALLING_CONVENTION __attribute__((weak))           \
+        SYMBOL(TYPE* addr) {                                \
+        Inst<TYPE>::ITM::Log(addr);                         \
+    }
+
 #include "libitm-dtfns.def"
 
+#undef RSTM_LIBITM_LOG
 #undef RSTM_LIBITM_WRITE
 #undef RSTM_LIBITM_READ

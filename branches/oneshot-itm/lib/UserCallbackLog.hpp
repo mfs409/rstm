@@ -36,14 +36,15 @@ namespace stm {
 
       void onCommit() {
           if (onCommit_.size())
-              DoForEach(onCommit_.begin(), onRollback_.end());
-          reset();
+              onCommitSlow();
+          onRollback_.reset();
+
       }
 
       void onRollback() {
           if (onRollback_.size())
-              DoForEach(onRollback_.rbegin(), onRollback_.rend());
-          reset();
+              onRollbackSlow();
+          onCommit_.reset();
       }
 
     private:
@@ -56,16 +57,6 @@ namespace stm {
       CallbackList onCommit_;
       CallbackList onRollback_;
 
-      void reset() {
-          onRollback_.reset();
-          onCommit_.reset();
-      }
-
-      template <typename I>
-      static void DoForEach(I begin, I end) {
-          std::for_each(begin, end, DoCallback);
-      }
-
       static void PushBack(CallbackList& list, UserCallbackFn f, void* a) {
           list.push_back(std::make_pair(f, a));
       }
@@ -73,6 +64,17 @@ namespace stm {
       static void DoCallback(const UserCallback& f) {
           f.first(f.second);
       }
+
+      void __attribute__((noinline)) onCommitSlow() {
+          std::for_each(onCommit_.begin(), onCommit_.end(), DoCallback);
+          onCommit_.reset();
+      }
+
+      void __attribute__((noinline)) onRollbackSlow() {
+          std::for_each(onRollback_.rbegin(), onRollback_.rend(), DoCallback);
+          onRollback_.reset();
+      }
+
   };
 }
 

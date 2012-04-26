@@ -11,6 +11,8 @@
 #ifndef STM_VALUE_LIST_HPP
 #define STM_VALUE_LIST_HPP
 
+#include <utility>
+#include <algorithm>
 #include "MiniVector.hpp"
 
 namespace stm {
@@ -20,16 +22,29 @@ namespace stm {
    */
   template <typename WordType>
   class GenericValueList {
-      struct ListEntry {
-          void** address;
-          WordType value;
 
-          ListEntry(void** a, const WordType& v) : address(a), value(v) {
+      typedef std::pair<void**, WordType> ListEntry;
+      typedef MiniVector<ListEntry> ListType;
+      ListType list_;
+
+      /**
+       *  Simple reduction functor or std::for_each, keeps track of if the
+       *  validation succeeded for each entry.
+       */
+      struct Validate {
+          bool valid;
+
+          Validate() : valid(true) {
+          }
+
+          void operator()(const ListEntry& i) {
+              valid &= i.second.equals(*i.first);
           }
       };
 
-      typedef MiniVector<ListEntry> ListType;
-      ListType list_;
+      bool __attribute__((noinline)) validateSlow() const {
+          return std::for_each(list_.begin(), list_.end(), Validate()).valid;
+      }
 
     public:
       GenericValueList(const unsigned long cap) : list_(cap) {
@@ -43,7 +58,7 @@ namespace stm {
       }
 
       void insert(void** addr, void* val, uintptr_t mask) {
-          list_.insert(ListEntry(addr, WordType(val, mask)));
+          list_.insert(std::make_pair(addr, WordType(val, mask)));
       }
 
       bool validate() const {
@@ -53,11 +68,7 @@ namespace stm {
           // TODO: we've never checked to see if this "backoff" strategy makes
           //       any difference, or if validating back to front makes any
           //       sense
-          bool valid = true;
-          for (typename ListType::const_iterator i = list_.begin(),
-                                                 e = list_.end(); i != e; ++i)
-              valid &= i->value.equals(*i->address);
-          return valid;
+          return (list_.size()) ? validateSlow() : true;
       }
   };
 }

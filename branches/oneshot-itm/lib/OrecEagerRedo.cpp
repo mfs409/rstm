@@ -29,7 +29,7 @@
 #include "adaptivity.hpp"
 #include "tm_alloc.hpp"
 #include "libitm.h"
-#include "inst3.hpp"
+#include "inst.hpp"
 
 using namespace stm;
 
@@ -55,6 +55,7 @@ void alg_tm_rollback(TX* tx)
     }
 
     // undo memory operations, reset lists
+    tx->undo_log.undo();                // ITM _ITM_LOG support
     tx->r_orecs.reset();
     tx->writes.reset();
     tx->locks.reset();
@@ -107,6 +108,7 @@ void alg_tm_end()
         return;
 
     if (!tx->writes.size()) {
+        tx->undo_log.reset();           // ITM _ITM_LOG support
         tx->r_orecs.reset();
         tx->allocator.onTxCommit();
         ++tx->commits_ro;
@@ -138,6 +140,7 @@ void alg_tm_end()
     }
 
     // clean up
+    tx->undo_log.reset();               // ITM _ITM_LOG support
     tx->r_orecs.reset();
     tx->writes.reset();
     tx->locks.reset();
@@ -312,7 +315,14 @@ REGISTER_TM_FOR_ADAPTIVITY(OrecEagerRedo)
         Inst<TYPE>::ITM::Write(addr, val);                              \
     }
 
+#define RSTM_LIBITM_LOG(SYMBOL, CALLING_CONVENTION, TYPE)   \
+    void CALLING_CONVENTION __attribute__((weak))           \
+        SYMBOL(TYPE* addr) {                                \
+        Inst<TYPE>::ITM::Log(addr);                         \
+    }
+
 #include "libitm-dtfns.def"
 
+#undef RSTM_LIBITM_LOG
 #undef RSTM_LIBITM_WRITE
 #undef RSTM_LIBITM_READ

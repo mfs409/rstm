@@ -22,7 +22,7 @@
 #include <cassert>
 #include "tmabi-weak.hpp"
 #include "tx.hpp"
-#include "inst3.hpp"
+#include "inst.hpp"
 #include "adaptivity.hpp"
 #include "tm_alloc.hpp"
 #include "libitm.h"
@@ -44,6 +44,7 @@ const char* alg_tm_getalgname() {
  */
 void alg_tm_rollback(TX* tx) {
     ++tx->aborts;
+    tx->undo_log.undo();                // ITM _ITM_LOG support
     tx->allocator.onTxAbort();
     tx->userCallbacks.onRollback();
 }
@@ -105,6 +106,7 @@ void alg_tm_end() {
         ++tx->commits_ro;
     }
 
+    tx->undo_log.reset();               // ITM _ITM_LOG support
     tx->userCallbacks.onCommit();
 }
 

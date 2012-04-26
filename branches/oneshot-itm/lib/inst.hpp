@@ -169,6 +169,31 @@ namespace {
           else
               ProcessWords(addr, words, Writer<WriteType>(tx));
       }
+
+      /**
+       *  The client's log instrumentation, generally inlined into the
+       *  externally visible log routines.
+       */
+      static void Log(T* addr) {
+          TX* tx = Self;
+
+          // We don't filter stack logs---presumably there is a reason that the
+          // compiler has generated a log of the transactional stack. This will
+          // cause issues for rollback loops, if the address corrupts the stack
+          // in a way that impacts the pre-longjmp execution.
+
+          // Allocate space on the stack to perform the log.
+          union {
+              void* words[N];
+              uint8_t bytes[sizeof(void*[N])];
+          };
+
+          // Put the to-log value into the union at the right offset.
+          *reinterpret_cast<T*>(bytes + OffsetOf(addr)) = *addr;
+
+          // repurpose the undo log for logging.
+          ProcessWords(addr, words, Writer<Logger>(tx));
+      }
   };
 
   /**
