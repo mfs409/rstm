@@ -98,9 +98,9 @@ _ITM_abortTransaction(_ITM_abortReason why) {
  *    ensured.
 */
 void
-_ITM_addUserCommitAction(_ITM_userCommitFunction, _ITM_transactionId_t, void*)
-{
-    assert(false && "Unimplemented");
+_ITM_addUserCommitAction(_ITM_userCommitFunction f, _ITM_transactionId_t,
+                         void* a) {
+    stm::Self->userCallbacks.doOnCommit(f, a);
 }
 
 /**
@@ -112,8 +112,8 @@ _ITM_addUserCommitAction(_ITM_userCommitFunction, _ITM_transactionId_t, void*)
  *    data transfers or memory allocations) is undefined.
  */
 void
-_ITM_addUserUndoAction(_ITM_userUndoFunction, void*) {
-    assert(false && "Unimplemented");
+_ITM_addUserUndoAction(_ITM_userUndoFunction f, void* a) {
+    stm::Self->userCallbacks.doOnRollback(f, a);
 }
 
 /**

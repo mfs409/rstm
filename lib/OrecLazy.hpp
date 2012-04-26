@@ -53,6 +53,7 @@ static void alg_tm_rollback(TX* tx)
     tx->writes.reset();
     tx->locks.reset();
     tx->allocator.onTxAbort();
+    tx->userCallbacks.onRollback();
 }
 
 /*** The only metadata we need is a single global padded lock ***/
@@ -105,6 +106,7 @@ alg_tm_end() {
         tx->allocator.onTxCommit();
         ++tx->commits_ro;
         CM::onCommit(tx);
+        tx->userCallbacks.onCommit();
         return;
     }
 
@@ -155,6 +157,7 @@ alg_tm_end() {
     tx->locks.reset();
     tx->allocator.onTxCommit();
     ++tx->commits_rw;
+    tx->userCallbacks.onCommit();
 }
 
 namespace {

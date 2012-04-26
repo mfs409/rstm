@@ -55,6 +55,7 @@ void alg_tm_rollback(TX* tx)
     //     order, but restarts and is read-only, then it still must call
     //     commit_rw to finish in-order
     tx->allocator.onTxAbort();
+    tx->userCallbacks.onRollback();
 }
 
 /**
@@ -102,6 +103,7 @@ void alg_tm_end()
         tx->r_orecs.reset();
         tx->allocator.onTxCommit();
         ++tx->commits_ro;
+        tx->userCallbacks.onCommit();
         return;
     }
 
@@ -134,6 +136,7 @@ void alg_tm_end()
     tx->writes.reset();
     tx->allocator.onTxCommit();
     ++tx->commits_rw;
+    tx->userCallbacks.onCommit();
 }
 
 namespace {

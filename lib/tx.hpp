@@ -16,6 +16,7 @@
 #include "MiniVector.hpp"
 #include "WBMMPolicy.hpp"
 #include "UndoLog.hpp"
+#include "UserCallbackLog.hpp"
 #include "checkpoint.hpp"
 #include "byte-logging.hpp"
 
@@ -57,6 +58,7 @@ namespace stm {
 
       bool turbo; // tml haslock or ordered txn in turbo mode
 
+      UserCallbackLog userCallbacks;    //
       uint32_t cxa_catch_count;         // gcctm exception handling
       void *cxa_unthrown;               // "
 
@@ -82,7 +84,8 @@ namespace stm {
       TX() : nesting_depth(0), commits_ro(0), commits_rw(0), aborts(0),
              checkpoint(), allocator(), start_time(0), writes(64),
              locks(64), vlist(64), r_orecs(64), ts_cache(0), order(-1),
-             turbo(false), end_time(0), undo_log(64) {
+             turbo(false), userCallbacks(), cxa_catch_count(0),
+             cxa_unthrown(0), end_time(0), undo_log(64) {
           id = faiptr(&threadcount.val);
           threads[id] = this;
           // set up my lock word

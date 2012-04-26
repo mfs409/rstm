@@ -92,6 +92,7 @@ static void alg_tm_rollback(TX* tx)
     tx->locks.reset();
 
     tx->allocator.onTxAbort();
+    tx->userCallbacks.onRollback();
 }
 
 /** only called for outermost transactions. */
@@ -156,6 +157,7 @@ alg_tm_end() {
         tx->allocator.onTxCommit();
         ++tx->commits_ro;
         CM::onCommit(tx);
+        tx->userCallbacks.onCommit();
         return;
     }
 
@@ -178,6 +180,7 @@ alg_tm_end() {
     tx->r_orecs.reset();
     tx->allocator.onTxCommit();
     ++tx->commits_rw;
+    tx->userCallbacks.onCommit();
 }
 
 namespace {

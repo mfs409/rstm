@@ -54,6 +54,7 @@ void alg_tm_rollback(TX* tx) {
     tx->writes.reset();
     tx->locks.reset();
     tx->allocator.onTxAbort();
+    tx->userCallbacks.onRollback();
 }
 
 /*** The only metadata we need is a single global padded lock ***/
@@ -93,6 +94,7 @@ void alg_tm_end()
         tx->r_orecs.reset();
         tx->allocator.onTxCommit();
         ++tx->commits_ro;
+        tx->userCallbacks.onCommit();
         return;
     }
 
@@ -129,8 +131,9 @@ void alg_tm_end()
 
     // release locks
     CFENCE;
-    FOREACH (OrecList, i, tx->locks)
-    (*i)->v.all = end_time;
+    FOREACH (OrecList, i, tx->locks) {
+        (*i)->v.all = end_time;
+    }
 
     // clean-up
     tx->r_orecs.reset();
@@ -139,6 +142,7 @@ void alg_tm_end()
 
     tx->allocator.onTxCommit();
     ++tx->commits_rw;
+    tx->userCallbacks.onCommit();
 }
 
 /**
