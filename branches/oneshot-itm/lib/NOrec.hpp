@@ -72,6 +72,7 @@ static void alg_tm_rollback(TX* tx) {
     tx->writes.reset();
     tx->allocator.onTxAbort();
     CM::onAbort(tx);
+    tx->userCallbacks.onRollback();
 }
 
 /**
@@ -108,6 +109,7 @@ static void alg_tm_end() {
         tx->allocator.onTxCommit();
         ++tx->commits_ro;
         CM::onCommit(tx);
+        tx->userCallbacks.onCommit();
         return;
     }
 

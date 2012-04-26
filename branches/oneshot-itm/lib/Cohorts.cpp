@@ -67,6 +67,7 @@ void alg_tm_rollback(TX* tx) {
     tx->r_orecs.reset();
     tx->writes.reset();
     tx->allocator.onTxAbort();
+    tx->userCallbacks.onRollback();
 }
 
 /**
@@ -135,6 +136,7 @@ void alg_tm_end()
         tx->r_orecs.reset();
         tx->allocator.onTxCommit();
         ++tx->commits_ro;
+        tx->userCallbacks.onCommit();
         return;
     }
 
@@ -180,6 +182,7 @@ void alg_tm_end()
     tx->writes.reset();
     tx->allocator.onTxCommit();
     ++tx->commits_rw;
+    tx->userCallbacks.onCommit();
 }
 
 /**

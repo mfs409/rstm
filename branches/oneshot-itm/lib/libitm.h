@@ -95,7 +95,7 @@ extern "C" {
     typedef uint32_t _ITM_transactionId_t;
 
     typedef void (*_ITM_userUndoFunction)(void*);
-    typedef _ITM_userUndoFunction _ITM_userCommitFunction;
+    typedef void (*_ITM_userCommitFunction)(void*);
 
 #define _ITM_VERSION "0.9 (October 1, 2008)"
 #define _ITM_VERSION_NO 90

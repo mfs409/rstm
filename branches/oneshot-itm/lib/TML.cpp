@@ -45,6 +45,7 @@ const char* alg_tm_getalgname() {
 void alg_tm_rollback(TX* tx) {
     ++tx->aborts;
     tx->allocator.onTxAbort();
+    tx->userCallbacks.onRollback();
 }
 
 /**
@@ -103,6 +104,8 @@ void alg_tm_end() {
         tx->allocator.onTxCommit();
         ++tx->commits_ro;
     }
+
+    tx->userCallbacks.onCommit();
 }
 
 namespace {
