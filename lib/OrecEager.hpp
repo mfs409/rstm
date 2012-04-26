@@ -96,18 +96,18 @@ static void alg_tm_rollback(TX* tx)
 
 /** only called for outermost transactions. */
 template <class CM>
-static uint32_t TM_FASTCALL alg_tm_begin(uint32_t, TX* tx)
-{
+static uint32_t TM_FASTCALL
+alg_tm_begin(uint32_t, TX* tx, uint32_t extra) {
     CM::onBegin(tx);
     // sample the timestamp and prepare local structures
     tx->allocator.onTxBegin();
     tx->start_time = timestamp.val;
 
-    return a_runInstrumentedCode;
+    return extra | a_runInstrumentedCode;
 }
 
-static NOINLINE void validate_commit(TX* tx)
-{
+static void NOINLINE
+validate_commit(TX* tx) {
     FOREACH (OrecList, i, tx->r_orecs) {
         // abort unless orec older than start or owned by me
         uintptr_t ivt = (*i)->v.all;
@@ -124,8 +124,8 @@ static NOINLINE void validate_commit(TX* tx)
  *    did so when the time was smaller than our start time, so we're sure to
  *    be OK.
  */
-static NOINLINE void validate(TX* tx)
-{
+static void NOINLINE
+validate(TX* tx) {
     FOREACH (OrecList, i, tx->r_orecs) {
         // read this orec
         uintptr_t ivt = (*i)->v.all;
@@ -144,8 +144,8 @@ static NOINLINE void validate(TX* tx)
  *    locks
  */
 template <class CM>
-static void alg_tm_end()
-{
+static void
+alg_tm_end() {
     TX* tx = Self;
     if (--tx->nesting_depth)
         return;
@@ -285,20 +285,24 @@ namespace {
   };
 }
 
-void* alg_tm_read(void** addr) {
+void*
+alg_tm_read(void** addr) {
     return Inst<void*>::RSTM::Read(addr);
 }
 
-void alg_tm_write(void** addr, void* val) {
+void
+alg_tm_write(void** addr, void* val) {
     Inst<void*>::RSTM::Write(addr, val);
 }
 
-bool alg_tm_is_irrevocable(TX*) {
+bool
+alg_tm_is_irrevocable(TX*) {
     assert(false && "Unimplemented");
     return false;
 }
 
-void alg_tm_become_irrevocable(_ITM_transactionState) {
+void
+alg_tm_become_irrevocable(_ITM_transactionState) {
     assert(false && "Unimplemented");
     return;
 }
@@ -314,7 +318,8 @@ void alg_tm_become_irrevocable(_ITM_transactionState) {
  *        reasonable name...?
  */
 #define RSTM_LIBITM_READ(SYMBOL, CALLING_CONVENTION, TYPE)              \
-    TYPE CALLING_CONVENTION __attribute__((weak)) SYMBOL(TYPE* addr) {  \
+    TYPE CALLING_CONVENTION __attribute__((weak))                       \
+    SYMBOL(TYPE* addr) {                                                \
         return Inst<TYPE>::ITM::Read(addr);                             \
     }
 

@@ -36,7 +36,7 @@ const char* alg_tm_getalgname() {
  *  This supports CGL in the context of AdaptTM. libCGL uses the weak
  *  definition of _ITM_beginTransaction.
  */
-uint32_t alg_tm_begin(uint32_t flags, TX*) {
+uint32_t alg_tm_begin(uint32_t flags, TX*, uint32_t) {
     assert(flags & pr_hasNoAbort && "CGL does not support cancel");
     tatas_acquire(&timestamp.val);
     return a_runInstrumentedCode;
@@ -55,7 +55,7 @@ _ITM_beginTransaction(uint32_t flags, ...) {
     if (++Self->nesting_depth > 1)
         return a_runInstrumentedCode;
 
-    return alg_tm_begin(flags, NULL);
+    return alg_tm_begin(flags, NULL, 0);
 }
 
 void alg_tm_end() {

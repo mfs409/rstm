@@ -60,13 +60,13 @@ void alg_tm_rollback(TX* tx) {
 static pad_word_t timestamp = {0};
 
 /** LLT begin: only called for outermost transactions. */
-uint32_t alg_tm_begin(uint32_t, TX* tx)
+uint32_t alg_tm_begin(uint32_t, TX* tx, uint32_t extra)
 {
     tx->allocator.onTxBegin();
     // get a start time
     tx->start_time = timestamp.val;
 
-    return a_runInstrumentedCode;
+    return extra | a_runInstrumentedCode;
 }
 
 /** LLT validation */

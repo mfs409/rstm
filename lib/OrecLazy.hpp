@@ -65,12 +65,12 @@ static pad_word_t timestamp = {0};
  *    transactions.
  */
 template <class CM>
-static uint32_t TM_FASTCALL alg_tm_begin(uint32_t, TX* tx)
-{
+static uint32_t TM_FASTCALL
+alg_tm_begin(uint32_t, TX* tx, uint32_t extra) {
     CM::onBegin(tx);
     tx->allocator.onTxBegin();
     tx->start_time = timestamp.val;
-    return a_runInstrumentedCode;
+    return extra | a_runInstrumentedCode;
 }
 
 /**
@@ -79,8 +79,8 @@ static uint32_t TM_FASTCALL alg_tm_begin(uint32_t, TX* tx)
  *    validate the read set by making sure that all orecs that we've read have
  *    timestamps older than our start time, unless we locked those orecs.
  */
-static NOINLINE void validate(TX* tx)
-{
+static void NOINLINE
+validate(TX* tx) {
     FOREACH (OrecList, i, tx->r_orecs) {
         // abort if orec locked, or if unlocked but timestamp too new
         if ((*i)->v.all > tx->start_time)
@@ -94,8 +94,8 @@ static NOINLINE void validate(TX* tx)
  *    Standard commit: we hold no locks, and we're valid, so just clean up
  */
 template <class CM>
-static void alg_tm_end()
-{
+static void
+alg_tm_end() {
     TX* tx = Self;
     if (--tx->nesting_depth)
         return;
@@ -194,20 +194,24 @@ namespace {
   };
 }
 
-void* alg_tm_read(void** addr) {
+void*
+alg_tm_read(void** addr) {
     return Lazy<void*, Read>::RSTM::Read(addr);
 }
 
-void alg_tm_write(void** addr, void* val) {
+void
+alg_tm_write(void** addr, void* val) {
     Lazy<void*, Read>::RSTM::Write(addr, val);
 }
 
-bool alg_tm_is_irrevocable(TX*) {
+bool
+alg_tm_is_irrevocable(TX*) {
     assert(false && "Unimplemented");
     return false;
 }
 
-void alg_tm_become_irrevocable(_ITM_transactionState) {
+void
+alg_tm_become_irrevocable(_ITM_transactionState) {
     assert(false && "Unimplemented");
     return;
 }
@@ -223,13 +227,14 @@ void alg_tm_become_irrevocable(_ITM_transactionState) {
  *        reasonable name...?
  */
 #define RSTM_LIBITM_READ(SYMBOL, CALLING_CONVENTION, TYPE)              \
-    TYPE CALLING_CONVENTION __attribute__((weak)) SYMBOL(TYPE* addr) {  \
+    TYPE CALLING_CONVENTION __attribute__((weak))                       \
+    SYMBOL(TYPE* addr) {                                                \
         return Lazy<TYPE, Read>::ITM::Read(addr);                       \
     }
 
 #define RSTM_LIBITM_WRITE(SYMBOL, CALLING_CONVENTION, TYPE)             \
     void CALLING_CONVENTION __attribute__((weak))                       \
-        SYMBOL(TYPE* addr, TYPE val) {                                  \
+    SYMBOL(TYPE* addr, TYPE val) {                                      \
         Lazy<TYPE, Read>::ITM::Write(addr, val);                        \
     }
 

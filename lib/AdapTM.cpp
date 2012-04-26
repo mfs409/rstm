@@ -198,8 +198,8 @@ void stm::registerTMAlg(int tmid,
     tm_info[tmid].tm_become_irrevocable = tm_become_irrevocable;
 }
 
-uint32_t stm::tm_begin(uint32_t flags, TX* tx) {
-    return tm_begin_(flags, tx);
+uint32_t stm::tm_begin(uint32_t flags, TX* tx, uint32_t extra) {
+    return tm_begin_(flags, tx, extra);
 }
 
 void* stm::tm_read(void** addr) {

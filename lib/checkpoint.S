@@ -67,8 +67,9 @@ _ITM_beginTransaction:
         movq    %r15, R15(%rsi)
         movq    %rdi, RDI(%rsi)         // save flags for abort path
 
-        // stm::tm_begin(%edi=flags, %esi=TX*)
-        jmp     _ZN3stm8tm_beginEjPNS_2TXE
+        // stm::tm_begin(%rdi=flags, %rsi=TX*, %rdx=return flag)
+        movl    $4, %edx
+        jmp     _ZN3stm8tm_beginEjPNS_2TXEj
 
 _ITM_beginTransaction_nested:
         // nested transactions take the instrumented path, but don't request
@@ -106,7 +107,8 @@ _rstm_restore_checkpoint:
         movq    %rax, (%rsp)            // the stack
 
         movq    %rdi, %rax              // restore the flags and call the 
-        movq    RDI(%rsi), %rdi         // continuation using a sibling call 
+        movq    RDI(%rsi), %rdi         // continuation using a sibling call
+
         jmp     *%rax
         
         ASM_DOT_CFI_ENDPROC
@@ -170,9 +172,10 @@ _ITM_beginTransaction:
         movl    %esi, ESI(%edx)
         movl    %edi, EDI(%edx)
 
-        // regparm(2) stm::tm_begin(%eax=flags, %edx=TX*)
-        movl    4(%esp), %eax 
-        jmp     _ZN3stm8tm_beginEjPNS_2TXE
+        // regparm(3) stm::tm_begin(%eax=flags, %edx=TX*, %ecx=return flag)
+        movl    4(%esp), %eax
+        movl    $4, %ecx
+        jmp     _ZN3stm8tm_beginEjPNS_2TXEj
         
 _ITM_beginTransaction_nested:
         movl    0x1, %eax

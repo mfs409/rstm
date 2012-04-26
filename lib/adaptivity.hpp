@@ -18,7 +18,7 @@
 namespace stm {
   struct TX;
 
-  typedef uint32_t    (*tm_begin_t)(uint32_t, TX*) TM_FASTCALL;
+  typedef uint32_t    (*tm_begin_t)(uint32_t, TX*, uint32_t) TM_FASTCALL;
   typedef void        (*tm_end_t)();
   typedef void*       (*tm_read_t)(void**) TM_FASTCALL;
   typedef void        (*tm_write_t)(void**, void*) TM_FASTCALL;

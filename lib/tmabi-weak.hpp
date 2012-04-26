@@ -38,7 +38,7 @@
  *      this without gcc's asm() extension.
  */
 #if defined(__x86_64__) && defined(__LP64__)
-#define TM_BEGIN_SYMBOL "_ZL12alg_tm_beginjPN3stm2TXE"
+#define TM_BEGIN_SYMBOL "_ZL12alg_tm_beginjPN3stm2TXEj"
 #define TM_END_SYMBOL "_ZL10alg_tm_endv"
 #define TM_GETALGNAME_SYMBOL "_ZL17alg_tm_getalgnamev"
 #define TM_ALLOC_SYMBOL "_ZL12alg_tm_allocm"
@@ -52,13 +52,13 @@
 
 // Some of the tms use explicit template instatiations.
 #define SPECIALIZE_TM_ROLLBACK_SYMBOL(CM, NCM) "_Z15alg_tm_rollbackIN3stm"#NCM#CM"EEvPNS0_2TXE"
-#define SPECIALIZE_TM_BEGIN_SYMBOL(CM, NCM) "_Z12alg_tm_beginIN3stm"#NCM#CM"EEjjPNS0_2TXE"
+#define SPECIALIZE_TM_BEGIN_SYMBOL(CM, NCM) "_Z12alg_tm_beginIN3stm"#NCM#CM"EEjjPNS0_2TXEj"
 #define SPECIALIZE_TM_END_SYMBOL(CM, NCM) "_Z10alg_tm_endIN3stm"#NCM#CM"EEvv"
 
 #elif defined(__x86_64__)
 #error No TM symbols defined for -mx32 yet, patches welcome.
 #elif defined(__i386)
-#define TM_BEGIN_SYMBOL "_ZL12alg_tm_beginjPN3stm2TXE"
+#define TM_BEGIN_SYMBOL "_ZL12alg_tm_beginjPN3stm2TXEj"
 #define TM_END_SYMBOL "_ZL10alg_tm_endv"
 #define TM_GETALGNAME_SYMBOL "_ZL17alg_tm_getalgnamev"
 #define TM_ALLOC_SYMBOL "_ZL12alg_tm_allocj"
@@ -72,7 +72,7 @@
 
 // Some of the tms use explicit template instatiations.
 #define SPECIALIZE_TM_ROLLBACK_SYMBOL(CM, NCM) "_Z15alg_tm_rollbackIN3stm"#NCM#CM"EEvPNS0_2TXE"
-#define SPECIALIZE_TM_BEGIN_SYMBOL(CM, NCM) "_Z12alg_tm_beginIN3stm"#NCM#CM"EEjjPNS0_2TXE"
+#define SPECIALIZE_TM_BEGIN_SYMBOL(CM, NCM) "_Z12alg_tm_beginIN3stm"#NCM#CM"EEjjPNS0_2TXEj"
 #define SPECIALIZE_TM_END_SYMBOL(CM, NCM) "_Z10alg_tm_endIN3stm"#NCM#CM"EEvv"
 
 #else
@@ -85,15 +85,15 @@
     static void alg_tm_rollback(TX*)                                    \
         __attribute__((alias(SPECIALIZE_TM_ROLLBACK_SYMBOL(CM, NCM)))); \
                                                                         \
-    template uint32_t TM_FASTCALL alg_tm_begin<stm::CM>(uint32_t, stm::TX*); \
-    static uint32_t alg_tm_begin(uint32_t, stm::TX*)                    \
+    template uint32_t TM_FASTCALL alg_tm_begin<stm::CM>(uint32_t, stm::TX*, \
+                                                        uint32_t);      \
+    static uint32_t alg_tm_begin(uint32_t, stm::TX*, uint32_t)          \
         __attribute__((alias(SPECIALIZE_TM_BEGIN_SYMBOL(CM, NCM))))     \
         TM_FASTCALL;                                                    \
                                                                         \
     template void alg_tm_end<stm::CM>();                                \
     static void alg_tm_end()                                            \
         __attribute__((alias(SPECIALIZE_TM_END_SYMBOL(CM, NCM))));
-
 
 /**
  *  The following weak aliases mean that, if we link to a library that doesn't
@@ -102,7 +102,7 @@
 namespace stm {
   struct TX;
 
-  uint32_t tm_begin(uint32_t, TX*)
+  uint32_t tm_begin(uint32_t, TX*, uint32_t)
       __attribute__((weak, alias(TM_BEGIN_SYMBOL))) TM_FASTCALL;
   const char* tm_getalgname()
       __attribute__((weak, alias(TM_GETALGNAME_SYMBOL)));
@@ -141,7 +141,7 @@ void _ITM_free(void*)
  *  this header to work correctly. They're also used in the registration macro
  *  in adaptivity.hpp.
  */
-static uint32_t    alg_tm_begin(uint32_t, stm::TX*) TM_FASTCALL;
+static uint32_t    alg_tm_begin(uint32_t, stm::TX*, uint32_t) TM_FASTCALL;
 static void        alg_tm_end();
 static const char* alg_tm_getalgname();
 static void*       alg_tm_alloc(size_t) __attribute__((malloc));

@@ -21,7 +21,7 @@
 namespace stm {
   struct TX;
 
-  uint32_t    tm_begin(uint32_t, TX*) TM_FASTCALL;
+  uint32_t    tm_begin(uint32_t, TX*, uint32_t) TM_FASTCALL;
   const char* tm_getalgname();
   void*       tm_read(void**) TM_FASTCALL;
   void        tm_write(void**, void*) TM_FASTCALL;

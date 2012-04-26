@@ -102,7 +102,7 @@ static NOINLINE void validate(TX* tx, uintptr_t finish_cache)
 /**
  *  CTokenTurbo begin: only called for outermost transactions.
  */
-uint32_t alg_tm_begin(uint32_t, TX* tx)
+uint32_t alg_tm_begin(uint32_t, TX* tx, uint32_t extra)
 {
     tx->allocator.onTxBegin();
 
@@ -115,7 +115,7 @@ uint32_t alg_tm_begin(uint32_t, TX* tx)
     if (tx->ts_cache == ((uintptr_t)tx->order - 1))
         tx->turbo = true;
 
-    return a_runInstrumentedCode;
+    return extra | a_runInstrumentedCode;
 }
 
 /**
