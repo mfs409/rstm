@@ -23,7 +23,7 @@
 #include "byte-logging.hpp"
 #include "tmabi-weak.hpp"
 #include "foreach.hpp"
-#include "inst3.hpp"                    // read<>/write<?>, etc
+#include "inst.hpp"                    // read<>/write<?>, etc
 #include "MiniVector.hpp"
 #include "metadata.hpp"
 #include "WBMMPolicy.hpp"
@@ -62,6 +62,8 @@ void alg_tm_rollback(TX* tx)
     FOREACH (OrecList, i, tx->locks) {
         (*i)->v.all = (*i)->p;
     }
+
+    tx->undo_log.undo();                // ITM _ITM_LOG support
     tx->r_orecs.reset();
     tx->writes.reset();
     tx->locks.reset();
@@ -128,6 +130,7 @@ void alg_tm_end()
 
     CFENCE;
     if (!tx->writes.size()) {
+        tx->undo_log.reset();           // ITM _ITM_LOG support
         tx->r_orecs.reset();
         tx->allocator.onTxCommit();
         ++tx->commits_ro;
@@ -180,6 +183,7 @@ void alg_tm_end()
     last_complete.val = tx->end_time;
 
     // clean-up
+    tx->undo_log.reset();           // ITM _ITM_LOG support
     tx->r_orecs.reset();
     tx->writes.reset();
     tx->locks.reset();
@@ -312,7 +316,14 @@ REGISTER_TM_FOR_ADAPTIVITY(OrecELA)
         Lazy<TYPE, Read>::ITM::Write(addr, val);                        \
     }
 
+#define RSTM_LIBITM_LOG(SYMBOL, CALLING_CONVENTION, TYPE)   \
+    void CALLING_CONVENTION __attribute__((weak))           \
+        SYMBOL(TYPE* addr) {                                \
+        Lazy<TYPE, Read>::ITM::Log(addr);                   \
+    }
+
 #include "libitm-dtfns.def"
 
+#undef RSTM_LIBITM_LOG
 #undef RSTM_LIBITM_WRITE
 #undef RSTM_LIBITM_READ

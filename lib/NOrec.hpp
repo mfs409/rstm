@@ -26,7 +26,7 @@
 #include "WBMMPolicy.hpp"
 #include "tx.hpp"
 #include "libitm.h"
-#include "inst3.hpp"                    // the generic R/W instrumentation
+#include "inst.hpp"                    // the generic R/W instrumentation
 #include "locks.hpp"                    // spin64();
 
 using stm::TX;
@@ -68,6 +68,7 @@ static NOINLINE uintptr_t validate(TX* tx) {
 template <class CM>
 static void alg_tm_rollback(TX* tx) {
     ++tx->aborts;
+    tx->undo_log.undo();                // perform any logged undos
     tx->vlist.reset();
     tx->writes.reset();
     tx->allocator.onTxAbort();
@@ -106,6 +107,7 @@ static void alg_tm_end() {
     // read-only is trivially successful at last read
     if (!tx->writes.size()) {
         tx->vlist.reset();
+        tx->undo_log.reset();
         tx->allocator.onTxCommit();
         ++tx->commits_ro;
         CM::onCommit(tx);
@@ -129,8 +131,10 @@ static void alg_tm_end() {
     CM::onCommit(tx);
     tx->vlist.reset();
     tx->writes.reset();
+    tx->undo_log.reset();
     tx->allocator.onTxCommit();
     ++tx->commits_rw;
+    tx->userCallbacks.onCommit();
 }
 
 /**
@@ -191,7 +195,8 @@ void alg_tm_become_irrevocable(_ITM_transactionState) {
  *        reasonable name...?
  */
 #define RSTM_LIBITM_READ(SYMBOL, CALLING_CONVENTION, TYPE)              \
-    TYPE CALLING_CONVENTION __attribute__((weak)) SYMBOL(TYPE* addr) {  \
+    TYPE CALLING_CONVENTION __attribute__((weak))                       \
+    SYMBOL(TYPE* addr) {                                                \
         return Lazy<TYPE, Read>::ITM::Read(addr);                       \
     }
 
@@ -201,8 +206,15 @@ void alg_tm_become_irrevocable(_ITM_transactionState) {
         Lazy<TYPE, Read>::ITM::Write(addr, val);                        \
     }
 
+#define RSTM_LIBITM_LOG(SYMBOL, CALLING_CONVENTION, TYPE)   \
+    void CALLING_CONVENTION __attribute__((weak))           \
+        SYMBOL(TYPE* addr) {                                \
+        Lazy<TYPE, Read>::ITM::Log(addr);                   \
+    }
+
 #include "libitm-dtfns.def"
 
+#undef RSTM_LIBITM_LOG
 #undef RSTM_LIBITM_WRITE
 #undef RSTM_LIBITM_READ
 

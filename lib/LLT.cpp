@@ -31,7 +31,7 @@
 #include "adaptivity.hpp"
 #include "tm_alloc.hpp"
 #include "libitm.h"
-#include "inst3.hpp"                     // read<>/write<>
+#include "inst.hpp"                     // read<>/write<>
 
 using namespace stm;
 
@@ -50,6 +50,7 @@ void alg_tm_rollback(TX* tx) {
     }
 
     // undo memory operations, reset lists
+    tx->undo_log.undo();                // ITM _ITM_LOG support
     tx->r_orecs.reset();
     tx->writes.reset();
     tx->locks.reset();
@@ -91,6 +92,7 @@ void alg_tm_end()
 
     if (!tx->writes.size()) {
         // read-only, so just reset lists
+        tx->undo_log.reset();           // ITM _ITM_LOG support
         tx->r_orecs.reset();
         tx->allocator.onTxCommit();
         ++tx->commits_ro;
@@ -136,6 +138,7 @@ void alg_tm_end()
     }
 
     // clean-up
+    tx->undo_log.reset();               // ITM _ITM_LOG support
     tx->r_orecs.reset();
     tx->writes.reset();
     tx->locks.reset();
@@ -218,7 +221,14 @@ REGISTER_TM_FOR_ADAPTIVITY(LLT);
         Lazy<TYPE, Read>::ITM::Write(addr, val);                        \
     }
 
+#define RSTM_LIBITM_LOG(SYMBOL, CALLING_CONVENTION, TYPE)   \
+    void CALLING_CONVENTION __attribute__((weak))           \
+        SYMBOL(TYPE* addr) {                                \
+        Lazy<TYPE, Read>::ITM::Log(addr);                   \
+    }
+
 #include "libitm-dtfns.def"
 
+#undef RSTM_LIBITM_LOG
 #undef RSTM_LIBITM_WRITE
 #undef RSTM_LIBITM_READ

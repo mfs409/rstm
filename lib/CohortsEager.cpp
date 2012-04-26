@@ -21,7 +21,7 @@
 #include "byte-logging.hpp"
 #include "tmabi-weak.hpp"               // the weak interface
 #include "foreach.hpp"                  // FOREACH macro
-#include "inst3.hpp"
+#include "inst.hpp"
 #include "WBMMPolicy.hpp" // todo: remove this, use something simpler
 #include "tx.hpp"
 #include "adaptivity.hpp"
@@ -66,6 +66,7 @@ const char* alg_tm_getalgname() {
  */
 void alg_tm_rollback(TX* tx) {
     ++tx->aborts;
+    tx->undo_log.undo();
     tx->r_orecs.reset();
     tx->writes.reset();
     tx->allocator.onTxAbort();
@@ -135,6 +136,7 @@ void alg_tm_end() {
         cpending++;
 
         // clean up
+        tx->undo_log.reset();
         tx->r_orecs.reset();
         tx->allocator.onTxCommit();
         ++tx->commits_rw;
@@ -204,6 +206,7 @@ void alg_tm_end() {
     last_complete.val = tx->order;
 
     // commit all frees, reset all lists
+    tx->undo_log.reset();
     tx->r_orecs.reset();
     tx->writes.reset();
     tx->allocator.onTxCommit();
@@ -324,8 +327,15 @@ REGISTER_TM_FOR_ADAPTIVITY(CohortsEager)
         Inst<TYPE>::ITM::Write(addr, val);                  \
     }
 
+#define RSTM_LIBITM_LOG(SYMBOL, CALLING_CONVENTION, TYPE)   \
+    void CALLING_CONVENTION __attribute__((weak))           \
+        SYMBOL(TYPE* addr) {                                \
+        Inst<TYPE>::ITM::Log(addr);                         \
+    }
+
 #include "libitm-dtfns.def"
 
+#undef RSTM_LIBITM_LOG
 #undef RSTM_LIBITM_WRITE
 #undef RSTM_LIBITM_READ
 
