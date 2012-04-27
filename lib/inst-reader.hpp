@@ -19,12 +19,12 @@
  */
 
 namespace stm {
-  template <class Reader, class WordType>
-  struct Raw {
+  template <class Read, class WordType>
+  struct Reader {
       TX* tx;
-      Reader read;
+      Read read;
 
-      Raw(TX* tx) : tx(tx), read() {
+      Reader(TX* tx) : tx(tx), read() {
       }
 
       void __attribute__((always_inline))
@@ -33,12 +33,12 @@ namespace stm {
       }
   };
 
-  template <class Reader>
-  struct Raw<Reader, Word> {
+  template <class Read>
+  struct Reader<Read, Word> {
       TX* tx;
-      Reader read;
+      Read read;
 
-      Raw(TX* tx) : tx(tx), read() {
+      Reader(TX* tx) : tx(tx), read() {
       }
 
       void __attribute__((always_inline))
@@ -48,12 +48,12 @@ namespace stm {
       }
   };
 
-  template <class Reader>
-  struct Raw<Reader, MaskedWord> {
+  template <class Read>
+  struct Reader<Read, MaskedWord> {
       TX* tx;
-      Reader read;
+      Read read;
 
-      Raw(TX* tx) : tx(tx), read() {
+      Reader(TX* tx) : tx(tx), read() {
       }
 
       void __attribute__((always_inline))

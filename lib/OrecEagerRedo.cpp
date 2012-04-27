@@ -164,14 +164,15 @@ namespace {
   template <typename WordType>
   struct Read {
       /**
-       *  The RAW lookup should use the standard RAW instrumentation, in order to
-       *  correctly deal with byte-logging configurations. If we are byte-logging,
-       *  and we only get a partial hit, then we need to extract the missing
-       *  bytes from the word in memory, but we don't need to acquire any sort
-       *  of additional ownership of the orec (we already own the orec for
-       *  writing). This "PlainReader" policy is used to instantiate the Raw
-       *  class, which Raw uses to get the word from memory. (note that this
-       *  code is also used when we have an orec collision on something we own)
+       *  The RAW lookup should use the standard RAW instrumentation, in order
+       *  to correctly deal with byte-logging configurations. If we are
+       *  byte-logging, and we only get a partial hit, then we need to extract
+       *  the missing bytes from the word in memory, but we don't need to
+       *  acquire any sort of additional ownership of the orec (we already own
+       *  the orec for writing). This "PlainReader" policy is used to
+       *  instantiate the Reader class, which Reader uses to get the word from
+       *  memory. (note that this code is also used when we have an orec
+       *  collision on something we own)
        */
       struct PlainReader {
           void* operator()(void** address, TX*, uintptr_t) const {
@@ -197,10 +198,11 @@ namespace {
 
               // next best: locked by me
               if (ivt.all == tx->my_lock.all) {
-                  // check the log for a RAW hazard, the Raw class handles the
-                  // possibility of partial RAW hits due to byte-logging
-                  Raw<PlainReader, WordType> raw(tx);
-                  raw(addr, tmp, mask);
+                  // check the log for a RAW hazard, the Reader template
+                  // handles the possibility of partial RAW hits due to
+                  // byte-logging
+                  Reader<PlainReader, WordType> read(tx);
+                  read(addr, tmp, mask);
                   return tmp;
               }
 

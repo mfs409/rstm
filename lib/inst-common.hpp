@@ -22,7 +22,21 @@ namespace stm {
 
   static size_t min(size_t lhs, size_t rhs) {
       return (lhs < rhs) ? lhs : rhs;
-  };
+  }
+
+  template <typename T>
+  static void** base_of(T* addr) {
+      const uintptr_t MASK = ~static_cast<uintptr_t>(sizeof(void*) - 1);
+      const uintptr_t base = reinterpret_cast<uintptr_t>(addr) & MASK;
+      return reinterpret_cast<void**>(base);
+  }
+
+  template <typename T>
+  static size_t offset_of(const T* const addr) {
+      const uintptr_t MASK = static_cast<uintptr_t>(sizeof(void*) - 1);
+      const uintptr_t offset = reinterpret_cast<uintptr_t>(addr) & MASK;
+      return static_cast<size_t>(offset);
+  }
 
 }
 

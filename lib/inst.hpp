@@ -1,14 +1,11 @@
-#ifndef RSTM_INST3_H
-#define RSTM_INST3_H
+#ifndef RSTM_INST_H
+#define RSTM_INST_H
 
 #include "byte-logging.hpp"             // Word, MaskedWord, LogWordType
 #include "inst-readonly.hpp"            // CheckWritesetForReadOnly
 #include "inst-stackfilter.hpp"         // NoFilter
-#include "inst-writer.hpp"              // BufferedWriter
-#include "inst-raw.hpp"                 // Raw<>
-#include "inst-buffer.hpp"              // Buffer<,>
-#include "inst-offsetof.hpp"            // Offset<,>
-#include "inst-baseof.hpp"              // Base<,>
+#include "inst-writer.hpp"              // oWriter<>
+#include "inst-reader.hpp"              // Reader<>
 #include "inst-alignment.hpp"           // Aligned<,>
 #include "inst-common.hpp"              // make_mask, min
 
@@ -18,50 +15,78 @@
 namespace {
   using namespace stm;
 
-  template <typename Func, typename FuncRO>
-  struct SelectRO {
-      typedef FuncRO Result;
+  /**
+   *  This template and its specializations select between two types.
+   *
+   *  if (F1 != NullType)
+   *      Result = F1
+   *  else if (F2 != NullType)
+   *      Result = F2
+   *  else
+   *      Error
+   */
+  template <typename F1, typename F2>
+  struct SelectNonNull {
+      typedef F1 Result;
   };
 
-  template <typename Func>
-  struct SelectRO<Func, NullType> {
-      typedef Func Result;
+  template <typename F2>
+  struct SelectNonNull<NullType, F2> {
+      typedef F2 Result;
   };
+
+  template <>
+  struct SelectNonNull<NullType, NullType>;
 
   template <typename T,
             bool ForceAligned,
             typename WordType,
             typename IsReadOnly,
-            typename FilterRead,
-            typename ReadType,
-            typename ReadReadOnlyType,
-            typename FilterWrite,
-            typename WriteType,
-            typename WriteReadOnlyType>
-  class GenericInst : public Buffer<T, Aligned<T, ForceAligned>::value>,
-                      public Offset<T, Aligned<T, ForceAligned>::value>,
-                      public Base<T, Aligned<T, ForceAligned>::value>
-  {
+            typename ReadFilter,
+            typename ReadRW,
+            typename ReadReadOnly,
+            typename WriteFilter,
+            typename WriteRW,
+            typename WriteReadOnly>
+  class GenericInst {
     private:
-      /** The number of words we need to reserve to deal with a T*/
-      enum {
-          N = Buffer<T, Aligned<T, ForceAligned>::value>::Words
-      };
-
       /**
-       *  Use our superclass methods, so that we don't need to repeat the
-       *  alignement everywhere.
+       *  The number of words we need to reserve to deal with a T, is basically
+       *  the number of bytes in a T divided by the number of bytes in a void*,
+       *  plus one if a T* might not be aligned. The caveat is that we need at
+       *  least one word for aligned subword types. The math below is evaluated
+       *  at compile time.
        */
-      using Offset<T, Aligned<T, ForceAligned>::value>::OffsetOf;
-      using Base<T, Aligned<T, ForceAligned>::value>::BaseOf;
+      enum {
+          N = ((sizeof(T)/sizeof(void*)) ? sizeof(T)/sizeof(void*) : 1) +
+              ((Aligned<T, ForceAligned>::value) ? 0 : 1)
+      };
 
       /**
        *  Pick the correct read-only instrumentation (just in case the client
        *  uses NullType to indicate that there isn't any read-only-specific
        *  option).
        */
-      typedef typename SelectRO<ReadType, ReadReadOnlyType>::Result ReadROType;
-      typedef typename SelectRO<WriteType, WriteReadOnlyType>::Result WriteROType;
+      typedef typename SelectNonNull<ReadReadOnly, ReadRW>::Result ReadRO;
+      typedef typename SelectNonNull<WriteReadOnly, WriteRW>::Result WriteRO;
+
+      /**
+       *  Used by ITM to log values into the undo log. Supports the _ITM_LOG
+       *  interface.
+       */
+      struct Logger {
+          void operator()(void** addr, void* val, TX* tx, uintptr_t mask) const {
+              tx->undo_log.insert(addr, val, mask);
+          }
+      };
+
+      static inline size_t OffsetOf(const T* const addr) {
+          return (Aligned<T, ForceAligned>::value) ? 0 : offset_of(addr);
+      }
+
+      static inline void** BaseOf(T* const addr) {
+          return (Aligned<T, ForceAligned>::value) ? (void**)addr : base_of(addr);
+      }
 
       /**
        *  This is the fundamental loop used for both chunked read and write
@@ -70,7 +95,7 @@ namespace {
        *  for each type of F, and N (and possibly OffsetOf and BaseOf) is a
        *  compile-time constant, so this should be optimized nicely.
        */
-      template <typename F>
+      template <typename F, size_t N>
       static void __attribute__((always_inline))
       ProcessWords(T* addr, void* (&words)[N], const F& f) {
           // get the base and the offset of the address, in case we're dealing
@@ -106,7 +131,7 @@ namespace {
 
           // Use the configured pre-filter to do an "in-place" access if we
           // need to.
-          FilterRead filter;
+          ReadFilter filter;
           if (filter(addr, tx))
               return *addr;
 
@@ -125,9 +150,9 @@ namespace {
           // WordType.
           IsReadOnly readonly;
           if (readonly(tx))
-              ProcessWords(addr, words, Raw<ReadROType, NullType>(tx));
+              ProcessWords(addr, words, Reader<ReadRO, NullType>(tx));
           else
-              ProcessWords(addr, words, Raw<ReadType, WordType>(tx));
+              ProcessWords(addr, words, Reader<ReadRW, WordType>(tx));
 
           // use the 'bytes' half of the union to return the value as the
           // correct type
@@ -143,7 +168,7 @@ namespace {
 
           // Use the configured pre-filter to do an "in-place" access if we
           // need to.
-          FilterWrite filter;
+          WriteFilter filter;
           if (filter(addr, tx)) {
               *addr = val;
               return;
@@ -165,9 +190,9 @@ namespace {
           // WriteRO functor, otherwise we use the Write functor.
           IsReadOnly readonly;
           if (readonly(tx))
-              ProcessWords(addr, words, Writer<WriteROType>(tx));
+              ProcessWords(addr, words, Writer<WriteRO>(tx));
           else
-              ProcessWords(addr, words, Writer<WriteType>(tx));
+              ProcessWords(addr, words, Writer<WriteRW>(tx));
       }
 
       /**
@@ -205,6 +230,12 @@ namespace {
    */
   template <typename T, typename Read>
   struct Lazy {
+      struct BufferedWrite {
+          void operator()(void** addr, void* val, TX* tx, uintptr_t mask) const {
+              tx->writes.insert(addr, val, mask);
+          }
+      };
+
       typedef GenericInst<T, true, Word, CheckWritesetForReadOnly,
                           NoFilter, Read, NullType,
                           NoFilter, BufferedWrite, NullType> RSTM;
@@ -215,4 +246,4 @@ namespace {
   };
 }
 
-#endif // RSTM_INST3_H
+#endif // RSTM_INST_H

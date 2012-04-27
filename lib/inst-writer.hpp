@@ -5,22 +5,6 @@
 #include "tx.hpp"
 
 namespace stm {
-  struct BufferedWrite {
-      void operator()(void** addr, void* val, TX* tx, uintptr_t mask) const {
-          tx->writes.insert(addr, val, mask);
-      }
-  };
-
-  /**
-   *  Used by ITM to log values into the undo log. Supports the _ITM_LOG
-   *  interface.
-   */
-  struct Logger {
-      void operator()(void** addr, void* val, TX* tx, uintptr_t mask) const {
-          tx->undo_log.insert(addr, val, mask);
-      }
-  };
-
   template <typename Write>
   struct Writer {
       TX* tx;
