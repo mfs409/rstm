@@ -11,6 +11,7 @@
 #include "libitm.h"
 #include "tx.hpp"
 #include "tmabi.hpp"
+#include "inst-common.hpp"              // offset_of, base_of, for _ITM_LB
 
 using stm::Self;
 using stm::TX;
@@ -89,7 +90,7 @@ _ITM_abortTransaction(_ITM_abortReason why) {
 }
 
 /**
- * From gcc's addendum:
+ *  From gcc's addendum:
  *
  *    Commit actions will get executed in the same order in which the
  *    respective calls to _ITM_ addUserCommitAction happened. Only
@@ -104,7 +105,7 @@ _ITM_addUserCommitAction(_ITM_userCommitFunction f, _ITM_transactionId_t,
 }
 
 /**
- * From gcc's addendum:
+ *  From gcc's addendum:
  *
  *    Undo actions will get executed in reverse order compared to the order in
  *    which the respective calls to _ITM_addUserUndoAction happened. The
@@ -117,7 +118,7 @@ _ITM_addUserUndoAction(_ITM_userUndoFunction f, void* a) {
 }
 
 /**
- * From gcc's addendum:
+ *  From gcc's addendum:
  *
  *    _ITM_dropReferences is not supported currently because its semantics and
  *    the intention behind it is not entirely clear. The specification suggests
@@ -131,3 +132,40 @@ _ITM_dropReferences(void*, size_t) {
     assert(false && "Unimplemented");
 }
 
+/**
+ *  Everyone logs bytes in the exact same way.
+ */
+void
+_ITM_LB(const void* addr, const size_t n) {
+    void** const base = stm::base_of(addr);
+    const size_t off = stm::offset_of(addr);
+    const size_t end = off + n;
+    const size_t oflow = (end > sizeof(void*)) ? end % sizeof(void*) : 0;
+
+    // how many words do we need to log?
+    // The basic N is just the number of words in n.
+    size_t N = (n / sizeof(void*));
+
+    // If there is an offset, then we'll need an extra word.
+    N = (off) ? N + 1 : N;
+
+    // If the bytes overflow into a final word, then we'll need another word.
+    N = (oflow) ? N + 1 : N;
+
+    // we use the undo_log structure for logging
+    TX* tx = Self;
+
+    // log the first word.
+    uintptr_t mask = stm::make_mask(off, stm::min(sizeof(void*), end));
+    tx->undo_log.insert(base, *base, mask);
+
+    // log any middle words (i < e is necessary because size_t is unsigned)
+    for (size_t i = 1, e = N - 1; i < e; ++i)
+        tx->undo_log.insert(base + i, base[i], ~0);
+
+    // log the final word
+    if (oflow) {
+        mask = stm::make_mask(0, oflow);
+        tx->undo_log.insert(base + N - 1, base[N - 1], mask);
+    }
+}
