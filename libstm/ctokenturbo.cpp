@@ -98,23 +98,20 @@ namespace {
   CTokenTurbo::commit_rw(TxThread* tx)
   {
       // we need to transition to fast here, but not till our turn
-      while (last_complete.val != ((uintptr_t)tx->order - 1)) {
-          // check if an adaptivity event necessitates that we abort to change
-          // modes
-          if (TxThread::tmbegin != begin)
-              tx->tmabort(tx);
-      }
-      // validate
-      //
-      // [mfs] Should we use Luke's technique to get the branches out of the
-      //       loop?
-      foreach (OrecList, i, tx->r_orecs) {
-          // read this orec
-          uintptr_t ivt = (*i)->v.all;
-          // if it has a timestamp of ts_cache or greater, abort
-          if (ivt > tx->ts_cache)
-              tx->tmabort(tx);
-      }
+      while (last_complete.val != ((uintptr_t)tx->order - 1))
+          spin64();
+
+      // the oldest one skip the validation
+      if (tx->ts_cache != ((uintptr_t)tx->order - 1))
+          // validate
+          foreach (OrecList, i, tx->r_orecs) {
+              // read this orec
+              uintptr_t ivt = (*i)->v.all;
+              // if it has a timestamp of ts_cache or greater, abort
+              if (ivt > tx->ts_cache)
+                  tx->tmabort(tx);
+          }
+
       // writeback
       if (tx->writes.size() != 0) {
           // mark every location in the write set, and perform write-back

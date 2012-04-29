@@ -44,7 +44,7 @@ CXXNAMES = algs biteager biteagerredo bitlazy byear byeau byteeager           \
            pipeline policies profileapp profiletm profiling ringala ringsw    \
            serial static swiss ticket tli tml tmllazy txthread types          \
            WBMMPolicy wealth fastlaneswitch fastlane1 fastlane2               \
-           ctokenturboela cohortsen cohortsen2
+           ctokenturboela cohortsen cohortsen2 ctokennorec
 
 #
 # The name of the library to build
