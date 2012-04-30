@@ -32,7 +32,6 @@ using stm::started;
 using stm::cpending;
 using stm::committed;
 using stm::last_complete;
-using stm::last_order;
 
 /**
  *  Declare the functions that we're going to implement, so that we can avoid
@@ -107,13 +106,17 @@ namespace {
   void
   CohortsNOrec::commit_rw(TxThread* tx)
   {
+      // order of first tx in cohort
+      uint32_t first = last_complete.val + 1;
+      CFENCE;
+
       tx->order = ADD(&cpending.val, 1);
 
       // Wait for my turn
       while (last_complete.val != (uintptr_t)(tx->order - 1));
 
-      // get the lock and validate (use RingSTM obstruction-free technique)
-      if (tx->order != last_order)
+      // get the lock and validate
+      if (tx->order != first)
           if (!validate(tx)) {
               committed.val++;
               CFENCE;
@@ -126,9 +129,6 @@ namespace {
 
       // do write back
       tx->writes.writeback();
-
-      // update last_order
-      last_order = started.val + 1;
 
       // increase total number of committed tx
       committed.val++;
