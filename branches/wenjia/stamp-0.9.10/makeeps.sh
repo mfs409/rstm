@@ -29,71 +29,163 @@ set xtics 1
 
 set output 'gen.eps'
 plot \
-    'gen.LLT.csv'               u 2:($3) pt 9 lw 1.5 t 'LLT',   \
-    'gen.NOrec.csv'             u 2:($3) pt 15 lw 1.5 t 'NOrec',  \
-    'gen.PTM.csv'               u 2:($3) pt 3 lw 1.5 t 'PTM',   \
+    'gen.OrecLazy.csv'               u 2:($3) pt 9 lw 1.5 t 'Classic',   \
     'gen.Fastlane1.csv'         u 2:($3) pt 4 lw 1.5 t 'Fastlane1',   \
-    'gen.Cohorts.csv'           u 2:($3) pt 12 lw 1.5 t 'Cohorts',   \
-    'gen.CohortsNOrec.csv'      u 2:($3) pt 13 lw 1.5 t 'CohortsNOrec', \
-    'gen.CTokenTurboELA.csv'    u 2:($3) pt 7 lw 1.5 t 'CTokenTurbo'
+    'gen.CohortsEN2.csv'      u 2:($3) pt 13 lw 1.5 t 'Cohorts', \
+    'gen.CTokenTurboELA.csv'    u 2:($3) pt 3 lw 1.5 t 'CTokenTurbo'
 
 set output 'int.eps'
 plot \
-    'int.LLT.csv'               u 2:($3) pt 9 lw 1.5 t 'LLT',   \
-    'int.NOrec.csv'              u 2:($3) pt 15 lw 1.5 t 'NOrec',   \
-    'int.PTM.csv'                u 2:($3) pt 3 lw 1.5 t 'PTM',   \
+    'int.OrecLazy.csv'               u 2:($3) pt 9 lw 1.5 t 'Classic',   \
     'int.Fastlane1.csv'         u 2:($3) pt 4 lw 1.5 t 'Fastlane1',   \
-    'int.Cohorts.csv'          u 2:($3) pt 12 lw 1.5 t 'Cohorts',   \
-    'int.CohortsNOrec.csv'     u 2:($3) pt 13 lw 1.5 t 'CohortsNOrec', \
-    'int.CTokenTurboELA.csv'      u 2:($3) pt 7 lw 1.5 t 'CTokenTurbo'
+    'int.CohortsEN2.csv'     u 2:($3) pt 13 lw 1.5 t 'Cohorts', \
+    'int.CTokenTurboELA.csv'      u 2:($3) pt 3 lw 1.5 t 'CTokenTurbo'
 
 set output 'khi.eps'
 plot \
-    'khi.LLT.csv'               u 2:($3) pt 9 lw 1.5 t 'LLT',   \
-    'khi.NOrec.csv'             u 2:($3) pt 15 lw 1.5 t 'NOrec', \
-    'khi.PTM.csv'              u 2:($3) pt 3 lw 1.5 t 'PTM',   \
+    'khi.OrecLazy.csv'               u 2:($3) pt 9 lw 1.5 t 'Classic',   \
     'khi.Fastlane1.csv'         u 2:($3) pt 4 lw 1.5 t 'Fastlane1',   \
-    'khi.Cohorts.csv'          u 2:($3) pt 12 lw 1.5 t 'Cohorts',   \
-    'khi.CohortsNOrec.csv'     u 2:($3) pt 13 lw 1.5 t 'CohortsNOrec',\
-    'khi.CTokenTurboELA.csv'      u 2:($3) pt 7 lw 1.5 t 'CTokenTurbo'
+    'khi.CohortsEN2.csv'     u 2:($3) pt 13 lw 1.5 t 'Cohorts',\
+    'khi.CTokenTurboELA.csv'      u 2:($3) pt 3 lw 1.5 t 'CTokenTurbo'
 
 set output 'klo.eps'
 plot \
-    'klo.LLT.csv'               u 2:($3) pt 9 lw 1.5 t 'LLT',   \
-    'klo.NOrec.csv'             u 2:($3) pt 15 lw 1.5 t 'NOrec', \
-    'klo.PTM.csv'              u 2:($3) pt 3 lw 1.5 t 'PTM',   \
+    'klo.OrecLazy.csv'               u 2:($3) pt 9 lw 1.5 t 'Classic',   \
     'klo.Fastlane1.csv'         u 2:($3) pt 4 lw 1.5 t 'Fastlane1',   \
-    'klo.Cohorts.csv'          u 2:($3) pt 12 lw 1.5 t 'Cohorts',   \
-    'klo.CohortsNOrec.csv'     u 2:($3) pt 13 lw 1.5 t 'CohortsNOrec',\
-    'klo.CTokenTurboELA.csv'      u 2:($3) pt 7 lw 1.5 t 'CTokenTurbo'
+    'klo.CohortsEN2.csv'     u 2:($3) pt 13 lw 1.5 t 'Cohorts',\
+    'klo.CTokenTurboELA.csv'      u 2:($3) pt 3 lw 1.5 t 'CTokenTurbo'
 
 set output 'ssc.eps'
 plot \
-    'ssc.LLT.csv'               u 2:($3) pt 9 lw 1.5 t 'LLT',   \
-    'ssc.NOrec.csv'             u 2:($3) pt 15 lw 1.5 t 'NOrec', \
-    'ssc.PTM.csv'              u 2:($3) pt 3 lw 1.5 t 'PTM',   \
+    'ssc.OrecLazy.csv'               u 2:($3) pt 9 lw 1.5 t 'Classic',   \
     'ssc.Fastlane1.csv'         u 2:($3) pt 4 lw 1.5 t 'Fastlane1',   \
-    'ssc.Cohorts.csv'          u 2:($3) pt 12 lw 1.5 t 'Cohorts',   \
-    'ssc.CohortsNOrec.csv'     u 2:($3) pt 13 lw 1.5 t 'CohortsNOrec',\
-    'ssc.CTokenTurboELA.csv'      u 2:($3) pt 7 lw 1.5 t 'CTokenTurbo'
+    'ssc.CohortsEN2.csv'          u 2:($3) pt 13 lw 1.5 t 'Cohorts',   \
+    'ssc.CTokenTurboELA.csv'      u 2:($3) pt 3 lw 1.5 t 'CTokenTurbo'
     
 set output 'vhi.eps'
 plot \
-    'vhi.LLT.csv'               u 2:($3) pt 9 lw 1.5 t 'LLT',   \
-    'vhi.NOrec.csv'             u 2:($3) pt 15 lw 1.5 t 'NOrec', \
-    'vhi.PTM.csv'              u 2:($3) pt 3 lw 1.5 t 'PTM',   \
+    'vhi.OrecLazy.csv'               u 2:($3) pt 9 lw 1.5 t 'Classic',   \
     'vhi.Fastlane1.csv'         u 2:($3) pt 4 lw 1.5 t 'Fastlane1',   \
-    'vhi.Cohorts.csv'          u 2:($3) pt 12 lw 1.5 t 'Cohorts',   \
-    'vhi.CohortsNOrec.csv'     u 2:($3) pt 13 lw 1.5 t 'CohortsNOrec',\
-    'vhi.CTokenTurboELA.csv'      u 2:($3) pt 7 lw 1.5 t 'CTokenTurbo'
+    'vhi.CohortsEN2.csv'     u 2:($3) pt 13 lw 1.5 t 'Cohorts',\
+    'vhi.CTokenTurboELA.csv'      u 2:($3) pt 3 lw 1.5 t 'CTokenTurbo'
     
 set output 'vlo.eps'
 plot \
-    'vlo.LLT.csv'               u 2:($3) pt 9 lw 1.5 t 'LLT',   \
-    'vlo.NOrec.csv'             u 2:($3) pt 15 lw 1.5 t 'NOrec', \
-    'vlo.PTM.csv'              u 2:($3) pt 3 lw 1.5 t 'PTM',   \
+    'vlo.OrecLazy.csv'               u 2:($3) pt 9 lw 1.5 t 'Classic',   \
     'vlo.Fastlane1.csv'         u 2:($3) pt 4 lw 1.5 t 'Fastlane1',   \
-    'vlo.Cohorts.csv'          u 2:($3) pt 12 lw 1.5 t 'Cohorts',   \
-    'vlo.CohortsNOrec.csv'     u 2:($3) pt 13 lw 1.5 t 'CohortsNOrec',\
-    'vlo.CTokenTurboELA.csv'      u 2:($3) pt 7 lw 1.5 t 'CTokenTurbo'
+    'vlo.CohortsEN2.csv'     u 2:($3) pt 13 lw 1.5 t 'Cohorts',\
+    'vlo.CTokenTurboELA.csv'      u 2:($3) pt 3 lw 1.5 t 'CTokenTurbo'
     
+
+
+
+
+
+set output 'gen.Cohorts.eps'
+plot \
+    'gen.CohortsEN2.csv'              u 2:($3) pt 9 lw 1.5 t 'NOrecInplace',   \
+    'gen.CohortsEager.csv'           u 2:($3) pt 15 lw 1.5 t 'OrecInplace',  \
+    'gen.CohortsNOrec.csv'           u 2:($3) pt 3 lw 1.5 t 'NOrec',   \
+    'gen.Cohorts.csv'                u 2:($3) pt 4 lw 1.5 t 'Orec'
+
+set output 'int.Cohorts.eps'
+plot \
+    'int.CohortsEN2.csv'              u 2:($3) pt 9 lw 1.5 t 'NOrecInplace',   \
+    'int.CohortsEager.csv'           u 2:($3) pt 15 lw 1.5 t 'OrecInplace',  \
+    'int.CohortsNOrec.csv'           u 2:($3) pt 3 lw 1.5 t 'NOrec',   \
+    'int.Cohorts.csv'                u 2:($3) pt 4 lw 1.5 t 'Orec'
+
+set output 'khi.Cohorts.eps'
+plot \
+    'khi.CohortsEN2.csv'              u 2:($3) pt 9 lw 1.5 t 'NOrecInplace',   \
+    'khi.CohortsEager.csv'           u 2:($3) pt 15 lw 1.5 t 'OrecInplace',  \
+    'khi.CohortsNOrec.csv'           u 2:($3) pt 3 lw 1.5 t 'NOrec',   \
+    'khi.Cohorts.csv'                u 2:($3) pt 4 lw 1.5 t 'Orec'
+
+set output 'klo.Cohorts.eps'
+plot \
+    'klo.CohortsEN2.csv'              u 2:($3) pt 9 lw 1.5 t 'NOrecInplace',   \
+    'klo.CohortsEager.csv'           u 2:($3) pt 15 lw 1.5 t 'OrecInplace',  \
+    'klo.CohortsNOrec.csv'           u 2:($3) pt 3 lw 1.5 t 'NOrec',   \
+    'klo.Cohorts.csv'                u 2:($3) pt 4 lw 1.5 t 'Orec'
+
+set output 'ssc.Cohorts.eps'
+plot \
+    'ssc.CohortsEN2.csv'              u 2:($3) pt 9 lw 1.5 t 'NOrecInplace',   \
+    'ssc.CohortsEager.csv'           u 2:($3) pt 15 lw 1.5 t 'OrecInplace',  \
+    'ssc.CohortsNOrec.csv'           u 2:($3) pt 3 lw 1.5 t 'NOrec',   \
+    'ssc.Cohorts.csv'                u 2:($3) pt 4 lw 1.5 t 'Orec'
+
+set output 'vhi.Cohorts.eps'
+plot \
+    'vhi.CohortsEN2.csv'              u 2:($3) pt 9 lw 1.5 t 'NOrecInplace',   \
+    'vhi.CohortsEager.csv'           u 2:($3) pt 15 lw 1.5 t 'OrecInplace',  \
+    'vhi.CohortsNOrec.csv'           u 2:($3) pt 3 lw 1.5 t 'NOrec',   \
+    'vhi.Cohorts.csv'                u 2:($3) pt 4 lw 1.5 t 'Orec'
+
+set output 'vlo.Cohorts.eps'
+plot \
+    'vlo.CohortsEN2.csv'              u 2:($3) pt 9 lw 1.5 t 'NOrecInplace',   \
+    'vlo.CohortsEager.csv'           u 2:($3) pt 15 lw 1.5 t 'OrecInplace',  \
+    'vlo.CohortsNOrec.csv'           u 2:($3) pt 3 lw 1.5 t 'NOrec',   \
+    'vlo.Cohorts.csv'                u 2:($3) pt 4 lw 1.5 t 'Orec'
+
+
+
+
+
+
+
+
+
+set output 'gen.Classic.eps'
+plot \
+    'gen.LLT.csv'              u 2:($3) pt 9 lw 1.5 t 'TL2',   \
+    'gen.NOrec.csv'             u 2:($3) pt 6 lw 1.5 t 'NOrec',  \
+    'gen.OrecEager.csv'           u 2:($3) pt 15 lw 1.5 t 'OrecEager',  \
+    'gen.OrecLazy.csv'                u 2:($3) pt 4 lw 1.5 t 'OrecLazy'
+
+set output 'int.Classic.eps'
+plot \
+    'int.LLT.csv'              u 2:($3) pt 9 lw 1.5 t 'TL2',   \
+    'int.NOrec.csv'             u 2:($3) pt 6 lw 1.5 t 'NOrec',  \
+    'int.OrecEager.csv'           u 2:($3) pt 15 lw 1.5 t 'OrecEager',  \
+    'int.OrecLazy.csv'                u 2:($3) pt 4 lw 1.5 t 'OrecLazy'
+
+set output 'khi.Classic.eps'
+plot \
+    'khi.LLT.csv'              u 2:($3) pt 9 lw 1.5 t 'TL2',   \
+    'khi.NOrec.csv'             u 2:($3) pt 6 lw 1.5 t 'NOrec',  \
+    'khi.OrecEager.csv'           u 2:($3) pt 15 lw 1.5 t 'OrecEager',  \
+    'khi.OrecLazy.csv'                u 2:($3) pt 4 lw 1.5 t 'OrecLazy'
+
+set output 'klo.Classic.eps'
+plot \
+    'klo.LLT.csv'              u 2:($3) pt 9 lw 1.5 t 'TL2',   \
+    'klo.NOrec.csv'             u 2:($3) pt 6 lw 1.5 t 'NOrec',  \
+    'klo.OrecEager.csv'           u 2:($3) pt 15 lw 1.5 t 'OrecEager',  \
+    'klo.OrecLazy.csv'                u 2:($3) pt 4 lw 1.5 t 'OrecLazy'
+
+set output 'ssc.Classic.eps'
+plot \
+    'ssc.LLT.csv'              u 2:($3) pt 9 lw 1.5 t 'TL2',   \
+    'ssc.NOrec.csv'             u 2:($3) pt 6 lw 1.5 t 'NOrec',  \
+    'ssc.OrecEager.csv'           u 2:($3) pt 15 lw 1.5 t 'OrecEager',  \
+    'ssc.OrecLazy.csv'                u 2:($3) pt 4 lw 1.5 t 'OrecLazy'
+
+set output 'vhi.Classic.eps'
+plot \
+    'vhi.LLT.csv'              u 2:($3) pt 9 lw 1.5 t 'TL2',   \
+    'vhi.NOrec.csv'             u 2:($3) pt 6 lw 1.5 t 'NOrec',  \
+    'vhi.OrecEager.csv'           u 2:($3) pt 15 lw 1.5 t 'OrecEager',  \
+    'vhi.OrecLazy.csv'                u 2:($3) pt 4 lw 1.5 t 'OrecLazy'
+
+set output 'vlo.Classic.eps'
+plot \
+    'vlo.LLT.csv'              u 2:($3) pt 9 lw 1.5 t 'TL2',   \
+    'vlo.NOrec.csv'             u 2:($3) pt 6 lw 1.5 t 'NOrec',  \
+    'vlo.OrecEager.csv'           u 2:($3) pt 15 lw 1.5 t 'OrecEager',  \
+    'vlo.OrecLazy.csv'                u 2:($3) pt 4 lw 1.5 t 'OrecLazy'
+
+
+
