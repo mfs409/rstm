@@ -3,8 +3,8 @@
 TRIALS=5   #we can change it to a smaller value if it takes too long
 
 # STM_CONFIG values
-#ALGS="NOrec OrecELA LLT CTokenTurbo CTokenTurboELA Fastlane1 Fastlane2 PTM Cohorts CohortsNOrec"
-ALGS="CohortsEN"
+#ALGS="NOrec OrecELA LLT CTokenTurboELA Fastlane1 Fastlane2 CohortsEN CohortsEager CohortsNOrec Cohorts"
+ALGS="OrecLazy"
 
 # STM_PMU values
 PMUS="NONE"

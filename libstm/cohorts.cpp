@@ -24,11 +24,6 @@
 #include "algs.hpp"
 #include "RedoRAWUtils.hpp"
 
-// define atomic operations
-#define CAS __sync_val_compare_and_swap
-#define ADD __sync_add_and_fetch
-#define SUB __sync_sub_and_fetch
-
 using stm::TxThread;
 using stm::last_complete;
 using stm::timestamp;
@@ -40,16 +35,14 @@ using stm::WriteSetEntry;
 using stm::orec_t;
 using stm::get_orec;
 
-using stm::started;
-using stm::cpending;
-using stm::committed;
-using stm::last_order;
 
 /**
  *  Declare the functions that we're going to implement, so that we can avoid
  *  circular dependencies.
  */
 namespace {
+
+  volatile uint32_t cohort_gate = 0;
 
   NOINLINE bool validate(TxThread* tx);
 
@@ -77,28 +70,15 @@ namespace {
   bool
   Cohorts::begin(TxThread* tx)
   {
-      // [mfs] Could we merge all of the fields into a single word?  We would
-      //       not need last_complete or ts_cache if we made such a change, and
-      //       then the last transaction in a cohort could simply zero the word
-      //       to let the next cohort begin.  Note that doing so would look
-      //       different in different versions of Cohorts (e.g., in this one
-      //       we'd still need a timestamp, though without atomic ops; in NOrec
-      //       no timestamp would be needed).
-
-    S1:
-      // wait until everyone is committed
-      while (cpending.val != committed.val);
-
-      // before tx begins, increase total number of tx
-      ADD(&started.val, 1);
-
-      // [NB] we must double check no one is ready to commit yet!
-      if (cpending.val > committed.val) {
-          SUB(&started.val, 1);
-          goto S1;
-      }
-
       tx->allocator.onTxBegin();
+
+      while (true) {
+          uint32_t c = cohort_gate;
+          if (!(c & 0x0000FF00)) {
+              if (bcas32(&cohort_gate, c, c + 1))
+                  break;
+          }
+      }
 
       // get time of last finished txn
       tx->ts_cache = last_complete.val;
@@ -113,7 +93,7 @@ namespace {
   Cohorts::commit_ro(TxThread* tx)
   {
       // decrease total number of tx started
-      SUB(&started.val, 1);
+      faa32(&cohort_gate, -1);
 
       // clean up
       tx->r_orecs.reset();
@@ -129,25 +109,30 @@ namespace {
   void
   Cohorts::commit_rw(TxThread* tx)
   {
-      // increment num of tx ready to commit, and use it as the order
-      tx->order = ADD(&cpending.val, 1);
+      // increment # ready, decrement # started
+      uint32_t old = faa32(&cohort_gate, 255);
+
+      // compute my unique order
+      // ts_cache stores order of last tx in last cohort
+      tx->order = (old >> 8) + tx->ts_cache + 1;
+
+      //printf("old=%d\n",old);
 
       // Wait for my turn
       while (last_complete.val != (uintptr_t)(tx->order - 1));
 
       // If I'm not the first one in a cohort to commit, validate reads
-      if (tx->order != last_order)
+      if (tx->order != tx->ts_cache + 1)
           if (!validate(tx)) {
-              committed.val++;
-              CFENCE;
+              // mark self as done
               last_complete.val = tx->order;
+              // decrement #
+              faa32(&cohort_gate, -256);
               tx->tmabort(tx);
           }
 
-      // Last one in cohort can pass the orec marking process
-      //
-      // [mfs] Do we use this trick in all of our algorithms?  We should!
-      if ((uint32_t)tx->order != started.val) {
+      // Last one in cohort can skip the orec marking
+      if ((old & 0x000000FF) != 1)
           // mark orec
           foreach (WriteSet, i, tx->writes) {
               // get orec
@@ -155,24 +140,19 @@ namespace {
               // mark orec
               o->v.all = tx->order;
           }
-      }
 
       // Wait until all tx are ready to commit
-      while (cpending.val < started.val);
+      while (cohort_gate & 0x000000FF);
 
       // do write back
       foreach (WriteSet, i, tx->writes)
           *i->addr = i->val;
 
-      // update last_order
-      last_order = started.val + 1;
-
-      // increment number of committed tx
-      committed.val++;
-      CFENCE;
-
       // mark self as done
       last_complete.val = tx->order;
+
+      // decrement # pending
+      faa32(&cohort_gate, -256);
 
       // commit all frees, reset all lists
       tx->r_orecs.reset();

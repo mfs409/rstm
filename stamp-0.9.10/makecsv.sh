@@ -10,7 +10,7 @@ do
     grepkey=${grepkeys[$i]}
     cutkey=${cutkeys[$i]}
     
-    for alg in 'NOrec' 'OrecELA' 'LLT' 'PTM' 'Fastlane1' 'Fastlane2' 'CTokenTurbo' 'CTokenTurboELA' 'Cohorts' 'CohortsNOrec'
+    for alg in 'NOrec' 'OrecEager' 'OrecLazy' 'LLT' 'PTM' 'Fastlane1' 'Fastlane2' 'CTokenTurboELA' 'CohortsEN' 'CohortsEN2' 'CohortsNOrec' 'CohortsEager' 'Cohorts'
     do
         
         filename="$bench"."$alg".csv
