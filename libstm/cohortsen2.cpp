@@ -34,7 +34,6 @@ using stm::ValueListEntry;
 using stm::started;
 using stm::cpending;
 using stm::committed;
-using stm::last_order;
 using stm::threads;
 using stm::threadcount;
 
@@ -168,11 +167,8 @@ namespace {
       // do write back
       tx->writes.writeback();
 
-      // update last_order
-      last_order = started.val + 1;
-
       // increase total number of committed tx
-      committed.val ++;
+      committed.val++;
       CFENCE;
 
       // mark self as done

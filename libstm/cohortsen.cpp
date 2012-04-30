@@ -37,7 +37,6 @@ using stm::ValueListEntry;
 using stm::started;
 using stm::cpending;
 using stm::committed;
-using stm::last_order;
 
 
 /**
@@ -147,6 +146,10 @@ namespace {
   void
   CohortsEN::commit_rw(TxThread* tx)
   {
+      // order of first tx in cohort
+      uint32_t first = last_complete.val + 1;
+      CFENCE;
+
       // increase # of tx waiting to commit, and use it as the order
       tx->order = ADD(&cpending.val ,1);
 
@@ -158,7 +161,7 @@ namespace {
 
       // If in place write occurred, all tx validate reads
       // Otherwise, only first one skips validation
-      if (inplace == 1 || tx->order != last_order)
+      if (inplace == 1 || tx->order != first)
           if (!validate(tx)) {
               committed.val++;
               CFENCE;
@@ -169,11 +172,8 @@ namespace {
       // do write back
       tx->writes.writeback();
 
-      // update last_order
-      last_order = started.val + 1;
-
       // increase total number of committed tx
-      committed.val ++;
+      committed.val++;
       CFENCE;
 
       // mark self as done
