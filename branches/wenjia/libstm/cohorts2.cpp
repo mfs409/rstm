@@ -24,11 +24,6 @@
 #include "algs.hpp"
 #include "RedoRAWUtils.hpp"
 
-// define atomic operations
-#define CAS __sync_val_compare_and_swap
-#define ADD __sync_add_and_fetch
-#define SUB __sync_sub_and_fetch
-
 using stm::TxThread;
 using stm::last_complete;
 using stm::timestamp;
@@ -40,10 +35,6 @@ using stm::WriteSetEntry;
 using stm::orec_t;
 using stm::get_orec;
 
-using stm::started;
-using stm::cpending;
-using stm::committed;
-using stm::last_order;
 
 /**
  *  Declare the functions that we're going to implement, so that we can avoid
@@ -51,9 +42,11 @@ using stm::last_order;
  */
 namespace {
 
+  volatile uint32_t cohort_gate = 0;
+
   NOINLINE bool validate(TxThread* tx);
 
-  struct Cohorts {
+  struct Cohorts2 {
       static TM_FASTCALL bool begin(TxThread*);
       static TM_FASTCALL void* read_ro(STM_READ_SIG(,,));
       static TM_FASTCALL void* read_rw(STM_READ_SIG(,,));
@@ -68,37 +61,24 @@ namespace {
   };
 
   /**
-   *  Cohorts begin:
-   *  Cohorts has a strict policy for transactions to begin. At first,
+   *  Cohorts2 begin:
+   *  Cohorts2 has a strict policy for transactions to begin. At first,
    *  every tx can start, until one of the tx is ready to commit. Then no
    *  tx is allowed to start until all the transactions finishes their
    *  commits.
    */
   bool
-  Cohorts::begin(TxThread* tx)
+  Cohorts2::begin(TxThread* tx)
   {
-      // [mfs] Could we merge all of the fields into a single word?  We would
-      //       not need last_complete or ts_cache if we made such a change, and
-      //       then the last transaction in a cohort could simply zero the word
-      //       to let the next cohort begin.  Note that doing so would look
-      //       different in different versions of Cohorts (e.g., in this one
-      //       we'd still need a timestamp, though without atomic ops; in NOrec
-      //       no timestamp would be needed).
-
-    S1:
-      // wait until everyone is committed
-      while (cpending.val != committed.val);
-
-      // before tx begins, increase total number of tx
-      ADD(&started.val, 1);
-
-      // [NB] we must double check no one is ready to commit yet!
-      if (cpending.val > committed.val) {
-          SUB(&started.val, 1);
-          goto S1;
-      }
-
       tx->allocator.onTxBegin();
+
+      while (true) {
+          uint32_t c = cohort_gate;
+          if (!(c & 0x0000FF00)) {
+              if (bcas32(&cohort_gate, c, c + 1))
+                  break;
+          }
+      }
 
       // get time of last finished txn
       tx->ts_cache = last_complete.val;
@@ -107,13 +87,13 @@ namespace {
   }
 
   /**
-   *  Cohorts commit (read-only):
+   *  Cohorts2 commit (read-only):
    */
   void
-  Cohorts::commit_ro(TxThread* tx)
+  Cohorts2::commit_ro(TxThread* tx)
   {
       // decrease total number of tx started
-      SUB(&started.val, 1);
+      faa32(&cohort_gate, -1);
 
       // clean up
       tx->r_orecs.reset();
@@ -121,33 +101,38 @@ namespace {
   }
 
   /**
-   *  Cohorts commit (writing context):
+   *  Cohorts2 commit (writing context):
    *
    *  RW commit is operated in turns. Transactions will be allowed to commit
    *  in an order which is given at the beginning of commit.
    */
   void
-  Cohorts::commit_rw(TxThread* tx)
+  Cohorts2::commit_rw(TxThread* tx)
   {
-      // increment num of tx ready to commit, and use it as the order
-      tx->order = ADD(&cpending.val, 1);
+      // increment # ready, decrement # started
+      uint32_t old = faa32(&cohort_gate, 255);
+
+      // compute my unique order
+      // ts_cache stores order of last tx in last cohort
+      tx->order = (old >> 8) + tx->ts_cache + 1;
+
+      //printf("old=%d\n",old);
 
       // Wait for my turn
       while (last_complete.val != (uintptr_t)(tx->order - 1));
 
       // If I'm not the first one in a cohort to commit, validate reads
-      if (tx->order != last_order)
+      if (tx->order != tx->ts_cache + 1)
           if (!validate(tx)) {
-              committed.val++;
-              CFENCE;
+              // mark self as done
               last_complete.val = tx->order;
+              // decrement #
+              faa32(&cohort_gate, -256);
               tx->tmabort(tx);
           }
 
-      // Last one in cohort can pass the orec marking process
-      //
-      // [mfs] Do we use this trick in all of our algorithms?  We should!
-      if ((uint32_t)tx->order != started.val) {
+      // Last one in cohort can skip the orec marking
+      if ((old & 0x000000FF) != 1)
           // mark orec
           foreach (WriteSet, i, tx->writes) {
               // get orec
@@ -155,24 +140,19 @@ namespace {
               // mark orec
               o->v.all = tx->order;
           }
-      }
 
       // Wait until all tx are ready to commit
-      while (cpending.val < started.val);
+      while (cohort_gate & 0x000000FF);
 
       // do write back
       foreach (WriteSet, i, tx->writes)
           *i->addr = i->val;
 
-      // update last_order
-      last_order = started.val + 1;
-
-      // increment number of committed tx
-      committed.val++;
-      CFENCE;
-
       // mark self as done
       last_complete.val = tx->order;
+
+      // decrement # pending
+      faa32(&cohort_gate, -256);
 
       // commit all frees, reset all lists
       tx->r_orecs.reset();
@@ -181,10 +161,10 @@ namespace {
   }
 
   /**
-   *  Cohorts read (read-only transaction)
+   *  Cohorts2 read (read-only transaction)
    */
   void*
-  Cohorts::read_ro(STM_READ_SIG(tx,addr,))
+  Cohorts2::read_ro(STM_READ_SIG(tx,addr,))
   {
       // log orec
       tx->r_orecs.insert(get_orec(addr));
@@ -192,10 +172,10 @@ namespace {
   }
 
   /**
-   *  Cohorts read (writing transaction)
+   *  Cohorts2 read (writing transaction)
    */
   void*
-  Cohorts::read_rw(STM_READ_SIG(tx,addr,mask))
+  Cohorts2::read_rw(STM_READ_SIG(tx,addr,mask))
   {
       // check the log for a RAW hazard, we expect to miss
       WriteSetEntry log(STM_WRITE_SET_ENTRY(addr, NULL, mask));
@@ -211,10 +191,10 @@ namespace {
   }
 
   /**
-   *  Cohorts write (read-only context): for first write
+   *  Cohorts2 write (read-only context): for first write
    */
   void
-  Cohorts::write_ro(STM_WRITE_SIG(tx,addr,val,mask))
+  Cohorts2::write_ro(STM_WRITE_SIG(tx,addr,val,mask))
   {
       // record the new value in a redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
@@ -222,20 +202,20 @@ namespace {
   }
 
   /**
-   *  Cohorts write (writing context)
+   *  Cohorts2 write (writing context)
    */
   void
-  Cohorts::write_rw(STM_WRITE_SIG(tx,addr,val,mask))
+  Cohorts2::write_rw(STM_WRITE_SIG(tx,addr,val,mask))
   {
       // record the new value in a redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
   }
 
   /**
-   *  Cohorts unwinder:
+   *  Cohorts2 unwinder:
    */
   stm::scope_t*
-  Cohorts::rollback(STM_ROLLBACK_SIG(tx, except, len))
+  Cohorts2::rollback(STM_ROLLBACK_SIG(tx, except, len))
   {
       PreRollback(tx);
 
@@ -252,12 +232,12 @@ namespace {
   }
 
   /**
-   *  Cohorts in-flight irrevocability:
+   *  Cohorts2 in-flight irrevocability:
    */
   bool
-  Cohorts::irrevoc(TxThread*)
+  Cohorts2::irrevoc(TxThread*)
   {
-      UNRECOVERABLE("Cohorts Irrevocability not yet supported");
+      UNRECOVERABLE("Cohorts2 Irrevocability not yet supported");
       return false;
   }
 
@@ -275,7 +255,7 @@ namespace {
 
 
   /**
-   *  Switch to Cohorts:
+   *  Switch to Cohorts2:
    *
    *    The timestamp must be >= the maximum value of any orec.  Some algs use
    *    timestamp as a zero-one mutex.  If they do, then they back up the
@@ -283,7 +263,7 @@ namespace {
    *
    */
   void
-  Cohorts::onSwitchTo()
+  Cohorts2::onSwitchTo()
   {
       timestamp.val = MAXIMUM(timestamp.val, timestamp_max.val);
       last_complete.val = 0;
@@ -292,21 +272,21 @@ namespace {
 
 namespace stm {
   /**
-   *  Cohorts initialization
+   *  Cohorts2 initialization
    */
   template<>
-  void initTM<Cohorts>()
+  void initTM<Cohorts2>()
   {
       // set the name
-      stms[Cohorts].name      = "Cohorts";
+      stms[Cohorts2].name      = "Cohorts2";
       // set the pointers
-      stms[Cohorts].begin     = ::Cohorts::begin;
-      stms[Cohorts].commit    = ::Cohorts::commit_ro;
-      stms[Cohorts].read      = ::Cohorts::read_ro;
-      stms[Cohorts].write     = ::Cohorts::write_ro;
-      stms[Cohorts].rollback  = ::Cohorts::rollback;
-      stms[Cohorts].irrevoc   = ::Cohorts::irrevoc;
-      stms[Cohorts].switcher  = ::Cohorts::onSwitchTo;
-      stms[Cohorts].privatization_safe = true;
+      stms[Cohorts2].begin     = ::Cohorts2::begin;
+      stms[Cohorts2].commit    = ::Cohorts2::commit_ro;
+      stms[Cohorts2].read      = ::Cohorts2::read_ro;
+      stms[Cohorts2].write     = ::Cohorts2::write_ro;
+      stms[Cohorts2].rollback  = ::Cohorts2::rollback;
+      stms[Cohorts2].irrevoc   = ::Cohorts2::irrevoc;
+      stms[Cohorts2].switcher  = ::Cohorts2::onSwitchTo;
+      stms[Cohorts2].privatization_safe = true;
   }
 }
