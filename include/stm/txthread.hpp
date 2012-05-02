@@ -96,6 +96,7 @@ namespace stm
       /*** FOR COHORTS USE */
       volatile uint32_t status;     // tx status
       AddressList r_addrs;          // tx read addresses
+      cohorts_node_t turn;          // tx turn node
 
       /*** FOR PESSIMISTIC USE */
       bool read_only;               // mark a transaction to be read-only txn

@@ -47,7 +47,7 @@ namespace stm
       Wealth, Cohorts, Cohorts2, Cohortsnoorder, Cohortsold, CohortsLazy, CohortsEager,
       CohortsLI, CohortsNOrec, CohortsLN, CohortsFilter, CohortsLF, CohortsEF,
       Fastlane1, Fastlane2, PTM, FastlaneSwitch, CTokenTurboELA, CohortsEN,
-      CohortsEN2,CTokenNOrec,
+      CohortsEN2, CTokenNOrec, Cohorts3,
       // ProfileTM support.  These are not true STMs
       ProfileTM, ProfileAppAvg, ProfileAppMax, ProfileAppAll,
       // end with a distinct value
