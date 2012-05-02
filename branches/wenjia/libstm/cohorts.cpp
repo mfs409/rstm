@@ -25,7 +25,6 @@
 #include "RedoRAWUtils.hpp"
 
 // define atomic operations
-#define CAS __sync_val_compare_and_swap
 #define ADD __sync_add_and_fetch
 #define SUB __sync_sub_and_fetch
 
@@ -39,11 +38,10 @@ using stm::UNRECOVERABLE;
 using stm::WriteSetEntry;
 using stm::orec_t;
 using stm::get_orec;
-
 using stm::started;
 using stm::cpending;
 using stm::committed;
-using stm::last_order;
+
 
 /**
  *  Declare the functions that we're going to implement, so that we can avoid
@@ -77,14 +75,6 @@ namespace {
   bool
   Cohorts::begin(TxThread* tx)
   {
-      // [mfs] Could we merge all of the fields into a single word?  We would
-      //       not need last_complete or ts_cache if we made such a change, and
-      //       then the last transaction in a cohort could simply zero the word
-      //       to let the next cohort begin.  Note that doing so would look
-      //       different in different versions of Cohorts (e.g., in this one
-      //       we'd still need a timestamp, though without atomic ops; in NOrec
-      //       no timestamp would be needed).
-
     S1:
       // wait until everyone is committed
       while (cpending.val != committed.val);
@@ -132,11 +122,14 @@ namespace {
       // increment num of tx ready to commit, and use it as the order
       tx->order = ADD(&cpending.val, 1);
 
+      // get the order of first tx in a cohort
+      uint32_t first = last_complete.val + 1;
+
       // Wait for my turn
       while (last_complete.val != (uintptr_t)(tx->order - 1));
 
       // If I'm not the first one in a cohort to commit, validate reads
-      if (tx->order != last_order)
+      if (tx->order != first)
           if (!validate(tx)) {
               committed.val++;
               CFENCE;
@@ -163,9 +156,6 @@ namespace {
       // do write back
       foreach (WriteSet, i, tx->writes)
           *i->addr = i->val;
-
-      // update last_order
-      last_order = started.val + 1;
 
       // increment number of committed tx
       committed.val++;

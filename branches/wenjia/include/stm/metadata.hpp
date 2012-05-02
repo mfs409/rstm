@@ -44,6 +44,15 @@ namespace stm
   typedef void scope_t;
 
   /**
+   * Linklist for Cohorts order handling.
+   */
+  struct cohorts_node_t
+  {
+      volatile uint32_t val;
+      struct cohorts_node_t* next;
+  };
+
+  /**
    *  id_version_t uses the msb as the lock bit.  If the msb is zero, treat
    *  the word as a version number.  Otherwise, treat it as a struct with the
    *  lower 8 bits giving the ID of the lock-holding thread.
