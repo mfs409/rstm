@@ -30,8 +30,6 @@
 
 using stm::TxThread;
 using stm::last_complete;
-using stm::timestamp;
-using stm::timestamp_max;
 using stm::WriteSet;
 using stm::OrecList;
 using stm::UNRECOVERABLE;
@@ -41,7 +39,6 @@ using stm::get_orec;
 using stm::started;
 using stm::cpending;
 using stm::committed;
-
 
 /**
  *  Declare the functions that we're going to implement, so that we can avoid
@@ -119,11 +116,11 @@ namespace {
   void
   Cohorts::commit_rw(TxThread* tx)
   {
-      // increment num of tx ready to commit, and use it as the order
-      tx->order = ADD(&cpending.val, 1);
-
       // get the order of first tx in a cohort
       uint32_t first = last_complete.val + 1;
+
+      // increment num of tx ready to commit, and use it as the order
+      tx->order = ADD(&cpending.val, 1);
 
       // Wait for my turn
       while (last_complete.val != (uintptr_t)(tx->order - 1));
@@ -267,15 +264,10 @@ namespace {
   /**
    *  Switch to Cohorts:
    *
-   *    The timestamp must be >= the maximum value of any orec.  Some algs use
-   *    timestamp as a zero-one mutex.  If they do, then they back up the
-   *    timestamp first, in timestamp_max.
-   *
    */
   void
   Cohorts::onSwitchTo()
   {
-      timestamp.val = MAXIMUM(timestamp.val, timestamp_max.val);
       last_complete.val = 0;
   }
 }
