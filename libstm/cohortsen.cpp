@@ -38,13 +38,14 @@ using stm::started;
 using stm::cpending;
 using stm::committed;
 
+//#define TRY
+//#define TIMES 10 // # of writes tx waits to try to go turbo
 
 /**
  *  Declare the functions that we're going to implement, so that we can avoid
  *  circular dependencies.
  */
 namespace {
-  const uintptr_t VALIDATION_FAILED = 1;
   volatile uint32_t inplace = 0;
   NOINLINE bool validate(TxThread* tx);
 
@@ -228,6 +229,7 @@ namespace {
   void
   CohortsEN::write_ro(STM_WRITE_SIG(tx,addr,val,mask))
   {
+#ifndef TRY
       // If everyone else is ready to commit, do in place write
       if (cpending.val + 1 == started.val) {
           // set up flag indicating in place write starts
@@ -243,6 +245,7 @@ namespace {
           // reset flag
           inplace = 0;
       }
+#endif
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
       OnFirstWrite(tx, read_rw, write_rw, commit_rw);
   }
@@ -262,6 +265,25 @@ namespace {
   void
   CohortsEN::write_rw(STM_WRITE_SIG(tx,addr,val,mask))
   {
+#ifdef TRY
+      // Try to go turbo when "writes.size() >= TIMES"
+      if (tx->writes.size() >= TIMES && cpending.val + 1 == started.val) {
+          // set up flag indicating in place write starts
+          atomicswap32(&inplace, 1);
+          // double check is necessary
+          if (cpending.val + 1 == started.val) {
+              // write back
+              tx->writes.writeback();
+              // in place write
+              *addr = val;
+              // go turbo mode
+              OnFirstWrite(tx, read_turbo, write_turbo, commit_turbo);
+              return;
+          }
+          // reset flag
+          inplace = 0;
+      }
+#endif
       // record the new value in a redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
   }

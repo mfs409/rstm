@@ -9,7 +9,7 @@
  */
 
 /**
- *  Pipeline Implementation
+ *  PipelineTurbo Implementation
  *
  *    This algorithm is inspired by FastPath [LCPC 2009], and by Oancea et
  *    al. SPAA 2009.  We induce a total order on transactions at start time,
@@ -46,14 +46,18 @@ using stm::WriteSetEntry;
  *  circular dependencies.
  */
 namespace {
-  struct Pipeline {
+  struct PipelineTurbo {
       static TM_FASTCALL bool begin(TxThread*);
       static TM_FASTCALL void* read_ro(STM_READ_SIG(,,));
       static TM_FASTCALL void* read_rw(STM_READ_SIG(,,));
+      static TM_FASTCALL void* read_turbo(STM_READ_SIG(,,));
       static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,,));
       static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,,));
+      static TM_FASTCALL void write_turbo(STM_WRITE_SIG(,,,));
       static TM_FASTCALL void commit_ro(TxThread*);
       static TM_FASTCALL void commit_rw(TxThread*);
+      static TM_FASTCALL void commit_turbo(TxThread*);
+
 
       static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
@@ -62,9 +66,9 @@ namespace {
   };
 
   /**
-   *  Pipeline begin:
+   *  PipelineTurbo begin:
    *
-   *    Pipeline is very fair: on abort, we keep our old order.  Thus only if we
+   *    PipelineTurbo is very fair: on abort, we keep our old order.  Thus only if we
    *    are starting a new transaction do we get an order.  We always check if we
    *    are oldest, in which case we can move straight to turbo mode.
    *
@@ -74,7 +78,7 @@ namespace {
    *    one does, this tx will need to validate.
    */
   bool
-  Pipeline::begin(TxThread* tx)
+  PipelineTurbo::begin(TxThread* tx)
   {
       tx->allocator.onTxBegin();
 
@@ -83,12 +87,13 @@ namespace {
           tx->order = 1 + faiptr(&timestamp.val);
 
       tx->ts_cache = last_complete.val;
-
+      if (tx->ts_cache == ((uintptr_t)tx->order - 1))
+          GoTurbo(tx, read_turbo, write_turbo, commit_turbo);
       return false;
   }
 
   /**
-   *  Pipeline commit (read-only):
+   *  PipelineTurbo commit (read-only):
    *
    *    For the sake of ordering, read-only transactions must wait until they
    *    are the oldest, then they validate.  This introduces a lot of
@@ -96,7 +101,7 @@ namespace {
    *    semantics.
    */
   void
-  Pipeline::commit_ro(TxThread* tx)
+  PipelineTurbo::commit_ro(TxThread* tx)
   {
       // wait our turn, then validate
       while (last_complete.val != ((uintptr_t)tx->order - 1)) {
@@ -105,15 +110,13 @@ namespace {
           if (TxThread::tmbegin != begin)
               tx->tmabort(tx);
       }
-      // oldest tx doesn't need validation
-      if (tx->ts_cache != ((uintptr_t)tx->order - 1))
-          foreach (OrecList, i, tx->r_orecs) {
-              // read this orec
-              uintptr_t ivt = (*i)->v.all;
-              // if it has a timestamp of ts_cache or greater, abort
-              if (ivt > tx->ts_cache)
-                  tx->tmabort(tx);
-          }
+      foreach (OrecList, i, tx->r_orecs) {
+          // read this orec
+          uintptr_t ivt = (*i)->v.all;
+          // if it has a timestamp of ts_cache or greater, abort
+          if (ivt > tx->ts_cache)
+              tx->tmabort(tx);
+      }
       // mark self as complete
       last_complete.val = tx->order;
 
@@ -126,7 +129,7 @@ namespace {
   }
 
   /**
-   *  Pipeline commit (writing context):
+   *  PipelineTurbo commit (writing context):
    *
    *    Given the total order, RW commit is just like RO commit, except that we
    *    need to acquire locks and do writeback, too.  One nice thing is that
@@ -134,24 +137,20 @@ namespace {
    *    commits.
    */
   void
-  Pipeline::commit_rw(TxThread* tx)
+  PipelineTurbo::commit_rw(TxThread* tx)
   {
       // wait our turn, validate, writeback
       while (last_complete.val != ((uintptr_t)tx->order - 1)) {
           if (TxThread::tmbegin != begin)
               tx->tmabort(tx);
       }
-
-      // oldest tx doesn't need validation
-      if (tx->ts_cache != ((uintptr_t)tx->order - 1))
-          foreach (OrecList, i, tx->r_orecs) {
-              // read this orec
-              uintptr_t ivt = (*i)->v.all;
-              // if it has a timestamp of ts_cache or greater, abort
-              if (ivt > tx->ts_cache)
-                  tx->tmabort(tx);
-          }
-
+      foreach (OrecList, i, tx->r_orecs) {
+          // read this orec
+          uintptr_t ivt = (*i)->v.all;
+          // if it has a timestamp of ts_cache or greater, abort
+          if (ivt > tx->ts_cache)
+              tx->tmabort(tx);
+      }
       // mark every location in the write set, and perform write-back
       // NB: we cannot abort anymore
       foreach (WriteSet, i, tx->writes) {
@@ -163,6 +162,29 @@ namespace {
           // write-back
           *i->addr = i->val;
       }
+      last_complete.val = tx->order;
+
+      // set status to committed...
+      tx->order = -1;
+
+      // commit all frees, reset all lists
+      tx->r_orecs.reset();
+      tx->writes.reset();
+      OnReadWriteCommit(tx, read_ro, write_ro, commit_ro);
+  }
+
+  /**
+   *  PipelineTurbo commit (turbo mode):
+   *
+   *    The current transaction is oldest, used in-place writes, and eagerly
+   *    acquired all locks.  There is nothing to do but mark self as done.
+   *
+   *    NB: we do not distinguish between RO and RW... we should, and could
+   *        via tx->writes
+   */
+  void
+  PipelineTurbo::commit_turbo(TxThread* tx)
+  {
       CFENCE;
       last_complete.val = tx->order;
 
@@ -176,20 +198,16 @@ namespace {
   }
 
   /**
-   *  Pipeline read (read-only transaction)
+   *  PipelineTurbo read (read-only transaction)
    *
    *    Since the commit time is determined before final validation (because the
    *    commit time is determined at begin time!), we can skip pre-validation.
    *    Otherwise, this is a standard orec read function.
    */
   void*
-  Pipeline::read_ro(STM_READ_SIG(tx,addr,))
+  PipelineTurbo::read_ro(STM_READ_SIG(tx,addr,))
   {
       void* tmp = *addr;
-      // oldest one just return the value
-      if (tx->ts_cache == ((uintptr_t)tx->order - 1))
-          return tmp;
-
       CFENCE; // RBR between dereference and orec check
 
       // get the orec addr, read the orec's version#
@@ -207,10 +225,10 @@ namespace {
   }
 
   /**
-   *  Pipeline read (writing transaction)
+   *  PipelineTurbo read (writing transaction)
    */
   void*
-  Pipeline::read_rw(STM_READ_SIG(tx,addr,mask))
+  PipelineTurbo::read_rw(STM_READ_SIG(tx,addr,mask))
   {
       // check the log for a RAW hazard, we expect to miss
       WriteSetEntry log(STM_WRITE_SET_ENTRY(addr, NULL, mask));
@@ -218,10 +236,6 @@ namespace {
       REDO_RAW_CHECK(found, log, mask);
 
       void* tmp = *addr;
-      // oldest one just return the value
-      if (tx->ts_cache == ((uintptr_t)tx->order - 1))
-          return tmp;
-
       CFENCE; // RBR between dereference and orec check
 
       // get the orec addr, read the orec's version#
@@ -241,10 +255,19 @@ namespace {
   }
 
   /**
-   *  Pipeline write (read-only context)
+   *  PipelineTurbo read (turbo mode)
+   */
+  void*
+  PipelineTurbo::read_turbo(STM_READ_SIG(,addr,))
+  {
+      return *addr;
+  }
+
+  /**
+   *  PipelineTurbo write (read-only context)
    */
   void
-  Pipeline::write_ro(STM_WRITE_SIG(tx,addr,val,mask))
+  PipelineTurbo::write_ro(STM_WRITE_SIG(tx,addr,val,mask))
   {
       // record the new value in a redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
@@ -252,28 +275,45 @@ namespace {
   }
 
   /**
-   *  Pipeline write (writing context)
+   *  PipelineTurbo write (writing context)
    */
   void
-  Pipeline::write_rw(STM_WRITE_SIG(tx,addr,val,mask))
+  PipelineTurbo::write_rw(STM_WRITE_SIG(tx,addr,val,mask))
   {
       // record the new value in a redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
   }
 
   /**
-   *  Pipeline unwinder:
+   *  PipelineTurbo write (turbo mode)
+   *
+   *    The oldest transaction needs to mark the orec before writing in-place.
+   */
+  void
+  PipelineTurbo::write_turbo(STM_WRITE_SIG(tx,addr,val,mask))
+  {
+      orec_t* o = get_orec(addr);
+      o->v.all = tx->order;
+      CFENCE;
+      STM_DO_MASKED_WRITE(addr, val, mask);
+  }
+
+  /**
+   *  PipelineTurbo unwinder:
    *
    *    For now, unwinding always happens before locks are held, and can't
    *    happen in turbo mode.
    *
-   *    NB: Self-abort is not supported in Pipeline.  Adding undo logging to
+   *    NB: Self-abort is not supported in PipelineTurbo.  Adding undo logging to
    *        turbo mode would resolve the issue.
    */
   stm::scope_t*
-  Pipeline::rollback(STM_ROLLBACK_SIG(tx, except, len))
+  PipelineTurbo::rollback(STM_ROLLBACK_SIG(tx, except, len))
   {
       PreRollback(tx);
+      // we cannot be in fast mode
+      if (CheckTurboMode(tx, read_turbo))
+          UNRECOVERABLE("Attempting to abort a turbo-mode transaction!");
 
       // Perform writes to the exception object if there were any... taking the
       // branch overhead without concern because we're not worried about
@@ -289,23 +329,23 @@ namespace {
   }
 
   /**
-   *  Pipeline in-flight irrevocability:
+   *  PipelineTurbo in-flight irrevocability:
    */
-  bool Pipeline::irrevoc(TxThread*)
+  bool PipelineTurbo::irrevoc(TxThread*)
   {
-      UNRECOVERABLE("Pipeline Irrevocability not yet supported");
+      UNRECOVERABLE("PipelineTurbo Irrevocability not yet supported");
       return false;
   }
 
   /**
-   *  Pipeline validation
+   *  PipelineTurbo validation
    *
    *    Make sure all orec version#s are valid.  Then see about switching to
    *    turbo mode.  Note that to do the switch, the current write set must be
    *    written to memory.
    */
   void
-  Pipeline::validate(TxThread* tx, uintptr_t finish_cache)
+  PipelineTurbo::validate(TxThread* tx, uintptr_t finish_cache)
   {
       foreach (OrecList, i, tx->r_orecs) {
           // read this orec
@@ -317,10 +357,26 @@ namespace {
       // now update the finish_cache to remember that at this time, we were
       // still valid
       tx->ts_cache = finish_cache;
+      // and if we are now the oldest thread, transition to fast mode
+      if (tx->ts_cache == ((uintptr_t)tx->order - 1)) {
+          if (tx->writes.size() != 0) {
+              // mark every location in the write set, and perform write-back
+              foreach (WriteSet, i, tx->writes) {
+                  // get orec
+                  orec_t* o = get_orec(i->addr);
+                  // mark orec
+                  o->v.all = tx->order;
+                  CFENCE; // WBW
+                  // write-back
+                  *i->addr = i->val;
+              }
+              GoTurbo(tx, read_turbo, write_turbo, commit_turbo);
+          }
+      }
   }
 
   /**
-   *  Switch to Pipeline:
+   *  Switch to PipelineTurbo:
    *
    *    The timestamp must be >= the maximum value of any orec.  Some algs use
    *    timestamp as a zero-one mutex.  If they do, then they back up the
@@ -331,7 +387,7 @@ namespace {
    *    Also, all threads' order values must be -1
    */
   void
-  Pipeline::onSwitchTo()
+  PipelineTurbo::onSwitchTo()
   {
       timestamp.val = MAXIMUM(timestamp.val, timestamp_max.val);
       last_complete.val = timestamp.val;
@@ -342,22 +398,22 @@ namespace {
 
 namespace stm {
   /**
-   *  Pipeline initialization
+   *  PipelineTurbo initialization
    */
   template<>
-  void initTM<Pipeline>()
+  void initTM<PipelineTurbo>()
   {
       // set the name
-      stms[Pipeline].name      = "Pipeline";
+      stms[PipelineTurbo].name      = "PipelineTurbo";
 
       // set the pointers
-      stms[Pipeline].begin     = ::Pipeline::begin;
-      stms[Pipeline].commit    = ::Pipeline::commit_ro;
-      stms[Pipeline].read      = ::Pipeline::read_ro;
-      stms[Pipeline].write     = ::Pipeline::write_ro;
-      stms[Pipeline].rollback  = ::Pipeline::rollback;
-      stms[Pipeline].irrevoc   = ::Pipeline::irrevoc;
-      stms[Pipeline].switcher  = ::Pipeline::onSwitchTo;
-      stms[Pipeline].privatization_safe = true;
+      stms[PipelineTurbo].begin     = ::PipelineTurbo::begin;
+      stms[PipelineTurbo].commit    = ::PipelineTurbo::commit_ro;
+      stms[PipelineTurbo].read      = ::PipelineTurbo::read_ro;
+      stms[PipelineTurbo].write     = ::PipelineTurbo::write_ro;
+      stms[PipelineTurbo].rollback  = ::PipelineTurbo::rollback;
+      stms[PipelineTurbo].irrevoc   = ::PipelineTurbo::irrevoc;
+      stms[PipelineTurbo].switcher  = ::PipelineTurbo::onSwitchTo;
+      stms[PipelineTurbo].privatization_safe = true;
   }
 }
