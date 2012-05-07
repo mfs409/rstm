@@ -9,7 +9,7 @@
  */
 
 /**
- *  CToken Implementation
+ *  CTokenELA Implementation
  *
  *    In this algorithm, all writer transactions are ordered by the time of
  *    their first write, and reader transactions are unordered.  By using
@@ -41,7 +41,7 @@ using stm::get_orec;
  *  circular dependencies.
  */
 namespace {
-  struct CToken {
+  struct CTokenELA {
       static TM_FASTCALL bool begin(TxThread*);
       static TM_FASTCALL void* read_ro(STM_READ_SIG(,,));
       static TM_FASTCALL void* read_rw(STM_READ_SIG(,,));
@@ -57,10 +57,10 @@ namespace {
   };
 
   /**
-   *  CToken begin:
+   *  CTokenELA begin:
    */
   bool
-  CToken::begin(TxThread* tx)
+  CTokenELA::begin(TxThread* tx)
   {
       tx->allocator.onTxBegin();
       // get time of last finished txn, to know when to validate
@@ -69,10 +69,10 @@ namespace {
   }
 
   /**
-   *  CToken commit (read-only):
+   *  CTokenELA commit (read-only):
    */
   void
-  CToken::commit_ro(TxThread* tx)
+  CTokenELA::commit_ro(TxThread* tx)
   {
       // reset lists and we are done
       tx->r_orecs.reset();
@@ -80,12 +80,12 @@ namespace {
   }
 
   /**
-   *  CToken commit (writing context):
+   *  CTokenELA commit (writing context):
    *
    *  NB:  Only valid if using pointer-based adaptivity
    */
   void
-  CToken::commit_rw(TxThread* tx)
+  CTokenELA::commit_rw(TxThread* tx)
   {
       // wait until it is our turn to commit, then validate, acquire, and do
       // writeback
@@ -128,10 +128,10 @@ namespace {
   }
 
   /**
-   *  CToken read (read-only transaction)
+   *  CTokenELA read (read-only transaction)
    */
   void*
-  CToken::read_ro(STM_READ_SIG(tx,addr,))
+  CTokenELA::read_ro(STM_READ_SIG(tx,addr,))
   {
       // read the location... this is safe since timestamps behave as in Wang's
       // CGO07 paper
@@ -151,14 +151,17 @@ namespace {
       // log orec
       tx->r_orecs.insert(o);
 
+      // validate
+      if (last_complete.val > tx->ts_cache)
+          validate(tx, last_complete.val);
       return tmp;
   }
 
   /**
-   *  CToken read (writing transaction)
+   *  CTokenELA read (writing transaction)
    */
   void*
-  CToken::read_rw(STM_READ_SIG(tx,addr,mask))
+  CTokenELA::read_rw(STM_READ_SIG(tx,addr,mask))
   {
       // check the log for a RAW hazard, we expect to miss
       WriteSetEntry log(STM_WRITE_SET_ENTRY(addr, NULL, mask));
@@ -172,10 +175,10 @@ namespace {
   }
 
   /**
-   *  CToken write (read-only context)
+   *  CTokenELA write (read-only context)
    */
   void
-  CToken::write_ro(STM_WRITE_SIG(tx,addr,val,mask))
+  CTokenELA::write_ro(STM_WRITE_SIG(tx,addr,val,mask))
   {
       // we don't have any writes yet, so we need to get an order here
       tx->order = 1 + faiptr(&timestamp.val);
@@ -186,20 +189,20 @@ namespace {
   }
 
   /**
-   *  CToken write (writing context)
+   *  CTokenELA write (writing context)
    */
   void
-  CToken::write_rw(STM_WRITE_SIG(tx,addr,val,mask))
+  CTokenELA::write_rw(STM_WRITE_SIG(tx,addr,val,mask))
   {
       // record the new value in a redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
   }
 
   /**
-   *  CToken unwinder:
+   *  CTokenELA unwinder:
    */
   stm::scope_t*
-  CToken::rollback(STM_ROLLBACK_SIG(tx, except, len))
+  CTokenELA::rollback(STM_ROLLBACK_SIG(tx, except, len))
   {
       PreRollback(tx);
 
@@ -219,20 +222,20 @@ namespace {
   }
 
   /**
-   *  CToken in-flight irrevocability:
+   *  CTokenELA in-flight irrevocability:
    */
   bool
-  CToken::irrevoc(TxThread*)
+  CTokenELA::irrevoc(TxThread*)
   {
-      UNRECOVERABLE("CToken Irrevocability not yet supported");
+      UNRECOVERABLE("CTokenELA Irrevocability not yet supported");
       return false;
   }
 
   /**
-   *  CToken validation
+   *  CTokenELA validation
    */
   void
-  CToken::validate(TxThread* tx, uintptr_t finish_cache)
+  CTokenELA::validate(TxThread* tx, uintptr_t finish_cache)
   {
       // check that all reads are valid
       //
@@ -250,7 +253,7 @@ namespace {
   }
 
   /**
-   *  Switch to CToken:
+   *  Switch to CTokenELA:
    *
    *    The timestamp must be >= the maximum value of any orec.  Some algs use
    *    timestamp as a zero-one mutex.  If they do, then they back up the
@@ -261,7 +264,7 @@ namespace {
    *    Also, all threads' order values must be -1
    */
   void
-  CToken::onSwitchTo()
+  CTokenELA::onSwitchTo()
   {
       timestamp.val = MAXIMUM(timestamp.val, timestamp_max.val);
       last_complete.val = timestamp.val;
@@ -272,22 +275,22 @@ namespace {
 
 namespace stm {
   /**
-   *  CToken initialization
+   *  CTokenELA initialization
    */
   template<>
-  void initTM<CToken>()
+  void initTM<CTokenELA>()
   {
       // set the name
-      stms[CToken].name      = "CToken";
+      stms[CTokenELA].name      = "CTokenELA";
       // set the pointers
-      stms[CToken].begin     = ::CToken::begin;
-      stms[CToken].commit    = ::CToken::commit_ro;
-      stms[CToken].read      = ::CToken::read_ro;
-      stms[CToken].write     = ::CToken::write_ro;
-      stms[CToken].rollback  = ::CToken::rollback;
-      stms[CToken].irrevoc   = ::CToken::irrevoc;
-      stms[CToken].switcher  = ::CToken::onSwitchTo;
-      stms[CToken].privatization_safe = true;
+      stms[CTokenELA].begin     = ::CTokenELA::begin;
+      stms[CTokenELA].commit    = ::CTokenELA::commit_ro;
+      stms[CTokenELA].read      = ::CTokenELA::read_ro;
+      stms[CTokenELA].write     = ::CTokenELA::write_ro;
+      stms[CTokenELA].rollback  = ::CTokenELA::rollback;
+      stms[CTokenELA].irrevoc   = ::CTokenELA::irrevoc;
+      stms[CTokenELA].switcher  = ::CTokenELA::onSwitchTo;
+      stms[CTokenELA].privatization_safe = true;
   }
 }
 
