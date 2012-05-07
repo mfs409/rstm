@@ -58,7 +58,6 @@ namespace {
       static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
       static void onSwitchTo();
-      static NOINLINE void validate(TxThread*, uintptr_t finish_cache);
   };
 
   /**
@@ -106,6 +105,7 @@ namespace {
               tx->tmabort(tx);
       }
       // oldest tx doesn't need validation
+
       if (tx->ts_cache != ((uintptr_t)tx->order - 1))
           foreach (OrecList, i, tx->r_orecs) {
               // read this orec
@@ -114,6 +114,7 @@ namespace {
               if (ivt > tx->ts_cache)
                   tx->tmabort(tx);
           }
+
       // mark self as complete
       last_complete.val = tx->order;
 
@@ -163,7 +164,6 @@ namespace {
           // write-back
           *i->addr = i->val;
       }
-      CFENCE;
       last_complete.val = tx->order;
 
       // set status to committed...
@@ -191,7 +191,6 @@ namespace {
           return tmp;
 
       CFENCE; // RBR between dereference and orec check
-
       // get the orec addr, read the orec's version#
       orec_t* o = get_orec(addr);
       uintptr_t ivt = o->v.all;
@@ -200,9 +199,7 @@ namespace {
           tx->tmabort(tx);
       // log orec
       tx->r_orecs.insert(o);
-      // validate if necessary
-      if (last_complete.val > tx->ts_cache)
-          validate(tx, last_complete.val);
+
       return tmp;
   }
 
@@ -223,7 +220,6 @@ namespace {
           return tmp;
 
       CFENCE; // RBR between dereference and orec check
-
       // get the orec addr, read the orec's version#
       orec_t* o = get_orec(addr);
       uintptr_t ivt = o->v.all;
@@ -232,9 +228,6 @@ namespace {
           tx->tmabort(tx);
       // log orec
       tx->r_orecs.insert(o);
-      // validate if necessary
-      if (last_complete.val > tx->ts_cache)
-          validate(tx, last_complete.val);
 
       REDO_RAW_CLEANUP(tmp, found, log, mask)
       return tmp;
@@ -295,28 +288,6 @@ namespace {
   {
       UNRECOVERABLE("Pipeline Irrevocability not yet supported");
       return false;
-  }
-
-  /**
-   *  Pipeline validation
-   *
-   *    Make sure all orec version#s are valid.  Then see about switching to
-   *    turbo mode.  Note that to do the switch, the current write set must be
-   *    written to memory.
-   */
-  void
-  Pipeline::validate(TxThread* tx, uintptr_t finish_cache)
-  {
-      foreach (OrecList, i, tx->r_orecs) {
-          // read this orec
-          uintptr_t ivt = (*i)->v.all;
-          // if it has a timestamp of ts_cache or greater, abort
-          if (ivt > tx->ts_cache)
-              tx->tmabort(tx);
-      }
-      // now update the finish_cache to remember that at this time, we were
-      // still valid
-      tx->ts_cache = finish_cache;
   }
 
   /**
