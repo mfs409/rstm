@@ -97,6 +97,9 @@ namespace stm
       volatile uint32_t status;     // tx status
       AddressList r_addrs;          // tx read addresses
       cohorts_node_t turn;          // tx turn node
+      /*** FOR CTOKENQ USE */
+      cohorts_node_t turn1;         // tx turn node1
+      cohorts_node_t turn2;         // tx turn node2
 
       /*** FOR PESSIMISTIC USE */
       bool read_only;               // mark a transaction to be read-only txn
