@@ -67,7 +67,7 @@ namespace {
       static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
       static void onSwitchTo();
-      static NOINLINE void validate(TxThread* tx, uintptr_t finish_cache);
+      static NOINLINE void validate(TxThread* tx);
   };
 
   /**
@@ -117,10 +117,10 @@ namespace {
 
       // since we have the token, we can validate before getting locks
       if (last_complete.val > tx->ts_cache)
-          validate(tx, last_complete.val);
+          validate(tx);
 
-      // Add global timestamp
-      ADD(&timestamp.val, 1);
+      // increment global timestamp and save it to local cache
+      tx->order = ++ timestamp.val;
 
       // if we had writes, then aborted, then restarted, and then didn't have
       // writes, we could end up trying to lock a nonexistant write set.
@@ -128,13 +128,13 @@ namespace {
           // mark orec and do write back
           foreach (WriteSet, i, tx->writes) {
               orec_t* o = get_orec(i->addr);
-              o->v.all = timestamp.val;
+              o->v.all = tx->order;
               CFENCE; // WBW
               *i->addr = i->val;
           }
       }
       // record last_complete version
-      last_complete.val = timestamp.val;
+      last_complete.val = tx->order;
       CFENCE;
 
       // mark self done so that next tx can proceed and reverse tx->status
@@ -265,7 +265,7 @@ namespace {
    *  CTokenQ validation for commit_rw
    */
   void
-  CTokenQ::validate(TxThread* tx, uintptr_t finish_cache)
+  CTokenQ::validate(TxThread* tx)
   {
       // check that all reads are valid
       foreach (OrecList, i, tx->r_orecs) {
@@ -275,9 +275,6 @@ namespace {
           if (ivt > tx->ts_cache)
               tx->tmabort(tx);
       }
-      // now update the finish_cache to remember that at this time, we were
-      // still valid
-      tx->ts_cache = finish_cache;
   }
 
   /**
