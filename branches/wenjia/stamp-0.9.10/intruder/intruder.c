@@ -209,6 +209,7 @@ processPackets (void* argPtr)
     while (1) {
 
         char* bytes;
+        // This is ReadWrite tx
         TM_BEGIN();
         bytes = TMSTREAM_GETPACKET(streamPtr);
         TM_END();
@@ -220,6 +221,7 @@ processPackets (void* argPtr)
         long flowId = packetPtr->flowId;
 
         int_error_t error;
+        // This is ReadWrite tx
         TM_BEGIN();
         error = TMDECODER_PROCESS(decoderPtr,
                                   bytes,
@@ -236,6 +238,7 @@ processPackets (void* argPtr)
 
         char* data;
         long decodedFlowId;
+        // This is ReadWrite tx
         TM_BEGIN();
         data = TMDECODER_GETCOMPLETE(decoderPtr, &decodedFlowId);
         TM_END();

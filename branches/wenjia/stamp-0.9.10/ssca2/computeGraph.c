@@ -180,6 +180,7 @@ computeGraph (void* argPtr)
         }
     }
 
+    // This is a read-write tx
     TM_BEGIN();
     long tmp_maxNumVertices = (long)TM_SHARED_READ_L(global_maxNumVertices);
     long new_maxNumVertices = MAX((unsigned long)tmp_maxNumVertices, maxNumVertices) + 1;
@@ -295,7 +296,7 @@ computeGraph (void* argPtr)
     prefix_sums(GPtr->outVertexIndex, GPtr->outDegree, GPtr->numVertices);
 
     thread_barrier_wait();
-
+    // This is a Read-Write tx
     TM_BEGIN();
     TM_SHARED_WRITE_L(
         global_outVertexListSize,
@@ -472,7 +473,8 @@ computeGraph (void* argPtr)
                 }
             }
             if (k == GPtr->outVertexIndex[v]+GPtr->outDegree[v]) {
-                TM_BEGIN();
+              // This is a Read-Write tx
+              TM_BEGIN();
                 /* Add i to the impliedEdgeList of v */
                 long inDegree = (long)TM_SHARED_READ_L(GPtr->inDegree[v]);
                 TM_SHARED_WRITE_L(GPtr->inDegree[v], (inDegree + 1));
