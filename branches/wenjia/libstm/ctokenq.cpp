@@ -11,27 +11,16 @@
 /**
  *  CTokenQ Implementation
  *
- *    In this algorithm, all writer transactions are ordered by the time of
- *    their first write, and reader transactions are unordered.  By using
- *    ordering, in the form of a commit token, along with lazy acquire, we are
- *    able to provide strong progress guarantees and ELA semantics, while also
- *    avoiding atomic operations for acquiring orecs.
+ *  CToken using Queue to hand off orders
  */
 
 #include "profiling.hpp"
 #include "algs.hpp"
 #include "RedoRAWUtils.hpp"
 
-// define atomic operations
-#define ADD __sync_add_and_fetch
-#define SUB __sync_sub_and_fetch
-
 using stm::TxThread;
-using stm::threads;
-using stm::threadcount;
 using stm::last_complete;
 using stm::timestamp;
-using stm::timestamp_max;
 using stm::WriteSet;
 using stm::OrecList;
 using stm::UNRECOVERABLE;
@@ -120,7 +109,7 @@ namespace {
           validate(tx);
 
       // increment global timestamp and save it to local cache
-      tx->order = ++ timestamp.val;
+      tx->order = ++timestamp.val;
 
       // if we had writes, then aborted, then restarted, and then didn't have
       // writes, we could end up trying to lock a nonexistant write set.
@@ -135,7 +124,6 @@ namespace {
       }
       // record last_complete version
       last_complete.val = tx->order;
-      CFENCE;
 
       // mark self done so that next tx can proceed and reverse tx->status
       if (tx->status == ONE) {
@@ -279,12 +267,6 @@ namespace {
 
   /**
    *  Switch to CTokenQ:
-   *
-   *    The timestamp must be >= the maximum value of any orec.  Some algs use
-   *    timestamp as a zero-one mutex.  If they do, then they back up the
-   *    timestamp first, in timestamp_max.
-   *
-   *    Also, last_complete must equal timestamp
    *
    */
   void
