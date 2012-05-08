@@ -201,6 +201,7 @@ client_run (void* argPtr)
                 // [RSTM] should isFound be declared inside of the
                 //        transaction, so that it is reset on abort?
                 bool_t isFound = FALSE;
+                // [wer210] Read-write tx
                 TM_BEGIN();
                 for (n = 0; n < numQuery; n++) {
                     long t = types[n];
@@ -252,6 +253,7 @@ client_run (void* argPtr)
 
             case ACTION_DELETE_CUSTOMER: {
                 long customerId = random_generate(randomPtr) % queryRange + 1;
+                // [wer210] Read-Write tx
                 TM_BEGIN();
                 long bill = MANAGER_QUERY_CUSTOMER_BILL(managerPtr, customerId);
                 if (bill >= 0) {
@@ -272,6 +274,7 @@ client_run (void* argPtr)
                         prices[n] = ((random_generate(randomPtr) % 5) * 10) + 50;
                     }
                 }
+                // [wer210] Read-Write tx
                 TM_BEGIN();
                 for (n = 0; n < numUpdate; n++) {
                     long t = types[n];
