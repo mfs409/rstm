@@ -165,6 +165,7 @@ work (void* argPtr)
             membership[i] = index;
 
             /* Update new cluster centers : sum of objects located within */
+            // [wer210] Read-Write tx
             TM_BEGIN();
             TM_SHARED_WRITE_I(*new_centers_len[index],
                             TM_SHARED_READ_I(*new_centers_len[index]) + 1);
@@ -179,7 +180,8 @@ work (void* argPtr)
 
         /* Update task queue */
         if (start + CHUNK < npoints) {
-            TM_BEGIN();
+          // [wer210] Read-Write tx
+          TM_BEGIN();
             start = (int)TM_SHARED_READ_L(global_i);
             TM_SHARED_WRITE_L(global_i, (long)(start + CHUNK));
             TM_END();
@@ -187,7 +189,7 @@ work (void* argPtr)
             break;
         }
     }
-
+    // [wer210] Read-Write tx
     TM_BEGIN();
     TM_SHARED_WRITE_F(global_delta, TM_SHARED_READ_F(global_delta) + delta);
     TM_END();

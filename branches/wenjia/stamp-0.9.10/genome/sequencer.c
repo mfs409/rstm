@@ -295,6 +295,7 @@ sequencer_run (void* argPtr)
     i_stop = numSegment;
 #endif /* !(HTM || STM) */
     for (i = i_start; i < i_stop; i+=CHUNK_STEP1) {
+      //[wer210] This is Read-Write tx
         TM_BEGIN();
         {
             long ii;
@@ -374,6 +375,7 @@ sequencer_run (void* argPtr)
             bool_t status;
 
             /* Find an empty constructEntries entry */
+            // [wer210] Read-Write tx
             TM_BEGIN();
             while (((void*)TM_SHARED_READ_P(constructEntries[entryIndex].segment)) != NULL) {
                 entryIndex = (entryIndex + 1) % numUniqueSegment; /* look for empty */
@@ -400,6 +402,7 @@ sequencer_run (void* argPtr)
             for (j = 1; j < segmentLength; j++) {
                 startHash = (ulong_t)segment[j-1] +
                             (startHash << 6) + (startHash << 16) - startHash;
+                //[wer210] Read-Write tx
                 TM_BEGIN();
                 status = TMTABLE_INSERT(startHashToConstructEntryTables[j],
                                         (ulong_t)startHash,
@@ -413,6 +416,7 @@ sequencer_run (void* argPtr)
              */
             startHash = (ulong_t)segment[j-1] +
                         (startHash << 6) + (startHash << 16) - startHash;
+            //[wer210] Read-Write tx
             TM_BEGIN();
             status = TMTABLE_INSERT(hashToConstructEntryTable,
                                     (ulong_t)startHash,
@@ -481,6 +485,7 @@ sequencer_run (void* argPtr)
                 long newLength = 0;
 
                 /* endConstructEntryPtr is local except for properties startPtr/endPtr/length */
+                // [wer210] Read-Write tx
                 TM_BEGIN();
 
                 /* Check if matches */
