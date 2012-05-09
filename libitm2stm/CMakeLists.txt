@@ -107,7 +107,9 @@ macro(gcc arch)
     ${arch_path}/_ITM_beginTransaction_no_td.S
     ${arch_path}/checkpoint_restore.S)
   append_property(TARGET itm2stm${arch} COMPILE_FLAGS -m${arch} -I${arch_path})
+  append_property(TARGET itm2stm${arch} LINK_FLAGS -m${arch})
   append_property(TARGET itm2stm${arch}shared COMPILE_FLAGS -m${arch} -I${arch_path})
+  append_property(TARGET itm2stm${arch}shared LINK_FLAGS -m${arch})
   target_link_libraries(itm2stm${arch} stm${arch})
 endmacro(gcc)
 
