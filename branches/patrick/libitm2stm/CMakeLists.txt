@@ -9,6 +9,7 @@
 
 # Configures the itm2stm library build.
 include (AppendFlags)
+include (FindLibrt)
 
 # Add some additional compiler flags.
 append_cxx_flags(-fno-rtti -fno-exceptions -fno-strict-aliasing
@@ -47,6 +48,55 @@ set(cppsources
   libitm-5.15.cpp
   libitm-5.16.cpp
   libitm-5.17.cpp)
+
+#TODO Probably not the best way to add the libstm files
+set(libstmsources
+  ../libstm/txthread.cpp
+  ../libstm/inst.cpp
+  ../libstm/types.cpp
+  ../libstm/profiling.cpp
+  ../libstm/WBMMPolicy.cpp
+  ../libstm/irrevocability.cpp
+  ../libstm/algs/algs.cpp
+  ../libstm/algs/biteager.cpp
+  ../libstm/algs/biteagerredo.cpp
+  ../libstm/algs/bitlazy.cpp
+  ../libstm/algs/byear.cpp
+  ../libstm/algs/byeau.cpp
+  ../libstm/algs/byteeager.cpp
+  ../libstm/algs/byteeagerredo.cpp
+  ../libstm/algs/bytelazy.cpp
+  ../libstm/algs/cgl.cpp
+  ../libstm/algs/ctoken.cpp
+  ../libstm/algs/ctokenturbo.cpp
+  ../libstm/algs/llt.cpp
+  ../libstm/algs/mcs.cpp
+  ../libstm/algs/nano.cpp
+  ../libstm/algs/norec.cpp
+  ../libstm/algs/norecprio.cpp
+  ../libstm/algs/oreau.cpp
+  ../libstm/algs/orecala.cpp
+  ../libstm/algs/oreceager.cpp
+  ../libstm/algs/oreceagerredo.cpp
+  ../libstm/algs/orecela.cpp
+  ../libstm/algs/orecfair.cpp
+  ../libstm/algs/oreclazy.cpp
+  ../libstm/algs/pipeline.cpp
+  ../libstm/algs/profiletm.cpp
+  ../libstm/algs/ringala.cpp
+  ../libstm/algs/ringsw.cpp
+  ../libstm/algs/serial.cpp
+  ../libstm/algs/profileapp.cpp
+  ../libstm/algs/swiss.cpp
+  ../libstm/algs/ticket.cpp
+  ../libstm/algs/tli.cpp
+  ../libstm/algs/tml.cpp
+  ../libstm/algs/tmllazy.cpp
+  ../libstm/policies/cbr.cpp
+  ../libstm/policies/policies.cpp
+  ../libstm/policies/static.cpp
+  )
+
 
 set(asmsources
   arch/x86/_ITM_beginTransaction.S
@@ -102,6 +152,7 @@ macro(gcc arch)
     ${arch_path}/_ITM_beginTransaction_no_td.S
     ${arch_path}/checkpoint_restore.S)
   add_library(itm2stm${arch}shared SHARED
+    ${libstmsources}
     ${cppsources}
     gcc.cpp
     ${arch_path}/_ITM_beginTransaction_no_td.S
@@ -111,6 +162,10 @@ macro(gcc arch)
   append_property(TARGET itm2stm${arch}shared COMPILE_FLAGS -m${arch} -I${arch_path})
   append_property(TARGET itm2stm${arch}shared LINK_FLAGS -m${arch})
   target_link_libraries(itm2stm${arch} stm${arch})
+  # Add dependancy to librt
+  target_link_libraries(itm2stm${arch}shared ${LIBRT_LIBRARIES})
+  # Create a symbol link to libitm.so (can cause conflict between 32 and 64bits)
+  add_custom_target(libitm ALL COMMAND ${CMAKE_COMMAND} -E create_symlink libitm2stm${arch}shared.so libitm.so)
 endmacro(gcc)
 
 # TODO for GCC (and ICC), must merge the two library in one (at least more convenient)
