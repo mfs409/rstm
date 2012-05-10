@@ -1,5 +1,14 @@
-#ifndef INST_COMMON_H
-#define INST_COMMON_H
+/**
+ *  Copyright (C) 2011
+ *  University of Rochester Department of Computer Science
+ *    and
+ *  Lehigh University Department of Computer Science and Engineering
+ *
+ * License: Modified BSD
+ *          Please see the file LICENSE.RSTM for licensing information
+ */
+#ifndef RSTM_INST_COMMON_H
+#define RSTM_INST_COMMON_H
 
 namespace stm {
   /**
@@ -25,7 +34,7 @@ namespace stm {
   }
 
   template <typename T>
-  static void** base_of(T* addr) {
+  static void** base_of(const T* const addr) {
       const uintptr_t MASK = ~static_cast<uintptr_t>(sizeof(void*) - 1);
       const uintptr_t base = reinterpret_cast<uintptr_t>(addr) & MASK;
       return reinterpret_cast<void**>(base);
@@ -40,4 +49,4 @@ namespace stm {
 
 }
 
-#endif // INST_COMMON_H
+#endif // RSTM_INST_COMMON_H

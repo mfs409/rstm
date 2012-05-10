@@ -14,10 +14,8 @@
 
 /**
  *  This header define the read-afeter-write algorithms used in the read
- *  instrumentation (inst.hpp) as RAW policies. The usage expected is as
- *  follows.
+ *  instrumentation (inst.hpp) as RAW policies.
  */
-
 namespace stm {
   template <class Read, class WordType>
   struct Reader {

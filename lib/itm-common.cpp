@@ -143,14 +143,7 @@ _ITM_LB(const void* addr, const size_t n) {
     const size_t oflow = (end > sizeof(void*)) ? end % sizeof(void*) : 0;
 
     // how many words do we need to log?
-    // The basic N is just the number of words in n.
-    size_t N = (n / sizeof(void*));
-
-    // If there is an offset, then we'll need an extra word.
-    N = (off) ? N + 1 : N;
-
-    // If the bytes overflow into a final word, then we'll need another word.
-    N = (oflow) ? N + 1 : N;
+    const size_t N = (n / sizeof(void*)) + ((off) ? 1 : 0) + ((oflow) ? 1 : 0);
 
     // we use the undo_log structure for logging
     TX* tx = Self;
@@ -159,13 +152,13 @@ _ITM_LB(const void* addr, const size_t n) {
     uintptr_t mask = stm::make_mask(off, stm::min(sizeof(void*), end));
     tx->undo_log.insert(base, *base, mask);
 
-    // log any middle words (i < e is necessary because size_t is unsigned)
+    // log any middle words
     for (size_t i = 1, e = N - 1; i < e; ++i)
         tx->undo_log.insert(base + i, base[i], ~0);
 
     // log the final word
-    if (oflow) {
-        mask = stm::make_mask(0, oflow);
+    if (N > 1) {
+        mask = stm::make_mask(0, (oflow) ? oflow : sizeof(void*));
         tx->undo_log.insert(base + N - 1, base[N - 1], mask);
     }
 }

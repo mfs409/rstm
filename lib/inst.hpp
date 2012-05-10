@@ -1,13 +1,23 @@
+/**
+ *  Copyright (C) 2011
+ *  University of Rochester Department of Computer Science
+ *    and
+ *  Lehigh University Department of Computer Science and Engineering
+ *
+ * License: Modified BSD
+ *          Please see the file LICENSE.RSTM for licensing information
+ */
 #ifndef RSTM_INST_H
 #define RSTM_INST_H
 
 #include "byte-logging.hpp"             // Word, MaskedWord, LogWordType
 #include "inst-readonly.hpp"            // CheckWritesetForReadOnly
 #include "inst-stackfilter.hpp"         // NoFilter
-#include "inst-writer.hpp"              // oWriter<>
+#include "inst-writer.hpp"              // Writer<>
 #include "inst-reader.hpp"              // Reader<>
 #include "inst-alignment.hpp"           // Aligned<,>
 #include "inst-common.hpp"              // make_mask, min
+#include "inst-memcpy.hpp"              // MemcpyCursor, MemcpyBuffer, etc
 
 // This is all inline stuff that shouldn't ever be visible from outside of the
 // source file in which it's included, so we stick it all in an anonymouse
@@ -16,7 +26,22 @@ namespace {
   using namespace stm;
 
   /**
-   *  This template and its specializations select between two types.
+   *  This template and its specializations select between two types, based on
+   *  the bool parameter.
+   */
+  template <bool S, typename F1, typename F2>
+  struct Select {
+      typedef F1 Result;
+  };
+
+  template <typename F1, typename F2>
+  struct Select<false, F1, F2> {
+      typedef F2 Result;
+  };
+
+  /**
+   *  This template and its specializations select between two types, depending
+   *  on which one is not NullType.
    *
    *  if (F1 != NullType)
    *      Result = F1
@@ -49,6 +74,11 @@ namespace {
             typename WriteRW,
             typename WriteReadOnly>
   class GenericInst {
+    public:
+     typedef GenericInst<T, ForceAligned, WordType, IsReadOnly, ReadFilter,
+                         ReadRW, ReadReadOnly, WriteFilter, WriteRW,
+                         WriteReadOnly> InstType;
+
     private:
       /**
        *  The number of words we need to reserve to deal with a T, is basically
@@ -59,7 +89,7 @@ namespace {
        */
       enum {
           N = ((sizeof(T)/sizeof(void*)) ? sizeof(T)/sizeof(void*) : 1) +
-              ((Aligned<T, ForceAligned>::value) ? 0 : 1)
+          ((Aligned<T, ForceAligned>::value) ? 0 : 1)
       };
 
       /**
@@ -84,7 +114,7 @@ namespace {
           return (Aligned<T, ForceAligned>::value) ? 0 : offset_of(addr);
       }
 
-      static inline void** BaseOf(T* const addr) {
+      static inline void** BaseOf(const T* const addr) {
           return (Aligned<T, ForceAligned>::value) ? (void**)addr : base_of(addr);
       }
 
@@ -103,21 +133,19 @@ namespace {
           // constants whenever they can.
           void** const base = BaseOf(addr);
           const size_t off = OffsetOf(addr);
+          const size_t end = off + sizeof(T);
 
           // deal with the first word (there's always at least one)
-          uintptr_t mask = make_mask(off, min(sizeof(void*), off + sizeof(T)));
-          f(base, words[0], mask);
+          f(base, words[0], make_mask(off, min(sizeof(void*), end)));
 
           // deal with any middle words for large types
-          mask = make_mask(0, sizeof(void*));
           for (size_t i = 1, e = N - 1; i < e; ++i)
-              f(base + i, words[i], mask);
+              f(base + i, words[i], ~0);
 
-          // if we have a final word to read, do so
-          if (N > 1 && (off + sizeof(T) > sizeof(void*))) {
-              mask = make_mask(0, off);
-              f(base + N - 1, words[N - 1], mask);
-          }
+          // if we have a final word to read, do so (% power of two for
+          // unsigned type should be optimized)
+          if (N > 1 && (end % sizeof(void*)))
+              f(base + N - 1, words[N - 1], make_mask(0, off));
       }
 
     public:
@@ -218,6 +246,104 @@ namespace {
 
           // repurpose the undo log for logging.
           ProcessWords(addr, words, Writer<Logger>(tx));
+      }
+
+      /**
+       *  Support the ITM Memcpy interface. This is part of the GenericInst
+       *  class so that we have access to it's type parameters.
+       *
+       *  ReadTx: true if we want to read transactionally
+       *  WriteTx: true if we want to write transactionally
+       */
+      template <bool ReadTransactionally, bool WriteTransactionally>
+      static void* Memcpy(void* dest, const void* src, size_t n) {
+          // The GenericInst class defines the transactional reader and writer
+          // functions. For now, we don't customize for read-only operation.
+          typedef Reader<ReadRW, WordType> TxRead;
+          typedef Writer<WriteRW> TxWrite;
+
+          // Select the read and write functors for the generic stm::memcpy
+          // template based on the Memcpy parameters. The NonTxRead/Write
+          // policies are defined in inst-memcpy, and just provide naked,
+          // potentially masked operations using the expected policy
+          // interface.
+          typedef typename Select<ReadTransactionally,
+                                  TxRead, NonTxRead>::Result ReadWord;
+          typedef typename Select<WriteTransactionally,
+                                  TxWrite, NonTxWrite>::Result WriteWord;
+
+          // Actually call the correct specialization of stm::memcpy.
+          TX* tx = Self;
+          ReadWord read(tx);
+          WriteWord write(tx);
+          return memcpy(dest, src, n, read, write);
+      }
+
+      /**
+       *  Support the ITM Memmove interface. This is part of the GenericInst
+       *  class so that we have access to it's type parameters.
+       *
+       *  As with normal memmove, we can just use memcpy if the src pointer is
+       *  higher than the dest (we have always read the locations we might be
+       *  overwriting). If the src address is lower than the destination, then
+       *  we use the same idea as memcpy, except that we need to move
+       *  back-front through the src buffer.
+       *
+       *  ReadTx: true if we want to read transactionally
+       *  WriteTx: true if we want to write transactionally
+       */
+      template <bool ReadTransactionally, bool WriteTransactionally>
+      static void* Memmove(void* dest, const void* src, size_t n) {
+          // The GenericInst class defines the transactional reader and writer
+          // functions. For now, we don't customize for read-only operation.
+          typedef Reader<ReadRW, WordType> TxRead;
+          typedef Writer<WriteRW> TxWrite;
+
+          // Select the read and write functors for the generic stm::memcpy
+          // template based on the Memcpy parameters. The NonTxRead/Write
+          // policies are defined in inst-memcpy, and just provide naked,
+          // potentially masked operations using the expected policy
+          // interface.
+          typedef typename Select<ReadTransactionally,
+                                  TxRead, NonTxRead>::Result ReadWord;
+          typedef typename Select<WriteTransactionally,
+                                  TxWrite, NonTxWrite>::Result WriteWord;
+
+          // Actually call the correct specialization of stm::memcpy, or
+          // memcpy_reverse, where necessary.
+          TX* tx = Self;
+          ReadWord read(tx);
+          WriteWord write(tx);
+          return (src > dest) ? memcpy(dest, src, n, read, write) :
+              memcpy_reverse(dest, src, n, read, write);
+      }
+
+      /**
+       *  Support ITM's transactional memset. Just loops through aligned words,
+       *  doing low level writes.
+       */
+      static void Memset(void* target, int src, size_t n) {
+          Writer<WriteRW> write(Self);
+
+          // can only do aligned, masked accesses
+          void** addr = base_of(target);
+          size_t off = offset_of(target);
+
+          // the union just makes it easy to "splat" the uint8_t represented by
+          // src into a word.
+          const union {
+              uint8_t bytes[sizeof(void*)];
+              void* word;
+          } pattern = {{(uint8_t)src}};
+
+          // perform writes while there are bytes left to write.
+          while (n) {
+              const size_t to_write = min(sizeof(void*) - off, n);
+              write(addr, pattern.word, make_mask(off, off + to_write));
+              n -= to_write;
+              ++addr;
+              off = 0;                  // unilaterally, after first iteration
+          }
       }
   };
 
