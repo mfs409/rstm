@@ -56,11 +56,13 @@
 /// -- Defined for all of the ITM_L variants, except for
 ///    'void _ITM_LB (const void *, size_t);'
 ///
-/// macro: RSTM_LIBITM_MEMCPY(S)
-/// -- Defined for all of the ITM_memcpy variants
+/// macro: RSTM_LIBITM_MEMCPY(S, RTx, WTx)
+/// -- Defined for all of the ITM_memcpy variants, RTx and WTx are bools
+///    indicating if the read and write accesses should be transactional
 ///
-/// macro: RSTM_LIBITM_MEMMOVE(S)
-/// -- Defined for all of the ITM_memmove variants
+/// macro: RSTM_LIBITM_MEMMOVE(S, RTx, WTx)
+/// -- Defined for all of the ITM_memmove variants, RTx and WTx are bools
+///    indicating if the read and write accesses should be transactional
 ///
 /// macro: RSTM_LIBITM_MEMSET(S)
 /// -- Defined for all of the ITM_memset variants
@@ -328,43 +330,43 @@ extern "C" {
     // ----------------------------------------------------------------------------
     //  memcpy and memmove
     // ----------------------------------------------------------------------------
-#define _RSTM_LIBITM_GENERATE_MEM(S)                                    \
-    RSTM_LIBITM_DTFN(_ITM_memcpy##S,                                \
+#define _RSTM_LIBITM_GENERATE_MEM(S, RTxn, WTxn)                        \
+    RSTM_LIBITM_DTFN(_ITM_memcpy##S,                                    \
                      ,                                                  \
                      void,                                              \
                      void*, const void*, size_t)                        \
-    RSTM_LIBITM_MEMCPY(_ITM_memcpy##S)                                  \
-    RSTM_LIBITM_DTFN(_ITM_memmove##S,                               \
+    RSTM_LIBITM_MEMCPY(_ITM_memcpy##S, RTxn, WTxn)                      \
+    RSTM_LIBITM_DTFN(_ITM_memmove##S,                                   \
                      ,                                                  \
                      void,                                              \
                      void*, const void*, size_t)                        \
-    RSTM_LIBITM_MEMMOVE(_ITM_memmove##S)
+    RSTM_LIBITM_MEMMOVE(_ITM_memmove##S, RTxn, WTxn)
 
 #ifndef RSTM_LIBITM_MEMCPY
-# define RSTM_LIBITM_MEMCPY(S)
+# define RSTM_LIBITM_MEMCPY(S, R, W)
 # define _RSTM_LIBITM_UNDEF_MEMCPY 1
 #endif
 
 #ifndef RSTM_LIBITM_MEMMOVE
-# define RSTM_LIBITM_MEMMOVE(S)
+# define RSTM_LIBITM_MEMMOVE(S, R, W)
 # define _RSTM_LIBITM_UNDEF_MEMMOVE 1
 #endif
 
-    _RSTM_LIBITM_GENERATE_MEM(RnWt)
-    _RSTM_LIBITM_GENERATE_MEM(RnWtaR)
-    _RSTM_LIBITM_GENERATE_MEM(RnWtaW)
-    _RSTM_LIBITM_GENERATE_MEM(RtWn)
-    _RSTM_LIBITM_GENERATE_MEM(RtWt)
-    _RSTM_LIBITM_GENERATE_MEM(RtWtaR)
-    _RSTM_LIBITM_GENERATE_MEM(RtWtaW)
-    _RSTM_LIBITM_GENERATE_MEM(RtaRWn)
-    _RSTM_LIBITM_GENERATE_MEM(RtaRWt)
-    _RSTM_LIBITM_GENERATE_MEM(RtaRWtaR)
-    _RSTM_LIBITM_GENERATE_MEM(RtaRWtaW)
-    _RSTM_LIBITM_GENERATE_MEM(RtaWWn)
-    _RSTM_LIBITM_GENERATE_MEM(RtaWWt)
-    _RSTM_LIBITM_GENERATE_MEM(RtaWWtaR)
-    _RSTM_LIBITM_GENERATE_MEM(RtaWWtaW)
+    _RSTM_LIBITM_GENERATE_MEM(RnWt, false, true)
+    _RSTM_LIBITM_GENERATE_MEM(RnWtaR, false, true)
+    _RSTM_LIBITM_GENERATE_MEM(RnWtaW, false, true)
+    _RSTM_LIBITM_GENERATE_MEM(RtWn, true, false)
+    _RSTM_LIBITM_GENERATE_MEM(RtWt, true, true)
+    _RSTM_LIBITM_GENERATE_MEM(RtWtaR, true, true)
+    _RSTM_LIBITM_GENERATE_MEM(RtWtaW, true, true)
+    _RSTM_LIBITM_GENERATE_MEM(RtaRWn, true, false)
+    _RSTM_LIBITM_GENERATE_MEM(RtaRWt, true, true)
+    _RSTM_LIBITM_GENERATE_MEM(RtaRWtaR, true, true)
+    _RSTM_LIBITM_GENERATE_MEM(RtaRWtaW, true, true)
+    _RSTM_LIBITM_GENERATE_MEM(RtaWWn, true, false)
+    _RSTM_LIBITM_GENERATE_MEM(RtaWWt, true, true)
+    _RSTM_LIBITM_GENERATE_MEM(RtaWWtaR, true, true)
+    _RSTM_LIBITM_GENERATE_MEM(RtaWWtaW, true, true)
 
     // Undef RSTM_LIBITM_MEMCPY if we defined it locally.
 #ifdef _RSTM_LIBITM_UNDEF_MEMCPY
