@@ -98,8 +98,7 @@ namespace stm
       AddressList r_addrs;          // tx read addresses
       cohorts_node_t turn;          // tx turn node
       /*** FOR CTOKENQ USE */
-      cohorts_node_t turn1;         // tx turn node1
-      cohorts_node_t turn2;         // tx turn node2
+      cohorts_node_t node[2];         // tx turn node[2]
 
       /*** FOR PESSIMISTIC USE */
       bool read_only;               // mark a transaction to be read-only txn

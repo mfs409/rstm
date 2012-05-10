@@ -49,7 +49,11 @@ namespace stm
   struct cohorts_node_t
   {
       volatile uint32_t val;
+      volatile uint32_t version;
       struct cohorts_node_t* next;
+      /*** simple constructor */
+      cohorts_node_t() : val(0), version(1), next(NULL)
+      {}
   };
 
   /**
