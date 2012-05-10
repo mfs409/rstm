@@ -189,6 +189,30 @@ REGISTER_TM_FOR_ADAPTIVITY(TML)
         Inst<TYPE>::ITM::Write(addr, val);                              \
     }
 
+#define RSTM_LIBITM_LOG(SYMBOL, CALLING_CONVENTION, TYPE)   \
+    void CALLING_CONVENTION __attribute__((weak))           \
+        SYMBOL(TYPE* addr) {                                \
+        Inst<TYPE>::ITM::Log(addr);                         \
+    }
+
+#define RSTM_LIBITM_MEMCPY(SYMBOL, RTx, WTx)                        \
+    void __attribute__((weak))                                      \
+    SYMBOL(void* dest, const void* src, size_t n) {                 \
+        Inst<uint8_t>::ITM::Memcpy<RTx, WTx>(dest, src, n);         \
+    }
+
+#define RSTM_LIBITM_MEMMOVE(SYMBOL, RTx, WTx)                       \
+    void __attribute__((weak))                                      \
+    SYMBOL(void* dest, const void* src, size_t n) {                 \
+        Inst<uint8_t>::ITM::Memmove<RTx, WTx>(dest, src, n);        \
+    }
+
+#define RSTM_LIBITM_MEMSET(SYMBOL)                                  \
+    void __attribute__((weak))                                      \
+    SYMBOL(void* target, int src, size_t n) {                       \
+        Inst<uint8_t>::ITM::Memset(target, src, n);                 \
+    }
+
 #include "libitm-dtfns.def"
 
 #undef RSTM_LIBITM_WRITE
