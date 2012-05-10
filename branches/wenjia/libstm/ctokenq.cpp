@@ -70,11 +70,8 @@ namespace {
       // get time of last finished txn, to know when to validate
       tx->ts_cache = last_complete.val;
 
-      // reset tx->turnX.val
-      if (tx->status == ONE)
-          tx->turn1.val = NOTDONE;
-      else
-          tx->turn2.val = NOTDONE;
+      // reset tx->node[X].val
+      tx->node[tx->status].val = NOTDONE;
 
       return false;
   }
@@ -99,10 +96,9 @@ namespace {
   CTokenQ::commit_rw(TxThread* tx)
   {
       // Wait for my turn
-      if (tx->status == ONE && tx->turn1.next != NULL)
-          while (tx->turn1.next->val != DONE);
-      if (tx->status == TWO && tx->turn2.next != NULL)
-          while (tx->turn2.next->val != DONE);
+      if (tx->node[tx->status].next != NULL)
+          while (tx->node[tx->status].next->val != DONE);
+
 
       // since we have the token, we can validate before getting locks
       if (last_complete.val > tx->ts_cache)
@@ -126,14 +122,8 @@ namespace {
       last_complete.val = tx->order;
 
       // mark self done so that next tx can proceed and reverse tx->status
-      if (tx->status == ONE) {
-          tx->turn1.val = DONE;
-          tx->status = TWO;
-      }
-      else {
-          tx->turn2.val = DONE;
-          tx->status = ONE;
-      }
+      tx->node[tx->status].val = DONE;
+      tx->status = 1 - tx->status;
 
       // commit all frees, reset all lists
       tx->r_orecs.reset();
@@ -192,14 +182,9 @@ namespace {
   CTokenQ::write_ro(STM_WRITE_SIG(tx,addr,val,mask))
   {
       // we don't have any writes yet, so we need to add myself to the queue
-      if (tx->status == ONE)
-          do {
-              tx->turn1.next = q;
-          } while (!bcasptr(&q, tx->turn1.next, &(tx->turn1)));
-      else
-          do {
-              tx->turn2.next = q;
-          } while (!bcasptr(&q, tx->turn2.next, &(tx->turn2)));
+      do {
+          tx->node[tx->status].next = q;
+      } while (!bcasptr(&q, tx->node[tx->status].next, &(tx->node[tx->status])));
 
       // record the new value in a redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
