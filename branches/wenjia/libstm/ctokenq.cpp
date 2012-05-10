@@ -32,9 +32,6 @@ using stm::cohorts_node_t;
 // for tx->turn.val use
 #define NOTDONE 0
 #define DONE 1
-// for tx->status use
-#define ONE 0
-#define TWO 1
 
 /**
  *  Declare the functions that we're going to implement, so that we can avoid
@@ -71,7 +68,7 @@ namespace {
       tx->ts_cache = last_complete.val;
 
       // reset tx->node[X].val
-      tx->node[tx->status].val = NOTDONE;
+      tx->node[tx->nn].val = NOTDONE;
 
       return false;
   }
@@ -96,8 +93,8 @@ namespace {
   CTokenQ::commit_rw(TxThread* tx)
   {
       // Wait for my turn
-      if (tx->node[tx->status].next != NULL)
-          while (tx->node[tx->status].next->val != DONE);
+      if (tx->node[tx->nn].next != NULL)
+          while (tx->node[tx->nn].next->val != DONE);
 
 
       // since we have the token, we can validate before getting locks
@@ -121,9 +118,9 @@ namespace {
       // record last_complete version
       last_complete.val = tx->order;
 
-      // mark self done so that next tx can proceed and reverse tx->status
-      tx->node[tx->status].val = DONE;
-      tx->status = 1 - tx->status;
+      // mark self done so that next tx can proceed and reverse tx->nn
+      tx->node[tx->nn].val = DONE;
+      tx->nn = 1 - tx->nn;
 
       // commit all frees, reset all lists
       tx->r_orecs.reset();
@@ -183,8 +180,8 @@ namespace {
   {
       // we don't have any writes yet, so we need to add myself to the queue
       do {
-          tx->node[tx->status].next = q;
-      } while (!bcasptr(&q, tx->node[tx->status].next, &(tx->node[tx->status])));
+          tx->node[tx->nn].next = q;
+      } while (!bcasptr(&q, tx->node[tx->nn].next, &(tx->node[tx->nn])));
 
       // record the new value in a redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));

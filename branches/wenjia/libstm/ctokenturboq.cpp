@@ -36,9 +36,6 @@ using stm::timestamp_max;
 // for tx->turn.val use
 #define NOTDONE 0
 #define DONE 1
-// for tx->status use
-#define ONE 0
-#define TWO 1
 
 /**
  *  Declare the functions that we're going to implement, so that we can avoid
@@ -47,6 +44,7 @@ using stm::timestamp_max;
 namespace {
   // global linklist's head
   struct cohorts_node_t* volatile q = NULL;
+  struct cohorts_node_t fakenode;
 
   struct CTokenTurboQ {
       static TM_FASTCALL bool begin(TxThread*);
@@ -78,13 +76,13 @@ namespace {
       tx->ts_cache = last_complete.val;
 
       // reset tx->node[X].val
-      tx->node[tx->status].val = NOTDONE;
+      tx->node[tx->nn].val = NOTDONE;
 
       // switch to turbo mode?
       //
       // NB: this only applies to transactions that aborted after doing a write
-      //if (tx->ts_cache == ((uintptr_t)tx->order - 1))
-          //GoTurbo(tx, read_turbo, write_turbo, commit_turbo);
+      //if (tx->node[tx->nn].next != NULL && tx->node[tx->nn].next->val == DONE)
+      //    GoTurbo(tx, read_turbo, write_turbo, commit_turbo);
 
       return false;
   }
@@ -108,8 +106,7 @@ namespace {
   CTokenTurboQ::commit_rw(TxThread* tx)
   {
       // Wait for my turn
-      if (tx->node[tx->status].next != NULL)
-          while (tx->node[tx->status].next->val != DONE);
+      while (tx->node[tx->nn].next->val != DONE);
 
       //while (last_complete.val != ((uintptr_t)tx->order - 1));
 
@@ -137,9 +134,11 @@ namespace {
       CFENCE; // wbw between writeback and last_complete.val update
       last_complete.val = tx->order;
 
-      // mark self done so that next tx can proceed and reverse tx->status
-      tx->node[tx->status].val = DONE;
-      tx->status = 1 - tx->status;
+      // mark self done so that next tx can proceed
+      tx->node[tx->nn].val = DONE;
+
+      // reverse tx->nn (0 <--> 1)
+      tx->nn = 1 - tx->nn;
 
       // commit all frees, reset all lists
       tx->r_orecs.reset();
@@ -156,9 +155,11 @@ namespace {
       CFENCE; // wbw between writeback and last_complete.val update
       last_complete.val = tx->order;
 
-      // mark self done so that next tx can proceed and reverse tx->status
-      tx->node[tx->status].val = DONE;
-      tx->status = 1 - tx->status;
+      // mark self done so that next tx can proceed
+      tx->node[tx->nn].val = DONE;
+
+      // reverse tx->nn(0 <--> 1)
+      tx->nn = 1 - tx->nn;
 
       // commit all frees, reset all lists
       tx->r_orecs.reset();
@@ -235,10 +236,9 @@ namespace {
   CTokenTurboQ::write_ro(STM_WRITE_SIG(tx,addr,val,mask))
   {
       // we don't have any writes yet, so add myself to the queue
-
       do {
-          tx->node[tx->status].next = q;
-      }while (!bcasptr(&q, tx->node[tx->status].next, &(tx->node[tx->status])));
+          tx->node[tx->nn].next = q;
+      }while (!bcasptr(&q, tx->node[tx->nn].next, &(tx->node[tx->nn])));
 
       // record the new value in a redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
@@ -329,10 +329,9 @@ namespace {
       // now update the finish_cache to remember that at this time, we were
       // still valid
       tx->ts_cache = finish_cache;
-      /*
+
       // and if we are now the oldest thread, transition to fast mode
-      //if (tx->ts_cache == ((uintptr_t)tx->order - 1)) {
-      if (tx->node[tx->status].next == NULL || tx->node[tx->status].next->val == DONE){
+      if (tx->node[tx->nn].next->val == DONE){
           // increment timestamp.val, use it as version #
           tx->order = timestamp.val++;
           if (tx->writes.size() != 0) {
@@ -343,12 +342,11 @@ namespace {
                   CFENCE; // WBW
                   *i->addr = i->val;
               }
-              //if (tx->status == ONE && tx->turn1.next != NULL && tx->turn1.next->val != DONE)
-              //    printf("%d is go turbo.\n", tx->id);
+              //if (tx->node[tx->nn].next->val != DONE)
+                  //    printf("%d is go turbo.\n", tx->id);
               GoTurbo(tx, read_turbo, write_turbo, commit_turbo);
           }
       }
-      */
   }
 
   /**
@@ -360,6 +358,11 @@ namespace {
   {
       last_complete.val = 0;
       timestamp.val = MAXIMUM(timestamp.val, timestamp_max.val);
+      // construct a fakenode and connect q to it
+      fakenode.val = DONE;
+      fakenode.version = 0;
+      fakenode.next = NULL;
+      q = &fakenode;
   }
 }
 
