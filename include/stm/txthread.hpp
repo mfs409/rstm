@@ -99,6 +99,7 @@ namespace stm
       cohorts_node_t turn;          // tx turn node
       /*** FOR CTOKENQ USE */
       cohorts_node_t node[2];         // tx turn node[2]
+      uint32_t nn;                    // tx node number
 
       /*** FOR PESSIMISTIC USE */
       bool read_only;               // mark a transaction to be read-only txn
