@@ -36,7 +36,9 @@ using stm::timestamp_max;
 // for tx->turn.val use
 #define NOTDONE 0
 #define DONE 1
-
+// for tx->status use
+#define ABORT 1
+#define RESET 0
 /**
  *  Declare the functions that we're going to implement, so that we can avoid
  *  circular dependencies.
@@ -75,15 +77,14 @@ namespace {
       // get time of last finished txn
       tx->ts_cache = last_complete.val;
 
-      // reset tx->node[X].val
-      tx->node[tx->nn].val = NOTDONE;
-
       // switch to turbo mode?
       //
       // NB: this only applies to transactions that aborted after doing a write
-      //if (tx->node[tx->nn].next != NULL && tx->node[tx->nn].next->val == DONE)
-      //    GoTurbo(tx, read_turbo, write_turbo, commit_turbo);
-
+      if (tx->status == ABORT &&  tx->node[tx->nn].next->val == DONE) {
+          // increment timestamp.val, use it as version #
+          tx->order = ++timestamp.val;
+          GoTurbo(tx, read_turbo, write_turbo, commit_turbo);
+      }
       return false;
   }
 
@@ -108,16 +109,17 @@ namespace {
       // Wait for my turn
       while (tx->node[tx->nn].next->val != DONE);
 
-      //while (last_complete.val != ((uintptr_t)tx->order - 1));
-
       // validate
       foreach (OrecList, i, tx->r_orecs) {
           // read this orec
           uintptr_t ivt = (*i)->v.all;
           // if it has a timestamp of ts_cache or greater, abort
-          if (ivt > tx->ts_cache)
+          if (ivt > tx->ts_cache){
+              tx->status = ABORT;
               tx->tmabort(tx);
+          }
       }
+
       // increment timestamp.val, use it as version #
       tx->order = ++timestamp.val;
 
@@ -131,6 +133,7 @@ namespace {
               *i->addr = i->val;
           }
       }
+
       CFENCE; // wbw between writeback and last_complete.val update
       last_complete.val = tx->order;
 
@@ -143,6 +146,7 @@ namespace {
       // commit all frees, reset all lists
       tx->r_orecs.reset();
       tx->writes.reset();
+      tx->status = RESET;
       OnReadWriteCommit(tx, read_ro, write_ro, commit_ro);
   }
 
@@ -164,6 +168,7 @@ namespace {
       // commit all frees, reset all lists
       tx->r_orecs.reset();
       tx->writes.reset();
+      tx->status = RESET;
       OnReadWriteCommit(tx, read_ro, write_ro, commit_ro);
   }
 
@@ -200,24 +205,14 @@ namespace {
       bool found = tx->writes.find(log);
       REDO_RAW_CHECK(found, log, mask);
 
-      void* tmp = *addr;
-      REDO_RAW_CLEANUP(tmp, found, log, mask);
-      CFENCE; // RBR between dereference and orec check
-
-      // get the orec addr, read the orec's version#
-      orec_t* o = get_orec(addr);
-      uintptr_t ivt = o->v.all;
-      // abort if this changed since the last time I saw someone finish
-      if (ivt > tx->ts_cache)
-          tx->tmabort(tx);
-
-      // log orec
-      tx->r_orecs.insert(o);
+      // reuse the ReadRO barrier, which is adequate here---reduces LOC
+      void* val = read_ro(tx, addr STM_MASK(mask));
+      REDO_RAW_CLEANUP(val, found, log, mask);
 
       // validate, and if we have writes, then maybe switch to fast mode
       if (last_complete.val > tx->ts_cache)
           validate(tx, last_complete.val);
-      return tmp;
+      return val;
   }
 
   /**
@@ -235,6 +230,9 @@ namespace {
   void
   CTokenTurboQ::write_ro(STM_WRITE_SIG(tx,addr,val,mask))
   {
+      // reset tx->node[X].val
+      tx->node[tx->nn].val = NOTDONE;
+
       // we don't have any writes yet, so add myself to the queue
       do {
           tx->node[tx->nn].next = q;
@@ -317,24 +315,23 @@ namespace {
    */
   void CTokenTurboQ::validate(TxThread* tx, uintptr_t finish_cache)
   {
-      if (last_complete.val > tx->ts_cache)
+      // if we are now the oldest thread, transition to fast mode
+      if (tx->node[tx->nn].next->val == DONE) {
+          // validate before go fast mode
           foreach (OrecList, i, tx->r_orecs) {
               // read this orec
               uintptr_t ivt = (*i)->v.all;
               // if it has a timestamp of ts_cache or greater, abort
-              if (ivt > tx->ts_cache)
+              if (ivt > tx->ts_cache) {
+                  tx->status = ABORT;
                   tx->tmabort(tx);
+              }
           }
 
-      // now update the finish_cache to remember that at this time, we were
-      // still valid
-      tx->ts_cache = finish_cache;
-
-      // and if we are now the oldest thread, transition to fast mode
-      if (tx->node[tx->nn].next->val == DONE){
           // increment timestamp.val, use it as version #
-          tx->order = timestamp.val++;
-          if (tx->writes.size() != 0) {
+          tx->order = ++timestamp.val;
+
+          if (tx->writes.size() != 0)
               // mark every location in the write set, and perform write-back
               foreach (WriteSet, i, tx->writes) {
                   orec_t* o = get_orec(i->addr);
@@ -342,11 +339,22 @@ namespace {
                   CFENCE; // WBW
                   *i->addr = i->val;
               }
-              //if (tx->node[tx->nn].next->val != DONE)
-                  //    printf("%d is go turbo.\n", tx->id);
-              GoTurbo(tx, read_turbo, write_turbo, commit_turbo);
-          }
+          GoTurbo(tx, read_turbo, write_turbo, commit_turbo);
+          return;
       }
+
+      if (last_complete.val > tx->ts_cache)
+          foreach (OrecList, i, tx->r_orecs) {
+              // read this orec
+              uintptr_t ivt = (*i)->v.all;
+              // if it has a timestamp of ts_cache or greater, abort
+              if (ivt > tx->ts_cache) {
+                  tx->status = ABORT;
+                  tx->tmabort(tx);
+              }
+          }
+      // update ts_cache, indicating I'm still valid up till now
+      tx->ts_cache = finish_cache;
   }
 
   /**
@@ -357,10 +365,9 @@ namespace {
   CTokenTurboQ::onSwitchTo()
   {
       last_complete.val = 0;
-      timestamp.val = MAXIMUM(timestamp.val, timestamp_max.val);
+      timestamp.val = 0;
       // construct a fakenode and connect q to it
       fakenode.val = DONE;
-      fakenode.version = 0;
       fakenode.next = NULL;
       q = &fakenode;
   }
