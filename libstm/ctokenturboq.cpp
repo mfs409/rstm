@@ -63,7 +63,7 @@ namespace {
       static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
       static void onSwitchTo();
-      static NOINLINE void validate(TxThread*, uintptr_t finish_cache);
+      static NOINLINE void validate(TxThread*);
   };
 
   /**
@@ -80,7 +80,7 @@ namespace {
       // switch to turbo mode?
       //
       // NB: this only applies to transactions that aborted after doing a write
-      if (tx->status == ABORT &&  tx->node[tx->nn].next->val == DONE) {
+      if (tx->status == ABORT && tx->node[tx->nn].next->val == DONE) {
           // increment timestamp.val, use it as version #
           tx->order = ++timestamp.val;
           GoTurbo(tx, read_turbo, write_turbo, commit_turbo);
@@ -110,15 +110,16 @@ namespace {
       while (tx->node[tx->nn].next->val != DONE);
 
       // validate
-      foreach (OrecList, i, tx->r_orecs) {
-          // read this orec
-          uintptr_t ivt = (*i)->v.all;
-          // if it has a timestamp of ts_cache or greater, abort
-          if (ivt > tx->ts_cache){
-              tx->status = ABORT;
-              tx->tmabort(tx);
+      if (last_complete.val > tx->ts_cache)
+          foreach (OrecList, i, tx->r_orecs) {
+              // read this orec
+              uintptr_t ivt = (*i)->v.all;
+              // if it has a timestamp of ts_cache or greater, abort
+              if (ivt > tx->ts_cache) {
+                  tx->status = ABORT;
+                  tx->tmabort(tx);
+              }
           }
-      }
 
       // increment timestamp.val, use it as version #
       tx->order = ++timestamp.val;
@@ -205,14 +206,26 @@ namespace {
       bool found = tx->writes.find(log);
       REDO_RAW_CHECK(found, log, mask);
 
-      // reuse the ReadRO barrier, which is adequate here---reduces LOC
-      void* val = read_ro(tx, addr STM_MASK(mask));
-      REDO_RAW_CLEANUP(val, found, log, mask);
+      void* tmp = *addr;
+      REDO_RAW_CLEANUP(tmp, found, log, mask);
+      CFENCE;// RBR between dereference and orec check
+
+      // get the orec addr, read the orec's version#
+      orec_t* o = get_orec(addr);
+      uintptr_t ivt = o->v.all;
+      // abort if this changed since the last time I saw someone finish
+      if (ivt > tx->ts_cache) {
+          tx->status = ABORT;
+          tx->tmabort(tx);
+      }
+
+      // log orec
+      tx->r_orecs.insert(o);
 
       // validate, and if we have writes, then maybe switch to fast mode
       if (last_complete.val > tx->ts_cache)
-          validate(tx, last_complete.val);
-      return val;
+          validate(tx);
+      return tmp;
   }
 
   /**
@@ -247,7 +260,7 @@ namespace {
       // NB: we test this on first write, but not subsequent writes, because up
       //     until now we didn't have an order, and thus weren't allowed to use
       //     turbo mode
-      validate(tx, last_complete.val);
+      validate(tx);
   }
 
   /**
@@ -313,26 +326,28 @@ namespace {
   /**
    *  CTokenTurboQ validation
    */
-  void CTokenTurboQ::validate(TxThread* tx, uintptr_t finish_cache)
+  void CTokenTurboQ::validate(TxThread* tx)
   {
       // if we are now the oldest thread, transition to fast mode
       if (tx->node[tx->nn].next->val == DONE) {
           // validate before go fast mode
-          foreach (OrecList, i, tx->r_orecs) {
-              // read this orec
-              uintptr_t ivt = (*i)->v.all;
-              // if it has a timestamp of ts_cache or greater, abort
-              if (ivt > tx->ts_cache) {
-                  tx->status = ABORT;
-                  tx->tmabort(tx);
+          if (last_complete.val > tx->ts_cache) {
+              foreach (OrecList, i, tx->r_orecs) {
+                  // read this orec
+                  uintptr_t ivt = (*i)->v.all;
+                  // if it has a timestamp of ts_cache or greater, abort
+                  if (ivt > tx->ts_cache) {
+                      tx->status = ABORT;
+                      tx->tmabort(tx);
+                  }
               }
           }
 
           // increment timestamp.val, use it as version #
           tx->order = ++timestamp.val;
 
+          // mark every location in the write set, and perform write-back
           if (tx->writes.size() != 0)
-              // mark every location in the write set, and perform write-back
               foreach (WriteSet, i, tx->writes) {
                   orec_t* o = get_orec(i->addr);
                   o->v.all = tx->order;
@@ -343,7 +358,9 @@ namespace {
           return;
       }
 
-      if (last_complete.val > tx->ts_cache)
+      // If I'm not the oldest thread, do the normal validation
+      uint32_t finish_cache = last_complete.val;
+      if (finish_cache > tx->ts_cache)
           foreach (OrecList, i, tx->r_orecs) {
               // read this orec
               uintptr_t ivt = (*i)->v.all;
@@ -366,6 +383,7 @@ namespace {
   {
       last_complete.val = 0;
       timestamp.val = 0;
+
       // construct a fakenode and connect q to it
       fakenode.val = DONE;
       fakenode.next = NULL;
