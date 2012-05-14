@@ -10,7 +10,7 @@ do
     grepkey=${grepkeys[$i]}
     cutkey=${cutkeys[$i]}
     
-    for alg in 'NOrec' 'OrecEager' 'OrecLazy' 'LLT' 'PTM' 'Fastlane1' 'Fastlane2' 'CTokenTurboELA' 'CohortsEN' 'CohortsEN2' 'CohortsNOrec' 'CohortsEager' 'Cohorts'
+    for alg in 'NOrec' 'OrecEager' 'OrecLazy' 'LLT' 'PTM' 'Fastlane1' 'Fastlane2' 'CTokenTurboELA' 'CohortsEN' 'CohortsEN2' 
     do
         
         filename="$bench"."$alg".csv
@@ -35,10 +35,10 @@ do
             do
                 if test $i -eq 5
                 then
-                    point=`cat NONE."$alg"."$bench"."$thread"."$trial".64.edat | grep "$grepkey" | cut "$cutkey"`
+                    point=`cat NONE."$alg"."$bench"."$thread"."$trial".32.edat | grep "$grepkey" | cut "$cutkey"`
                     points=$points"\n"$point
                 else
-                    point=`cat NONE."$alg"."$bench"."$thread"."$trial".64.edat | grep "$grepkey" | cut -d" " "$cutkey"`
+                    point=`cat NONE."$alg"."$bench"."$thread"."$trial".32.edat | grep "$grepkey" | cut -d" " "$cutkey"`
                     points=$points"\n"$point
                 fi
             done
