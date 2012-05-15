@@ -68,17 +68,18 @@ namespace {
   Cohorts3::begin(TxThread* tx)
   {
       tx->allocator.onTxBegin();
-    S1:
+
       // wait until everyone is committed
-      while (q != NULL);
-
-      // before tx begins, increase total number of tx
-      ADD(&started.val, 1);
-
-      // [NB] we must double check no one is ready to commit yet!
-      if (q != NULL) {
-          SUB(&started.val, 1);
-          goto S1;
+      while (1) {
+          if (q == NULL) {
+              // before tx begins, increase total number of tx
+              ADD(&started.val, 1);
+              // [NB] we must double check no one is ready to commit yet!
+              if (q != NULL)
+                  SUB(&started.val, 1);
+              else
+                  break;
+          }
       }
 
       // reset local turn val
