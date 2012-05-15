@@ -98,11 +98,11 @@ plot \
     
 set output 'lab.eps'
 plot \
-    'vlo.OrecLazy.csv'              u 2:($3) pt 4 lw 1.5 t 'OrecLazy',   \
-    'vlo.OrecEager.csv'             u 2:($3) pt 3 lw 1.5 t 'OrecEager',   \
-    'vlo.TML.csv'                   u 2:($3) pt 6 lw 1.5 t 'TML',   \
-    'vlo.NOrec.csv'                 u 2:($3) pt 7 lw 1.5 t 'NOrec',\
-    'vlo.LLT.csv'                   u 2:($3) pt 1 lw 1.5 t 'LLT',\
-    'vlo.TMLLazy.csv'               u 2:($3) pt 2 lw 1.5 t 'TMLLazy',\
-    'vlo.CGL.csv'                   u 2:($3) pt 9 lw 1.5 t 'CGL'
+    'lab.OrecLazy.csv'              u 2:($3) pt 4 lw 1.5 t 'OrecLazy',   \
+    'lab.OrecEager.csv'             u 2:($3) pt 3 lw 1.5 t 'OrecEager',   \
+    'lab.TML.csv'                   u 2:($3) pt 6 lw 1.5 t 'TML',   \
+    'lab.NOrec.csv'                 u 2:($3) pt 7 lw 1.5 t 'NOrec',\
+    'lab.LLT.csv'                   u 2:($3) pt 1 lw 1.5 t 'LLT',\
+    'lab.TMLLazy.csv'               u 2:($3) pt 2 lw 1.5 t 'TMLLazy',\
+    'lab.CGL.csv'                   u 2:($3) pt 9 lw 1.5 t 'CGL'
     
