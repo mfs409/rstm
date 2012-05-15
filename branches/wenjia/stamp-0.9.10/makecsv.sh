@@ -1,16 +1,16 @@
 #/bin/bash
 
-benches=( "" gen int khi klo ssc vhi vlo )
-grepkeys=( "" Time time Time Time kernel Time Time )
-cutkeys=( "" -f3 -f7 -f2 -f2 -c28-36 -f3 -f3 )
+benches=( "" gen int khi klo ssc vhi vlo lab)
+grepkeys=( "" Time time Time Time kernel Time Time time)
+cutkeys=( "" -f3 -f7 -f2 -f2 -c28-36 -f3 -f3 -f7)
 
-for i in `seq 1 7`
+for i in `seq 1 8`
 do
     bench=${benches[$i]}
     grepkey=${grepkeys[$i]}
     cutkey=${cutkeys[$i]}
     
-    for alg in 'NOrec' 'OrecEager' 'OrecLazy' 'LLT' 'PTM' 'Fastlane1' 'Fastlane2' 'CTokenTurboELA' 'CohortsEN' 'CohortsEN2' 
+    for alg in 'OrecLazy' 'OrecEager' 'NOrec' 'TML' 'TMLLazy' 'LLT' 'CGL'  
     do
         
         filename="$bench"."$alg".csv
