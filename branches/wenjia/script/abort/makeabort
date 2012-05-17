@@ -1,0 +1,5 @@
+rm *.csv *.eps *.pdf
+./makecsvabort.sh
+./makeepsabort.sh
+./makepdfabort.sh
+rm *.csv *.eps
