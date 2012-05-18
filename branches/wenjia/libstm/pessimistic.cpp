@@ -148,7 +148,14 @@ namespace {
   void
   PTM::commit_ro(TxThread* tx)
   {
-      commit_rw(tx);
+      // Set the tx_version to the maximum value
+      MY.tx_version = 0xFFFFFFFF;
+
+      // clean up
+      tx->progress_is_seen = false;
+      tx->read_only = false;
+      OnReadOnlyCommit(tx);
+
   }
 
   /**
