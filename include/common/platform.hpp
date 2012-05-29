@@ -98,11 +98,12 @@
  *  64bit) and using the GNU compiler collection.  This assumes that the
  *  compiler is recent enough that it supports the builtin __sync operations
  */
-#if defined(STM_CPU_X86) && !defined(STM_CC_SUN)
-
+#if defined(STM_CPU_X86) && !defined(STM_CC_SUN) && !defined(STM_ARM_V7)
 #define CFENCE              __asm__ volatile ("":::"memory")
 #define WBR                 __sync_synchronize()
+#endif
 
+#if defined(STM_CPU_X86) && !defined(STM_CC_SUN)
 #define cas32(p, o, n)      __sync_val_compare_and_swap(p, o, n)
 #define cas64(p, o, n)      __sync_val_compare_and_swap(p, o, n)
 #define casptr(p, o, n)     __sync_val_compare_and_swap(p, o, n)
@@ -127,6 +128,14 @@
 #define faa64(p, a)         __sync_fetch_and_add(p, a)
 #define faaptr(p, a)        __sync_fetch_and_add(p, a)
 
+#endif
+
+/**
+ * memory barriers on ARM V7
+ */
+#if defined(STM_ARM_V7)
+#define CFENCE   __asm__ volatile("dmb":::"memory")
+#define WBR      __asm__ volatile("dmb":::"memory")
 #endif
 
 /**
@@ -311,9 +320,10 @@ inline void mvx(const volatile uint64_t* from, volatile uint64_t* to)
  */
 inline uint64_t tick()
 {
-    uint32_t tmp[2];
-    __asm__ ("rdtsc" : "=a" (tmp[1]), "=d" (tmp[0]) : "c" (0x10) );
-    return (((uint64_t)tmp[0]) << 32) | tmp[1];
+  // uint32_t tmp[2];
+  //  __asm__ ("rdtsc" : "=a" (tmp[1]), "=d" (tmp[0]) : "c" (0x10) );
+  // return (((uint64_t)tmp[0]) << 32) | tmp[1];
+  return 0;
 }
 #endif
 

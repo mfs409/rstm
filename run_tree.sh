@@ -3,8 +3,8 @@
 TRIALS=5   #we can change it to a smaller value if it takes too long
 
 # STM_CONFIG values
-ALGS="CGL NOrec TML OrecEager Fastlane1 Fastlane2 FastlaneSwitch CToken CTokenELA CTokenTurbo CTokenTurboELA Cohorts3 CohortsENQ CohortsEN2Q Pipeline PipelineTurbo CTokenQ PTM"
-
+#ALGS="CGL NOrec TML OrecEager Fastlane1 Fastlane2 FastlaneSwitch CToken CTokenELA CTokenTurbo CTokenTurboELA Cohorts3 CohortsENQ CohortsEN2Q Pipeline PipelineTurbo CTokenQ PTM"
+ALGS="CGL Cohorts2 CohortsEN2Q CohortsLazy Fastlane1 CTokenTurbo PTM OrecEager"
 # obj folder
 OBJ="obj.lib_gcc_linux_ia32_opt"
 
@@ -13,7 +13,7 @@ PMUS="NONE"
 #"PAPI_BR_CN PAPI_BR_INS PAPI_BR_MSP PAPI_BR_NTK PAPI_BR_PRC PAPI_BR_TKN PAPI_BR_UCN PAPI_L1_DCM PAPI_L1_ICA PAPI_L1_ICH PAPI_L1_ICM PAPI_L1_ICR PAPI_L1_LDM PAPI_L1_STM PAPI_L1_TCM PAPI_L2_DCA PAPI_L2_DCH PAPI_L2_DCM PAPI_L2_DCR PAPI_L2_DCW PAPI_L2_ICA PAPI_L2_ICH PAPI_L2_ICM PAPI_L2_ICR PAPI_L2_LDM PAPI_L2_STM PAPI_L2_TCA PAPI_L2_TCH PAPI_L2_TCM PAPI_L2_TCR PAPI_L2_TCW PAPI_L3_DCA PAPI_L3_DCR PAPI_L3_DCW PAPI_L3_ICA PAPI_L3_ICR PAPI_L3_LDM PAPI_L3_TCA PAPI_L3_TCM PAPI_L3_TCR PAPI_L3_TCW PAPI_LD_INS PAPI_LST_INS PAPI_RES_STL PAPI_SR_INS PAPI_TLB_DM PAPI_TLB_IM PAPI_TLB_TL PAPI_TOT_CYC PAPI_TOT_IIS PAPI_TOT_INS"
 
 # thread levels to test
-THREADS="1 2 3 4 5 6 7 8 10 12"
+THREADS="1 2 3 4 5"
 
 # need 64 for non-ByteEager/ByteLazy
 
