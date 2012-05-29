@@ -314,16 +314,25 @@ inline void mvx(const volatile uint64_t* from, volatile uint64_t* to)
  *  timer.  The code depends on the CPU and bit level.  It is identical for
  *  32/64-bit x86.  For sparc, the code depends on if we are 32-bit or 64-bit.
  */
-#if defined(STM_CPU_X86)
+#if defined(STM_CPU_X86) && !defined(STM_ARM_V7)
 /**
  *  On x86, we use the rdtsc instruction
  */
 inline uint64_t tick()
 {
-  // uint32_t tmp[2];
-  //  __asm__ ("rdtsc" : "=a" (tmp[1]), "=d" (tmp[0]) : "c" (0x10) );
-  // return (((uint64_t)tmp[0]) << 32) | tmp[1];
-  return 0;
+    uint32_t tmp[2];
+    __asm__ ("rdtsc" : "=a" (tmp[1]), "=d" (tmp[0]) : "c" (0x10) );
+    return (((uint64_t)tmp[0]) << 32) | tmp[1];
+}
+#endif
+
+/**
+ * For ARM: empty function
+ */
+#if defined(STM_ARM_V7)
+inline uint64_t tick()
+{
+    return 0;
 }
 #endif
 
