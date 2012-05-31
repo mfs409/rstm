@@ -19,7 +19,7 @@
 #
 # Compiler config
 #
-PLATFORM  = lib_gcc_linux_ia32_opt
+PLATFORM  = lib_gcc_linux_arm732_opt
 CXX       = g++
 CXXFLAGS += -O3 -ggdb -march=armv7-a
 LDFLAGS  += -lrt -lpthread -m32
