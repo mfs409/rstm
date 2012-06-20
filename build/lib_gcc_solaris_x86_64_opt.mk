@@ -21,8 +21,10 @@
 #
 PLATFORM  = lib_gcc_solaris_x86_64_opt
 CXX       = g++
+CC        = gcc
 CXXFLAGS += -O3 -ggdb -m64 -march=native -mtune=native -msse2 -mfpmath=sse
 LDFLAGS  += -ldl -lrt -lpthread -m64 -lmtmalloc
+ASFLAGS  += -m64
 
 #
 # Options to pass to STM files
