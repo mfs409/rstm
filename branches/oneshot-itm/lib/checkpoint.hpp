@@ -17,7 +17,7 @@
  *
  *  Start with some ASM macros (this file can be included from .S files).
  */
-#if defined(__APPLE__)
+#if defined(__APPLE__) || defined(__sun__)
 #   define ASM_DOT_TYPE(S, T)
 #   define ASM_DOT_SIZE(S, T)
 #   define ASM_DOT_CFI_STARTPROC
