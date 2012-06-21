@@ -24,7 +24,7 @@
 #include "policies.hpp"
 
 #ifdef STM_USE_PMU
-#include <papi/papi.h>
+#include <papi.h>
 #endif
 
 namespace
