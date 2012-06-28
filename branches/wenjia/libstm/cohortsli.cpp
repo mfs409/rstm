@@ -78,25 +78,24 @@ namespace {
   bool
   CohortsLI::begin(TxThread* tx)
   {
+      //begin
+      tx->allocator.onTxBegin();
+
     S1:
       // wait if I'm blocked
       while (gatekeeper == 1);
 
       // set started
       //
-      // [mfs] using an atomicswapXXX function would be cheaper than a store
-      //       followed by a WBR
-      tx->status = COHORTS_STARTED;
-      WBR;
+      atomicswap32(&tx->status, COHORTS_STARTED);
+      //      tx->status = COHORTS_STARTED;
+      //WBR;
 
       // double check no one is ready to commit
       if (gatekeeper == 1 || in == 1){
           tx->status = COHORTS_COMMITTED;
           goto S1;
       }
-
-      //begin
-      tx->allocator.onTxBegin();
 
       // get time of last finished txn
       tx->ts_cache = last_complete.val;
@@ -195,7 +194,7 @@ namespace {
 
       // Mark self status
       tx->status = COHORTS_COMMITTED;
-      WBR;
+      //WBR;
 
       // Am I the last one?
       for (uint32_t i = 0;lastone != false && i < threadcount.val; ++i)
@@ -284,9 +283,9 @@ namespace {
 
       // If every one else is ready to commit, do in place write, go turbo mode
       if (count == 1) {
-          // setup in place write flag, indicating inplace write is going to happen
-          in = 1;
-          WBR;
+          // setup in place write flag
+          atomicswap32(&in, 1);
+
           // double check
           for (uint32_t i = 0; i < threadcount.val && count < 0; ++i)
               count -= (threads[i]->status == COHORTS_STARTED);
@@ -367,11 +366,12 @@ namespace {
           uintptr_t ivt = (*i)->v.all;
           // If orec changed, abort
           if (ivt > tx->ts_cache) {
-              // Mark self as done
-              last_complete.val = tx->order;
               // Mark self status
               tx->status = COHORTS_COMMITTED;
-              WBR;
+
+              // Mark self as done
+              last_complete.val = tx->order;
+              //WBR;
 
               // Am I the last one?
               bool l = true;
