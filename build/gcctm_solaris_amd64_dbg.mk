@@ -10,7 +10,7 @@
 
 #
 # This makefile is for building the benchmarks using gcc's compiler support,
-# Solaris, x86_64, -O0.  Note that it does not use RSTM at all, even though
+# Solaris, amd64, -O0.  Note that it does not use RSTM at all, even though
 # it looks like it does.
 #
 # NB: gcc4.7+ is required for gcctm supoort
@@ -22,7 +22,7 @@
 #
 # Compiler config
 #
-PLATFORM  = gcctm_solaris_x86_64_dbg
+PLATFORM  = gcctm_solaris_amd64_dbg
 CXX       = g++
 CXXFLAGS += -O0 -ggdb -m64 -march=native -mtune=native -msse2 -mfpmath=sse \
             -fgnu-tm
