@@ -223,7 +223,7 @@ int main(int argc, char** argv) {
     pthread_attr_t attr;
     pthread_attr_init(&attr);
     pthread_attr_setscope(&attr, PTHREAD_SCOPE_SYSTEM);
-    for (uint32_t i = 0; i < CFG.threads; i++)
+    for (uintptr_t i = 0; i < CFG.threads; i++)
         args[i] = (void*)i;
 
     // actually create the threads
