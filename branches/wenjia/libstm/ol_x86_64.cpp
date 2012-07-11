@@ -8,9 +8,8 @@
  *          Please see the file LICENSE.RSTM for licensing information
  */
 
-// tick instead of timestamp, no scaling, and wang-style timestamps... this
-// should be pretty good
-
+// tick instead of timestamp, no timestamp scaling, and wang-style
+// timestamps... this should be pretty good
 
 /**
  *  OL_X86_64 Implementation:
@@ -60,6 +59,9 @@ namespace {
   void
   OL_X86_64_Generic<CM>::Initialize(int id, const char* name)
   {
+      printf("Warning: this TM implementation is not correct, and will "
+             "probably crash\n");
+
       // set the name
       stm::stms[id].name      = name;
 
@@ -84,7 +86,9 @@ namespace {
   OL_X86_64_Generic<CM>::begin(TxThread* tx)
   {
       tx->allocator.onTxBegin();
+      CFENCE;
       tx->start_time = tick();
+      CFENCE;
       CM::onBegin(tx);
       return false;
   }
@@ -148,7 +152,9 @@ namespace {
       tx->writes.writeback();
 
       // increment the global timestamp, release locks
+      CFENCE;
       uintptr_t end_time = tick();
+      CFENCE;
       foreach (OrecList, i, tx->locks)
           (*i)->v.all = end_time;
 
@@ -174,33 +180,24 @@ namespace {
   {
       // get the orec addr
       orec_t* o = get_orec(addr);
-      // while (true) {
-          // read the location
-          void* tmp = *addr;
-          CFENCE;
-          //  check the orec.
-          //  NB: with this variant of timestamp, we don't need prevalidation
-          id_version_t ivt;
-          ivt.all = o->v.all;
 
-          // common case: new read to uncontended location
-          if (ivt.all <= tx->start_time) {
-              tx->r_orecs.insert(o);
-              return tmp;
-          }
+      // read the location
+      void* tmp = *addr;
+      CFENCE;
+      //  check the orec.
+      //  NB: with this variant of timestamp, we don't need prevalidation
+      uintptr_t ivt = o->v.all;
 
-          tx->tmabort(tx);
-          // if lock held, spin and retry
-          //if (ivt.fields.lock) {
-          //    spin64();
-          //    continue;
-          //}
+      // assuming that we won't abort, we can add orec to the read set now
+      tx->r_orecs.insert(o);
 
-          //// scale timestamp if ivt is too new, then try again
-          //uintptr_t newts = tick();
-          //validate(tx);
-          //tx->start_time = newts;
-          //}
+      // common case: new read to uncontended location
+      if (__builtin_expect((ivt <= tx->start_time), true))
+          return tmp;
+
+      // otherwise abort
+      tx->tmabort(tx);
+      return NULL;
   }
 
   /**
@@ -286,8 +283,7 @@ namespace {
    *
    *    Either commit the transaction or return false.
    */
-   bool
-   irrevoc(TxThread* tx)
+   bool irrevoc(TxThread* tx)
    {
        return false;
        // NB: In a prior release, we actually had a full OL_X86_64 commit
@@ -304,8 +300,8 @@ namespace {
    *    locks... This makes the code very simple, but it is still better to not
    *    inline it.
    */
-  void
-  validate(TxThread* tx) {
+  void validate(TxThread* tx)
+  {
       foreach (OrecList, i, tx->r_orecs)
           // abort if orec locked, or if unlocked but timestamp too new
           if ((*i)->v.all > tx->start_time)
