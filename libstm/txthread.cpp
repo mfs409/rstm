@@ -78,6 +78,7 @@ namespace stm
         nanorecs(64), begin_wait(0), strong_HG(),
         irrevocable(false), status(0), r_addrs(64), turn(),
         node(),nn(0),read_only(false),progress_is_seen(false),
+        last_val_time((uint64_t)-1),
         pmu()
   {
       // prevent new txns from starting.

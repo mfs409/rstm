@@ -46,7 +46,7 @@ CXXNAMES = algs biteager biteagerredo bitlazy byear byeau byteeager           \
            WBMMPolicy wealth fastlaneswitch fastlane1 fastlane2               \
            ctokenturboela cohortsen cohortsen2 ctokennorec cohorts2           \
 	   cohorts3 cohortsenq cohortsen2q pipelineturbo ctokenela ctokenq    \
-	   ctokenturboq x86_oe_nc llt_x86_64 ol_x86_64
+	   ctokenturboq x86_oe_nc llt_x86_64 ol_x86_64 nanoela
 
 #
 # The name of the library to build

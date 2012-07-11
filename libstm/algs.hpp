@@ -50,7 +50,7 @@ namespace stm
       CohortsEN2, CTokenNOrec, Cohorts3, CohortsENQ, CohortsEN2Q, PipelineTurbo,
       CTokenELA, CTokenQ, CTokenTurboQ,
       // [mfs] experimental stuff
-      X86_OE_NC, LLT_X86_64, OL_X86_64,
+      X86_OE_NC, LLT_X86_64, OL_X86_64, NanoELA,
       // ProfileTM support.  These are not true STMs
       ProfileTM, ProfileAppAvg, ProfileAppMax, ProfileAppAll,
       // end with a distinct value
