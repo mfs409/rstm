@@ -97,6 +97,7 @@ namespace stm
       volatile uint32_t status;     // tx status
       AddressList r_addrs;          // tx read addresses
       cohorts_node_t turn;          // tx turn node
+
       /*** FOR CTOKENQ USE */
       cohorts_node_t node[2];         // tx turn node[2]
       uint32_t nn;                    // tx node number
@@ -104,6 +105,9 @@ namespace stm
       /*** FOR PESSIMISTIC USE */
       bool read_only;               // mark a transaction to be read-only txn
       bool progress_is_seen;        // for recording waiting progress
+
+      /*** FOR NanoELA */
+      volatile uint64_t last_val_time; // time of last validation
 
       /*** PER-THREAD FIELDS FOR ENABLING ADAPTIVITY POLICIES */
       uint64_t      end_txn_time;      // end of non-transactional work
