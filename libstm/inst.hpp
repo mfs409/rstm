@@ -13,7 +13,7 @@
 #ifndef INST_HPP__
 #define INST_HPP__
 
-#include <common/platform.hpp>
+#include <platform.hpp>
 
 namespace stm
 {

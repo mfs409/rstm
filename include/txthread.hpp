@@ -20,12 +20,12 @@
 #define TXTHREAD_HPP__
 
 #include "alt-license/rand_r_32.h"
-#include "common/locks.hpp"
-#include "common/ThreadLocal.hpp"
-#include "stm/metadata.hpp"
-#include "stm/WriteSet.hpp"
-#include "stm/UndoLog.hpp"
-#include "stm/ValueList.hpp"
+#include "locks.hpp"
+#include "ThreadLocal.hpp"
+#include "metadata.hpp"
+#include "WriteSet.hpp"
+#include "UndoLog.hpp"
+#include "ValueList.hpp"
 #include "WBMMPolicy.hpp"
 
 namespace stm

@@ -12,7 +12,7 @@
 #define CM_HPP__
 
 #include <limits.h>
-#include "stm/txthread.hpp"
+#include "txthread.hpp"
 #include "algs.hpp"     // for exp_backoff
 
 /**

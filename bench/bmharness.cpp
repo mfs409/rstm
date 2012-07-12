@@ -15,9 +15,9 @@
 #include <iostream>
 #include <signal.h>
 #include <pthread.h>
-#include <api/api.hpp>
-#include <common/platform.hpp>
-#include <common/locks.hpp>
+#include <stm.hpp>
+#include <platform.hpp>
+#include <locks.hpp>
 #include "bmconfig.hpp"
 
 using std::string;
