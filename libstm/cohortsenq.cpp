@@ -15,7 +15,7 @@
  *  cohort. Use queue to handle ordered commit.
  */
 
-#include "../profiling.hpp"
+#include "profiling.hpp"
 #include "algs.hpp"
 #include "RedoRAWUtils.hpp"
 

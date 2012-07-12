@@ -20,7 +20,7 @@
  * [mfs] Be sure to address all performance concerns raised in fastlane.cpp
  */
 
-#include "../profiling.hpp"
+#include "profiling.hpp"
 #include "algs.hpp"
 #include "RedoRAWUtils.hpp"
 

@@ -18,7 +18,7 @@
  *    provides at least ALA semantics.
  */
 
-#include "../profiling.hpp"
+#include "profiling.hpp"
 #include "algs.hpp"
 #include "RedoRAWUtils.hpp"
 

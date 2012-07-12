@@ -16,21 +16,21 @@
  *  to many parts of the STM library.
  */
 
-#include <metadata.hpp>
+#include "metadata.hpp"
 
 namespace stm
 {
   struct TxThread;
   typedef void (*AbortHandler)(TxThread*);
-  void sys_init(AbortHandler conflict_abort);
-  void set_policy(const char* phasename);
-  void sys_shutdown();
-  bool is_irrevoc(const TxThread&);
-  void become_irrevoc();
-  void restart();
-  const char* get_algname();
+  // void sys_init(AbortHandler conflict_abort);
+  // void set_policy(const char* phasename);
+  // void sys_shutdown();
+  // bool is_irrevoc(const TxThread&);
+  // void become_irrevoc();
+  // void restart();
+  // const char* get_algname();
 
-  extern pad_word_t  threadcount;           // threads in system
+  // extern pad_word_t  threadcount;           // threads in system
   extern TxThread*   threads[MAX_THREADS];  // all TxThreads
 }
 

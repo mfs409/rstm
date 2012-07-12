@@ -22,8 +22,8 @@
  *        transaction does not have priority.
  */
 
-#include <alt-license/rand_r_32.h>
-#include "../profiling.hpp"
+#include "../alt-license/rand_r_32.h"
+#include "profiling.hpp"
 #include "algs.hpp"
 #include "RedoRAWUtils.hpp"
 

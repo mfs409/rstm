@@ -17,7 +17,7 @@
  *  Using Option1 for commit_rw.
  */
 
-#include "../profiling.hpp"
+#include "profiling.hpp"
 #include "algs.hpp"
 #include "RedoRAWUtils.hpp"
 

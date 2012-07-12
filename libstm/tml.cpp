@@ -19,10 +19,10 @@
  *        probably add ro/rw functions
  */
 
-#include "../profiling.hpp"
+#include "profiling.hpp"
 #include "algs.hpp"
 #include "tml_inline.hpp"
-#include <UndoLog.hpp> // STM_DO_MASKED_WRITE
+#include "UndoLog.hpp" // STM_DO_MASKED_WRITE
 
 using stm::TxThread;
 using stm::timestamp;

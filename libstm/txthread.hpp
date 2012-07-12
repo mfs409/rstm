@@ -19,9 +19,9 @@
 #ifndef TXTHREAD_HPP__
 #define TXTHREAD_HPP__
 
-#include "alt-license/rand_r_32.h"
+#include "../alt-license/rand_r_32.h"
 #include "locks.hpp"
-#include "ThreadLocal.hpp"
+#include "../include/ThreadLocal.hpp"
 #include "metadata.hpp"
 #include "WriteSet.hpp"
 #include "UndoLog.hpp"
