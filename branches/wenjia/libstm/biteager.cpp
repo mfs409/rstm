@@ -35,13 +35,13 @@ using stm::UndoLogEntry;
 namespace {
   struct BitEager
   {
-      static TM_FASTCALL bool begin(TxThread*);
-      static TM_FASTCALL void* read_ro(STM_READ_SIG(,,));
-      static TM_FASTCALL void* read_rw(STM_READ_SIG(,,));
-      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void commit_ro(TxThread*);
-      static TM_FASTCALL void commit_rw(TxThread*);
+      static TM_FASTCALL bool begin();
+      static TM_FASTCALL void* read_ro(STM_READ_SIG(,));
+      static TM_FASTCALL void* read_rw(STM_READ_SIG(,));
+      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,));
+      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,));
+      static TM_FASTCALL void commit_ro();
+      static TM_FASTCALL void commit_rw();
       static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
       static void onSwitchTo();
@@ -64,8 +64,9 @@ namespace {
    *  BitEager begin:
    */
   bool
-  BitEager::begin(TxThread* tx)
+  BitEager::begin()
   {
+      TxThread* tx = stm::Self;
       tx->allocator.onTxBegin();
       return false;
   }
@@ -74,8 +75,10 @@ namespace {
    *  BitEager commit (read-only):
    */
   void
-  BitEager::commit_ro(TxThread* tx)
+  BitEager::commit_ro()
   {
+      TxThread* tx = stm::Self;
+
       // read-only... release read locks
       foreach (BitLockList, i, tx->r_bitlocks)
           (*i)->readers.unsetbit(tx->id-1);
@@ -88,8 +91,10 @@ namespace {
    *  BitEager commit (writing context):
    */
   void
-  BitEager::commit_rw(TxThread* tx)
+  BitEager::commit_rw()
   {
+      TxThread* tx = stm::Self;
+
       // release write locks, then read locks
       foreach (BitLockList, i, tx->w_bitlocks)
           (*i)->owner = 0;
@@ -111,8 +116,9 @@ namespace {
    *    from memory.
    */
   void*
-  BitEager::read_ro(STM_READ_SIG(tx,addr,))
+  BitEager::read_ro(STM_READ_SIG(addr,))
   {
+      TxThread* tx = stm::Self;
       uint32_t tries = 0;
       bitlock_t* lock = get_bitlock(addr);
 
@@ -147,8 +153,9 @@ namespace {
    *    the write lock, we can return immediately.
    */
   void*
-  BitEager::read_rw(STM_READ_SIG(tx,addr,))
+  BitEager::read_rw(STM_READ_SIG(addr,))
   {
+      TxThread* tx = stm::Self;
       uint32_t tries = 0;
       bitlock_t* lock = get_bitlock(addr);
 
@@ -187,8 +194,9 @@ namespace {
    *    out.
    */
   void
-  BitEager::write_ro(STM_WRITE_SIG(tx,addr,val,mask))
+  BitEager::write_ro(STM_WRITE_SIG(addr,val,mask))
   {
+      TxThread* tx = stm::Self;
       uint32_t tries = 0;
       bitlock_t* lock = get_bitlock(addr);
 
@@ -223,8 +231,9 @@ namespace {
    *    This is like the read-only case, except we might already hold the lock.
    */
   void
-  BitEager::write_rw(STM_WRITE_SIG(tx,addr,val,mask))
+  BitEager::write_rw(STM_WRITE_SIG(addr,val,mask))
   {
+      TxThread* tx = stm::Self;
       uint32_t tries = 0;
       bitlock_t* lock = get_bitlock(addr);
 

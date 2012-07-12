@@ -50,13 +50,13 @@ using stm::locks;
  */
 namespace {
   struct Cohortsold {
-      static TM_FASTCALL bool begin(TxThread*);
-      static TM_FASTCALL void* read_ro(STM_READ_SIG(,,));
-      static TM_FASTCALL void* read_rw(STM_READ_SIG(,,));
-      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void commit_ro(TxThread* tx);
-      static TM_FASTCALL void commit_rw(TxThread* tx);
+      static TM_FASTCALL bool begin();
+      static TM_FASTCALL void* read_ro(STM_READ_SIG(,));
+      static TM_FASTCALL void* read_rw(STM_READ_SIG(,));
+      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,));
+      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,));
+      static TM_FASTCALL void commit_ro();
+      static TM_FASTCALL void commit_rw();
 
       static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
@@ -75,8 +75,9 @@ namespace {
    *  commits.
    */
   bool
-  Cohortsold::begin(TxThread* tx)
+  Cohortsold::begin()
   {
+      TxThread* tx = stm::Self;
       // wait until we are allowed to start
       // when started is even, we wait
       while (started.val % 2 == 0){
@@ -112,8 +113,9 @@ namespace {
    *  RO commit is easy.
    */
   void
-  Cohortsold::commit_ro(TxThread* tx)
+  Cohortsold::commit_ro()
   {
+      TxThread* tx = stm::Self;
       // decrease total number of tx in a cohort
       SUB(&started.val, 2);
 
@@ -130,8 +132,9 @@ namespace {
    *  in an order which is given at the beginning of commit.
    */
   void
-  Cohortsold::commit_rw(TxThread* tx)
+  Cohortsold::commit_rw()
   {
+      TxThread* tx = stm::Self;
       // NB: get a new order at the begainning of commit
       tx->order = 1 + faiptr(&timestamp.val);
 
@@ -198,8 +201,9 @@ namespace {
    *  Standard orec read function.
    */
   void*
-  Cohortsold::read_ro(STM_READ_SIG(tx,addr,))
+  Cohortsold::read_ro(STM_READ_SIG(addr,))
   {
+      TxThread* tx = stm::Self;
       void* tmp = *addr;
       CFENCE; // RBR between dereference and orec check
 
@@ -254,15 +258,16 @@ namespace {
    *  Cohortsold read (writing transaction)
    */
   void*
-  Cohortsold::read_rw(STM_READ_SIG(tx,addr,mask))
+  Cohortsold::read_rw(STM_READ_SIG(addr,mask))
   {
+      TxThread* tx = stm::Self;
       // check the log for a RAW hazard, we expect to miss
       WriteSetEntry log(STM_WRITE_SET_ENTRY(addr, NULL, mask));
       bool found = tx->writes.find(log);
       REDO_RAW_CHECK(found, log, mask);
 
       // reuse the ReadRO barrier, which is adequate here---reduces LOC
-      void* val = read_ro(tx, addr STM_MASK(mask));
+      void* val = read_ro(addr STM_MASK(mask));
 
       REDO_RAW_CLEANUP(tmp, found, log, mask);
       return val;
@@ -272,8 +277,9 @@ namespace {
    *  Cohortsold write (read-only context)
    */
   void
-  Cohortsold::write_ro(STM_WRITE_SIG(tx,addr,val,mask))
+  Cohortsold::write_ro(STM_WRITE_SIG(addr,val,mask))
   {
+      TxThread* tx = stm::Self;
       // record the new value in a redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
       OnFirstWrite(tx, read_rw, write_rw, commit_rw);
@@ -283,8 +289,9 @@ namespace {
    *  Cohortsold write (writing context)
    */
   void
-  Cohortsold::write_rw(STM_WRITE_SIG(tx,addr,val,mask))
+  Cohortsold::write_rw(STM_WRITE_SIG(addr,val,mask))
   {
+      TxThread* tx = stm::Self;
       // record the new value in a redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
   }

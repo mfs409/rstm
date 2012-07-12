@@ -67,8 +67,9 @@ namespace stm
    *    (b) avoid code duplication or MACRO nastiness
    */
   TM_INLINE
-  inline void begin(TxThread* tx, scope_t* s, uint32_t /*abort_flags*/)
+  inline void begin(scope_t* s, uint32_t /*abort_flags*/)
   {
+      TxThread* tx = stm::Self;
       if (++tx->nesting_depth > 1)
           return;
 
@@ -91,7 +92,7 @@ namespace stm
           tx->total_nontxn_time += (tick() - tx->end_txn_time);
 
       // now call the per-algorithm begin function
-      TxThread::tmbegin(tx);
+      TxThread::tmbegin();
   }
 
   /**
@@ -100,14 +101,15 @@ namespace stm
    *  prevent code duplication.
    */
   TM_INLINE
-  inline void commit(TxThread* tx)
+  inline void commit()
   {
+      TxThread* tx = stm::Self;
       // don't commit anything if we're nested... just exit this scope
       if (--tx->nesting_depth)
           return;
 
       // dispatch to the appropriate end function
-      tx->tmcommit(tx);
+      tmcommit();
 
       // zero scope (to indicate "not in tx")
       CFENCE;
@@ -141,33 +143,6 @@ namespace stm
    *  the free will happen at commit time.
    */
   inline void tx_free(void* p) { Self->allocator.txFree(p); }
-
-  /**
-   *  Master class for all objects that are used in transactions, to ensure
-   *  that those objects have tx-safe allocation
-   *
-   *  WARNING:  DEPRECATED
-   *
-   *      We no longer use the Object class.  In G++ it is unsafe to call
-   *      destructors from within a transaction (they trash the vtable
-   *      pointer in an unrecoverable way!), and some compilers don't handle
-   *      new() within a transaction correctly.  Ugly though it is, for now,
-   *      you should just use malloc and free to create objects.
-   */
-  struct Object
-  {
-      void* operator new(size_t size) { return tx_alloc(size); }
-
-      // it is never safe to call a destructor inside a tx with g++, because
-      // the vtable will be overwritten; if the tx aborts, the vtable will not
-      // be restored.  We hope this never gets called...
-      void operator delete(void* ptr)
-      {
-          tx_free(ptr);
-          UNRECOVERABLE("Calling destructors is not supported.");
-      }
-      virtual ~Object() { }
-  };
 
   /**
    *  Here we declare the rest of the api to the STM library
@@ -222,33 +197,32 @@ namespace stm
 namespace stm
 {
   template <typename T>
-  inline T stm_read(T* addr, TxThread* thread)
+  inline T stm_read(T* addr)
   {
-      return DISPATCH<T, sizeof(T)>::read(addr, thread);
+      return DISPATCH<T, sizeof(T)>::read(addr);
   }
 
   template <typename T>
-  inline void stm_write(T* addr, T val, TxThread* thread)
+  inline void stm_write(T* addr, T val)
   {
-      DISPATCH<T, sizeof(T)>::write(addr, val, thread);
+      DISPATCH<T, sizeof(T)>::write(addr, val);
   }
 } // namespace stm
 
 /**
  * Code should only use these calls, not the template stuff declared above
  */
-#define TM_READ(var)       stm::stm_read(&var, tx)
-#define TM_WRITE(var, val) stm::stm_write(&var, val, tx)
+#define TM_READ(var)       stm::stm_read(&var)
+#define TM_WRITE(var, val) stm::stm_write(&var, val)
 
 /**
  *  This is the way to start a transaction
  */
 #define TM_BEGIN(TYPE)                                      \
     {                                                       \
-    stm::TxThread* tx = (stm::TxThread*)stm::Self;          \
     jmp_buf _jmpbuf;                                        \
     uint32_t abort_flags = setjmp(_jmpbuf);                 \
-    stm::begin(tx, &_jmpbuf, abort_flags);                  \
+    stm::begin(&_jmpbuf, abort_flags);                      \
     CFENCE;                                                 \
     {
 
@@ -263,7 +237,7 @@ namespace stm
     jmp_buf _jmpbuf;                                        \
     uint32_t abort_flags = setjmp(_jmpbuf);                 \
     tx->read_only = true;                                   \
-    stm::begin(tx, &_jmpbuf, abort_flags);                  \
+    stm::begin(&_jmpbuf, abort_flags);                      \
     CFENCE;                                                 \
     {
 
@@ -273,18 +247,12 @@ namespace stm
  */
 #define TM_END                                  \
     }                                           \
-    stm::commit(tx);                            \
+    stm::commit();                              \
     }
 
 /**
  *  Macro to get STM context.  This currently produces a pointer to a TxThread
  */
-#define TM_GET_THREAD() stm::TxThread* tx = (stm::TxThread*)stm::Self
-#define TM_ARG_ALONE stm::TxThread* tx
-#define TM_ARG , TM_ARG_ALONE
-#define TM_PARAM , tx
-#define TM_PARAM_ALONE tx
-
 #define TM_WAIVER
 #define TM_CALLABLE
 
@@ -321,8 +289,7 @@ namespace stm
 #else
 #  define TM_BEGIN_FAST_INITIALIZATION()                \
     const char* __config_string__ = TM_GET_ALGNAME();   \
-    TM_SET_POLICY("CGL");                               \
-    TM_GET_THREAD()
+    TM_SET_POLICY("CGL");
 #  define TM_END_FAST_INITIALIZATION()          \
     TM_SET_POLICY(__config_string__)
 #endif

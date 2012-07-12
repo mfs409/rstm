@@ -37,13 +37,13 @@ using stm::ValueListEntry;
  */
 namespace {
   struct NOrecPrio {
-      static TM_FASTCALL bool begin(TxThread*);
-      static TM_FASTCALL void* read_ro(STM_READ_SIG(,,));
-      static TM_FASTCALL void* read_rw(STM_READ_SIG(,,));
-      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void commit_ro(TxThread*);
-      static TM_FASTCALL void commit_rw(TxThread*);
+      static TM_FASTCALL bool begin();
+      static TM_FASTCALL void* read_ro(STM_READ_SIG(,));
+      static TM_FASTCALL void* read_rw(STM_READ_SIG(,));
+      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,));
+      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,));
+      static TM_FASTCALL void commit_ro();
+      static TM_FASTCALL void commit_rw();
 
       static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
@@ -60,8 +60,9 @@ namespace {
    *    we need priority here, rather than retaining it across an abort.
    */
   bool
-  NOrecPrio::begin(TxThread* tx)
+  NOrecPrio::begin()
   {
+      TxThread* tx = stm::Self;
       // Sample the sequence lock until it is even (unheld)
       while ((tx->start_time = timestamp.val) & 1)
           spin64();
@@ -86,8 +87,9 @@ namespace {
    *    release it.
    */
   void
-  NOrecPrio::commit_ro(TxThread* tx)
+  NOrecPrio::commit_ro()
   {
+      TxThread* tx = stm::Self;
       // read-only fastpath
       tx->vlist.reset();
       // priority
@@ -106,8 +108,9 @@ namespace {
    *    to be "fair", without any guarantees.
    */
   void
-  NOrecPrio::commit_rw(TxThread* tx)
+  NOrecPrio::commit_rw()
   {
+      TxThread* tx = stm::Self;
       // wait for all higher-priority transactions to complete
       //
       // NB: we assume there are priority transactions, because we wouldn't be
@@ -147,8 +150,9 @@ namespace {
    *    This is a standard NOrec read
    */
   void*
-  NOrecPrio::read_ro(STM_READ_SIG(tx,addr,mask))
+  NOrecPrio::read_ro(STM_READ_SIG(addr,mask))
   {
+      TxThread* tx = stm::Self;
       // read the location to a temp
       void* tmp = *addr;
       CFENCE;
@@ -172,8 +176,9 @@ namespace {
    *    Standard NOrec read from writing context
    */
   void*
-  NOrecPrio::read_rw(STM_READ_SIG(tx,addr,mask))
+  NOrecPrio::read_rw(STM_READ_SIG(addr,mask))
   {
+      TxThread* tx = stm::Self;
       // check the log for a RAW hazard, we expect to miss
       WriteSetEntry log(STM_WRITE_SET_ENTRY(addr, NULL, mask));
       bool found = tx->writes.find(log);
@@ -186,7 +191,7 @@ namespace {
       // bytes that we "actually" need, which is computed as bytes in mask but
       // not in log.mask. This is only correct because we know that a failed
       // find also reset the log.mask to 0 (that's part of the find interface).
-      void* val = read_ro(tx, addr STM_MASK(mask & ~log.mask));
+      void* val = read_ro(addr STM_MASK(mask & ~log.mask));
       REDO_RAW_CLEANUP(val, found, log, mask);
       return val;
   }
@@ -197,8 +202,9 @@ namespace {
    *    log the write and switch to a writing context
    */
   void
-  NOrecPrio::write_ro(STM_WRITE_SIG(tx,addr,val,mask))
+  NOrecPrio::write_ro(STM_WRITE_SIG(addr,val,mask))
   {
+      TxThread* tx = stm::Self;
       // do a buffered write
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
       OnFirstWrite(tx, read_rw, write_rw, commit_rw);
@@ -210,8 +216,9 @@ namespace {
    *    log the write
    */
   void
-  NOrecPrio::write_rw(STM_WRITE_SIG(tx,addr,val,mask))
+  NOrecPrio::write_rw(STM_WRITE_SIG(addr,val,mask))
   {
+      TxThread* tx = stm::Self;
       // do a buffered write
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
   }

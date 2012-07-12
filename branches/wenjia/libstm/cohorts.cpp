@@ -49,13 +49,13 @@ namespace {
   NOINLINE bool validate(TxThread* tx);
 
   struct Cohorts {
-      static TM_FASTCALL bool begin(TxThread*);
-      static TM_FASTCALL void* read_ro(STM_READ_SIG(,,));
-      static TM_FASTCALL void* read_rw(STM_READ_SIG(,,));
-      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void commit_ro(TxThread* tx);
-      static TM_FASTCALL void commit_rw(TxThread* tx);
+      static TM_FASTCALL bool begin();
+      static TM_FASTCALL void* read_ro(STM_READ_SIG(,));
+      static TM_FASTCALL void* read_rw(STM_READ_SIG(,));
+      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,));
+      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,));
+      static TM_FASTCALL void commit_ro();
+      static TM_FASTCALL void commit_rw();
 
       static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
@@ -70,8 +70,9 @@ namespace {
    *  commits.
    */
   bool
-  Cohorts::begin(TxThread* tx)
+  Cohorts::begin()
   {
+      TxThread* tx = stm::Self;
     S1:
       // wait until everyone is committed
       while (cpending.val != committed.val);
@@ -97,8 +98,9 @@ namespace {
    *  Cohorts commit (read-only):
    */
   void
-  Cohorts::commit_ro(TxThread* tx)
+  Cohorts::commit_ro()
   {
+      TxThread* tx = stm::Self;
       // decrease total number of tx started
       SUB(&started.val, 1);
 
@@ -114,8 +116,9 @@ namespace {
    *  in an order which is given at the beginning of commit.
    */
   void
-  Cohorts::commit_rw(TxThread* tx)
+  Cohorts::commit_rw()
   {
+      TxThread* tx = stm::Self;
       // get the order of first tx in a cohort
       uint32_t first = last_complete.val + 1;
 
@@ -171,8 +174,9 @@ namespace {
    *  Cohorts read (read-only transaction)
    */
   void*
-  Cohorts::read_ro(STM_READ_SIG(tx,addr,))
+  Cohorts::read_ro(STM_READ_SIG(addr,))
   {
+      TxThread* tx = stm::Self;
       // log orec
       tx->r_orecs.insert(get_orec(addr));
       return *addr;
@@ -182,8 +186,9 @@ namespace {
    *  Cohorts read (writing transaction)
    */
   void*
-  Cohorts::read_rw(STM_READ_SIG(tx,addr,mask))
+  Cohorts::read_rw(STM_READ_SIG(addr,mask))
   {
+      TxThread* tx = stm::Self;
       // check the log for a RAW hazard, we expect to miss
       WriteSetEntry log(STM_WRITE_SET_ENTRY(addr, NULL, mask));
       bool found = tx->writes.find(log);
@@ -201,8 +206,9 @@ namespace {
    *  Cohorts write (read-only context): for first write
    */
   void
-  Cohorts::write_ro(STM_WRITE_SIG(tx,addr,val,mask))
+  Cohorts::write_ro(STM_WRITE_SIG(addr,val,mask))
   {
+      TxThread* tx = stm::Self;
       // record the new value in a redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
       OnFirstWrite(tx, read_rw, write_rw, commit_rw);
@@ -212,8 +218,9 @@ namespace {
    *  Cohorts write (writing context)
    */
   void
-  Cohorts::write_rw(STM_WRITE_SIG(tx,addr,val,mask))
+  Cohorts::write_rw(STM_WRITE_SIG(addr,val,mask))
   {
+      TxThread* tx = stm::Self;
       // record the new value in a redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
   }

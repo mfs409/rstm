@@ -43,13 +43,13 @@ namespace {
   struct OrEAU_Generic
   {
       static void Initialize(int id, const char* name);
-      static TM_FASTCALL bool begin(TxThread*);
-      static TM_FASTCALL void* read_ro(STM_READ_SIG(,,));
-      static TM_FASTCALL void* read_rw(STM_READ_SIG(,,));
-      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void commit_ro(TxThread*);
-      static TM_FASTCALL void commit_rw(TxThread*);
+      static TM_FASTCALL bool begin();
+      static TM_FASTCALL void* read_ro(STM_READ_SIG(,));
+      static TM_FASTCALL void* read_rw(STM_READ_SIG(,));
+      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,));
+      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,));
+      static TM_FASTCALL void commit_ro();
+      static TM_FASTCALL void commit_rw();
 
       static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
@@ -83,8 +83,9 @@ namespace {
    */
   template <class CM>
   bool
-  OrEAU_Generic<CM>::begin(TxThread* tx)
+  OrEAU_Generic<CM>::begin()
   {
+      TxThread* tx = stm::Self;
       tx->allocator.onTxBegin();
       tx->start_time = timestamp.val;
       tx->alive = TX_ACTIVE;
@@ -98,8 +99,9 @@ namespace {
    */
   template <class CM>
   void
-  OrEAU_Generic<CM>::commit_ro(TxThread* tx)
+  OrEAU_Generic<CM>::commit_ro()
   {
+      TxThread* tx = stm::Self;
       CM::onCommit(tx);
       tx->r_orecs.reset();
       OnReadOnlyCommit(tx);
@@ -110,8 +112,9 @@ namespace {
    */
   template <class CM>
   void
-  OrEAU_Generic<CM>::commit_rw(TxThread* tx)
+  OrEAU_Generic<CM>::commit_rw()
   {
+      TxThread* tx = stm::Self;
       // we're a writer, so increment the global timestamp
       tx->end_time = 1 + faiptr(&timestamp.val);
 
@@ -145,8 +148,9 @@ namespace {
    */
   template <class CM>
   void*
-  OrEAU_Generic<CM>::read_ro(STM_READ_SIG(tx,addr,))
+  OrEAU_Generic<CM>::read_ro(STM_READ_SIG(addr,))
   {
+      TxThread* tx = stm::Self;
       // get the orec addr
       orec_t* o = get_orec(addr);
       while (true) {
@@ -192,8 +196,9 @@ namespace {
    */
   template <class CM>
   void*
-  OrEAU_Generic<CM>::read_rw(STM_READ_SIG(tx,addr,))
+  OrEAU_Generic<CM>::read_rw(STM_READ_SIG(addr,))
   {
+      TxThread* tx = stm::Self;
       // get the orec addr
       orec_t* o = get_orec(addr);
       while (true) {
@@ -244,8 +249,9 @@ namespace {
    */
   template <class CM>
   void
-  OrEAU_Generic<CM>::write_ro(STM_WRITE_SIG(tx,addr,val,mask))
+  OrEAU_Generic<CM>::write_ro(STM_WRITE_SIG(addr,val,mask))
   {
+      TxThread* tx = stm::Self;
       // get the orec addr
       orec_t* o = get_orec(addr);
       while (true) {
@@ -291,8 +297,9 @@ namespace {
    */
   template <class CM>
   void
-  OrEAU_Generic<CM>::write_rw(STM_WRITE_SIG(tx,addr,val,mask))
+  OrEAU_Generic<CM>::write_rw(STM_WRITE_SIG(addr,val,mask))
   {
+      TxThread* tx = stm::Self;
       // get the orec addr
       orec_t* o = get_orec(addr);
       while (true) {

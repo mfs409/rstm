@@ -51,16 +51,16 @@ namespace {
   struct cohorts_node_t* volatile q = NULL;
 
   struct CohortsEN2Q {
-      static TM_FASTCALL bool begin(TxThread*);
-      static TM_FASTCALL void* read_ro(STM_READ_SIG(,,));
-      static TM_FASTCALL void* read_rw(STM_READ_SIG(,,));
-      static TM_FASTCALL void* read_turbo(STM_READ_SIG(,,));
-      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void write_turbo(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void commit_ro(TxThread* tx);
-      static TM_FASTCALL void commit_rw(TxThread* tx);
-      static TM_FASTCALL void commit_turbo(TxThread* tx);
+      static TM_FASTCALL bool begin();
+      static TM_FASTCALL void* read_ro(STM_READ_SIG(,));
+      static TM_FASTCALL void* read_rw(STM_READ_SIG(,));
+      static TM_FASTCALL void* read_turbo(STM_READ_SIG(,));
+      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,));
+      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,));
+      static TM_FASTCALL void write_turbo(STM_WRITE_SIG(,,));
+      static TM_FASTCALL void commit_ro();
+      static TM_FASTCALL void commit_rw();
+      static TM_FASTCALL void commit_turbo();
 
       static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
@@ -75,8 +75,9 @@ namespace {
    *  commits.
    */
   bool
-  CohortsEN2Q::begin(TxThread* tx)
+  CohortsEN2Q::begin()
   {
+      TxThread* tx = stm::Self;
       tx->allocator.onTxBegin();
     S1:
       // wait until everyone is committed
@@ -103,8 +104,9 @@ namespace {
    *  CohortsEN2Q commit (read-only):
    */
   void
-  CohortsEN2Q::commit_ro(TxThread* tx)
+  CohortsEN2Q::commit_ro()
   {
+      TxThread* tx = stm::Self;
       // decrease total number of tx started
       SUB(&started.val, 1);
 
@@ -117,8 +119,9 @@ namespace {
    *  CohortsEN2Q commit (in place write commit): no validation, no write back
    */
   void
-  CohortsEN2Q::commit_turbo(TxThread* tx)
+  CohortsEN2Q::commit_turbo()
   {
+      TxThread* tx = stm::Self;
       // decrease total number of tx started
       SUB(&started.val, 1);
 
@@ -135,8 +138,9 @@ namespace {
    *  in an order which is given at the beginning of commit.
    */
   void
-  CohortsEN2Q::commit_rw(TxThread* tx)
+  CohortsEN2Q::commit_rw()
   {
+      TxThread* tx = stm::Self;
       // add myself to the queue
       do {
           tx->turn.next = q;
@@ -185,7 +189,7 @@ namespace {
    *  CohortsEN2Q read_turbo
    */
   void*
-  CohortsEN2Q::read_turbo(STM_READ_SIG(tx,addr,))
+  CohortsEN2Q::read_turbo(STM_READ_SIG(addr,))
   {
       return *addr;
   }
@@ -194,8 +198,9 @@ namespace {
    *  CohortsEN2Q read (read-only transaction)
    */
   void*
-  CohortsEN2Q::read_ro(STM_READ_SIG(tx,addr,))
+  CohortsEN2Q::read_ro(STM_READ_SIG(addr,))
   {
+      TxThread* tx = stm::Self;
       void *tmp = *addr;
       STM_LOG_VALUE(tx, addr, tmp, mask);
       // test if I can go turbo
@@ -208,8 +213,9 @@ namespace {
    *  CohortsEN2Q read (writing transaction)
    */
   void*
-  CohortsEN2Q::read_rw(STM_READ_SIG(tx,addr,mask))
+  CohortsEN2Q::read_rw(STM_READ_SIG(addr,mask))
   {
+      TxThread* tx = stm::Self;
       // check the log for a RAW hazard, we expect to miss
       WriteSetEntry log(STM_WRITE_SET_ENTRY(addr, NULL, mask));
       bool found = tx->writes.find(log);
@@ -230,8 +236,9 @@ namespace {
    *  CohortsEN2Q write (read-only context): for first write
    */
   void
-  CohortsEN2Q::write_ro(STM_WRITE_SIG(tx,addr,val,mask))
+  CohortsEN2Q::write_ro(STM_WRITE_SIG(addr,val,mask))
   {
+      TxThread* tx = stm::Self;
       if (tx->status == TURBO) {
           // in place write
           *addr = val;
@@ -247,7 +254,7 @@ namespace {
    *  CohortsEN2Q write (in place write)
    */
   void
-  CohortsEN2Q::write_turbo(STM_WRITE_SIG(tx,addr,val,mask))
+  CohortsEN2Q::write_turbo(STM_WRITE_SIG(addr,val,mask))
   {
       *addr = val; // in place write
   }
@@ -256,8 +263,9 @@ namespace {
    *  CohortsEN2Q write (writing context)
    */
   void
-  CohortsEN2Q::write_rw(STM_WRITE_SIG(tx,addr,val,mask))
+  CohortsEN2Q::write_rw(STM_WRITE_SIG(addr,val,mask))
   {
+      TxThread* tx = stm::Self;
       if (tx->status == TURBO) {
           // write previous write set back
           foreach (WriteSet, i, tx->writes)

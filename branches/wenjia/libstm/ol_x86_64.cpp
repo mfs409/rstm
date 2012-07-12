@@ -39,13 +39,13 @@ namespace {
   template <class CM>
   struct OL_X86_64_Generic
   {
-      static TM_FASTCALL bool begin(TxThread*);
-      static TM_FASTCALL void* read_ro(STM_READ_SIG(,,));
-      static TM_FASTCALL void* read_rw(STM_READ_SIG(,,));
-      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void commit_ro(TxThread*);
-      static TM_FASTCALL void commit_rw(TxThread*);
+      static TM_FASTCALL bool begin();
+      static TM_FASTCALL void* read_ro(STM_READ_SIG(,));
+      static TM_FASTCALL void* read_rw(STM_READ_SIG(,));
+      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,));
+      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,));
+      static TM_FASTCALL void commit_ro();
+      static TM_FASTCALL void commit_rw();
 
       static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
       static void Initialize(int id, const char* name);
@@ -59,9 +59,6 @@ namespace {
   void
   OL_X86_64_Generic<CM>::Initialize(int id, const char* name)
   {
-      printf("Warning: this TM implementation is not correct, and will "
-             "probably crash\n");
-
       // set the name
       stm::stms[id].name      = name;
 
@@ -83,8 +80,9 @@ namespace {
    */
   template <class CM>
   bool
-  OL_X86_64_Generic<CM>::begin(TxThread* tx)
+  OL_X86_64_Generic<CM>::begin()
   {
+      TxThread* tx = stm::Self;
       tx->allocator.onTxBegin();
       CFENCE;
       tx->start_time = tick();
@@ -100,8 +98,9 @@ namespace {
    */
   template <class CM>
   void
-  OL_X86_64_Generic<CM>::commit_ro(TxThread* tx)
+  OL_X86_64_Generic<CM>::commit_ro()
   {
+      TxThread* tx = stm::Self;
       // notify CM
       CM::onCommit(tx);
       // read-only
@@ -117,8 +116,9 @@ namespace {
    */
   template <class CM>
   void
-  OL_X86_64_Generic<CM>::commit_rw(TxThread* tx)
+  OL_X86_64_Generic<CM>::commit_rw()
   {
+      TxThread* tx = stm::Self;
       // acquire locks
       foreach (WriteSet, i, tx->writes) {
           // get orec, read its version#
@@ -176,8 +176,9 @@ namespace {
    */
   template <class CM>
   void*
-  OL_X86_64_Generic<CM>::read_ro(STM_READ_SIG(tx,addr,))
+  OL_X86_64_Generic<CM>::read_ro(STM_READ_SIG(addr,))
   {
+      TxThread* tx = stm::Self;
       // get the orec addr
       orec_t* o = get_orec(addr);
 
@@ -207,15 +208,16 @@ namespace {
    */
   template <class CM>
   void*
-  OL_X86_64_Generic<CM>::read_rw(STM_READ_SIG(tx,addr,mask))
+  OL_X86_64_Generic<CM>::read_rw(STM_READ_SIG(addr,mask))
   {
+      TxThread* tx = stm::Self;
       // check the log for a RAW hazard, we expect to miss
       WriteSetEntry log(STM_WRITE_SET_ENTRY(addr, NULL, mask));
       bool found = tx->writes.find(log);
       REDO_RAW_CHECK(found, log, mask);
 
       // reuse the ReadRO barrier, which is adequate here---reduces LOC
-      void* val = read_ro(tx, addr STM_MASK(mask));
+      void* val = read_ro(addr STM_MASK(mask));
       REDO_RAW_CLEANUP(val, found, log, mask);
       return val;
   }
@@ -227,8 +229,9 @@ namespace {
    */
   template <class CM>
   void
-  OL_X86_64_Generic<CM>::write_ro(STM_WRITE_SIG(tx,addr,val,mask))
+  OL_X86_64_Generic<CM>::write_ro(STM_WRITE_SIG(addr,val,mask))
   {
+      TxThread* tx = stm::Self;
       // add to redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
       OnFirstWrite(tx, read_rw, write_rw, commit_rw);
@@ -241,8 +244,9 @@ namespace {
    */
   template <class CM>
   void
-  OL_X86_64_Generic<CM>::write_rw(STM_WRITE_SIG(tx,addr,val,mask))
+  OL_X86_64_Generic<CM>::write_rw(STM_WRITE_SIG(addr,val,mask))
   {
+      TxThread* tx = stm::Self;
       // add to redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
   }
@@ -317,6 +321,8 @@ namespace {
    */
   void onSwitchTo()
   {
+      printf("Warning: this TM implementation is not correct, and will "
+             "probably crash\n");
       // timestamp.val = MAXIMUM(timestamp.val, timestamp_max.val);
   }
 }

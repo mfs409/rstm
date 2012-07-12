@@ -50,17 +50,17 @@ volatile uint32_t in = 0;
  */
 namespace {
   struct CohortsLI {
-      static TM_FASTCALL bool begin(TxThread*);
-      static TM_FASTCALL void* read_ro(STM_READ_SIG(,,));
-      static TM_FASTCALL void* read_rw(STM_READ_SIG(,,));
-      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void commit_ro(TxThread* tx);
-      static TM_FASTCALL void commit_rw(TxThread* tx);
+      static TM_FASTCALL bool begin();
+      static TM_FASTCALL void* read_ro(STM_READ_SIG(,));
+      static TM_FASTCALL void* read_rw(STM_READ_SIG(,));
+      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,));
+      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,));
+      static TM_FASTCALL void commit_ro();
+      static TM_FASTCALL void commit_rw();
 
-      static TM_FASTCALL void commit_turbo(TxThread* tx);
-      static TM_FASTCALL void* read_turbo(STM_READ_SIG(,,));
-      static TM_FASTCALL void write_turbo(STM_WRITE_SIG(,,,));
+      static TM_FASTCALL void commit_turbo();
+      static TM_FASTCALL void* read_turbo(STM_READ_SIG(,));
+      static TM_FASTCALL void write_turbo(STM_WRITE_SIG(,,));
 
       static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
@@ -76,8 +76,9 @@ namespace {
    *  commits.
    */
   bool
-  CohortsLI::begin(TxThread* tx)
+  CohortsLI::begin()
   {
+      TxThread* tx = stm::Self;
       //begin
       tx->allocator.onTxBegin();
 
@@ -107,8 +108,9 @@ namespace {
    *  CohortsLI commit (read-only):
    */
   void
-  CohortsLI::commit_ro(TxThread* tx)
+  CohortsLI::commit_ro()
   {
+      TxThread* tx = stm::Self;
       // mark self status
       tx->status = COHORTS_COMMITTED;
 
@@ -122,8 +124,9 @@ namespace {
    *
    */
   void
-  CohortsLI::commit_turbo(TxThread* tx)
+  CohortsLI::commit_turbo()
   {
+      TxThread* tx = stm::Self;
       // Mark self pending to commit
       tx->status = COHORTS_CPENDING;
 
@@ -156,8 +159,9 @@ namespace {
    *
    */
   void
-  CohortsLI::commit_rw(TxThread* tx)
+  CohortsLI::commit_rw()
   {
+      TxThread* tx = stm::Self;
       // Mark a global flag, no one is allowed to begin now
       gatekeeper = 1;
 
@@ -216,8 +220,9 @@ namespace {
    *  CohortsLI read (read-only transaction)
    */
   void*
-  CohortsLI::read_ro(STM_READ_SIG(tx,addr,))
+  CohortsLI::read_ro(STM_READ_SIG(addr,))
   {
+      TxThread* tx = stm::Self;
       // log orec
       tx->r_orecs.insert(get_orec(addr));
       return *addr;
@@ -227,7 +232,7 @@ namespace {
    *  CohortsLI read_turbo (for write in place tx use)
    */
   void*
-  CohortsLI::read_turbo(STM_READ_SIG(tx,addr,))
+  CohortsLI::read_turbo(STM_READ_SIG(addr,))
   {
       return *addr;
   }
@@ -236,8 +241,9 @@ namespace {
    *  CohortsLI read (writing transaction)
    */
   void*
-  CohortsLI::read_rw(STM_READ_SIG(tx,addr,mask))
+  CohortsLI::read_rw(STM_READ_SIG(addr,mask))
   {
+      TxThread* tx = stm::Self;
       // check the log for a RAW hazard, we expect to miss
       WriteSetEntry log(STM_WRITE_SET_ENTRY(addr, NULL, mask));
       bool found = tx->writes.find(log);
@@ -255,8 +261,9 @@ namespace {
    *  CohortsLI write (read-only context): for first write
    */
   void
-  CohortsLI::write_ro(STM_WRITE_SIG(tx,addr,val,mask))
+  CohortsLI::write_ro(STM_WRITE_SIG(addr,val,mask))
   {
+      TxThread* tx = stm::Self;
       // [mfs] this code is not in the best location.  Consider the following
       // alternative:
       //
@@ -291,7 +298,7 @@ namespace {
               count -= (threads[i]->status == COHORTS_STARTED);
           if (count == 0) {
               // write inplace
-              write_turbo(tx, addr, val);
+              write_turbo(addr, val);
               // go turbo
               OnFirstWrite(tx, read_turbo, write_turbo, commit_turbo);
               return;
@@ -307,7 +314,7 @@ namespace {
    *  CohortsLI write_turbo: for write in place tx
    */
   void
-  CohortsLI::write_turbo(STM_WRITE_SIG(tx,addr,val,mask))
+  CohortsLI::write_turbo(STM_WRITE_SIG(addr,val,mask))
   {
       orec_t* o = get_orec(addr);
       o->v.all = last_complete.val + 1;
@@ -319,8 +326,9 @@ namespace {
    *  CohortsLI write (writing context)
    */
   void
-  CohortsLI::write_rw(STM_WRITE_SIG(tx,addr,val,mask))
+  CohortsLI::write_rw(STM_WRITE_SIG(addr,val,mask))
   {
+      TxThread* tx = stm::Self;
       // record the new value in a redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
   }

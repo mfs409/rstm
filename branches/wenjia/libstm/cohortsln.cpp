@@ -52,13 +52,13 @@ namespace {
   NOINLINE uintptr_t validate(TxThread* tx);
 
   struct CohortsLN {
-      static TM_FASTCALL bool begin(TxThread*);
-      static TM_FASTCALL void* read_ro(STM_READ_SIG(,,));
-      static TM_FASTCALL void* read_rw(STM_READ_SIG(,,));
-      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void commit_ro(TxThread* tx);
-      static TM_FASTCALL void commit_rw(TxThread* tx);
+      static TM_FASTCALL bool begin();
+      static TM_FASTCALL void* read_ro(STM_READ_SIG(,));
+      static TM_FASTCALL void* read_rw(STM_READ_SIG(,));
+      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,));
+      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,));
+      static TM_FASTCALL void commit_ro();
+      static TM_FASTCALL void commit_rw();
 
       static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
@@ -73,8 +73,9 @@ namespace {
    *  commits.
    */
   bool
-  CohortsLN::begin(TxThread* tx)
+  CohortsLN::begin()
   {
+      TxThread* tx = stm::Self;
     S1:
       // wait if I'm blocked
       while(gatekeeper == 1);
@@ -102,8 +103,9 @@ namespace {
    *  CohortsLN commit (read-only):
    */
   void
-  CohortsLN::commit_ro(TxThread* tx)
+  CohortsLN::commit_ro()
   {
+      TxThread* tx = stm::Self;
       // mark self status
       tx->status = COHORTS_COMMITTED;
 
@@ -117,8 +119,9 @@ namespace {
    *
    */
   void
-  CohortsLN::commit_rw(TxThread* tx)
+  CohortsLN::commit_rw()
   {
+      TxThread* tx = stm::Self;
     // Mark a global flag, no one is allowed to begin now
       gatekeeper = 1;
 
@@ -192,8 +195,9 @@ namespace {
    *  CohortsLN read (read-only transaction)
    */
   void*
-  CohortsLN::read_ro(STM_READ_SIG(tx,addr,))
+  CohortsLN::read_ro(STM_READ_SIG(addr,))
   {
+      TxThread* tx = stm::Self;
     void * tmp = *addr;
     STM_LOG_VALUE(tx, addr, tmp, mask);
     return tmp;
@@ -203,8 +207,9 @@ namespace {
    *  CohortsLN read (writing transaction)
    */
   void*
-  CohortsLN::read_rw(STM_READ_SIG(tx,addr,mask))
+  CohortsLN::read_rw(STM_READ_SIG(addr,mask))
   {
+      TxThread* tx = stm::Self;
       // check the log for a RAW hazard, we expect to miss
       WriteSetEntry log(STM_WRITE_SET_ENTRY(addr, NULL, mask));
       bool found = tx->writes.find(log);
@@ -220,8 +225,9 @@ namespace {
    *  CohortsLN write (read-only context): for first write
    */
   void
-  CohortsLN::write_ro(STM_WRITE_SIG(tx,addr,val,mask))
+  CohortsLN::write_ro(STM_WRITE_SIG(addr,val,mask))
   {
+      TxThread* tx = stm::Self;
       // record the new value in a redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
       OnFirstWrite(tx, read_rw, write_rw, commit_rw);
@@ -231,8 +237,9 @@ namespace {
    *  CohortsLN write (writing context)
    */
   void
-  CohortsLN::write_rw(STM_WRITE_SIG(tx,addr,val,mask))
+  CohortsLN::write_rw(STM_WRITE_SIG(addr,val,mask))
   {
+      TxThread* tx = stm::Self;
       // record the new value in a redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
   }

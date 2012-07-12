@@ -50,13 +50,13 @@ using stm::WriteSetEntry;
 namespace {
   struct BitLazy
   {
-      static TM_FASTCALL bool begin(TxThread*);
-      static TM_FASTCALL void* read_ro(STM_READ_SIG(,,));
-      static TM_FASTCALL void* read_rw(STM_READ_SIG(,,));
-      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void commit_ro(TxThread*);
-      static TM_FASTCALL void commit_rw(TxThread*);
+      static TM_FASTCALL bool begin();
+      static TM_FASTCALL void* read_ro(STM_READ_SIG(,));
+      static TM_FASTCALL void* read_rw(STM_READ_SIG(,));
+      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,));
+      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,));
+      static TM_FASTCALL void commit_ro();
+      static TM_FASTCALL void commit_rw();
 
       static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
@@ -67,8 +67,9 @@ namespace {
    *  BitLazy begin:
    */
   bool
-  BitLazy::begin(TxThread* tx)
+  BitLazy::begin()
   {
+      TxThread* tx = stm::Self;
       tx->allocator.onTxBegin();
       tx->alive = 1;
       return false;
@@ -78,8 +79,9 @@ namespace {
    *  BitLazy commit (read-only):
    */
   void
-  BitLazy::commit_ro(TxThread* tx)
+  BitLazy::commit_ro()
   {
+      TxThread* tx = stm::Self;
       // were there remote aborts?
       if (!tx->alive)
           tx->tmabort(tx);
@@ -103,8 +105,9 @@ namespace {
    *    release locks, and clean up.
    */
   void
-  BitLazy::commit_rw(TxThread* tx)
+  BitLazy::commit_rw()
   {
+      TxThread* tx = stm::Self;
       // try to lock every location in the write set
       rrec_t accumulator = {{0}};
       // acquire locks, accumulate victim readers
@@ -176,8 +179,9 @@ namespace {
    *    and checking for conflicting writers.
    */
   void*
-  BitLazy::read_ro(STM_READ_SIG(tx,addr,))
+  BitLazy::read_ro(STM_READ_SIG(addr,))
   {
+      TxThread* tx = stm::Self;
       // first test if we've got a read bit
       bitlock_t* bl = get_bitlock(addr);
       if (bl->readers.setif(tx->id-1))
@@ -199,8 +203,9 @@ namespace {
    *    Same as above, but with a test if this tx has a pending write
    */
   void*
-  BitLazy::read_rw(STM_READ_SIG(tx,addr,mask))
+  BitLazy::read_rw(STM_READ_SIG(addr,mask))
   {
+      TxThread* tx = stm::Self;
       // Used by REDO_RAW_CLEANUP so they have to be scoped out here. We assume
       // that the compiler will do a good job when byte-logging isn't enabled in
       // compiling this.
@@ -232,8 +237,9 @@ namespace {
    *    Log the write, and then mark the location as if reading.
    */
   void
-  BitLazy::write_ro(STM_WRITE_SIG(tx,addr,val,mask))
+  BitLazy::write_ro(STM_WRITE_SIG(addr,val,mask))
   {
+      TxThread* tx = stm::Self;
       // Record the new value in a redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
 
@@ -250,8 +256,9 @@ namespace {
    *  BitLazy write (writing context)
    */
   void
-  BitLazy::write_rw(STM_WRITE_SIG(tx,addr,val,mask))
+  BitLazy::write_rw(STM_WRITE_SIG(addr,val,mask))
   {
+      TxThread* tx = stm::Self;
       // Record the new value in a redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
 

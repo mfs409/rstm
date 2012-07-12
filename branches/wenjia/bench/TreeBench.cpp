@@ -58,7 +58,7 @@ void bench_init()
     // warm up the datastructure
     TM_BEGIN_FAST_INITIALIZATION();
     for (uint32_t w = 0; w < CFG.elements; w+=2)
-        SET->insert(w TM_PARAM);
+        SET->insert(w);
     TM_END_FAST_INITIALIZATION();
     assert(SET->isSane());
 }
@@ -75,17 +75,17 @@ void bench_test(uintptr_t, uint32_t* seed)
          * call TM_BEGIN_READONLY()
          */
         TM_BEGIN_READONLY(atomic) {
-            SET->lookup(val TM_PARAM);
+            SET->lookup(val);
         } TM_END;
     }
     else if (act < CFG.inspct) {
         TM_BEGIN(atomic) {
-            SET->insert(val TM_PARAM);
+            SET->insert(val);
         } TM_END;
     }
     else {
         TM_BEGIN(atomic) {
-            SET->remove(val TM_PARAM);
+            SET->remove(val);
         } TM_END;
     }
 }

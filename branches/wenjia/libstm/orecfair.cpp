@@ -54,13 +54,13 @@ using stm::WriteSetEntry;
 namespace
 {
   struct OrecFair {
-      static TM_FASTCALL bool begin(TxThread*);
-      static TM_FASTCALL void* read_ro(STM_READ_SIG(,,));
-      static TM_FASTCALL void* read_rw(STM_READ_SIG(,,));
-      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void commit_ro(TxThread*);
-      static TM_FASTCALL void commit_rw(TxThread*);
+      static TM_FASTCALL bool begin();
+      static TM_FASTCALL void* read_ro(STM_READ_SIG(,));
+      static TM_FASTCALL void* read_rw(STM_READ_SIG(,));
+      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,));
+      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,));
+      static TM_FASTCALL void commit_ro();
+      static TM_FASTCALL void commit_rw();
 
       static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
@@ -76,8 +76,9 @@ namespace
    *    priority.
    */
   bool
-  OrecFair::begin(TxThread* tx)
+  OrecFair::begin()
   {
+      TxThread* tx = stm::Self;
       tx->allocator.onTxBegin();
       tx->start_time = timestamp.val;
       // get priority
@@ -96,8 +97,9 @@ namespace
    *    we have.
    */
   void
-  OrecFair::commit_ro(TxThread* tx)
+  OrecFair::commit_ro()
   {
+      TxThread* tx = stm::Self;
       // If I had priority, release it
       if (tx->prio) {
           // decrease prio count
@@ -126,8 +128,9 @@ namespace
    *    wait for that thread to detect our conflict and abort itself.
    */
   void
-  OrecFair::commit_rw(TxThread* tx)
+  OrecFair::commit_rw()
   {
+      TxThread* tx = stm::Self;
       // try to lock every location in the write set
       WriteSet::iterator i = tx->writes.begin(), e = tx->writes.end();
       while (i != e) {
@@ -236,8 +239,9 @@ namespace
    *        optimizations for priority transactions
    */
   void*
-  OrecFair::read_ro(STM_READ_SIG(tx,addr,))
+  OrecFair::read_ro(STM_READ_SIG(addr,))
   {
+      TxThread* tx = stm::Self;
       // CM instrumentation
       if (tx->prio > 0) {
           // get the rrec for this address, set the bit, log it
@@ -291,8 +295,9 @@ namespace
    *        version of this function
    */
   void*
-  OrecFair::read_rw(STM_READ_SIG(tx,addr,mask))
+  OrecFair::read_rw(STM_READ_SIG(addr,mask))
   {
+      TxThread* tx = stm::Self;
       // check the log for a RAW hazard, we expect to miss
       WriteSetEntry log(STM_WRITE_SET_ENTRY(addr, NULL, mask));
       bool found = tx->writes.find(log);
@@ -354,8 +359,9 @@ namespace
    *        redundancy with the checks in the lock acquisition code.
    */
   void
-  OrecFair::write_ro(STM_WRITE_SIG(tx,addr,val,mask))
+  OrecFair::write_ro(STM_WRITE_SIG(addr,val,mask))
   {
+      TxThread* tx = stm::Self;
       // CM instrumentation
       if (tx->prio > 0) {
           // get the rrec for this address, set the bit, log it
@@ -396,8 +402,9 @@ namespace
    *    concerns apply as above.
    */
   void
-  OrecFair::write_rw(STM_WRITE_SIG(tx,addr,val,mask))
+  OrecFair::write_rw(STM_WRITE_SIG(addr,val,mask))
   {
+      TxThread* tx = stm::Self;
       // CM instrumentation
       if (tx->prio > 0) {
           // get the rrec for this address, set the bit, log it

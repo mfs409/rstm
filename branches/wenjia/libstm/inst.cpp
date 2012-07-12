@@ -23,9 +23,9 @@ namespace stm
   void install_algorithm_local(int new_alg, TxThread* tx)
   {
       // set my read/write/commit pointers
-      tx->tmread     = stms[new_alg].read;
-      tx->tmwrite    = stms[new_alg].write;
-      tx->tmcommit   = stms[new_alg].commit;
+      tmread     = stms[new_alg].read;
+      tmwrite    = stms[new_alg].write;
+      tmcommit   = stms[new_alg].commit;
   }
 
   /**
@@ -65,9 +65,9 @@ namespace stm
 
       // set per-thread pointers
       for (unsigned i = 0; i < threadcount.val; ++i) {
-          threads[i]->tmread     = stms[new_alg].read;
-          threads[i]->tmwrite    = stms[new_alg].write;
-          threads[i]->tmcommit   = stms[new_alg].commit;
+          *(threads[i]->my_tmread)     = (void*)stms[new_alg].read;
+          *(threads[i]->my_tmwrite)    = (void*)stms[new_alg].write;
+          *(threads[i]->my_tmcommit)   = (void*)stms[new_alg].commit;
           threads[i]->consec_aborts  = 0;
       }
 

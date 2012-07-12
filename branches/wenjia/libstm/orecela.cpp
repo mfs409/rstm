@@ -41,13 +41,13 @@ using stm::id_version_t;
  */
 namespace {
   struct OrecELA {
-      static TM_FASTCALL bool begin(TxThread*);
-      static TM_FASTCALL void* read_ro(STM_READ_SIG(,,));
-      static TM_FASTCALL void* read_rw(STM_READ_SIG(,,));
-      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void commit_ro(TxThread*);
-      static TM_FASTCALL void commit_rw(TxThread*);
+      static TM_FASTCALL bool begin();
+      static TM_FASTCALL void* read_ro(STM_READ_SIG(,));
+      static TM_FASTCALL void* read_rw(STM_READ_SIG(,));
+      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,));
+      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,));
+      static TM_FASTCALL void commit_ro();
+      static TM_FASTCALL void commit_rw();
 
       static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
@@ -65,8 +65,9 @@ namespace {
    *    option.
    */
   bool
-  OrecELA::begin(TxThread* tx)
+  OrecELA::begin()
   {
+      TxThread* tx = stm::Self;
       tx->allocator.onTxBegin();
       // Start after the last cleanup, instead of after the last commit, to
       // avoid spinning in begin()
@@ -81,8 +82,9 @@ namespace {
    *    RO commit is trivial
    */
   void
-  OrecELA::commit_ro(TxThread* tx)
+  OrecELA::commit_ro()
   {
+      TxThread* tx = stm::Self;
       tx->r_orecs.reset();
       OnReadOnlyCommit(tx);
   }
@@ -99,8 +101,9 @@ namespace {
    *    then can this txn mark its writeback complete.
    */
   void
-  OrecELA::commit_rw(TxThread* tx)
+  OrecELA::commit_rw()
   {
+      TxThread* tx = stm::Self;
       // acquire locks
       foreach (WriteSet, i, tx->writes) {
           // get orec, read its version#
@@ -164,8 +167,9 @@ namespace {
    *    transaction has committed, in order to catch doomed transactions.
    */
   void*
-  OrecELA::read_ro(STM_READ_SIG(tx,addr,))
+  OrecELA::read_ro(STM_READ_SIG(addr,))
   {
+      TxThread* tx = stm::Self;
       // get the orec addr, read the orec's version#
       orec_t* o = get_orec(addr);
       while (true) {
@@ -215,15 +219,16 @@ namespace {
    *    Identical to RO case, but with write-set lookup first
    */
   void*
-  OrecELA::read_rw(STM_READ_SIG(tx,addr,mask))
+  OrecELA::read_rw(STM_READ_SIG(addr,mask))
   {
+      TxThread* tx = stm::Self;
       // check the log for a RAW hazard, we expect to miss
       WriteSetEntry log(STM_WRITE_SET_ENTRY(addr, NULL, mask));
       bool found = tx->writes.find(log);
       REDO_RAW_CHECK(found, log, mask);
 
       // reuse the ReadRO barrier, which is adequate here---reduces LOC
-      void* val = read_ro(tx, addr STM_MASK(mask));
+      void* val = read_ro(addr STM_MASK(mask));
       REDO_RAW_CLEANUP(val, found, log, mask);
       return val;
   }
@@ -234,8 +239,9 @@ namespace {
    *    Simply buffer the write and switch to a writing context
    */
   void
-  OrecELA::write_ro(STM_WRITE_SIG(tx,addr,val,mask))
+  OrecELA::write_ro(STM_WRITE_SIG(addr,val,mask))
   {
+      TxThread* tx = stm::Self;
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
       OnFirstWrite(tx, read_rw, write_rw, commit_rw);
   }
@@ -246,8 +252,9 @@ namespace {
    *    Simply buffer the write
    */
   void
-  OrecELA::write_rw(STM_WRITE_SIG(tx,addr,val,mask))
+  OrecELA::write_rw(STM_WRITE_SIG(addr,val,mask))
   {
+      TxThread* tx = stm::Self;
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
   }
 

@@ -129,10 +129,10 @@ namespace stm
        * the begin, commit, read, and write methods a tx uses when it
        * starts
        */
-      bool  (*TM_FASTCALL begin) (TxThread*);
-      void  (*TM_FASTCALL commit)(TxThread*);
-      void* (*TM_FASTCALL read)  (STM_READ_SIG(,,));
-      void  (*TM_FASTCALL write) (STM_WRITE_SIG(,,,));
+      bool  (*TM_FASTCALL begin) ();
+      void  (*TM_FASTCALL commit)();
+      void* (*TM_FASTCALL read)  (STM_READ_SIG(,));
+      void  (*TM_FASTCALL write) (STM_WRITE_SIG(,,));
 
       /**
        * rolls the transaction back without unwinding, returns the scope (which
@@ -256,11 +256,11 @@ namespace stm
   }
 
   // This is used as a default in txthread.cpp... just forwards to CGL::begin.
-  TM_FASTCALL bool begin_CGL(TxThread*);
+  TM_FASTCALL bool begin_CGL();
 
-  typedef TM_FASTCALL void* (*ReadBarrier)(STM_READ_SIG(,,));
-  typedef TM_FASTCALL void (*WriteBarrier)(STM_WRITE_SIG(,,,));
-  typedef TM_FASTCALL void (*CommitBarrier)(TxThread*);
+  typedef TM_FASTCALL void* (*ReadBarrier)(STM_READ_SIG(,));
+  typedef TM_FASTCALL void (*WriteBarrier)(STM_WRITE_SIG(,,));
+  typedef TM_FASTCALL void (*CommitBarrier)();
 
   inline void OnReadWriteCommit(TxThread* tx, ReadBarrier read_ro,
                                 WriteBarrier write_ro, CommitBarrier commit_ro)
@@ -270,9 +270,9 @@ namespace stm
       tx->consec_aborts = 0;
       tx->consec_ro = 0;
       ++tx->num_commits;
-      tx->tmread = read_ro;
-      tx->tmwrite = write_ro;
-      tx->tmcommit = commit_ro;
+      tmread = read_ro;
+      tmwrite = write_ro;
+      tmcommit = commit_ro;
       Trigger::onCommitSTM(tx);
   }
 
@@ -315,9 +315,9 @@ namespace stm
   inline void OnFirstWrite(TxThread* tx, ReadBarrier read_rw,
                            WriteBarrier write_rw, CommitBarrier commit_rw)
   {
-      tx->tmread = read_rw;
-      tx->tmwrite = write_rw;
-      tx->tmcommit = commit_rw;
+      tmread = read_rw;
+      tmwrite = write_rw;
+      tmcommit = commit_rw;
   }
 
   inline void PreRollback(TxThread* tx)
@@ -331,9 +331,9 @@ namespace stm
   {
       tx->allocator.onTxAbort();
       tx->nesting_depth = 0;
-      tx->tmread = read_ro;
-      tx->tmwrite = write_ro;
-      tx->tmcommit = commit_ro;
+      tmread = read_ro;
+      tmwrite = write_ro;
+      tmcommit = commit_ro;
       Trigger::onAbort(tx);
       scope_t* scope = tx->scope;
       tx->scope = NULL;
@@ -363,9 +363,9 @@ namespace stm
   {
       tx->allocator.onTxAbort();
       tx->nesting_depth = 0;
-      tx->tmread = r;
-      tx->tmwrite = w;
-      tx->tmcommit = c;
+      tmread = r;
+      tmwrite = w;
+      tmcommit = c;
       scope_t* scope = tx->scope;
       tx->scope = NULL;
       return scope;
@@ -389,14 +389,14 @@ namespace stm
   inline void GoTurbo(TxThread* tx, ReadBarrier r, WriteBarrier w,
                       CommitBarrier c)
   {
-      tx->tmread = r;
-      tx->tmwrite = w;
-      tx->tmcommit = c;
+      tmread = r;
+      tmwrite = w;
+      tmcommit = c;
   }
 
   inline bool CheckTurboMode(TxThread* tx, ReadBarrier read_turbo)
   {
-      return (tx->tmread == read_turbo);
+      return (tmread == read_turbo);
   }
 
   /**

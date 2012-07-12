@@ -34,13 +34,13 @@ using stm::UndoLogEntry;
 namespace {
   struct ByteEager
   {
-      static TM_FASTCALL bool begin(TxThread*);
-      static TM_FASTCALL void* read_ro(STM_READ_SIG(,,));
-      static TM_FASTCALL void* read_rw(STM_READ_SIG(,,));
-      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void commit_ro(TxThread*);
-      static TM_FASTCALL void commit_rw(TxThread*);
+      static TM_FASTCALL bool begin();
+      static TM_FASTCALL void* read_ro(STM_READ_SIG(,));
+      static TM_FASTCALL void* read_rw(STM_READ_SIG(,));
+      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,));
+      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,));
+      static TM_FASTCALL void commit_ro();
+      static TM_FASTCALL void commit_rw();
 
       static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
@@ -64,8 +64,9 @@ namespace {
    *  ByteEager begin:
    */
   bool
-  ByteEager::begin(TxThread* tx)
+  ByteEager::begin()
   {
+      TxThread* tx = stm::Self;
       tx->allocator.onTxBegin();
       return false;
   }
@@ -74,8 +75,9 @@ namespace {
    *  ByteEager commit (read-only):
    */
   void
-  ByteEager::commit_ro(TxThread* tx)
+  ByteEager::commit_ro()
   {
+      TxThread* tx = stm::Self;
       // read-only... release read locks
       foreach (ByteLockList, i, tx->r_bytelocks)
           (*i)->reader[tx->id-1] = 0;
@@ -88,8 +90,9 @@ namespace {
    *  ByteEager commit (writing context):
    */
   void
-  ByteEager::commit_rw(TxThread* tx)
+  ByteEager::commit_rw()
   {
+      TxThread* tx = stm::Self;
       // release write locks, then read locks
       foreach (ByteLockList, i, tx->w_bytelocks)
           (*i)->owner = 0;
@@ -107,8 +110,9 @@ namespace {
    *  ByteEager read (read-only transaction)
    */
   void*
-  ByteEager::read_ro(STM_READ_SIG(tx,addr,))
+  ByteEager::read_ro(STM_READ_SIG(addr,))
   {
+      TxThread* tx = stm::Self;
       uint32_t tries = 0;
       bytelock_t* lock = get_bytelock(addr);
 
@@ -141,8 +145,9 @@ namespace {
    *  ByteEager read (writing transaction)
    */
   void*
-  ByteEager::read_rw(STM_READ_SIG(tx,addr,))
+  ByteEager::read_rw(STM_READ_SIG(addr,))
   {
+      TxThread* tx = stm::Self;
       uint32_t tries = 0;
       bytelock_t* lock = get_bytelock(addr);
 
@@ -177,8 +182,9 @@ namespace {
    *  ByteEager write (read-only context)
    */
   void
-  ByteEager::write_ro(STM_WRITE_SIG(tx,addr,val,mask))
+  ByteEager::write_ro(STM_WRITE_SIG(addr,val,mask))
   {
+      TxThread* tx = stm::Self;
       uint32_t tries = 0;
       bytelock_t* lock = get_bytelock(addr);
 
@@ -212,8 +218,9 @@ namespace {
    *  ByteEager write (writing context)
    */
   void
-  ByteEager::write_rw(STM_WRITE_SIG(tx,addr,val,mask))
+  ByteEager::write_rw(STM_WRITE_SIG(addr,val,mask))
   {
+      TxThread* tx = stm::Self;
       uint32_t tries = 0;
       bytelock_t* lock = get_bytelock(addr);
 

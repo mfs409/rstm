@@ -54,15 +54,15 @@ namespace {
        {0xFFFFFFFF, false},{0xFFFFFFFF, false},{0xFFFFFFFF, false}};
 
   struct PTM {
-      static TM_FASTCALL bool begin(TxThread*);
-      static TM_FASTCALL void* read_ro(STM_READ_SIG(,,));
-      static TM_FASTCALL void* read_rw(STM_READ_SIG(,,));
-      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void write_read_only(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void commit_ro(TxThread* tx);
-      static TM_FASTCALL void commit_rw(TxThread* tx);
-      static TM_FASTCALL void commit_read_only(TxThread* tx);
+      static TM_FASTCALL bool begin();
+      static TM_FASTCALL void* read_ro(STM_READ_SIG(,));
+      static TM_FASTCALL void* read_rw(STM_READ_SIG(,));
+      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,));
+      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,));
+      static TM_FASTCALL void write_read_only(STM_WRITE_SIG(,,));
+      static TM_FASTCALL void commit_ro();
+      static TM_FASTCALL void commit_rw();
+      static TM_FASTCALL void commit_read_only();
 
       static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
@@ -74,8 +74,9 @@ namespace {
    *  Master thread set cntr from even to odd.
    */
   bool
-  PTM::begin(TxThread* tx)
+  PTM::begin()
   {
+      TxThread* tx = stm::Self;
       // starts
       tx->allocator.onTxBegin();
 
@@ -127,8 +128,9 @@ namespace {
    *  Read-only transaction commit immediately
    */
   void
-  PTM::commit_read_only(TxThread* tx)
+  PTM::commit_read_only()
   {
+      TxThread* tx = stm::Self;
       // Set the tx_version to the maximum value
       MY.tx_version = 0xFFFFFFFF;
 
@@ -146,8 +148,9 @@ namespace {
    *  [mfs] Is this optimal?  There might be a fast path we can employ here.
    */
   void
-  PTM::commit_ro(TxThread* tx)
+  PTM::commit_ro()
   {
+      TxThread* tx = stm::Self;
       // Set the tx_version to the maximum value
       MY.tx_version = 0xFFFFFFFF;
 
@@ -165,8 +168,9 @@ namespace {
    *        particularly clear from the code.
    */
   void
-  PTM::commit_rw(TxThread* tx)
+  PTM::commit_rw()
   {
+      TxThread* tx = stm::Self;
       // Wait if tx_version is even
       if ((MY.tx_version & 0x01) == 0) {
           // Wait for version progress
@@ -234,8 +238,9 @@ namespace {
    *  PTM read (read-only transaction)
    */
   void*
-  PTM::read_ro(STM_READ_SIG(tx,addr,))
+  PTM::read_ro(STM_READ_SIG(addr,))
   {
+      TxThread* tx = stm::Self;
       // read_only tx only wait for one round at most
       //
       // [mfs] We could use multiple versions of the read instrumentation to
@@ -258,15 +263,16 @@ namespace {
    *  PTM read (writing transaction)
    */
   void*
-  PTM::read_rw(STM_READ_SIG(tx,addr,mask))
+  PTM::read_rw(STM_READ_SIG(addr,mask))
   {
+      TxThread* tx = stm::Self;
       // check the log for a RAW hazard, we expect to miss
       WriteSetEntry log(STM_WRITE_SET_ENTRY(addr, NULL, mask));
       bool found = tx->writes.find(log);
       REDO_RAW_CHECK(found, log, mask);
 
       // reuse read_ro barrier
-      void* val = read_ro(tx, addr STM_MASK(mask));
+      void* val = read_ro(addr STM_MASK(mask));
       REDO_RAW_CLEANUP(val, found, log, mask);
       return val;
   }
@@ -275,7 +281,7 @@ namespace {
    *  PTM write (for read-only transactions): Do nothing
    */
   void
-  PTM::write_read_only(STM_WRITE_SIG(tx,addr,val,mask))
+  PTM::write_read_only(STM_WRITE_SIG(addr,val,mask))
   {
       printf("Read-only tx called writes!\n");
       return;
@@ -285,8 +291,9 @@ namespace {
    *  PTM write (read-only context): for first write
    */
   void
-  PTM::write_ro(STM_WRITE_SIG(tx,addr,val,mask))
+  PTM::write_ro(STM_WRITE_SIG(addr,val,mask))
   {
+      TxThread* tx = stm::Self;
       // Add to write set
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
       OnFirstWrite(tx, read_rw, write_rw, commit_rw);
@@ -296,8 +303,9 @@ namespace {
    *  PTM write (writing context)
    */
   void
-  PTM::write_rw(STM_WRITE_SIG(tx,addr,val,mask))
+  PTM::write_rw(STM_WRITE_SIG(addr,val,mask))
   {
+      TxThread* tx = stm::Self;
       // record the new value in a redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
   }

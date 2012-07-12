@@ -40,15 +40,17 @@ using stm::get_orec;
  *  Declare the functions that we're going to implement, so that we can avoid
  *  circular dependencies.
  */
-namespace {
-  struct CToken {
-      static TM_FASTCALL bool begin(TxThread*);
-      static TM_FASTCALL void* read_ro(STM_READ_SIG(,,));
-      static TM_FASTCALL void* read_rw(STM_READ_SIG(,,));
-      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void commit_ro(TxThread* tx);
-      static TM_FASTCALL void commit_rw(TxThread* tx);
+namespace
+{
+  struct CToken
+  {
+      static TM_FASTCALL bool begin();
+      static TM_FASTCALL void* read_ro(STM_READ_SIG(,));
+      static TM_FASTCALL void* read_rw(STM_READ_SIG(,));
+      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,));
+      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,));
+      static TM_FASTCALL void commit_ro();
+      static TM_FASTCALL void commit_rw();
 
       static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
@@ -60,8 +62,9 @@ namespace {
    *  CToken begin:
    */
   bool
-  CToken::begin(TxThread* tx)
+  CToken::begin()
   {
+      TxThread* tx = stm::Self;
       tx->allocator.onTxBegin();
       // get time of last finished txn, to know when to validate
       tx->ts_cache = last_complete.val;
@@ -72,8 +75,9 @@ namespace {
    *  CToken commit (read-only):
    */
   void
-  CToken::commit_ro(TxThread* tx)
+  CToken::commit_ro()
   {
+      TxThread* tx = stm::Self;
       // reset lists and we are done
       tx->r_orecs.reset();
       OnReadOnlyCommit(tx);
@@ -85,8 +89,9 @@ namespace {
    *  NB:  Only valid if using pointer-based adaptivity
    */
   void
-  CToken::commit_rw(TxThread* tx)
+  CToken::commit_rw()
   {
+      TxThread* tx = stm::Self;
       // wait until it is our turn to commit, then validate, acquire, and do
       // writeback
       while (last_complete.val != (uintptr_t)(tx->order - 1)) {
@@ -131,8 +136,9 @@ namespace {
    *  CToken read (read-only transaction)
    */
   void*
-  CToken::read_ro(STM_READ_SIG(tx,addr,))
+  CToken::read_ro(STM_READ_SIG(addr,))
   {
+      TxThread* tx = stm::Self;
       // read the location... this is safe since timestamps behave as in Wang's
       // CGO07 paper
       void* tmp = *addr;
@@ -158,15 +164,16 @@ namespace {
    *  CToken read (writing transaction)
    */
   void*
-  CToken::read_rw(STM_READ_SIG(tx,addr,mask))
+  CToken::read_rw(STM_READ_SIG(addr,mask))
   {
+      TxThread* tx = stm::Self;
       // check the log for a RAW hazard, we expect to miss
       WriteSetEntry log(STM_WRITE_SET_ENTRY(addr, NULL, mask));
       bool found = tx->writes.find(log);
       REDO_RAW_CHECK(found, log, mask);
 
       // reuse the ReadRO barrier, which is adequate here---reduces LOC
-      void* val = read_ro(tx, addr STM_MASK(mask));
+      void* val = read_ro(addr STM_MASK(mask));
       REDO_RAW_CLEANUP(val, found, log, mask);
       return val;
   }
@@ -175,8 +182,9 @@ namespace {
    *  CToken write (read-only context)
    */
   void
-  CToken::write_ro(STM_WRITE_SIG(tx,addr,val,mask))
+  CToken::write_ro(STM_WRITE_SIG(addr,val,mask))
   {
+      TxThread* tx = stm::Self;
       // we don't have any writes yet, so we need to get an order here
       tx->order = 1 + faiptr(&timestamp.val);
 
@@ -189,8 +197,9 @@ namespace {
    *  CToken write (writing context)
    */
   void
-  CToken::write_rw(STM_WRITE_SIG(tx,addr,val,mask))
+  CToken::write_rw(STM_WRITE_SIG(addr,val,mask))
   {
+      TxThread* tx = stm::Self;
       // record the new value in a redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
   }

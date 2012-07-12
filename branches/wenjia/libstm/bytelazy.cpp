@@ -36,13 +36,13 @@ using stm::threads;
 namespace {
   struct ByteLazy
   {
-      static TM_FASTCALL bool begin(TxThread*);
-      static TM_FASTCALL void* read_ro(STM_READ_SIG(,,));
-      static TM_FASTCALL void* read_rw(STM_READ_SIG(,,));
-      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void commit_ro(TxThread*);
-      static TM_FASTCALL void commit_rw(TxThread*);
+      static TM_FASTCALL bool begin();
+      static TM_FASTCALL void* read_ro(STM_READ_SIG(,));
+      static TM_FASTCALL void* read_rw(STM_READ_SIG(,));
+      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,));
+      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,));
+      static TM_FASTCALL void commit_ro();
+      static TM_FASTCALL void commit_rw();
 
       static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
@@ -53,8 +53,9 @@ namespace {
    *  ByteLazy begin:
    */
   bool
-  ByteLazy::begin(TxThread* tx)
+  ByteLazy::begin()
   {
+      TxThread* tx = stm::Self;
       tx->allocator.onTxBegin();
       // mark self as alive
       tx->alive = 1;
@@ -65,8 +66,9 @@ namespace {
    *  ByteLazy commit (read-only):
    */
   void
-  ByteLazy::commit_ro(TxThread* tx)
+  ByteLazy::commit_ro()
   {
+      TxThread* tx = stm::Self;
       // were there remote aborts?
       if (!tx->alive)
           tx->tmabort(tx);
@@ -91,8 +93,9 @@ namespace {
    *    release locks, and clean up.
    */
   void
-  ByteLazy::commit_rw(TxThread* tx)
+  ByteLazy::commit_rw()
   {
+      TxThread* tx = stm::Self;
       // try to lock every location in the write set
       unsigned char accumulator[60] = {0};
       // acquire locks, accumulate victim readers
@@ -155,8 +158,9 @@ namespace {
    *  ByteLazy read (read-only transaction)
    */
   void*
-  ByteLazy::read_ro(STM_READ_SIG(tx,addr,))
+  ByteLazy::read_ro(STM_READ_SIG(addr,))
   {
+      TxThread* tx = stm::Self;
       // first test if we've got a read byte
       bytelock_t* bl = get_bytelock(addr);
 
@@ -185,8 +189,9 @@ namespace {
    *  ByteLazy read (writing transaction)
    */
   void*
-  ByteLazy::read_rw(STM_READ_SIG(tx,addr,mask))
+  ByteLazy::read_rw(STM_READ_SIG(addr,mask))
   {
+      TxThread* tx = stm::Self;
       // These are used in REDO_RAW_CLEANUP, so they have to be scoped out
       // here. We expect the compiler to do a good job reordering them when
       // this macro is empty (when word-logging).
@@ -230,8 +235,9 @@ namespace {
    *    this location as if it was a read.
    */
   void
-  ByteLazy::write_ro(STM_WRITE_SIG(tx,addr,val,mask))
+  ByteLazy::write_ro(STM_WRITE_SIG(addr,val,mask))
   {
+      TxThread* tx = stm::Self;
       // Record the new value in a redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
 
@@ -253,8 +259,9 @@ namespace {
    *  ByteLazy write (writing context)
    */
   void
-  ByteLazy::write_rw(STM_WRITE_SIG(tx,addr,val,mask))
+  ByteLazy::write_rw(STM_WRITE_SIG(addr,val,mask))
   {
+      TxThread* tx = stm::Self;
       // Record the new value in a redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
 

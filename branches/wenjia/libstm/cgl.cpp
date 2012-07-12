@@ -1,4 +1,4 @@
-/**
+  /**
  *  Copyright (C) 2011
  *  University of Rochester Department of Computer Science
  *    and
@@ -37,9 +37,9 @@ namespace
   struct CGL
   {
       // begin_CGL is external
-      static TM_FASTCALL void* read(STM_READ_SIG(,,));
-      static TM_FASTCALL void write(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void commit(TxThread*);
+      static TM_FASTCALL void* read(STM_READ_SIG(,));
+      static TM_FASTCALL void write(STM_WRITE_SIG(,,  ));
+      static TM_FASTCALL void commit();
 
       static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
@@ -50,8 +50,9 @@ namespace
    *  CGL commit
    */
   void
-  CGL::commit(TxThread* tx)
+  CGL::commit()
   {
+      TxThread* tx = stm::Self;
       // release the lock, finalize mm ops, and log the commit
       tatas_release(&timestamp.val);
       OnCGLCommit(tx);
@@ -61,7 +62,7 @@ namespace
    *  CGL read
    */
   void*
-  CGL::read(STM_READ_SIG(,addr,))
+  CGL::read(STM_READ_SIG(addr,))
   {
       return *addr;
   }
@@ -70,7 +71,7 @@ namespace
    *  CGL write
    */
   void
-  CGL::write(STM_WRITE_SIG(,addr,val,mask))
+  CGL::write(STM_WRITE_SIG(addr,val,mask))
   {
       STM_DO_MASKED_WRITE(addr, val, mask);
   }
@@ -124,8 +125,9 @@ namespace stm {
    *    This is external and declared in algs.hpp so that we can access it as a
    *    default in places.
    */
-  bool begin_CGL(TxThread* tx)
+  bool begin_CGL()
   {
+      TxThread* tx = stm::Self;
       // get the lock and notify the allocator
       tx->begin_wait = tatas_acquire(&timestamp.val);
       tx->allocator.onTxBegin();
@@ -149,7 +151,7 @@ namespace stm {
       //     and our choice was to use a function called 'begin_CGL'.  For now,
       //     to prevent deadlocks at startup, CGL will use begin_CGL instead of
       //     CGL::begin.  In the long term, hopefully we can do better.
-      stms[CGL].begin     = begin_CGL;
+      stms[CGL].begin     = stm::begin_CGL;
       stms[CGL].commit    = ::CGL::commit;
       stms[CGL].read      = ::CGL::read;
       stms[CGL].write     = ::CGL::write;

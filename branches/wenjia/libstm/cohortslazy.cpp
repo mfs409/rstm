@@ -51,13 +51,13 @@ using stm::last_order;
  */
 namespace {
   struct CohortsLazy {
-      static TM_FASTCALL bool begin(TxThread*);
-      static TM_FASTCALL void* read_ro(STM_READ_SIG(,,));
-      static TM_FASTCALL void* read_rw(STM_READ_SIG(,,));
-      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void commit_ro(TxThread* tx);
-      static TM_FASTCALL void commit_rw(TxThread* tx);
+      static TM_FASTCALL bool begin();
+      static TM_FASTCALL void* read_ro(STM_READ_SIG(,));
+      static TM_FASTCALL void* read_rw(STM_READ_SIG(,));
+      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,));
+      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,));
+      static TM_FASTCALL void commit_ro();
+      static TM_FASTCALL void commit_rw();
 
       static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
@@ -73,8 +73,9 @@ namespace {
    *  commits.
    */
   bool
-  CohortsLazy::begin(TxThread* tx)
+  CohortsLazy::begin()
   {
+      TxThread* tx = stm::Self;
     S1:
       // wait if I'm blocked
       while(gatekeeper == 1);
@@ -102,8 +103,9 @@ namespace {
    *  CohortsLazy commit (read-only):
    */
   void
-  CohortsLazy::commit_ro(TxThread* tx)
+  CohortsLazy::commit_ro()
   {
+      TxThread* tx = stm::Self;
       // mark self status
       tx->status = COHORTS_COMMITTED;
 
@@ -117,8 +119,9 @@ namespace {
    *
    */
   void
-  CohortsLazy::commit_rw(TxThread* tx)
+  CohortsLazy::commit_rw()
   {
+      TxThread* tx = stm::Self;
       // Mark a global flag, no one is allowed to begin now
       //
       // [mfs] If we used ADD on gatekeper, we wouldn't need to do a FAI on
@@ -185,8 +188,9 @@ namespace {
    *  CohortsLazy read (read-only transaction)
    */
   void*
-  CohortsLazy::read_ro(STM_READ_SIG(tx,addr,))
+  CohortsLazy::read_ro(STM_READ_SIG(addr,))
   {
+      TxThread* tx = stm::Self;
       // log orec
       tx->r_orecs.insert(get_orec(addr));
       return *addr;
@@ -196,8 +200,9 @@ namespace {
    *  CohortsLazy read (writing transaction)
    */
   void*
-  CohortsLazy::read_rw(STM_READ_SIG(tx,addr,mask))
+  CohortsLazy::read_rw(STM_READ_SIG(addr,mask))
   {
+      TxThread* tx = stm::Self;
       // check the log for a RAW hazard, we expect to miss
       WriteSetEntry log(STM_WRITE_SET_ENTRY(addr, NULL, mask));
       bool found = tx->writes.find(log);
@@ -215,8 +220,9 @@ namespace {
    *  CohortsLazy write (read-only context): for first write
    */
   void
-  CohortsLazy::write_ro(STM_WRITE_SIG(tx,addr,val,mask))
+  CohortsLazy::write_ro(STM_WRITE_SIG(addr,val,mask))
   {
+      TxThread* tx = stm::Self;
       // record the new value in a redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
       OnFirstWrite(tx, read_rw, write_rw, commit_rw);
@@ -226,8 +232,9 @@ namespace {
    *  CohortsLazy write (writing context)
    */
   void
-  CohortsLazy::write_rw(STM_WRITE_SIG(tx,addr,val,mask))
+  CohortsLazy::write_rw(STM_WRITE_SIG(addr,val,mask))
   {
+      TxThread* tx = stm::Self;
       // record the new value in a redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
   }

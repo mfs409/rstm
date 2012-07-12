@@ -50,16 +50,16 @@ namespace {
   volatile uint32_t inplace = 0;
 
   struct CohortsEager {
-      static TM_FASTCALL bool begin(TxThread*);
-      static TM_FASTCALL void* read_ro(STM_READ_SIG(,,));
-      static TM_FASTCALL void* read_rw(STM_READ_SIG(,,));
-      static TM_FASTCALL void* read_turbo(STM_READ_SIG(,,));
-      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void write_turbo(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void commit_ro(TxThread* tx);
-      static TM_FASTCALL void commit_rw(TxThread* tx);
-      static TM_FASTCALL void commit_turbo(TxThread* tx);
+      static TM_FASTCALL bool begin();
+      static TM_FASTCALL void* read_ro(STM_READ_SIG(,));
+      static TM_FASTCALL void* read_rw(STM_READ_SIG(,));
+      static TM_FASTCALL void* read_turbo(STM_READ_SIG(,));
+      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,));
+      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,));
+      static TM_FASTCALL void write_turbo(STM_WRITE_SIG(,,));
+      static TM_FASTCALL void commit_ro();
+      static TM_FASTCALL void commit_rw();
+      static TM_FASTCALL void commit_turbo();
 
       static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
@@ -75,8 +75,9 @@ namespace {
    *  commits.
    */
   bool
-  CohortsEager::begin(TxThread* tx)
+  CohortsEager::begin()
   {
+      TxThread* tx = stm::Self;
       tx->allocator.onTxBegin();
 
     S1:
@@ -103,8 +104,9 @@ namespace {
    *  CohortsEager commit (read-only):
    */
   void
-  CohortsEager::commit_ro(TxThread* tx)
+  CohortsEager::commit_ro()
   {
+      TxThread* tx = stm::Self;
       // decrease total number of tx started
       SUB(&started.val, 1);
 
@@ -118,8 +120,9 @@ namespace {
    *  no other thread touches cpending
    */
   void
-  CohortsEager::commit_turbo(TxThread* tx)
+  CohortsEager::commit_turbo()
   {
+      TxThread* tx = stm::Self;
       // increase # of tx waiting to commit, and use it as the order
       tx->order = ADD(&cpending.val, 1);
 
@@ -148,8 +151,9 @@ namespace {
    *  in an order which is given at the beginning of commit.
    */
   void
-  CohortsEager::commit_rw(TxThread* tx)
+  CohortsEager::commit_rw()
   {
+      TxThread* tx = stm::Self;
       // increase # of tx waiting to commit, and use it as the order
       tx->order = ADD(&cpending.val, 1);
 
@@ -197,7 +201,7 @@ namespace {
    *  CohortsEager read_turbo
    */
   void*
-  CohortsEager::read_turbo(STM_READ_SIG(tx,addr,))
+  CohortsEager::read_turbo(STM_READ_SIG(addr,))
   {
       return *addr;
   }
@@ -206,8 +210,9 @@ namespace {
    *  CohortsEager read (read-only transaction)
    */
   void*
-  CohortsEager::read_ro(STM_READ_SIG(tx,addr,))
+  CohortsEager::read_ro(STM_READ_SIG(addr,))
   {
+      TxThread* tx = stm::Self;
       // log orec
       tx->r_orecs.insert(get_orec(addr));
       return *addr;
@@ -217,8 +222,9 @@ namespace {
    *  CohortsEager read (writing transaction)
    */
   void*
-  CohortsEager::read_rw(STM_READ_SIG(tx,addr,mask))
+  CohortsEager::read_rw(STM_READ_SIG(addr,mask))
   {
+      TxThread* tx = stm::Self;
       // check the log for a RAW hazard, we expect to miss
       WriteSetEntry log(STM_WRITE_SET_ENTRY(addr, NULL, mask));
       bool found = tx->writes.find(log);
@@ -236,8 +242,9 @@ namespace {
    *  CohortsEager write (read-only context): for first write
    */
   void
-  CohortsEager::write_ro(STM_WRITE_SIG(tx,addr,val,mask))
+  CohortsEager::write_ro(STM_WRITE_SIG(addr,val,mask))
   {
+      TxThread* tx = stm::Self;
       // If everyone else is ready to commit, do in place write
       if (cpending.val + 1 == started.val) {
           // set up flag indicating in place write starts
@@ -268,8 +275,9 @@ namespace {
    *  CohortsEager write (in place write)
    */
   void
-  CohortsEager::write_turbo(STM_WRITE_SIG(tx,addr,val,mask))
+  CohortsEager::write_turbo(STM_WRITE_SIG(addr,val,mask))
   {
+      TxThread* tx = stm::Self;
       orec_t* o = get_orec(addr);
       o->v.all = tx->order; // mark orec
       *addr = val; // in place write
@@ -279,8 +287,9 @@ namespace {
    *  CohortsEager write (writing context)
    */
   void
-  CohortsEager::write_rw(STM_WRITE_SIG(tx,addr,val,mask))
+  CohortsEager::write_rw(STM_WRITE_SIG(addr,val,mask))
   {
+      TxThread* tx = stm::Self;
       // record the new value in a redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
   }

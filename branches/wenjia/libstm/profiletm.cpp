@@ -31,13 +31,13 @@ namespace
  */
   struct ProfileTM
   {
-      static TM_FASTCALL bool begin(TxThread*);
-      static TM_FASTCALL void* read_ro(STM_READ_SIG(,,));
-      static TM_FASTCALL void* read_rw(STM_READ_SIG(,,));
-      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void commit_ro(TxThread*);
-      static TM_FASTCALL void commit_rw(TxThread*);
+      static TM_FASTCALL bool begin();
+      static TM_FASTCALL void* read_ro(STM_READ_SIG(,));
+      static TM_FASTCALL void* read_rw(STM_READ_SIG(,));
+      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,));
+      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,));
+      static TM_FASTCALL void commit_ro();
+      static TM_FASTCALL void commit_rw();
 
       static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
@@ -52,8 +52,9 @@ namespace
    *    that we run.
    */
   bool
-  ProfileTM::begin(TxThread* tx)
+  ProfileTM::begin()
   {
+      TxThread* tx = stm::Self;
       // bump the last_init field
       uintptr_t my_order = faiptr(&last_init.val);
       // if my order can fit in a range from 0 .. profile_txns - 1, wait my
@@ -89,13 +90,13 @@ namespace
           casptr((volatile uintptr_t*)&tx->scope, (uintptr_t)0, (uintptr_t)b);
 #endif
           // read the begin function pointer AFTER setting the scope
-          bool TM_FASTCALL (*beginner)(TxThread*) = TxThread::tmbegin;
+          bool TM_FASTCALL (*beginner)() = TxThread::tmbegin;
           // if begin_blocker is no longer installed, and ProfileTM::begin
           // isn't installed either, we can call the pointer to start a
           // transaction, and then return.  Otherwise, we missed our window,
           // so we need to go back to the top of the loop
           if ((beginner != stm::begin_blocker) && (beginner != begin))
-              return beginner(tx);
+              return beginner();
       }
   }
 
@@ -107,8 +108,9 @@ namespace
    *    the final transaction of the set that were requested.
    */
   void
-  ProfileTM::commit_ro(TxThread* tx)
+  ProfileTM::commit_ro()
   {
+      TxThread* tx = stm::Self;
       // figure out this transaction's running time
       unsigned long long tmp = tick();
       profiles[last_complete.val].txn_time =
@@ -129,8 +131,9 @@ namespace
    *    Same as RO case, but we must also perform the writeback.
    */
   void
-  ProfileTM::commit_rw(TxThread* tx)
+  ProfileTM::commit_rw()
   {
+      TxThread* tx = stm::Self;
       // we're committed... run the redo log, remember that this is a commit
       tx->writes.writeback();
       int x = tx->writes.size();
@@ -160,8 +163,9 @@ namespace
    *    Simply read the location, and remember that we did a read
    */
   void*
-  ProfileTM::read_ro(STM_READ_SIG(,addr,))
+  ProfileTM::read_ro(STM_READ_SIG(addr,))
   {
+      TxThread* tx = stm::Self;
       ++profiles[last_complete.val].read_ro;
       return *addr;
   }
@@ -170,8 +174,9 @@ namespace
    *  ProfileTM read (writing transaction)
    */
   void*
-  ProfileTM::read_rw(STM_READ_SIG(tx,addr,mask))
+  ProfileTM::read_rw(STM_READ_SIG( addr,mask))
   {
+      TxThread* tx = stm::Self;
       // check the log
       WriteSetEntry log(STM_WRITE_SET_ENTRY(addr, NULL, mask));
       if (tx->writes.find(log)) {
@@ -187,8 +192,9 @@ namespace
    *  ProfileTM write (read-only context)
    */
   void
-  ProfileTM::write_ro(STM_WRITE_SIG(tx,addr,val,mask))
+  ProfileTM::write_ro(STM_WRITE_SIG(addr,val,mask))
   {
+      TxThread* tx = stm::Self;
       // do a buffered write
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
       ++profiles[last_complete.val].write_waw;
@@ -199,8 +205,9 @@ namespace
    *  ProfileTM write (writing context)
    */
   void
-  ProfileTM::write_rw(STM_WRITE_SIG(tx,addr,val,mask))
+  ProfileTM::write_rw(STM_WRITE_SIG(addr,val,mask))
   {
+      TxThread* tx = stm::Self;
       // do a buffered write
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
       ++profiles[last_complete.val].write_waw;

@@ -1,4 +1,4 @@
-/**
+  /**
  *  Copyright (C) 2011
  *  University of Rochester Department of Computer Science
  *    and
@@ -31,10 +31,10 @@ using stm::ticketlock;
 namespace {
   struct Ticket
   {
-      static TM_FASTCALL bool begin(TxThread*);
-      static TM_FASTCALL void* read(STM_READ_SIG(,,));
-      static TM_FASTCALL void write(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void commit(TxThread*);
+      static TM_FASTCALL bool begin();
+      static TM_FASTCALL void* read(STM_READ_SIG(,));
+      static TM_FASTCALL void write(STM_WRITE_SIG(,,  ));
+      static TM_FASTCALL void commit();
 
       static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
@@ -45,7 +45,8 @@ namespace {
    *  Ticket begin:
    */
   bool
-  Ticket::begin(TxThread* tx) {
+  Ticket::begin() {
+      TxThread* tx = stm::Self;
       // get the ticket lock
       tx->begin_wait = ticket_acquire(&ticketlock);
       tx->allocator.onTxBegin();
@@ -55,8 +56,9 @@ namespace {
   /**
    *  Ticket commit:
    */
-  void
-  Ticket::commit(TxThread* tx) {
+  void Ticket::commit()
+  {
+      TxThread* tx = stm::Self;
       // release the lock, finalize mm ops, and log the commit
       ticket_release(&ticketlock);
       OnCGLCommit(tx);
@@ -65,16 +67,16 @@ namespace {
   /**
    *  Ticket read
    */
-  void*
-  Ticket::read(STM_READ_SIG(,addr,)) {
+  void* Ticket::read(STM_READ_SIG(addr,))
+  {
       return *addr;
   }
 
   /**
    *  Ticket write
    */
-  void
-  Ticket::write(STM_WRITE_SIG(,addr,val,mask)) {
+  void Ticket::write(STM_WRITE_SIG(addr,val,mask))
+  {
       STM_DO_MASKED_WRITE(addr, val, mask);
   }
 
