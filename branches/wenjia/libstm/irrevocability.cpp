@@ -8,12 +8,11 @@
  *          Please see the file LICENSE.RSTM for licensing information
  */
 
-#include "platform.hpp"   // NORETURN, FASTCALL, etc
-#include "lib_globals.hpp"   // AbortHandler
-#include "macros.hpp"        // barrier signatures
-#include "txthread.hpp"      // TxThread stuff
-#include "policies.hpp" // curr_policy
-#include "algs.hpp"         // stms
+#include "../include/platform.hpp"    // NORETURN, FASTCALL, etc
+#include "../include/macros.hpp"      // barrier signatures
+#include "txthread.hpp"    // TxThread stuff
+#include "policies.hpp"    // curr_policy
+#include "algs.hpp"        // stms
 #include "tml_inline.hpp"
 
 using stm::UNRECOVERABLE;

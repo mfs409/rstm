@@ -30,7 +30,7 @@ endif
 # Updates to flags: we want support for dependencies, and we build an .h file
 #                   in the ODIR that we need to have on the include path
 #
-CXXFLAGS += -MMD -I$(ODIR) -I../include -I../
+CXXFLAGS += -MMD
 
 #
 # All the cpp files are listed here

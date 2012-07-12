@@ -8,7 +8,7 @@
  *          Please see the file LICENSE.RSTM for licensing information
  */
 
-#include <WBMMPolicy.hpp>
+#include "WBMMPolicy.hpp"
 using namespace stm;
 
 namespace

@@ -18,7 +18,7 @@
  *    avoiding atomic operations for acquiring orecs.
  */
 
-#include "../profiling.hpp"
+#include "profiling.hpp"
 #include "algs.hpp"
 #include "RedoRAWUtils.hpp"
 

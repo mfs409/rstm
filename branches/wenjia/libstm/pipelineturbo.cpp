@@ -25,7 +25,7 @@
 #include "profiling.hpp"
 #include "algs.hpp"
 #include "RedoRAWUtils.hpp"
-#include <UndoLog.hpp> // STM_DO_MASKED_WRITE
+#include "UndoLog.hpp" // STM_DO_MASKED_WRITE
 
 using stm::TxThread;
 using stm::threads;

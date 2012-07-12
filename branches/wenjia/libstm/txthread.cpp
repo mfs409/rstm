@@ -10,8 +10,7 @@
 
 #include <setjmp.h>
 #include <iostream>
-#include <txthread.hpp>
-#include <lib_globals.hpp>
+#include "txthread.hpp"
 #include "policies.hpp"
 #include "tml_inline.hpp"
 #include "algs.hpp"
@@ -420,4 +419,94 @@ namespace stm
   THREAD_LOCAL_DECL_TYPE(TM_FASTCALL void(*tmcommit)());
   THREAD_LOCAL_DECL_TYPE(TM_FASTCALL void*(*tmread)(STM_READ_SIG(,)));
   THREAD_LOCAL_DECL_TYPE(TM_FASTCALL void(*tmwrite)(STM_WRITE_SIG(,,)));
+
+  /**
+   *  Code to start a transaction.  We assume the caller already performed a
+   *  setjmp, and is passing a valid setjmp buffer to this function.
+   *
+   *  The code to begin a transaction *could* all live on the far side of a
+   *  function pointer.  By putting some of the code into this inlined
+   *  function, we can:
+   *
+   *    (a) avoid overhead under subsumption nesting and
+   *    (b) avoid code duplication or MACRO nastiness
+   */
+  void begin(scope_t* s, uint32_t /*abort_flags*/)
+  {
+      TxThread* tx = stm::Self;
+      if (++tx->nesting_depth > 1)
+          return;
+
+      // we must ensure that the write of the transaction's scope occurs
+      // *before* the read of the begin function pointer.  On modern x86, a
+      // CAS is faster than using WBR or xchg to achieve the ordering.  On
+      // SPARC, WBR is best.
+#ifdef STM_CPU_SPARC
+      tx->scope = s; WBR;
+#else
+      // NB: this CAS fails on a transaction restart... is that too expensive?
+      casptr((volatile uintptr_t*)&tx->scope, (uintptr_t)0, (uintptr_t)s);
+#endif
+
+      // some adaptivity mechanisms need to know nontransactional and
+      // transactional time.  This code suffices, because it gets the time
+      // between transactions.  If we need the time for a single transaction,
+      // we can run ProfileTM
+      if (tx->end_txn_time)
+          tx->total_nontxn_time += (tick() - tx->end_txn_time);
+
+      // now call the per-algorithm begin function
+      TxThread::tmbegin();
+  }
+
+  /**
+   *  Code to commit a transaction.  As in begin(), we are using forced
+   *  inlining to save a little bit of overhead for subsumption nesting, and to
+   *  prevent code duplication.
+   */
+  void commit()
+  {
+      TxThread* tx = stm::Self;
+      // don't commit anything if we're nested... just exit this scope
+      if (--tx->nesting_depth)
+          return;
+
+      // dispatch to the appropriate end function
+      tmcommit();
+
+      // zero scope (to indicate "not in tx")
+      CFENCE;
+      tx->scope = NULL;
+
+      // record start of nontransactional time
+      tx->end_txn_time = tick();
+  }
+
+  /**
+   *  get a chunk of memory that will be automatically reclaimed if the caller
+   *  is a transaction that ultimately aborts
+   */
+  void* tx_alloc(size_t size) { return Self->allocator.txAlloc(size); }
+
+  /**
+   *  Free some memory.  If the caller is a transaction that ultimately aborts,
+   *  the free will not happen.  If the caller is a transaction that commits,
+   *  the free will happen at commit time.
+   */
+  void tx_free(void* p) { Self->allocator.txFree(p); }
+
+  /***  Set up a thread's transactional context */
+  void thread_init() { TxThread::thread_init(); }
+
+  /***  Shut down a thread's transactional context */
+  void thread_shutdown() { TxThread::thread_shutdown(); }
+
+  /*** declare the next transaction of this thread to be read-only */
+  void declare_read_only()
+  {
+    stm::TxThread* tx = (stm::TxThread*)stm::Self;
+    if (tx->nesting_depth == 0)
+        tx->read_only = true;
+  }
+
 } // namespace stm

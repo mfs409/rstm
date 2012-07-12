@@ -20,7 +20,7 @@
  */
 
 #include "profiling.hpp"
-#include "../cm.hpp"
+#include "cm.hpp"
 #include "algs.hpp"
 
 using stm::TxThread;

@@ -9,31 +9,32 @@
 #
 
 #
-# Location of helper build files
+# Path to RSTM tree.  This tree will have:
+#  include, alt-license: folders with useful header files
+#  build:                folder with makefiles
+#  libstm:               folder with .a and .o files
 #
-MKFOLDER  = ../build
-include $(MKFOLDER)/info.mk
+PATH_TO_RSTM = ..
 
 #
-# Location of RSTM libraries and includes
+# Location of helper build files
 #
-RSTMLIB = ../lib
-RSTMINC = ../include
+MKFOLDER  = $(PATH_TO_RSTM)/build
+include $(MKFOLDER)/info.mk
 
 #
 # Updates to flags: we want support for dependencies, and for building
 # benchmarks without special .o files for the harness
 #
 # NB: we include $(RSTMINC) to get the header that defines the
-#     instrumentation API, and we include $(RSTMLIB) to get access to the
-#     atomic op definitions from platform.hpp
+#     instrumentation API
 #
-CXXFLAGS += -MMD -DSINGLE_SOURCE_BUILD -I$(RSTMINC) -I$(RSTMLIB) -I../
+CXXFLAGS += -MMD -DSINGLE_SOURCE_BUILD -I$(PATH_TO_RSTM) -I$(PATH_TO_RSTM)/include
 
 #
 # updates to LDFLAGS
 #
-LDFLAGS += -L../libstm/$(ODIR)/ -lrstm
+LDFLAGS += -L$(PATH_TO_RSTM)/libstm/$(ODIR)/ -lrstm
 
 #
 # Output folder: Note that the folder is built at parse time, so that we
@@ -65,7 +66,7 @@ DEPS = $(patsubst %.o, %.d, $(BENCHOFILES))
 #
 # Link rule
 #
-$(ODIR)/%: $(ODIR)/%.o ../libstm/$(ODIR)/librstm.a
+$(ODIR)/%: $(ODIR)/%.o $(PATH_TO_RSTM)/libstm/$(ODIR)/librstm.a
 	@echo [LD] $@
 	@$(CXX) -o $@ $^ $(LDFLAGS)
 

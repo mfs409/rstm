@@ -54,8 +54,7 @@ namespace
    *  the other one with a read number of 5.  In this case, we will choose
    *  the row with 5.
    */
-  TM_INLINE unsigned long
-  norm_dist(unsigned long a, unsigned long b)
+  unsigned long norm_dist(unsigned long a, unsigned long b)
   {
       return (a == b) ? 0 : (100*abs((int)(a-b)))/MAXIMUM(a, b);
   }

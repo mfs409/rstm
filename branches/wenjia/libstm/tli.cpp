@@ -17,7 +17,7 @@
  *    optimistic mechanisms.
  */
 
-#include "../profiling.hpp"
+#include "profiling.hpp"
 #include "algs.hpp"
 #include "RedoRAWUtils.hpp"
 

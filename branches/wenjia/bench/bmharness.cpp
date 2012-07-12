@@ -17,7 +17,7 @@
 #include <pthread.h>
 #include <stm.hpp>
 #include <platform.hpp>
-#include <locks.hpp>
+//#include <locks.hpp>
 #include "bmconfig.hpp"
 
 using std::string;
@@ -118,7 +118,7 @@ nontxnwork()
 {
     if (CFG.nops_after_tx)
         for (uint32_t i = 0; i < CFG.nops_after_tx; i++)
-            spin64();
+            nop();
 }
 
 /*** Signal handler to end a test */
