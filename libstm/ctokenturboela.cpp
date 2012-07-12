@@ -41,16 +41,16 @@ using stm::WriteSetEntry;
  */
 namespace {
   struct CTokenTurboELA {
-      static TM_FASTCALL bool begin(TxThread*);
-      static TM_FASTCALL void* read_ro(STM_READ_SIG(,,));
-      static TM_FASTCALL void* read_rw(STM_READ_SIG(,,));
-      static TM_FASTCALL void* read_turbo(STM_READ_SIG(,,));
-      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void write_turbo(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void commit_ro(TxThread*);
-      static TM_FASTCALL void commit_rw(TxThread*);
-      static TM_FASTCALL void commit_turbo(TxThread*);
+      static TM_FASTCALL bool begin();
+      static TM_FASTCALL void* read_ro(STM_READ_SIG(,));
+      static TM_FASTCALL void* read_rw(STM_READ_SIG(,));
+      static TM_FASTCALL void* read_turbo(STM_READ_SIG(,));
+      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,));
+      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,));
+      static TM_FASTCALL void write_turbo(STM_WRITE_SIG(,,));
+      static TM_FASTCALL void commit_ro();
+      static TM_FASTCALL void commit_rw();
+      static TM_FASTCALL void commit_turbo();
 
       static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
@@ -62,8 +62,9 @@ namespace {
    *  CTokenTurboELA begin:
    */
   bool
-  CTokenTurboELA::begin(TxThread* tx)
+  CTokenTurboELA::begin()
   {
+      TxThread* tx = stm::Self;
       tx->allocator.onTxBegin();
 
       // get time of last finished txn
@@ -82,8 +83,9 @@ namespace {
    *  CTokenTurboELA commit (read-only):
    */
   void
-  CTokenTurboELA::commit_ro(TxThread* tx)
+  CTokenTurboELA::commit_ro()
   {
+      TxThread* tx = stm::Self;
       tx->r_orecs.reset();
       tx->order = -1;
       OnReadOnlyCommit(tx);
@@ -95,8 +97,9 @@ namespace {
    *  Only valid with pointer-based adaptivity
    */
   void
-  CTokenTurboELA::commit_rw(TxThread* tx)
+  CTokenTurboELA::commit_rw()
   {
+      TxThread* tx = stm::Self;
       // we need to transition to fast here, but not till our turn
       while (last_complete.val != ((uintptr_t)tx->order - 1)) {
           // check if an adaptivity event necessitates that we abort to change
@@ -142,8 +145,9 @@ namespace {
    *  CTokenTurboELA commit (turbo mode):
    */
   void
-  CTokenTurboELA::commit_turbo(TxThread* tx)
+  CTokenTurboELA::commit_turbo()
   {
+      TxThread* tx = stm::Self;
       CFENCE; // wbw between writeback and last_complete.val update
       last_complete.val = tx->order;
 
@@ -160,8 +164,9 @@ namespace {
    *  CTokenTurboELA read (read-only transaction)
    */
   void*
-  CTokenTurboELA::read_ro(STM_READ_SIG(tx,addr,))
+  CTokenTurboELA::read_ro(STM_READ_SIG(addr,))
   {
+      TxThread* tx = stm::Self;
       void* tmp = *addr;
       CFENCE; // RBR between dereference and orec check
 
@@ -203,8 +208,9 @@ namespace {
    *  CTokenTurboELA read (writing transaction)
    */
   void*
-  CTokenTurboELA::read_rw(STM_READ_SIG(tx,addr,mask))
+  CTokenTurboELA::read_rw(STM_READ_SIG(addr,mask))
   {
+      TxThread* tx = stm::Self;
       // check the log for a RAW hazard, we expect to miss
       WriteSetEntry log(STM_WRITE_SET_ENTRY(addr, NULL, mask));
       bool found = tx->writes.find(log);
@@ -234,7 +240,7 @@ namespace {
    *  CTokenTurboELA read (read-turbo mode)
    */
   void*
-  CTokenTurboELA::read_turbo(STM_READ_SIG(,addr,))
+  CTokenTurboELA::read_turbo(STM_READ_SIG(addr,))
   {
       return *addr;
   }
@@ -243,8 +249,9 @@ namespace {
    *  CTokenTurboELA write (read-only context)
    */
   void
-  CTokenTurboELA::write_ro(STM_WRITE_SIG(tx,addr,val,mask))
+  CTokenTurboELA::write_ro(STM_WRITE_SIG(addr,val,mask))
   {
+      TxThread* tx = stm::Self;
       // we don't have any writes yet, so we need to get an order here
       tx->order = 1 + faiptr(&timestamp.val);
 
@@ -265,8 +272,9 @@ namespace {
    *  CTokenTurboELA write (writing context)
    */
   void
-  CTokenTurboELA::write_rw(STM_WRITE_SIG(tx,addr,val,mask))
+  CTokenTurboELA::write_rw(STM_WRITE_SIG(addr,val,mask))
   {
+      TxThread* tx = stm::Self;
       // record the new value in a redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
   }
@@ -275,8 +283,9 @@ namespace {
    *  CTokenTurboELA write (turbo mode)
    */
   void
-  CTokenTurboELA::write_turbo(STM_WRITE_SIG(tx,addr,val,mask))
+  CTokenTurboELA::write_turbo(STM_WRITE_SIG(addr,val,mask))
   {
+      TxThread* tx = stm::Self;
       // mark the orec, then update the location
       orec_t* o = get_orec(addr);
       o->v.all = tx->order;

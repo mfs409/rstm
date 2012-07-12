@@ -53,13 +53,13 @@ namespace {
   NOINLINE bool validate(TxThread* tx);
 
   struct CohortsFilter {
-      static TM_FASTCALL bool begin(TxThread*);
-      static TM_FASTCALL void* read_ro(STM_READ_SIG(,,));
-      static TM_FASTCALL void* read_rw(STM_READ_SIG(,,));
-      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void commit_ro(TxThread* tx);
-      static TM_FASTCALL void commit_rw(TxThread* tx);
+      static TM_FASTCALL bool begin();
+      static TM_FASTCALL void* read_ro(STM_READ_SIG(,));
+      static TM_FASTCALL void* read_rw(STM_READ_SIG(,));
+      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,));
+      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,));
+      static TM_FASTCALL void commit_ro();
+      static TM_FASTCALL void commit_rw();
 
       static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
@@ -74,8 +74,9 @@ namespace {
    *  commits.
    */
   bool
-  CohortsFilter::begin(TxThread* tx)
+  CohortsFilter::begin()
   {
+      TxThread* tx = stm::Self;
     S1:
       // wait until everyone is committed
       while (cpending.val != committed.val)
@@ -98,8 +99,9 @@ namespace {
    *  CohortsFilter commit (read-only):
    */
   void
-  CohortsFilter::commit_ro(TxThread* tx)
+  CohortsFilter::commit_ro()
   {
+      TxThread* tx = stm::Self;
       // decrease total number of tx started
       SUB(&started.val, 1);
 
@@ -115,8 +117,9 @@ namespace {
    *  in an order which is given at the beginning of commit.
    */
   void
-  CohortsFilter::commit_rw(TxThread* tx)
+  CohortsFilter::commit_rw()
   {
+      TxThread* tx = stm::Self;
       // increment num of tx ready to commit, and use it as the order
       tx->order = ADD(&cpending.val, 1);
 
@@ -173,8 +176,9 @@ namespace {
    *  CohortsFilter read (read-only transaction)
    */
   void*
-  CohortsFilter::read_ro(STM_READ_SIG(tx,addr,))
+  CohortsFilter::read_ro(STM_READ_SIG(addr,))
   {
+      TxThread* tx = stm::Self;
       tx->rf->add(addr);
       return *addr;
   }
@@ -183,8 +187,9 @@ namespace {
    *  CohortsFilter read (writing transaction)
    */
   void*
-  CohortsFilter::read_rw(STM_READ_SIG(tx,addr,mask))
+  CohortsFilter::read_rw(STM_READ_SIG(addr,mask))
   {
+      TxThread* tx = stm::Self;
       // check the log for a RAW hazard, we expect to miss
       WriteSetEntry log(STM_WRITE_SET_ENTRY(addr, NULL, mask));
       bool found = tx->writes.find(log);
@@ -202,8 +207,9 @@ namespace {
    *  CohortsFilter write (read-only context): for first write
    */
   void
-  CohortsFilter::write_ro(STM_WRITE_SIG(tx,addr,val,mask))
+  CohortsFilter::write_ro(STM_WRITE_SIG(addr,val,mask))
   {
+      TxThread* tx = stm::Self;
       // record the new value in a redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
       tx->wf->add(addr);
@@ -214,8 +220,9 @@ namespace {
    *  CohortsFilter write (writing context)
    */
   void
-  CohortsFilter::write_rw(STM_WRITE_SIG(tx,addr,val,mask))
+  CohortsFilter::write_rw(STM_WRITE_SIG(addr,val,mask))
   {
+      TxThread* tx = stm::Self;
       // record the new value in a redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
       tx->wf->add(addr);

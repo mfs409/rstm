@@ -35,13 +35,13 @@ using stm::threads;
 namespace {
   struct ByEAR
   {
-      static TM_FASTCALL bool begin(TxThread*);
-      static TM_FASTCALL void* read_ro(STM_READ_SIG(,,));
-      static TM_FASTCALL void* read_rw(STM_READ_SIG(,,));
-      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void commit_ro(TxThread*);
-      static TM_FASTCALL void commit_rw(TxThread*);
+      static TM_FASTCALL bool begin();
+      static TM_FASTCALL void* read_ro(STM_READ_SIG(,));
+      static TM_FASTCALL void* read_rw(STM_READ_SIG(,));
+      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,));
+      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,));
+      static TM_FASTCALL void commit_ro();
+      static TM_FASTCALL void commit_rw();
 
       static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
@@ -59,8 +59,9 @@ namespace {
    *  ByEAR begin:
    */
   bool
-  ByEAR::begin(TxThread* tx)
+  ByEAR::begin()
   {
+      TxThread* tx = stm::Self;
       tx->allocator.onTxBegin();
       // set self to active
       tx->alive = TX_ACTIVE;
@@ -71,8 +72,9 @@ namespace {
    *  ByEAR commit (read-only):
    */
   void
-  ByEAR::commit_ro(TxThread* tx)
+  ByEAR::commit_ro()
   {
+      TxThread* tx = stm::Self;
       // read-only... release read locks
       foreach (ByteLockList, i, tx->r_bytelocks)
           (*i)->reader[tx->id-1] = 0;
@@ -85,8 +87,9 @@ namespace {
    *  ByEAR commit (writing context):
    */
   void
-  ByEAR::commit_rw(TxThread* tx)
+  ByEAR::commit_rw()
   {
+      TxThread* tx = stm::Self;
       // atomically mark self committed
       if (!bcas32(&tx->alive, TX_ACTIVE, TX_COMMITTED))
           tx->tmabort(tx);
@@ -112,8 +115,9 @@ namespace {
    *  ByEAR read (read-only transaction)
    */
   void*
-  ByEAR::read_ro(STM_READ_SIG(tx,addr,))
+  ByEAR::read_ro(STM_READ_SIG(addr,))
   {
+      TxThread* tx = stm::Self;
       bytelock_t* lock = get_bytelock(addr);
 
       // do I have a read lock?
@@ -155,8 +159,9 @@ namespace {
    *  ByEAR read (writing transaction)
    */
   void*
-  ByEAR::read_rw(STM_READ_SIG(tx,addr,mask))
+  ByEAR::read_rw(STM_READ_SIG(addr,mask))
   {
+      TxThread* tx = stm::Self;
       bytelock_t* lock = get_bytelock(addr);
 
       // skip instrumentation if I am the writer
@@ -212,8 +217,9 @@ namespace {
    *  ByEAR write (read-only context)
    */
   void
-  ByEAR::write_ro(STM_WRITE_SIG(tx,addr,val,mask))
+  ByEAR::write_ro(STM_WRITE_SIG(addr,val,mask))
   {
+      TxThread* tx = stm::Self;
       bytelock_t* lock = get_bytelock(addr);
 
       // abort current owner, wait for release, then acquire
@@ -254,8 +260,9 @@ namespace {
    *  ByEAR write (writing context)
    */
   void
-  ByEAR::write_rw(STM_WRITE_SIG(tx,addr,val,mask))
+  ByEAR::write_rw(STM_WRITE_SIG(addr,val,mask))
   {
+      TxThread* tx = stm::Self;
       bytelock_t* lock = get_bytelock(addr);
 
       // fastpath for repeat writes to the same location

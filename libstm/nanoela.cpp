@@ -54,13 +54,13 @@ namespace
 {
   struct NanoELA
   {
-      static TM_FASTCALL bool begin(TxThread*);
-      static TM_FASTCALL void* read_ro(STM_READ_SIG(,,));
-      static TM_FASTCALL void* read_rw(STM_READ_SIG(,,));
-      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void commit_ro(TxThread*);
-      static TM_FASTCALL void commit_rw(TxThread*);
+      static TM_FASTCALL bool begin();
+      static TM_FASTCALL void* read_ro(STM_READ_SIG(,));
+      static TM_FASTCALL void* read_rw(STM_READ_SIG(,));
+      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,));
+      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,));
+      static TM_FASTCALL void commit_ro();
+      static TM_FASTCALL void commit_rw();
 
       static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
@@ -71,8 +71,9 @@ namespace
    *  NanoELA begin:
    */
   bool
-  NanoELA::begin(TxThread* tx)
+  NanoELA::begin()
   {
+      TxThread* tx = stm::Self;
       tx->allocator.onTxBegin();
       return false;
   }
@@ -81,8 +82,9 @@ namespace
    *  NanoELA commit (read-only context)
    */
   void
-  NanoELA::commit_ro(TxThread* tx)
+  NanoELA::commit_ro()
   {
+      TxThread* tx = stm::Self;
       // read-only, so reset the orec list and we are done
       tx->nanorecs.reset();
       OnReadOnlyCommit(tx);
@@ -95,8 +97,9 @@ namespace
    *    then validate, then do writeback.
    */
   void
-  NanoELA::commit_rw(TxThread* tx)
+  NanoELA::commit_rw()
   {
+      TxThread* tx = stm::Self;
       // as per Menon SPAA 2008, we need to start by updating our
       // linearization time
       uint64_t mynum = tick();
@@ -164,8 +167,9 @@ namespace
    *  NanoELA read (read-only context):
    */
   void*
-  NanoELA::read_ro(STM_READ_SIG(tx,addr,))
+  NanoELA::read_ro(STM_READ_SIG(addr,))
   {
+      TxThread* tx = stm::Self;
       // NanoELA knows that it isn't a good algorithm when the read set is
       // large.  To address this situation, on every read, NanoELA checks if the
       // transaction is too big, and if so, it sets a flag and aborts itself,
@@ -231,15 +235,16 @@ namespace
    *  NanoELA read (writing context):
    */
   void*
-  NanoELA::read_rw(STM_READ_SIG(tx,addr,mask))
+  NanoELA::read_rw(STM_READ_SIG(addr,mask))
   {
+      TxThread* tx = stm::Self;
       // check the log for a RAW hazard, we expect to miss
       WriteSetEntry log(STM_WRITE_SET_ENTRY(addr, NULL, mask));
       bool found = tx->writes.find(log);
       REDO_RAW_CHECK(found, log, mask);
 
       // reuse the ReadRO barrier, which is adequate here---reduces LOC
-      void* val = read_ro(tx, addr STM_MASK(mask));
+      void* val = read_ro(addr STM_MASK(mask));
       REDO_RAW_CLEANUP(val, found, log, mask);
       return val;
   }
@@ -248,8 +253,9 @@ namespace
    *  NanoELA write (read-only context):
    */
   void
-  NanoELA::write_ro(STM_WRITE_SIG(tx,addr,val,mask))
+  NanoELA::write_ro(STM_WRITE_SIG(addr,val,mask))
   {
+      TxThread* tx = stm::Self;
       // add to redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
       OnFirstWrite(tx, read_rw, write_rw, commit_rw);
@@ -259,8 +265,9 @@ namespace
    *  NanoELA write (writing context):
    */
   void
-  NanoELA::write_rw(STM_WRITE_SIG(tx,addr,val,mask))
+  NanoELA::write_rw(STM_WRITE_SIG(addr,val,mask))
   {
+      TxThread* tx = stm::Self;
       // add to redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
   }

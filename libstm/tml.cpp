@@ -39,10 +39,10 @@ using stm::UNRECOVERABLE;
  */
 namespace {
   struct TML {
-      static TM_FASTCALL bool begin(TxThread*);
-      static TM_FASTCALL void* read(STM_READ_SIG(,,));
-      static TM_FASTCALL void write(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void commit(TxThread*);
+      static TM_FASTCALL bool begin();
+      static TM_FASTCALL void* read(STM_READ_SIG(,));
+      static TM_FASTCALL void write(STM_WRITE_SIG(,,));
+      static TM_FASTCALL void commit();
 
       static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
@@ -53,8 +53,9 @@ namespace {
    *  TML begin:
    */
   bool
-  TML::begin(TxThread* tx)
+  TML::begin()
   {
+      TxThread* tx = stm::Self;
       int counter = 0;
       // Sample the sequence lock until it is even (unheld)
       while ((tx->start_time = timestamp.val) & 1) {
@@ -72,8 +73,9 @@ namespace {
    *  TML commit:
    */
   void
-  TML::commit(TxThread* tx)
+  TML::commit()
   {
+      TxThread* tx = stm::Self;
       // writing context: release lock, free memory, remember commit
       if (tx->tmlHasLock) {
           ++timestamp.val;
@@ -93,9 +95,9 @@ namespace {
    *    If we have the lock, we're irrevocable so just do a read.  Otherwise,
    *    after doing the read, make sure we are still valid.
    */
-  void*
-  TML::read(STM_READ_SIG(tx,addr,))
+  void* TML::read(STM_READ_SIG(addr,))
   {
+      TxThread* tx = stm::Self;
       void* val = *addr;
       if (tx->tmlHasLock)
           return val;
@@ -110,9 +112,9 @@ namespace {
    *    If we have the lock, do an in-place write and return.  Otherwise, we
    *    need to become irrevocable first, then do the write.
    */
-  void
-  TML::write(STM_WRITE_SIG(tx,addr,val,mask))
+  void TML::write(STM_WRITE_SIG(addr,val,mask))
   {
+      TxThread* tx = stm::Self;
       if (tx->tmlHasLock) {
           STM_DO_MASKED_WRITE(addr, val, mask);
           return;

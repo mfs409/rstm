@@ -49,16 +49,16 @@ namespace {
   struct cohorts_node_t fakenode;
 
   struct CTokenTurboQ {
-      static TM_FASTCALL bool begin(TxThread*);
-      static TM_FASTCALL void* read_ro(STM_READ_SIG(,,));
-      static TM_FASTCALL void* read_rw(STM_READ_SIG(,,));
-      static TM_FASTCALL void* read_turbo(STM_READ_SIG(,,));
-      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void write_turbo(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void commit_ro(TxThread*);
-      static TM_FASTCALL void commit_rw(TxThread*);
-      static TM_FASTCALL void commit_turbo(TxThread*);
+      static TM_FASTCALL bool begin();
+      static TM_FASTCALL void* read_ro(STM_READ_SIG(,));
+      static TM_FASTCALL void* read_rw(STM_READ_SIG(,));
+      static TM_FASTCALL void* read_turbo(STM_READ_SIG(,));
+      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,));
+      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,));
+      static TM_FASTCALL void write_turbo(STM_WRITE_SIG(,,));
+      static TM_FASTCALL void commit_ro();
+      static TM_FASTCALL void commit_rw();
+      static TM_FASTCALL void commit_turbo();
 
       static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
@@ -70,8 +70,9 @@ namespace {
    *  CTokenTurboQ begin:
    */
   bool
-  CTokenTurboQ::begin(TxThread* tx)
+  CTokenTurboQ::begin()
   {
+      TxThread* tx = stm::Self;
       tx->allocator.onTxBegin();
 
       // get time of last finished txn
@@ -92,8 +93,9 @@ namespace {
    *  CTokenTurboQ commit (read-only):
    */
   void
-  CTokenTurboQ::commit_ro(TxThread* tx)
+  CTokenTurboQ::commit_ro()
   {
+      TxThread* tx = stm::Self;
       tx->r_orecs.reset();
       OnReadOnlyCommit(tx);
   }
@@ -104,8 +106,9 @@ namespace {
    *  Only valid with pointer-based adaptivity
    */
   void
-  CTokenTurboQ::commit_rw(TxThread* tx)
+  CTokenTurboQ::commit_rw()
   {
+      TxThread* tx = stm::Self;
       // Wait for my turn
       while (tx->node[tx->nn].next->val != DONE);
 
@@ -155,8 +158,9 @@ namespace {
    *  CTokenTurboQ commit (turbo mode):
    */
   void
-  CTokenTurboQ::commit_turbo(TxThread* tx)
+  CTokenTurboQ::commit_turbo()
   {
+      TxThread* tx= stm::Self;
       CFENCE; // wbw between writeback and last_complete.val update
       last_complete.val = tx->order;
 
@@ -177,8 +181,9 @@ namespace {
    *  CTokenTurboQ read (read-only transaction)
    */
   void*
-  CTokenTurboQ::read_ro(STM_READ_SIG(tx,addr,))
+  CTokenTurboQ::read_ro(STM_READ_SIG(addr,))
   {
+      TxThread* tx = stm::Self;
       void* tmp = *addr;
       CFENCE; // RBR between dereference and orec check
 
@@ -199,8 +204,9 @@ namespace {
    *  CTokenTurboQ read (writing transaction)
    */
   void*
-  CTokenTurboQ::read_rw(STM_READ_SIG(tx,addr,mask))
+  CTokenTurboQ::read_rw(STM_READ_SIG(addr,mask))
   {
+      TxThread* tx = stm::Self;
       // check the log for a RAW hazard, we expect to miss
       WriteSetEntry log(STM_WRITE_SET_ENTRY(addr, NULL, mask));
       bool found = tx->writes.find(log);
@@ -232,7 +238,7 @@ namespace {
    *  CTokenTurboQ read (read-turbo mode)
    */
   void*
-  CTokenTurboQ::read_turbo(STM_READ_SIG(,addr,))
+  CTokenTurboQ::read_turbo(STM_READ_SIG(addr,))
   {
       return *addr;
   }
@@ -241,8 +247,9 @@ namespace {
    *  CTokenTurboQ write (read-only context)
    */
   void
-  CTokenTurboQ::write_ro(STM_WRITE_SIG(tx,addr,val,mask))
+  CTokenTurboQ::write_ro(STM_WRITE_SIG(addr,val,mask))
   {
+      TxThread* tx = stm::Self;
       // reset tx->node[X].val
       tx->node[tx->nn].val = NOTDONE;
 
@@ -267,8 +274,9 @@ namespace {
    *  CTokenTurboQ write (writing context)
    */
   void
-  CTokenTurboQ::write_rw(STM_WRITE_SIG(tx,addr,val,mask))
+  CTokenTurboQ::write_rw(STM_WRITE_SIG(addr,val,mask))
   {
+      TxThread* tx = stm::Self;
       // record the new value in a redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
   }
@@ -277,8 +285,9 @@ namespace {
    *  CTokenTurboQ write (turbo mode)
    */
   void
-  CTokenTurboQ::write_turbo(STM_WRITE_SIG(tx,addr,val,mask))
+  CTokenTurboQ::write_turbo(STM_WRITE_SIG(addr,val,mask))
   {
+      TxThread* tx = stm::Self;
       // mark the orec, then update the location
       orec_t* o = get_orec(addr);
       o->v.all = tx->order;

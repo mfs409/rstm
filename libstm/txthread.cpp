@@ -89,6 +89,11 @@ namespace stm
           spin64();
       }
 
+      // set my pointers
+      my_tmread = (void**)&tmread;
+      my_tmwrite = (void**)&tmwrite;
+      my_tmcommit = (void**)&tmcommit;
+
       // We need to be very careful here.  Some algorithms (at least TLI and
       // NOrecPrio) like to let a thread look at another thread's TxThread
       // object, even when that other thread is not in a transaction.  We
@@ -171,7 +176,7 @@ namespace stm
    *  The begin function pointer.  Note that we need tmbegin to equal
    *  begin_cgl initially, since "0" is the default algorithm
    */
-  bool TM_FASTCALL (*volatile TxThread::tmbegin)(TxThread*) = begin_CGL;
+  bool TM_FASTCALL (*volatile TxThread::tmbegin)() = begin_CGL;
 
   /**
    *  The tmrollback, tmabort, and tmirrevoc pointers
@@ -409,4 +414,10 @@ namespace stm
       return init_lib_name;
   }
 
+  /**
+   * The function pointers:
+   */
+  THREAD_LOCAL_DECL_TYPE(TM_FASTCALL void(*tmcommit)());
+  THREAD_LOCAL_DECL_TYPE(TM_FASTCALL void*(*tmread)(STM_READ_SIG(,)));
+  THREAD_LOCAL_DECL_TYPE(TM_FASTCALL void(*tmwrite)(STM_WRITE_SIG(,,)));
 } // namespace stm

@@ -57,13 +57,13 @@ namespace {
   {
       static void Initialize(int id, const char* name);
 
-      static TM_FASTCALL bool begin(TxThread*);
-      static TM_FASTCALL void* read_ro(STM_READ_SIG(,,));
-      static TM_FASTCALL void* read_rw(STM_READ_SIG(,,));
-      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void commit_ro(TxThread*);
-      static TM_FASTCALL void commit_rw(TxThread*);
+      static TM_FASTCALL bool begin();
+      static TM_FASTCALL void* read_ro(STM_READ_SIG(,));
+      static TM_FASTCALL void* read_rw(STM_READ_SIG(,));
+      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,));
+      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,));
+      static TM_FASTCALL void commit_ro();
+      static TM_FASTCALL void commit_rw();
 
       static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
@@ -96,8 +96,9 @@ namespace {
    */
   template <class CM>
   bool
-  ByEAU_Generic<CM>::begin(TxThread* tx)
+  ByEAU_Generic<CM>::begin()
   {
+      TxThread* tx = stm::Self;
       // mark self alive
       tx->alive = TX_ACTIVE;
       // notify the CM
@@ -112,8 +113,9 @@ namespace {
    */
   template <class CM>
   void
-  ByEAU_Generic<CM>::commit_ro(TxThread* tx)
+  ByEAU_Generic<CM>::commit_ro()
   {
+      TxThread* tx = stm::Self;
       // read-only... release read locks
       foreach (ByteLockList, i, tx->r_bytelocks)
           (*i)->reader[tx->id-1] = 0;
@@ -134,8 +136,9 @@ namespace {
    */
   template <class CM>
   void
-  ByEAU_Generic<CM>::commit_rw(TxThread* tx)
+  ByEAU_Generic<CM>::commit_rw()
   {
+      TxThread* tx = stm::Self;
       // release write locks, then read locks
       foreach (ByteLockList, i, tx->w_bytelocks)
           (*i)->owner = 0;
@@ -158,8 +161,9 @@ namespace {
    */
   template <class CM>
   void*
-  ByEAU_Generic<CM>::read_ro(STM_READ_SIG(tx,addr,))
+  ByEAU_Generic<CM>::read_ro(STM_READ_SIG(addr,))
   {
+      TxThread* tx = stm::Self;
       bytelock_t* lock = get_bytelock(addr);
 
       // If I don't have a read lock, get one
@@ -199,8 +203,9 @@ namespace {
    */
   template <class CM>
   void*
-  ByEAU_Generic<CM>::read_rw(STM_READ_SIG(tx,addr,))
+  ByEAU_Generic<CM>::read_rw(STM_READ_SIG(addr,))
   {
+      TxThread* tx = stm::Self;
       bytelock_t* lock = get_bytelock(addr);
 
       // skip instrumentation if I am the writer
@@ -241,8 +246,9 @@ namespace {
    */
   template <class CM>
   void
-  ByEAU_Generic<CM>::write_ro(STM_WRITE_SIG(tx,addr,val,mask))
+  ByEAU_Generic<CM>::write_ro(STM_WRITE_SIG(addr,val,mask))
   {
+      TxThread* tx = stm::Self;
       bytelock_t* lock = get_bytelock(addr);
 
       // abort current owner, wait for release, then acquire
@@ -292,8 +298,9 @@ namespace {
    */
   template <class CM>
   void
-  ByEAU_Generic<CM>::write_rw(STM_WRITE_SIG(tx,addr,val,mask))
+  ByEAU_Generic<CM>::write_rw(STM_WRITE_SIG(addr,val,mask))
   {
+      TxThread* tx = stm::Self;
       bytelock_t* lock = get_bytelock(addr);
 
       // skip all this if I have the lock

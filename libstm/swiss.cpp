@@ -68,10 +68,10 @@ namespace
 {
   struct Swiss
   {
-      static TM_FASTCALL bool begin(TxThread*);
-      static TM_FASTCALL void* read(STM_READ_SIG(,,));
-      static TM_FASTCALL void write(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void commit(TxThread*);
+      static TM_FASTCALL bool begin();
+      static TM_FASTCALL void* read(STM_READ_SIG(,));
+      static TM_FASTCALL void write(STM_WRITE_SIG(,,));
+      static TM_FASTCALL void commit();
 
       static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
@@ -88,8 +88,9 @@ namespace
    * begin swiss transaction: set to active, notify allocator, get start
    * time, and notify CM
    */
-  bool Swiss::begin(TxThread* tx)
+  bool Swiss::begin()
   {
+      TxThread* tx = stm::Self;
       tx->alive = ACTIVE;
       tx->allocator.onTxBegin();
       tx->start_time = timestamp.val;
@@ -98,8 +99,9 @@ namespace
   }
 
   // word based transactional read
-  void* Swiss::read(STM_READ_SIG(tx,addr,mask))
+  void* Swiss::read(STM_READ_SIG( addr,mask))
   {
+      TxThread* tx = stm::Self;
       // get orec address
       orec_t* o = get_orec(addr);
 
@@ -150,8 +152,9 @@ namespace
   /**
    *  SwissTM write
    */
-  void Swiss::write(STM_WRITE_SIG(tx,addr,val,mask))
+  void Swiss::write(STM_WRITE_SIG(addr,val,mask))
   {
+      TxThread* tx = stm::Self;
       // put value in redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
 
@@ -208,8 +211,9 @@ namespace
    *  abort, we can ignore them... either we commit and zero our state,
    *  or we abort anyway.
    */
-  void Swiss::commit(TxThread* tx)
+  void Swiss::commit()
   {
+      TxThread* tx = stm::Self;
       // read-only case
       if (!tx->writes.size()) {
           tx->r_orecs.reset();

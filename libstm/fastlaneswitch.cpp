@@ -52,16 +52,16 @@ namespace {
   volatile uint32_t master = 0;           // Master lock
 
   struct FastlaneSwitch {
-      static TM_FASTCALL bool begin(TxThread*);
-      static TM_FASTCALL void* read_ro(STM_READ_SIG(,,));
-      static TM_FASTCALL void* read_rw(STM_READ_SIG(,,));
-      static TM_FASTCALL void* read_master(STM_READ_SIG(,,));
-      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void write_master(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void commit_ro(TxThread* tx);
-      static TM_FASTCALL void commit_rw(TxThread* tx);
-      static TM_FASTCALL void commit_master(TxThread* tx);
+      static TM_FASTCALL bool begin();
+      static TM_FASTCALL void* read_ro(STM_READ_SIG(,));
+      static TM_FASTCALL void* read_rw(STM_READ_SIG(,));
+      static TM_FASTCALL void* read_master(STM_READ_SIG(,));
+      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,));
+      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,));
+      static TM_FASTCALL void write_master(STM_WRITE_SIG(,,));
+      static TM_FASTCALL void commit_ro();
+      static TM_FASTCALL void commit_rw();
+      static TM_FASTCALL void commit_master();
 
       static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
@@ -76,8 +76,9 @@ namespace {
    *  Master thread set cntr from even to odd.
    */
   bool
-  FastlaneSwitch::begin(TxThread* tx)
+  FastlaneSwitch::begin()
   {
+      TxThread* tx = stm::Self;
       // starts
       tx->allocator.onTxBegin();
 
@@ -129,8 +130,9 @@ namespace {
    *  Fastline: commit_master:
    */
   void
-  FastlaneSwitch::commit_master(TxThread* tx)
+  FastlaneSwitch::commit_master()
   {
+      TxThread* tx = stm::Self;
       CFENCE; //wbw between write back and change of cntr
       // Only master can write odd cntr, now cntr is even again
       cntr ++;
@@ -145,8 +147,9 @@ namespace {
    *  Read-only transaction commit immediately
    */
   void
-  FastlaneSwitch::commit_ro(TxThread* tx)
+  FastlaneSwitch::commit_ro()
   {
+      TxThread* tx = stm::Self;
       // clean up
       tx->r_orecs.reset();
 
@@ -159,8 +162,9 @@ namespace {
    *
    */
   void
-  FastlaneSwitch::commit_rw(TxThread* tx)
+  FastlaneSwitch::commit_rw()
   {
+      TxThread* tx = stm::Self;
       volatile uint32_t c;
 
 #ifdef OPT1
@@ -230,7 +234,7 @@ namespace {
    *  FastlaneSwitch read_master
    */
   void*
-  FastlaneSwitch::read_master(STM_READ_SIG(tx,addr,))
+  FastlaneSwitch::read_master(STM_READ_SIG(addr,))
   {
       return *addr;
   }
@@ -239,8 +243,9 @@ namespace {
    *  FastlaneSwitch read (read-only transaction)
    */
   void*
-  FastlaneSwitch::read_ro(STM_READ_SIG(tx,addr,))
+  FastlaneSwitch::read_ro(STM_READ_SIG(addr,))
   {
+      TxThread* tx = stm::Self;
       void *val = *addr;
       CFENCE;
       // get orec
@@ -267,15 +272,16 @@ namespace {
    *  FastlaneSwitch read (writing transaction)
    */
   void*
-  FastlaneSwitch::read_rw(STM_READ_SIG(tx,addr,mask))
+  FastlaneSwitch::read_rw(STM_READ_SIG(addr,mask))
   {
+      TxThread* tx = stm::Self;
       // check the log for a RAW hazard, we expect to miss
       WriteSetEntry log(STM_WRITE_SET_ENTRY(addr, NULL, mask));
       bool found = tx->writes.find(log);
       REDO_RAW_CHECK(found, log, mask);
 
       // reuse read_ro barrier
-      void* val = read_ro(tx, addr STM_MASK(mask));
+      void* val = read_ro(addr STM_MASK(mask));
       REDO_RAW_CLEANUP(val, found, log, mask);
       return val;
   }
@@ -284,7 +290,7 @@ namespace {
    *  FastlaneSwitch write_master (in place write)
    */
   void
-  FastlaneSwitch::write_master(STM_WRITE_SIG(tx,addr,val,mask))
+  FastlaneSwitch::write_master(STM_WRITE_SIG(addr,val,mask))
   {
       orec_t* o = get_orec(addr);
       o->v.all = cntr; // mark orec
@@ -296,8 +302,9 @@ namespace {
    *  FastlaneSwitch write (read-only context): for first write
    */
   void
-  FastlaneSwitch::write_ro(STM_WRITE_SIG(tx,addr,val,mask))
+  FastlaneSwitch::write_ro(STM_WRITE_SIG(addr,val,mask))
   {
+      TxThread* tx = stm::Self;
       // get orec
       orec_t *o = get_orec(addr);
       // validate
@@ -313,8 +320,9 @@ namespace {
    *  FastlaneSwitch write (writing context)
    */
   void
-  FastlaneSwitch::write_rw(STM_WRITE_SIG(tx,addr,val,mask))
+  FastlaneSwitch::write_rw(STM_WRITE_SIG(addr,val,mask))
   {
+      TxThread* tx = stm::Self;
       // get orec
       orec_t *o = get_orec(addr);
       // validate

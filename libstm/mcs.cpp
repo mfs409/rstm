@@ -1,4 +1,4 @@
-/**
+  /**
  *  Copyright (C) 2011
  *  University of Rochester Department of Computer Science
  *    and
@@ -31,10 +31,10 @@ using stm::mcslock;
 namespace  {
   struct MCS
   {
-      static TM_FASTCALL bool begin(TxThread*);
-      static TM_FASTCALL void* read(STM_READ_SIG(,,));
-      static TM_FASTCALL void write(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void commit(TxThread*);
+      static TM_FASTCALL bool begin();
+      static TM_FASTCALL void* read(STM_READ_SIG(,));
+      static TM_FASTCALL void write(STM_WRITE_SIG(,,));
+      static TM_FASTCALL void commit();
 
       static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
@@ -46,8 +46,9 @@ namespace  {
    *  MCS begin:
    */
   bool
-  MCS::begin(TxThread* tx)
+  MCS::begin()
   {
+      TxThread* tx = stm::Self;
       // acquire the MCS lock
       tx->begin_wait = mcs_acquire(&mcslock, tx->my_mcslock);
       tx->allocator.onTxBegin();
@@ -58,8 +59,9 @@ namespace  {
    *  MCS commit
    */
   void
-  MCS::commit(TxThread* tx)
+  MCS::commit()
   {
+      TxThread* tx = stm::Self;
       // release the lock, finalize mm ops, and log the commit
       mcs_release(&mcslock, tx->my_mcslock);
       OnCGLCommit(tx);
@@ -69,7 +71,7 @@ namespace  {
    *  MCS read
    */
   void*
-  MCS::read(STM_READ_SIG(,addr,))
+  MCS::read(STM_READ_SIG(addr,))
   {
       return *addr;
   }
@@ -78,7 +80,7 @@ namespace  {
    *  MCS write
    */
   void
-  MCS::write(STM_WRITE_SIG(,addr,val,mask))
+  MCS::write(STM_WRITE_SIG(addr,val,mask))
   {
       STM_DO_MASKED_WRITE(addr, val, mask);
   }

@@ -36,13 +36,13 @@ using stm::WriteSetEntry;
  */
 namespace {
   struct RingSW {
-      static TM_FASTCALL bool begin(TxThread*);
-      static TM_FASTCALL void* read_ro(STM_READ_SIG(,,));
-      static TM_FASTCALL void* read_rw(STM_READ_SIG(,,));
-      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void commit_ro(TxThread*);
-      static TM_FASTCALL void commit_rw(TxThread*);
+      static TM_FASTCALL bool begin();
+      static TM_FASTCALL void* read_ro(STM_READ_SIG(,));
+      static TM_FASTCALL void* read_rw(STM_READ_SIG(,));
+      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,));
+      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,));
+      static TM_FASTCALL void commit_ro();
+      static TM_FASTCALL void commit_rw();
 
       static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
@@ -58,8 +58,9 @@ namespace {
    *    RingSW, inspired by FastPath, this is easy.
    */
   bool
-  RingSW::begin(TxThread* tx)
+  RingSW::begin()
   {
+      TxThread* tx = stm::Self;
       tx->allocator.onTxBegin();
       // start time is when the last txn completed
       tx->start_time = last_complete.val;
@@ -70,8 +71,9 @@ namespace {
    *  RingSW commit (read-only):
    */
   void
-  RingSW::commit_ro(TxThread* tx)
+  RingSW::commit_ro()
   {
+      TxThread* tx = stm::Self;
       // clear the filter and we are done
       tx->rf->clear();
       OnReadOnlyCommit(tx);
@@ -87,8 +89,9 @@ namespace {
    *    world, while the logically committed transaction replays its writes.
    */
   void
-  RingSW::commit_rw(TxThread* tx)
+  RingSW::commit_rw()
   {
+      TxThread* tx = stm::Self;
       // get a commit time, but only succeed in the CAS if this transaction
       // is still valid
       uintptr_t commit_time;
@@ -139,8 +142,9 @@ namespace {
    *  RingSW read (read-only transaction)
    */
   void*
-  RingSW::read_ro(STM_READ_SIG(tx,addr,))
+  RingSW::read_ro(STM_READ_SIG(addr,))
   {
+      TxThread* tx = stm::Self;
       // read the value from memory, log the address, and validate
       void* val = *addr;
       CFENCE;
@@ -156,15 +160,16 @@ namespace {
    *  RingSW read (writing transaction)
    */
   void*
-  RingSW::read_rw(STM_READ_SIG(tx,addr,mask))
+  RingSW::read_rw(STM_READ_SIG(addr,mask))
   {
+      TxThread* tx = stm::Self;
       // check the log for a RAW hazard, we expect to miss
       WriteSetEntry log(STM_WRITE_SET_ENTRY(addr, NULL, mask));
       bool found = tx->writes.find(log);
       REDO_RAW_CHECK(found, log, mask);
 
       // reuse the ReadRO barrier, which is adequate here---reduces LOC
-      void* val = read_ro(tx, addr STM_MASK(mask));
+      void* val = read_ro(addr STM_MASK(mask));
       REDO_RAW_CLEANUP(val, found, log, mask);
       return val;
   }
@@ -173,8 +178,9 @@ namespace {
    *  RingSW write (read-only context)
    */
   void
-  RingSW::write_ro(STM_WRITE_SIG(tx,addr,val,mask))
+  RingSW::write_ro(STM_WRITE_SIG(addr,val,mask))
   {
+      TxThread* tx = stm::Self;
       // buffer the write and update the filter
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
       tx->wf->add(addr);
@@ -185,8 +191,9 @@ namespace {
    *  RingSW write (writing context)
    */
   void
-  RingSW::write_rw(STM_WRITE_SIG(tx,addr,val,mask))
+  RingSW::write_rw(STM_WRITE_SIG(addr,val,mask))
   {
+      TxThread* tx = stm::Self;
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
       tx->wf->add(addr);
   }

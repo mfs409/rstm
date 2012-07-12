@@ -66,14 +66,14 @@ namespace {
   template <class CM>
   struct OrecEager_Generic
   {
-      static TM_FASTCALL bool begin(TxThread*);
-      static TM_FASTCALL void commit(TxThread*);
+      static TM_FASTCALL bool begin();
+      static TM_FASTCALL void commit();
       static void initialize(int id, const char* name);
       static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
   };
 
-  TM_FASTCALL void* read(STM_READ_SIG(,,));
-  TM_FASTCALL void write(STM_WRITE_SIG(,,,));
+  TM_FASTCALL void* read(STM_READ_SIG(,));
+  TM_FASTCALL void write(STM_WRITE_SIG(,,));
   bool irrevoc(TxThread*);
   NOINLINE void validate(TxThread*);
   void onSwitchTo();
@@ -102,8 +102,9 @@ namespace {
 
   template <class CM>
   bool
-  OrecEager_Generic<CM>::begin(TxThread* tx)
+  OrecEager_Generic<CM>::begin()
   {
+      TxThread* tx = stm::Self;
       // sample the timestamp and prepare local structures
       tx->allocator.onTxBegin();
       tx->start_time = timestamp.val;
@@ -121,8 +122,9 @@ namespace {
    */
   template <class CM>
   void
-  OrecEager_Generic<CM>::commit(TxThread* tx)
+  OrecEager_Generic<CM>::commit()
   {
+      TxThread* tx = stm::Self;
       // use the lockset size to identify if tx is read-only
       if (!tx->locks.size()) {
           CM::onCommit(tx);
@@ -165,8 +167,9 @@ namespace {
    *    Must check orec twice, and may need to validate
    */
   void*
-  read(STM_READ_SIG(tx,addr,))
+  read(STM_READ_SIG(addr,))
   {
+      TxThread* tx = stm::Self;
       // get the orec addr, then start loop to read a consistent value
       orec_t* o = get_orec(addr);
       while (true) {
@@ -208,9 +211,9 @@ namespace {
    *
    *    Lock the orec, log the old value, do the write
    */
-  void
-  write(STM_WRITE_SIG(tx,addr,val,mask))
+  void write(STM_WRITE_SIG(addr,val,mask))
   {
+      TxThread* tx = stm::Self;
       // get the orec addr, then enter loop to get lock from a consistent state
       orec_t* o = get_orec(addr);
       while (true) {

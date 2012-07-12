@@ -64,11 +64,11 @@
 #endif
 
 #if defined(STM_WS_BYTELOG)
-#   define STM_READ_SIG(tx, addr, mask)       TxThread* tx, void** addr, uintptr_t mask
-#   define STM_WRITE_SIG(tx, addr, val, mask) TxThread* tx, void** addr, void* val, uintptr_t mask
+#   define STM_READ_SIG(addr, mask)       void** addr, uintptr_t mask
+#   define STM_WRITE_SIG(addr, val, mask) void** addr, void* val, uintptr_t mask
 #else
-#   define STM_READ_SIG(tx, addr, mask)       TxThread* tx, void** addr
-#   define STM_WRITE_SIG(tx, addr, val, mask) TxThread* tx, void** addr, void* val
+#   define STM_READ_SIG(addr, mask)       void** addr
+#   define STM_WRITE_SIG(addr, val, mask) void** addr, void* val
 #endif
 
 #if defined(STM_ABORT_ON_THROW)

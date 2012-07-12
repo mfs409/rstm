@@ -134,12 +134,7 @@ namespace stm
        * use this return to execute completely uninstrumented code if it's
        * available.
        */
-      static TM_FASTCALL bool(*volatile tmbegin)(TxThread*);
-
-      /*** Per-thread commit, read, and write pointers */
-      TM_FASTCALL void(*tmcommit)(TxThread*);
-      TM_FASTCALL void*(*tmread)(STM_READ_SIG(,,));
-      TM_FASTCALL void(*tmwrite)(STM_WRITE_SIG(,,,));
+      static TM_FASTCALL bool(*volatile tmbegin)();
 
       /**
        * Some APIs, in particular the itm API at the moment, want to be able
@@ -176,10 +171,25 @@ namespace stm
     protected:
       TxThread();
       ~TxThread() { }
+
+    public:
+      // a new gross hack: we need any single thread to be able to change
+      // other threads' pointers.  Thus we require that each thread tuck away
+      // pointers to its thread-local vars, so that they can be updated
+      // remotely... and unfortunately right now we need this to be pubic :(
+      void** my_tmcommit;
+      void** my_tmread;
+      void** my_tmwrite;
+
   }; // class TxThread
 
   /*** GLOBAL VARIABLES RELATED TO THREAD MANAGEMENT */
   extern THREAD_LOCAL_DECL_TYPE(TxThread*) Self; // this thread's TxThread
+
+  /*** Per-thread commit, read, and write pointers */
+  extern THREAD_LOCAL_DECL_TYPE(TM_FASTCALL void(*tmcommit)());
+  extern THREAD_LOCAL_DECL_TYPE(TM_FASTCALL void*(*tmread)(STM_READ_SIG(,)));
+  extern THREAD_LOCAL_DECL_TYPE(TM_FASTCALL void(*tmwrite)(STM_WRITE_SIG(,,)));
 
 } // namespace stm
 

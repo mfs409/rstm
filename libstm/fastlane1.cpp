@@ -43,16 +43,16 @@ namespace {
   const uint32_t MSB = 0x80000000;
 
   struct Fastlane1 {
-      static TM_FASTCALL bool begin(TxThread*);
-      static TM_FASTCALL void* read_ro(STM_READ_SIG(,,));
-      static TM_FASTCALL void* read_rw(STM_READ_SIG(,,));
-      static TM_FASTCALL void* read_master(STM_READ_SIG(,,));
-      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void write_master(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void commit_ro(TxThread* tx);
-      static TM_FASTCALL void commit_rw(TxThread* tx);
-      static TM_FASTCALL void commit_master(TxThread* tx);
+      static TM_FASTCALL bool begin();
+      static TM_FASTCALL void* read_ro(STM_READ_SIG(,));
+      static TM_FASTCALL void* read_rw(STM_READ_SIG(,));
+      static TM_FASTCALL void* read_master(STM_READ_SIG(,));
+      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,));
+      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,));
+      static TM_FASTCALL void write_master(STM_WRITE_SIG(,,));
+      static TM_FASTCALL void commit_ro();
+      static TM_FASTCALL void commit_rw();
+      static TM_FASTCALL void commit_master();
 
       static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
@@ -64,8 +64,9 @@ namespace {
    *  Master thread set timestamp.val from even to odd.
    */
   bool
-  Fastlane1::begin(TxThread* tx)
+  Fastlane1::begin()
   {
+      TxThread* tx = stm::Self;
       tx->allocator.onTxBegin();
 
       // threads[1] is master
@@ -81,7 +82,7 @@ namespace {
           timestamp.val = (timestamp.val & ~MSB) + 1;
 
           // go master mode
-          if (tx->tmread != read_master)
+          if (stm::tmread != read_master)
               GoTurbo(tx, read_master, write_master, commit_master);
           return true;
       }
@@ -95,8 +96,9 @@ namespace {
    *  Fastline: commit_master:
    */
   void
-  Fastlane1::commit_master(TxThread* tx)
+  Fastlane1::commit_master()
   {
+      TxThread* tx = stm::Self;
       CFENCE; //wbw between write back and change of timestamp.val
       // Only master can write odd timestamp.val, now timestamp.val is even again
       timestamp.val++;
@@ -108,8 +110,9 @@ namespace {
    *  Read-only transaction commit immediately
    */
   void
-  Fastlane1::commit_ro(TxThread* tx)
+  Fastlane1::commit_ro()
   {
+      TxThread* tx = stm::Self;
       // clean up
       tx->r_orecs.reset();
       OnReadOnlyCommit(tx);
@@ -120,8 +123,9 @@ namespace {
    *
    */
   void
-  Fastlane1::commit_rw(TxThread* tx)
+  Fastlane1::commit_rw()
   {
+      TxThread* tx = stm::Self;
       uint32_t c;
 
       // Try to acquiring counter
@@ -176,7 +180,7 @@ namespace {
    *  Fastlane1 read_master
    */
   void*
-  Fastlane1::read_master(STM_READ_SIG(tx,addr,))
+  Fastlane1::read_master(STM_READ_SIG(addr,))
   {
       return *addr;
   }
@@ -185,8 +189,9 @@ namespace {
    *  Fastlane1 read (read-only transaction)
    */
   void*
-  Fastlane1::read_ro(STM_READ_SIG(tx,addr,))
+  Fastlane1::read_ro(STM_READ_SIG(addr,))
   {
+      TxThread* tx = stm::Self;
       void *val = *addr;
       CFENCE;
       // get orec
@@ -206,15 +211,16 @@ namespace {
    *  Fastlane1 read (writing transaction)
    */
   void*
-  Fastlane1::read_rw(STM_READ_SIG(tx,addr,mask))
+  Fastlane1::read_rw(STM_READ_SIG(addr,mask))
   {
+      TxThread* tx = stm::Self;
       // check the log for a RAW hazard, we expect to miss
       WriteSetEntry log(STM_WRITE_SET_ENTRY(addr, NULL, mask));
       bool found = tx->writes.find(log);
       REDO_RAW_CHECK(found, log, mask);
 
       // reuse read_ro barrier
-      void* val = read_ro(tx, addr STM_MASK(mask));
+      void* val = read_ro(addr STM_MASK(mask));
       REDO_RAW_CLEANUP(val, found, log, mask);
       return val;
   }
@@ -223,7 +229,7 @@ namespace {
    *  Fastlane1 write_master (in place write)
    */
   void
-  Fastlane1::write_master(STM_WRITE_SIG(tx,addr,val,mask))
+  Fastlane1::write_master(STM_WRITE_SIG(addr,val,mask))
   {
       orec_t* o = get_orec(addr);
       // [mfs] strictly speaking, timestamp.val is a volatile, and reading it here means
@@ -246,8 +252,9 @@ namespace {
    *  Fastlane1 write (read-only context): for first write
    */
   void
-  Fastlane1::write_ro(STM_WRITE_SIG(tx,addr,val,mask))
+  Fastlane1::write_ro(STM_WRITE_SIG(addr,val,mask))
   {
+      TxThread* tx = stm::Self;
       // Add to write set
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
       OnFirstWrite(tx, read_rw, write_rw, commit_rw);
@@ -257,8 +264,9 @@ namespace {
    *  Fastlane1 write (writing context)
    */
   void
-  Fastlane1::write_rw(STM_WRITE_SIG(tx,addr,val,mask))
+  Fastlane1::write_rw(STM_WRITE_SIG(addr,val,mask))
   {
+      TxThread* tx = stm::Self;
       // record the new value in a redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
   }

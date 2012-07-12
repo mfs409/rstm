@@ -44,13 +44,13 @@ using stm::id_version_t;
 namespace {
   struct Nano
   {
-      static TM_FASTCALL bool begin(TxThread*);
-      static TM_FASTCALL void* read_ro(STM_READ_SIG(,,));
-      static TM_FASTCALL void* read_rw(STM_READ_SIG(,,));
-      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void commit_ro(TxThread*);
-      static TM_FASTCALL void commit_rw(TxThread*);
+      static TM_FASTCALL bool begin();
+      static TM_FASTCALL void* read_ro(STM_READ_SIG(,));
+      static TM_FASTCALL void* read_rw(STM_READ_SIG(,));
+      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,));
+      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,));
+      static TM_FASTCALL void commit_ro();
+      static TM_FASTCALL void commit_rw();
 
       static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
@@ -61,8 +61,9 @@ namespace {
    *  Nano begin:
    */
   bool
-  Nano::begin(TxThread* tx)
+  Nano::begin()
   {
+      TxThread* tx = stm::Self;
       tx->allocator.onTxBegin();
       return false;
   }
@@ -71,8 +72,9 @@ namespace {
    *  Nano commit (read-only context)
    */
   void
-  Nano::commit_ro(TxThread* tx)
+  Nano::commit_ro()
   {
+      TxThread* tx = stm::Self;
       // read-only, so reset the orec list and we are done
       tx->nanorecs.reset();
       OnReadOnlyCommit(tx);
@@ -85,8 +87,9 @@ namespace {
    *    then validate, then do writeback.
    */
   void
-  Nano::commit_rw(TxThread* tx)
+  Nano::commit_rw()
   {
+      TxThread* tx = stm::Self;
       // acquire locks
       foreach (WriteSet, i, tx->writes) {
           // get orec, read its version#
@@ -136,8 +139,9 @@ namespace {
    *  Nano read (read-only context):
    */
   void*
-  Nano::read_ro(STM_READ_SIG(tx,addr,))
+  Nano::read_ro(STM_READ_SIG(addr,))
   {
+      TxThread* tx = stm::Self;
       // Nano knows that it isn't a good algorithm when the read set is
       // large.  To address this situation, on every read, Nano checks if the
       // transaction is too big, and if so, it sets a flag and aborts itself,
@@ -203,15 +207,16 @@ namespace {
    *  Nano read (writing context):
    */
   void*
-  Nano::read_rw(STM_READ_SIG(tx,addr,mask))
+  Nano::read_rw(STM_READ_SIG(addr,mask))
   {
+      TxThread* tx = stm::Self;
       // check the log for a RAW hazard, we expect to miss
       WriteSetEntry log(STM_WRITE_SET_ENTRY(addr, NULL, mask));
       bool found = tx->writes.find(log);
       REDO_RAW_CHECK(found, log, mask);
 
       // reuse the ReadRO barrier, which is adequate here---reduces LOC
-      void* val = read_ro(tx, addr STM_MASK(mask));
+      void* val = read_ro(addr STM_MASK(mask));
       REDO_RAW_CLEANUP(val, found, log, mask);
       return val;
   }
@@ -220,8 +225,9 @@ namespace {
    *  Nano write (read-only context):
    */
   void
-  Nano::write_ro(STM_WRITE_SIG(tx,addr,val,mask))
+  Nano::write_ro(STM_WRITE_SIG(addr,val,mask))
   {
+      TxThread* tx = stm::Self;
       // add to redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
       OnFirstWrite(tx, read_rw, write_rw, commit_rw);
@@ -231,8 +237,9 @@ namespace {
    *  Nano write (writing context):
    */
   void
-  Nano::write_rw(STM_WRITE_SIG(tx,addr,val,mask))
+  Nano::write_rw(STM_WRITE_SIG(addr,val,mask))
   {
+      TxThread* tx = stm::Self;
       // add to redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
   }

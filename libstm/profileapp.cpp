@@ -54,13 +54,13 @@ namespace {
   struct ProfileApp
   {
       static void Initialize(int id, const char* name);
-      static TM_FASTCALL bool begin(TxThread*);
-      static TM_FASTCALL void* read_ro(STM_READ_SIG(,,));
-      static TM_FASTCALL void* read_rw(STM_READ_SIG(,,));
-      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void commit_ro(TxThread*);
-      static TM_FASTCALL void commit_rw(TxThread*);
+      static TM_FASTCALL bool begin();
+      static TM_FASTCALL void* read_ro(STM_READ_SIG(,));
+      static TM_FASTCALL void* read_rw(STM_READ_SIG(,));
+      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,));
+      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,));
+      static TM_FASTCALL void commit_ro();
+      static TM_FASTCALL void commit_rw();
 
       static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
@@ -97,8 +97,9 @@ namespace {
    */
   template <int COUNTMODE>
   bool
-  ProfileApp<COUNTMODE>::begin(TxThread* tx)
+  ProfileApp<COUNTMODE>::begin()
   {
+      TxThread* tx = stm::Self;
       tx->allocator.onTxBegin();
       profiles[0].txn_time = tick();
       return false;
@@ -111,8 +112,9 @@ namespace {
    */
   template <int COUNTMODE>
   void
-  ProfileApp<COUNTMODE>::commit_ro(TxThread* tx)
+  ProfileApp<COUNTMODE>::commit_ro()
   {
+      TxThread* tx = stm::Self;
       // NB: statically optimized version of RW code for RO case
       unsigned long long runtime = tick() - profiles[0].txn_time;
 
@@ -140,8 +142,9 @@ namespace {
    */
   template <int COUNTMODE>
   void
-  ProfileApp<COUNTMODE>::commit_rw(TxThread* tx)
+  ProfileApp<COUNTMODE>::commit_rw()
   {
+      TxThread* tx = stm::Self;
       // run the redo log
       tx->writes.writeback();
       // remember write set size before clearing it
@@ -185,8 +188,9 @@ namespace {
    */
   template <int COUNTMODE>
   void*
-  ProfileApp<COUNTMODE>::read_ro(STM_READ_SIG(,addr,))
+  ProfileApp<COUNTMODE>::read_ro(STM_READ_SIG(addr,))
   {
+      TxThread* tx = stm::Self;
       // count the read
       ++profiles[0].read_ro;
       // read the actual value, direct from memory
@@ -198,8 +202,9 @@ namespace {
    */
   template <int COUNTMODE>
   void*
-  ProfileApp<COUNTMODE>::read_rw(STM_READ_SIG(tx,addr,mask))
+  ProfileApp<COUNTMODE>::read_rw(STM_READ_SIG( addr,mask))
   {
+      TxThread* tx = stm::Self;
       // check the log for a RAW hazard, we expect to miss
       WriteSetEntry log(STM_WRITE_SET_ENTRY(addr, NULL, mask));
       bool found = tx->writes.find(log);
@@ -220,8 +225,9 @@ namespace {
    */
   template <int COUNTMODE>
   void
-  ProfileApp<COUNTMODE>::write_ro(STM_WRITE_SIG(tx,addr,val,mask))
+  ProfileApp<COUNTMODE>::write_ro(STM_WRITE_SIG(addr,val,mask))
   {
+      TxThread* tx = stm::Self;
       // do a buffered write
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
       ++profiles[0].write_waw;
@@ -232,10 +238,9 @@ namespace {
    *  ProfileApp write (writing context)
    */
   template <int COUNTMODE>
-  void
-  ProfileApp<COUNTMODE>::write_rw(STM_WRITE_SIG(tx,addr,val,mask))
-
+  void ProfileApp<COUNTMODE>::write_rw(STM_WRITE_SIG(addr,val,mask))
   {
+      TxThread* tx = stm::Self;
       // do a buffered write
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
       ++profiles[0].write_waw;

@@ -61,9 +61,9 @@ namespace {
    */
   inline void unset_irrevocable_barriers(TxThread& tx)
   {
-      tx.tmread           = stms[curr_policy.ALG_ID].read;
-      tx.tmwrite          = stms[curr_policy.ALG_ID].write;
-      tx.tmcommit         = stms[curr_policy.ALG_ID].commit;
+      stm::tmread           = stms[curr_policy.ALG_ID].read;
+      stm::tmwrite          = stms[curr_policy.ALG_ID].write;
+      stm::tmcommit         = stms[curr_policy.ALG_ID].commit;
       tx.tmrollback       = stms[curr_policy.ALG_ID].rollback;
       TxThread::tmirrevoc = stms[curr_policy.ALG_ID].irrevoc;
       tx.tmabort          = old_abort_handler;
@@ -72,8 +72,9 @@ namespace {
   /**
    *  custom commit for irrevocable transactions
    */
-  TM_FASTCALL void commit_irrevocable(TxThread* tx)
+  TM_FASTCALL void commit_irrevocable()
   {
+      TxThread* tx = stm::Self;
       // make self non-irrevocable, and unset local r/w/c barriers
       tx->irrevocable = false;
       unset_irrevocable_barriers(*tx);
@@ -89,9 +90,9 @@ namespace {
    */
   inline void set_irrevocable_barriers(TxThread& tx)
   {
-      tx.tmread           = stms[CGL].read;
-      tx.tmwrite          = stms[CGL].write;
-      tx.tmcommit         = commit_irrevocable;
+      stm::tmread           = stms[CGL].read;
+      stm::tmwrite          = stms[CGL].write;
+      stm::tmcommit         = commit_irrevocable;
       tx.tmrollback       = rollback_irrevocable;
       TxThread::tmirrevoc = stms[CGL].irrevoc;
       old_abort_handler   = tx.tmabort;
@@ -205,8 +206,10 @@ namespace stm
    *  doubles as an irrevocability mechanism for implementations where we don't
    *  have (or can't write) an in-flight irrevocability mechanism.
    */
-  bool begin_blocker(TxThread* tx)
+  bool begin_blocker()
   {
+      TxThread* tx = Self;
+
       // if the caller is trying to restart as irrevocable, let them
       if (tx->irrevocable) {
           set_irrevocable_barriers(*tx);
@@ -229,12 +232,12 @@ namespace stm
           casptr((volatile uintptr_t*)&tx->scope, (uintptr_t)0, (uintptr_t)b);
 #endif
           // read the begin function pointer AFTER setting the scope
-          bool TM_FASTCALL (*beginner)(TxThread*) = TxThread::tmbegin;
+          bool TM_FASTCALL (*beginner)() = TxThread::tmbegin;
           // if begin_blocker is no longer installed, we can call the pointer
           // to start a transaction, and then return.  Otherwise, we missed our
           // window, so we need to go back to the top of the loop.
           if (beginner != begin_blocker)
-              return beginner(tx);
+              return beginner();
       }
   }
 }

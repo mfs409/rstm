@@ -50,16 +50,16 @@ namespace {
   NOINLINE bool validate(TxThread* tx);
 
   struct CohortsEN {
-      static TM_FASTCALL bool begin(TxThread*);
-      static TM_FASTCALL void* read_ro(STM_READ_SIG(,,));
-      static TM_FASTCALL void* read_rw(STM_READ_SIG(,,));
-      static TM_FASTCALL void* read_turbo(STM_READ_SIG(,,));
-      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void write_turbo(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void commit_ro(TxThread* tx);
-      static TM_FASTCALL void commit_rw(TxThread* tx);
-      static TM_FASTCALL void commit_turbo(TxThread* tx);
+      static TM_FASTCALL bool begin();
+      static TM_FASTCALL void* read_ro(STM_READ_SIG(,));
+      static TM_FASTCALL void* read_rw(STM_READ_SIG(,));
+      static TM_FASTCALL void* read_turbo(STM_READ_SIG(,));
+      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,));
+      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,));
+      static TM_FASTCALL void write_turbo(STM_WRITE_SIG(,,));
+      static TM_FASTCALL void commit_ro();
+      static TM_FASTCALL void commit_rw();
+      static TM_FASTCALL void commit_turbo();
 
       static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
@@ -74,8 +74,9 @@ namespace {
    *  commits.
    */
   bool
-  CohortsEN::begin(TxThread* tx)
+  CohortsEN::begin()
   {
+      TxThread* tx = stm::Self;
       tx->allocator.onTxBegin();
 
     S1:
@@ -99,8 +100,9 @@ namespace {
    *  CohortsEN commit (read-only):
    */
   void
-  CohortsEN::commit_ro(TxThread* tx)
+  CohortsEN::commit_ro()
   {
+      TxThread* tx = stm::Self;
       // decrease total number of tx started
       SUB(&started.val, 1);
 
@@ -114,8 +116,9 @@ namespace {
    *  no other thread touches cpending
    */
   void
-  CohortsEN::commit_turbo(TxThread* tx)
+  CohortsEN::commit_turbo()
   {
+      TxThread* tx = stm::Self;
       // increase # of tx waiting to commit, and use it as the order
       tx->order = ADD(&cpending.val, 1);
 
@@ -145,8 +148,9 @@ namespace {
    *  in an order which is given at the beginning of commit.
    */
   void
-  CohortsEN::commit_rw(TxThread* tx)
+  CohortsEN::commit_rw()
   {
+      TxThread* tx = stm::Self;
       // order of first tx in cohort
       uint32_t first = last_complete.val + 1;
       CFENCE;
@@ -190,7 +194,7 @@ namespace {
    *  CohortsEN read_turbo
    */
   void*
-  CohortsEN::read_turbo(STM_READ_SIG(tx,addr,))
+  CohortsEN::read_turbo(STM_READ_SIG(addr,))
   {
       return *addr;
   }
@@ -199,8 +203,9 @@ namespace {
    *  CohortsEN read (read-only transaction)
    */
   void*
-  CohortsEN::read_ro(STM_READ_SIG(tx,addr,))
+  CohortsEN::read_ro(STM_READ_SIG(addr,))
   {
+      TxThread* tx = stm::Self;
       void *tmp = *addr;
       STM_LOG_VALUE(tx, addr, tmp, mask);
       return tmp;
@@ -210,8 +215,9 @@ namespace {
    *  CohortsEN read (writing transaction)
    */
   void*
-  CohortsEN::read_rw(STM_READ_SIG(tx,addr,mask))
+  CohortsEN::read_rw(STM_READ_SIG(addr,mask))
   {
+      TxThread* tx = stm::Self;
       // check the log for a RAW hazard, we expect to miss
       WriteSetEntry log(STM_WRITE_SET_ENTRY(addr, NULL, mask));
       bool found = tx->writes.find(log);
@@ -227,8 +233,9 @@ namespace {
    *  CohortsEN write (read-only context): for first write
    */
   void
-  CohortsEN::write_ro(STM_WRITE_SIG(tx,addr,val,mask))
-  {
+  CohortsEN::write_ro(STM_WRITE_SIG(addr,val,mask))
+  {TxThread* tx = stm::Self;
+
 #ifndef TRY
       // If everyone else is ready to commit, do in place write
       if (cpending.val + 1 == started.val) {
@@ -254,7 +261,7 @@ namespace {
    *  CohortsEN write (in place write)
    */
   void
-  CohortsEN::write_turbo(STM_WRITE_SIG(tx,addr,val,mask))
+  CohortsEN::write_turbo(STM_WRITE_SIG(addr,val,mask))
   {
       *addr = val; // in place write
   }
@@ -263,8 +270,9 @@ namespace {
    *  CohortsEN write (writing context)
    */
   void
-  CohortsEN::write_rw(STM_WRITE_SIG(tx,addr,val,mask))
+  CohortsEN::write_rw(STM_WRITE_SIG(addr,val,mask))
   {
+      TxThread* tx = stm::Self;
 #ifdef TRY
       // Try to go turbo when "writes.size() >= TIMES"
       if (tx->writes.size() >= TIMES && cpending.val + 1 == started.val) {

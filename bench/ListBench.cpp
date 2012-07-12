@@ -61,7 +61,7 @@ void bench_init()
     // NB: if we switch to CGL, we can initialize without transactions
     TM_BEGIN_FAST_INITIALIZATION();
     for (uint32_t w = 0; w < CFG.elements; w+=2)
-        SET->insert(w TM_PARAM);
+        SET->insert(w);
     TM_END_FAST_INITIALIZATION();
 }
 
@@ -72,17 +72,17 @@ void bench_test(uintptr_t, uint32_t* seed)
     uint32_t act = rand_r_32(seed) % 100;
     if (act < CFG.lookpct) {
         TM_BEGIN(atomic) {
-            SET->lookup(val TM_PARAM);
+            SET->lookup(val);
         } TM_END;
     }
     else if (act < CFG.inspct) {
         TM_BEGIN(atomic) {
-            SET->insert(val TM_PARAM);
+            SET->insert(val);
         } TM_END;
     }
     else {
         TM_BEGIN(atomic) {
-            SET->remove(val TM_PARAM);
+            SET->remove(val);
         } TM_END;
     }
 }

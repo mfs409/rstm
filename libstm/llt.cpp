@@ -41,13 +41,13 @@ using stm::get_orec;
 namespace {
   struct LLT
   {
-      static TM_FASTCALL bool begin(TxThread*);
-      static TM_FASTCALL void* read_ro(STM_READ_SIG(,,));
-      static TM_FASTCALL void* read_rw(STM_READ_SIG(,,));
-      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,,));
-      static TM_FASTCALL void commit_ro(TxThread*);
-      static TM_FASTCALL void commit_rw(TxThread*);
+      static TM_FASTCALL bool begin();
+      static TM_FASTCALL void* read_ro(STM_READ_SIG(,));
+      static TM_FASTCALL void* read_rw(STM_READ_SIG(,));
+      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,));
+      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,));
+      static TM_FASTCALL void commit_ro();
+      static TM_FASTCALL void commit_rw();
 
       static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
@@ -59,8 +59,9 @@ namespace {
    *  LLT begin:
    */
   bool
-  LLT::begin(TxThread* tx)
+  LLT::begin()
   {
+      TxThread* tx = stm::Self;
       tx->allocator.onTxBegin();
       // get a start time
       tx->start_time = timestamp.val;
@@ -71,8 +72,9 @@ namespace {
    *  LLT commit (read-only):
    */
   void
-  LLT::commit_ro(TxThread* tx)
+  LLT::commit_ro()
   {
+      TxThread* tx = stm::Self;
       // read-only, so just reset lists
       tx->r_orecs.reset();
       OnReadOnlyCommit(tx);
@@ -85,8 +87,9 @@ namespace {
    *    validations.
    */
   void
-  LLT::commit_rw(TxThread* tx)
+  LLT::commit_rw()
   {
+      TxThread* tx = stm::Self;
       // acquire locks
       foreach (WriteSet, i, tx->writes) {
           // get orec, read its version#
@@ -136,8 +139,9 @@ namespace {
    *    We use "check twice" timestamps in LLT
    */
   void*
-  LLT::read_ro(STM_READ_SIG(tx,addr,))
+  LLT::read_ro(STM_READ_SIG(addr,))
   {
+      TxThread* tx = stm::Self;
       // get the orec addr
       orec_t* o = get_orec(addr);
 
@@ -162,8 +166,9 @@ namespace {
    *  LLT read (writing transaction)
    */
   void*
-  LLT::read_rw(STM_READ_SIG(tx,addr,mask))
+  LLT::read_rw(STM_READ_SIG(addr,mask))
   {
+      TxThread* tx = stm::Self;
       // check the log for a RAW hazard, we expect to miss
       WriteSetEntry log(STM_WRITE_SET_ENTRY(addr, NULL, mask));
       bool found = tx->writes.find(log);
@@ -196,8 +201,9 @@ namespace {
    *  LLT write (read-only context)
    */
   void
-  LLT::write_ro(STM_WRITE_SIG(tx,addr,val,mask))
+  LLT::write_ro(STM_WRITE_SIG(addr,val,mask))
   {
+      TxThread* tx = stm::Self;
       // add to redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
       OnFirstWrite(tx, read_rw, write_rw, commit_rw);
@@ -207,8 +213,9 @@ namespace {
    *  LLT write (writing context)
    */
   void
-  LLT::write_rw(STM_WRITE_SIG(tx,addr,val,mask))
+  LLT::write_rw(STM_WRITE_SIG(addr,val,mask))
   {
+      TxThread* tx = stm::Self;
       // add to redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
   }
