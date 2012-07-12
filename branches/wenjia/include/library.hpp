@@ -50,8 +50,8 @@
 #define API_LIBRARY_HPP__
 
 #include <setjmp.h>
-#include <common/platform.hpp>
-#include <stm/txthread.hpp>
+#include <platform.hpp>
+#include <txthread.hpp>
 
 namespace stm
 {

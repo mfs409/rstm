@@ -22,9 +22,9 @@
 #include <cstdio>
 #endif
 
-#include "stm/metadata.hpp"
-#include "stm/txthread.hpp"
-#include "../profiling.hpp" // Trigger::
+#include "metadata.hpp"
+#include "txthread.hpp"
+#include "profiling.hpp" // Trigger::
 
 namespace stm
 {

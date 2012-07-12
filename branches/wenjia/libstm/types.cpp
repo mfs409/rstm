@@ -16,11 +16,11 @@
  *  compilation unit.
  */
 
-#include "stm/metadata.hpp"
-#include "stm/MiniVector.hpp"
-#include "stm/WriteSet.hpp"
-#include "stm/UndoLog.hpp"
-#include "stm/ValueList.hpp"
+#include "metadata.hpp"
+#include "MiniVector.hpp"
+#include "WriteSet.hpp"
+#include "UndoLog.hpp"
+#include "ValueList.hpp"
 #include "policies.hpp"
 
 #ifdef STM_USE_PMU

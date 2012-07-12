@@ -24,7 +24,7 @@
  */
 
 #include <cstdlib>
-#include <stm/txthread.hpp>
+#include <txthread.hpp>
 #include "policies.hpp"
 
 namespace stm

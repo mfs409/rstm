@@ -18,10 +18,10 @@
 #endif
 
 #include <inttypes.h>
-#include <common/platform.hpp>
-#include <stm/metadata.hpp>
-#include <stm/txthread.hpp>
-#include <stm/lib_globals.hpp>
+#include <platform.hpp>
+#include <metadata.hpp>
+#include <txthread.hpp>
+#include <lib_globals.hpp>
 
 namespace stm
 {
