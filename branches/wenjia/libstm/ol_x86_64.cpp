@@ -34,8 +34,8 @@ using stm::WriteSet;
 using stm::orec_t;
 using stm::id_version_t;
 
-
 namespace {
+
   template <class CM>
   struct OL_X86_64_Generic
   {
@@ -84,9 +84,7 @@ namespace {
   {
       TxThread* tx = stm::Self;
       tx->allocator.onTxBegin();
-      CFENCE;
-      tx->start_time = tick();
-      CFENCE;
+      tx->start_time = tickp() & 0x7FFFFFFFFFFFFFFFLL;
       CM::onBegin(tx);
       return false;
   }
@@ -152,9 +150,14 @@ namespace {
       tx->writes.writeback();
 
       // increment the global timestamp, release locks
+      WBR; // for extremely small transactions, we're getting errors wrt the
+           // timing of this tick... a WBR seems to resolve, though I don't
+           // know why... tickp should be precise enough...
       CFENCE;
-      uintptr_t end_time = tick();
+      uintptr_t end_time = tickp() & 0x7FFFFFFFFFFFFFFFLL;
       CFENCE;
+
+      // release locks
       foreach (OrecList, i, tx->locks)
           (*i)->v.all = end_time;
 
@@ -175,30 +178,40 @@ namespace {
    *    orec and return
    */
   template <class CM>
-  void*
-  OL_X86_64_Generic<CM>::read_ro(STM_READ_SIG(addr,))
+  void* OL_X86_64_Generic<CM>::read_ro(STM_READ_SIG(addr,))
   {
       TxThread* tx = stm::Self;
       // get the orec addr
       orec_t* o = get_orec(addr);
 
-      // read the location
-      void* tmp = *addr;
-      CFENCE;
-      //  check the orec.
-      //  NB: with this variant of timestamp, we don't need prevalidation
-      uintptr_t ivt = o->v.all;
+      while (true) {
+          // read the location
+          void* tmp = *addr;
+          CFENCE;
+          //  check the orec.
+          //  NB: with this variant of timestamp, we don't need prevalidation
+          id_version_t ivt;
+          ivt.all = o->v.all;
 
-      // assuming that we won't abort, we can add orec to the read set now
-      tx->r_orecs.insert(o);
+          // common case: new read to uncontended location
+          if (ivt.all <= tx->start_time) {
+              tx->r_orecs.insert(o);
+              return tmp;
+          }
 
-      // common case: new read to uncontended location
-      if (__builtin_expect((ivt <= tx->start_time), true))
-          return tmp;
+          // if lock held, spin and retry
+          if (ivt.fields.lock) {
+              spin64();
+              continue;
+          }
 
-      // otherwise abort
-      tx->tmabort(tx);
-      return NULL;
+          // scale timestamp if ivt is too new, then try again
+          CFENCE;
+          uint64_t newts = tickp() & 0x7FFFFFFFFFFFFFFFLL;
+          CFENCE;
+          validate(tx);
+          tx->start_time = newts;
+      }
   }
 
   /**
