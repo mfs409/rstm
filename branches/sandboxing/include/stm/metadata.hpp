@@ -62,7 +62,36 @@ namespace stm
 #endif
       } fields;
       uintptr_t all; // read entire struct in a single load
+
+      inline id_version_t() : all(0) {
+      }
+
+      inline explicit id_version_t(uintptr_t i) : all(i) {
+      }
+
+
+      inline id_version_t(const volatile id_version_t& rhs) : all(rhs.all) {
+      }
+
+      inline id_version_t& operator=(const volatile id_version_t& rhs) {
+          all = rhs.all;
+          return *this;
+      }
   };
+
+  inline bool locked(const volatile id_version_t& id) {
+      return id.fields.lock;
+  }
+
+  inline bool
+  operator==(const volatile id_version_t& l, const volatile id_version_t& r) {
+      return l.all == r.all;
+  }
+
+  inline bool
+  operator!=(const volatile id_version_t& l, const volatile id_version_t& r) {
+      return l.all != r.all;
+  }
 
   /**
    * When we acquire an orec, we may ultimately need to reset it to its old
@@ -73,7 +102,24 @@ namespace stm
   {
       volatile id_version_t v; // current version number or lockBit + ownerId
       volatile uintptr_t    p; // previous version number
+
+      inline orec_t() : v(0), p(0) {
+      }
+
+    private:
+      orec_t(const orec_t&);
+      orec_t& operator=(const orec_t&);
   };
+
+
+  inline bool operator==(const orec_t& lhs, const orec_t& rhs) {
+      return (lhs.v == rhs.v);
+  }
+
+  inline bool operator!=(const orec_t& lhs, const orec_t& rhs) {
+      return (lhs.v != rhs.v);
+  }
+
 
   /**
    *  Nano requires that we log not just the orec address, but also its value
@@ -83,6 +129,7 @@ namespace stm
       orec_t* o;   // address of the orec
       uintptr_t v; // value of the orec
       nanorec_t(orec_t* _o, uintptr_t _v) : o(_o), v(_v) { }
+      nanorec_t(orec_t* _o, id_version_t _v) : o(_o), v(_v.all) { }
   };
 
   /**
