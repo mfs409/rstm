@@ -24,6 +24,7 @@
 #include "../profiling.hpp"
 #include "algs.hpp"
 #include "RedoRAWUtils.hpp"
+#include "../sandboxing.hpp"
 
 using stm::UNRECOVERABLE;
 using stm::TxThread;
@@ -56,11 +57,26 @@ namespace {
       static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
       static void onSwitchTo();
-      static bool validate(TxThread&);
+      static bool validate(TxThread*);
   };
 
+
+  static bool
+  dirty(TxThread& tx) {
+      ++tx.validations;
+      return (tx.lazy_hashing_cursor < tx.nanorecs.size());
+  }
+
   bool
-  NanoSandbox::validate(TxThread& tx) {
+  NanoSandbox::validate(TxThread* tx) {
+      stm::sandbox::InLib raii;
+      ++tx->full_validations;
+      foreach (NanorecList, i, tx->nanorecs) {
+          if (i->o->v.all != i->v)
+              return false;
+      }
+      tx->lazy_hashing_cursor = tx->nanorecs.size();
+      return true;
   }
 
   /**
@@ -79,8 +95,13 @@ namespace {
   void
   NanoSandbox::commit_ro(TxThread* tx)
   {
+      // sandboxing requires this check
+      if (!validate(tx))
+          tx->tmabort(tx);
+
       // read-only, so reset the orec list and we are done
       tx->nanorecs.reset();
+      tx->lazy_hashing_cursor = 0;
       OnReadOnlyCommit(tx);
   }
 
@@ -93,12 +114,13 @@ namespace {
   void
   NanoSandbox::commit_rw(TxThread* tx)
   {
+      stm::sandbox::InLib raii;
+
       // acquire locks
       foreach (WriteSet, i, tx->writes) {
           // get orec, read its version#
           orec_t* o = get_nanorec(i->addr);
-          id_version_t ivt;
-          ivt.all = o->v.all;
+          id_version_t ivt = o->v;
 
           // if unlocked and we can lock it, do so
           if (ivt.all != tx->my_lock.all) {
@@ -133,6 +155,7 @@ namespace {
 
       // clean-up
       tx->nanorecs.reset();
+      tx->lazy_hashing_cursor = 0;
       tx->writes.reset();
       tx->locks.reset();
       OnReadWriteCommit(tx, read_ro, write_ro, commit_ro);
@@ -146,35 +169,24 @@ namespace {
   {
       // get the orec addr
       orec_t* o = get_nanorec(addr);
-
-      while (true) {
-          // read orec
-          id_version_t ivt;
-          ivt.all = o->v.all;
+      id_version_t ivt = o->v;          // read orec
+      do {
           CFENCE;
-
-          // read the location
-          void* tmp = *addr;
+          void* val = *addr;            // read value
           CFENCE;
+          id_version_t ivt2 = o->v;     // Reread  orec
 
-          // re-read orec
-          uintptr_t ivt2 = o->v.all;
-
-          // common case: valid read
-          if ((ivt.all == ivt2) && (!ivt.fields.lock)) {
-              // log the read
+          // if the read was consistent and not locked, log the orec and return
+          // the value.
+          if (ivt == ivt2 && !locked(ivt2)) {
               tx->nanorecs.insert(nanorec_t(o, ivt2));
-              // validate the whole read set, then return the value we just read
-              foreach (NanorecList, i, tx->nanorecs)
-                  if (i->o->v.all != i->v)
-                      tx->tmabort(tx);
-              return tmp;
+              return val;
           }
 
-          // if lock held, spin before retrying
-          if (o->v.fields.lock)
+          // reread the orec, spin if we see it locked
+          for (ivt = o->v; locked(ivt); ivt = o->v)
               spin64();
-      }
+      } while (true);
   }
 
   /**
@@ -237,8 +249,13 @@ namespace {
 
       // undo memory operations, reset lists
       tx->nanorecs.reset();
+      tx->lazy_hashing_cursor = 0;
       tx->writes.reset();
       tx->locks.reset();
+
+      // we're going to longjmp from an abort---in_lib needs to be reset just
+      // in case
+      stm::sandbox::clear_in_lib();
       return PostRollback(tx, read_ro, write_ro, commit_ro);
   }
 
@@ -278,6 +295,7 @@ namespace stm {
       stms[NanoSandbox].rollback  = ::NanoSandbox::rollback;
       stms[NanoSandbox].irrevoc   = ::NanoSandbox::irrevoc;
       stms[NanoSandbox].switcher  = ::NanoSandbox::onSwitchTo;
+      stms[NanoSandbox].validate  = ::NanoSandbox::validate;
       stms[NanoSandbox].privatization_safe = false;
       stms[NanoSandbox].sandbox_signals = true;
   }

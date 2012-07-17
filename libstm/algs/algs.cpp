@@ -42,10 +42,10 @@ namespace stm
   pad_word_t timestamp_max = {0};
 
   /*** the set of orecs (locks) */
-  orec_t orecs[NUM_STRIPES] = {{{{0}}}};
+  orec_t orecs[NUM_STRIPES];
 
   /*** the set of nanorecs */
-  orec_t nanorecs[RING_ELEMENTS] = {{{{0}}}};
+  orec_t nanorecs[RING_ELEMENTS];
 
   /*** the ring */
   pad_word_t last_complete = {0};

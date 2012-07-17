@@ -61,7 +61,8 @@ namespace {
 }
 
 static bool
-check_tainted(TxThread& tx) {
+dirty(TxThread& tx) {
+    ++tx.validations;
     return (tx.lazy_hashing_cursor != tx.r_orecs.m_size);
 }
 
@@ -91,10 +92,8 @@ do_lazy_hashes(TxThread& tx) {
 bool
 OrecSandbox::validate(TxThread* tx)
 {
-    ++tx->validations;
-
     // Check tainted first, since it's purely local.
-    if (!check_tainted(*tx))
+    if (!dirty(*tx))
         return true;
 
     // skip validation entirely if no one has committed
