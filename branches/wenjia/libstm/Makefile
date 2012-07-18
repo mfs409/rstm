@@ -15,6 +15,11 @@ MKFOLDER = ../build
 include $(MKFOLDER)/info.mk
 
 #
+# Pull in the algorithm names
+#
+include ./algs.mk
+
+#
 # Output folder: we build in-tree, unless this is overridden.  Note that the
 # folder is built at parse time, so that we don't have to depend on its
 # existance, but we need to handle parses of this file when a library wasn't
@@ -27,31 +32,28 @@ output_folder := $(shell mkdir -p $(ODIR))
 endif
 
 #
-# Updates to flags: we want support for dependencies, and we build an .h file
+# Updates to flags: we want support for dependencies, and we build a .h file
 #                   in the ODIR that we need to have on the include path
 #
-CXXFLAGS += -MMD
+CXXFLAGS += -MMD -I$(ODIR)
 
 #
 # All the cpp files are listed here
 #
-CXXNAMES = algs biteager biteagerredo bitlazy byear byeau byteeager           \
-           byteeagerredo bytelazy cbr cgl cohorts cohortseager cohortsef      \
-           cohortsfilter cohortslazy cohortslf cohortsli cohortsln            \
-           cohortsnoorder cohortsnorec cohortsold ctoken ctokenturbo          \
-           inst irrevocability llt mcs nano norec norecprio oreau orecala     \
-           oreceager oreceagerredo orecela orecfair oreclazy pessimistic      \
-           pipeline policies profileapp profiletm profiling ringala ringsw    \
-           serial static swiss ticket tli tml tmllazy txthread types          \
-           WBMMPolicy wealth fastlaneswitch fastlane1 fastlane2               \
-           ctokenturboela cohortsen cohortsen2 ctokennorec cohorts2           \
-	   cohorts3 cohortsenq cohortsen2q pipelineturbo ctokenela ctokenq    \
-	   ctokenturboq cohortslni x86_oe_nc llt_x86_64 ol_x86_64 nanoela
+CXXNAMES = algs cbr inst irrevocability policies profiling static txthread \
+           types WBMMPolicy $(ALGNAMES)
 
 #
 # The name of the library to build
 #
 LIBNAME = $(ODIR)/librstm.a
+
+#
+# Build algnames-autogen.hpp in the ODIR folder
+#
+$(ODIR)/algnames-autogen.hpp: ./algs.mk
+	@echo $(ALGNAMES) ALG_MAX | sed 's/ /, /g' | sed 's/^/namespace stm{enum ALGS {/'| sed 's/ALG_MAX/ALG_MAX};}/' > $@
+
 #
 # Transform all source names to .o files in the output directory
 #
@@ -84,7 +86,7 @@ $(LIBNAME): $(OFILES)
 # directions are not followed
 #
 .default: info
-librstm: $(LIBNAME)
+librstm: $(ODIR)/algnames-autogen.hpp $(LIBNAME)
 .PHONY: .default librstm
 
 #

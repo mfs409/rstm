@@ -8,6 +8,9 @@
  *          Please see the file LICENSE.RSTM for licensing information
  */
 
+#ifndef OREAU_HPP__
+#define OREAU_HPP__
+
 /**
  *  OrEAU Implementation
  *
@@ -42,7 +45,7 @@ namespace {
   template <class CM>
   struct OrEAU_Generic
   {
-      static void Initialize(int id, const char* name);
+      static void initialize(int id, const char* name);
       static TM_FASTCALL bool begin();
       static TM_FASTCALL void* read_ro(STM_READ_SIG(,));
       static TM_FASTCALL void* read_rw(STM_READ_SIG(,));
@@ -62,7 +65,7 @@ namespace {
    */
   template <class CM>
   void
-  OrEAU_Generic<CM>::Initialize(int id, const char* name)
+  OrEAU_Generic<CM>::initialize(int id, const char* name)
   {
       // set the name
       stm::stms[id].name      = name;
@@ -441,12 +444,10 @@ namespace {
 #define INIT_OREAU(ID, CM)                      \
     template <>                                 \
     void initTM<ID>() {                         \
-        OrEAU_Generic<CM>::Initialize(ID, #ID); \
+        OrEAU_Generic<CM>::initialize(ID, #ID); \
     }
-
-namespace stm {
-  FOREACH_OREAU(INIT_OREAU)
-}
 
 #undef FOREACH_OREAU
 #undef INIT_OREAU
+
+#endif // OREAU_HPP__

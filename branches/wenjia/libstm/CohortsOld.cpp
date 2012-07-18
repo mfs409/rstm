@@ -49,7 +49,7 @@ using stm::locks;
  *  circular dependencies.
  */
 namespace {
-  struct Cohortsold {
+  struct CohortsOld {
       static TM_FASTCALL bool begin();
       static TM_FASTCALL void* read_ro(STM_READ_SIG(,));
       static TM_FASTCALL void* read_rw(STM_READ_SIG(,));
@@ -68,14 +68,14 @@ namespace {
   };
 
   /**
-   *  Cohortsold begin:
-   *  Cohortsold has a strict policy for transactions to begin. At first,
+   *  CohortsOld begin:
+   *  CohortsOld has a strict policy for transactions to begin. At first,
    *  every tx can start, until one of the tx is ready to commit. Then no
    *  tx is allowed to start until all the transactions finishes their
    *  commits.
    */
   bool
-  Cohortsold::begin()
+  CohortsOld::begin()
   {
       TxThread* tx = stm::Self;
       // wait until we are allowed to start
@@ -109,11 +109,11 @@ namespace {
   }
 
   /**
-   *  Cohortsold commit (read-only):
+   *  CohortsOld commit (read-only):
    *  RO commit is easy.
    */
   void
-  Cohortsold::commit_ro()
+  CohortsOld::commit_ro()
   {
       TxThread* tx = stm::Self;
       // decrease total number of tx in a cohort
@@ -126,13 +126,13 @@ namespace {
   }
 
   /**
-   *  Cohortsold commit (writing context):
+   *  CohortsOld commit (writing context):
    *
    *  RW commit is operated in turns. Transactions will be allowed to commit
    *  in an order which is given at the beginning of commit.
    */
   void
-  Cohortsold::commit_rw()
+  CohortsOld::commit_rw()
   {
       TxThread* tx = stm::Self;
       // NB: get a new order at the begainning of commit
@@ -197,11 +197,11 @@ namespace {
   }
 
   /**
-   *  Cohortsold read (read-only transaction)
+   *  CohortsOld read (read-only transaction)
    *  Standard orec read function.
    */
   void*
-  Cohortsold::read_ro(STM_READ_SIG(addr,))
+  CohortsOld::read_ro(STM_READ_SIG(addr,))
   {
       TxThread* tx = stm::Self;
       void* tmp = *addr;
@@ -255,10 +255,10 @@ namespace {
   }
 
   /**
-   *  Cohortsold read (writing transaction)
+   *  CohortsOld read (writing transaction)
    */
   void*
-  Cohortsold::read_rw(STM_READ_SIG(addr,mask))
+  CohortsOld::read_rw(STM_READ_SIG(addr,mask))
   {
       TxThread* tx = stm::Self;
       // check the log for a RAW hazard, we expect to miss
@@ -274,10 +274,10 @@ namespace {
   }
 
   /**
-   *  Cohortsold write (read-only context)
+   *  CohortsOld write (read-only context)
    */
   void
-  Cohortsold::write_ro(STM_WRITE_SIG(addr,val,mask))
+  CohortsOld::write_ro(STM_WRITE_SIG(addr,val,mask))
   {
       TxThread* tx = stm::Self;
       // record the new value in a redo log
@@ -286,10 +286,10 @@ namespace {
   }
 
   /**
-   *  Cohortsold write (writing context)
+   *  CohortsOld write (writing context)
    */
   void
-  Cohortsold::write_rw(STM_WRITE_SIG(addr,val,mask))
+  CohortsOld::write_rw(STM_WRITE_SIG(addr,val,mask))
   {
       TxThread* tx = stm::Self;
       // record the new value in a redo log
@@ -297,10 +297,10 @@ namespace {
   }
 
   /**
-   *  Cohortsold unwinder:
+   *  CohortsOld unwinder:
    */
   stm::scope_t*
-  Cohortsold::rollback(STM_ROLLBACK_SIG(tx, except, len))
+  CohortsOld::rollback(STM_ROLLBACK_SIG(tx, except, len))
   {
       PreRollback(tx);
 
@@ -321,20 +321,20 @@ namespace {
   }
 
   /**
-   *  Cohortsold in-flight irrevocability:
+   *  CohortsOld in-flight irrevocability:
    */
   bool
-  Cohortsold::irrevoc(TxThread*)
+  CohortsOld::irrevoc(TxThread*)
   {
-      UNRECOVERABLE("Cohortsold Irrevocability not yet supported");
+      UNRECOVERABLE("CohortsOld Irrevocability not yet supported");
       return false;
   }
 
   /**
-   *  Cohortsold validation
+   *  CohortsOld validation
    */
   void
-  Cohortsold::validate(TxThread* tx, uintptr_t finish_cache)
+  CohortsOld::validate(TxThread* tx, uintptr_t finish_cache)
   {
       // check that all reads are valid
       foreach (OrecList, i, tx->r_orecs) {
@@ -350,10 +350,10 @@ namespace {
   }
 
   /**
-   *  Cohortsold validation for commit
+   *  CohortsOld validation for commit
    */
   void
-  Cohortsold::validate_cm(TxThread* tx, uintptr_t finish_cache)
+  CohortsOld::validate_cm(TxThread* tx, uintptr_t finish_cache)
   {
       // check that all reads are valid
       foreach (OrecList, i, tx->r_orecs) {
@@ -369,11 +369,11 @@ namespace {
   }
 
   /**
-   *   Cohortsold Tx Abort Wrapper
+   *   CohortsOld Tx Abort Wrapper
    *   decrease total # in one cohort, and abort
    */
   void
-  Cohortsold::TxAbortWrapper(TxThread* tx)
+  CohortsOld::TxAbortWrapper(TxThread* tx)
   {
       // decrease total number of tx in one cohort
       SUB(&started.val, 2);
@@ -383,12 +383,12 @@ namespace {
   }
 
   /**
-   *   Cohortsold Tx Abort Wrapper for commit
+   *   CohortsOld Tx Abort Wrapper for commit
    *   for abort inside commit. Since we already have order, we need to mark
    *   self as last_complete, and decrease total number of tx in one cohort.
    */
   void
-  Cohortsold::TxAbortWrapper_cm(TxThread* tx)
+  CohortsOld::TxAbortWrapper_cm(TxThread* tx)
   {
       // decrease total number of tx in one cohort
       SUB(&started.val, 2);
@@ -401,7 +401,7 @@ namespace {
   }
 
   /**
-   *  Switch to Cohortsold:
+   *  Switch to CohortsOld:
    *
    *    The timestamp must be >= the maximum value of any orec.  Some algs use
    *    timestamp as a zero-one mutex.  If they do, then they back up the
@@ -412,7 +412,7 @@ namespace {
    *    Also, all threads' order values must be -1
    */
   void
-  Cohortsold::onSwitchTo()
+  CohortsOld::onSwitchTo()
   {
       timestamp.val = MAXIMUM(timestamp.val, timestamp_max.val);
       last_complete.val = timestamp.val;
@@ -431,22 +431,22 @@ namespace {
 
 namespace stm {
   /**
-   *  Cohortsold initialization
+   *  CohortsOld initialization
    */
   template<>
-  void initTM<Cohortsold>()
+  void initTM<CohortsOld>()
   {
       // set the name
-      stms[Cohortsold].name      = "Cohortsold";
+      stms[CohortsOld].name      = "CohortsOld";
       // set the pointers
-      stms[Cohortsold].begin     = ::Cohortsold::begin;
-      stms[Cohortsold].commit    = ::Cohortsold::commit_ro;
-      stms[Cohortsold].read      = ::Cohortsold::read_ro;
-      stms[Cohortsold].write     = ::Cohortsold::write_ro;
-      stms[Cohortsold].rollback  = ::Cohortsold::rollback;
-      stms[Cohortsold].irrevoc   = ::Cohortsold::irrevoc;
-      stms[Cohortsold].switcher  = ::Cohortsold::onSwitchTo;
-      stms[Cohortsold].privatization_safe = true;
+      stms[CohortsOld].begin     = ::CohortsOld::begin;
+      stms[CohortsOld].commit    = ::CohortsOld::commit_ro;
+      stms[CohortsOld].read      = ::CohortsOld::read_ro;
+      stms[CohortsOld].write     = ::CohortsOld::write_ro;
+      stms[CohortsOld].rollback  = ::CohortsOld::rollback;
+      stms[CohortsOld].irrevoc   = ::CohortsOld::irrevoc;
+      stms[CohortsOld].switcher  = ::CohortsOld::onSwitchTo;
+      stms[CohortsOld].privatization_safe = true;
   }
 }
 

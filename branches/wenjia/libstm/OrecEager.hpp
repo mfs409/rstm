@@ -8,6 +8,9 @@
  *          Please see the file LICENSE.RSTM for licensing information
  */
 
+#ifndef ORECEAGER_HPP__
+#define ORECEAGER_HPP__
+
 /**
  *  OrecEager Implementation:
  *
@@ -384,9 +387,7 @@ namespace {
         OrecEager_Generic<stm::CM>::initialize(ID, #ID);    \
     }
 
-namespace stm {
-  FOREACH_ORECEAGER(INIT_ORECEAGER)
-}
-
 #undef FOREACH_ORECEAGER
 #undef INIT_ORECEAGER
+
+#endif // ORECEAGER_HPP__

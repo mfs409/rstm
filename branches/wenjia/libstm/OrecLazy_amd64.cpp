@@ -12,7 +12,7 @@
 // timestamps... this should be pretty good
 
 /**
- *  OL_X86_64 Implementation:
+ *  OrecLazy_amd64 Implementation:
  *
  *    This STM is similar to the commit-time locking variant of TinySTM.  It
  *    also resembles the "patient" STM published by Spear et al. at PPoPP 2009.
@@ -37,7 +37,7 @@ using stm::id_version_t;
 namespace {
 
   template <class CM>
-  struct OL_X86_64_Generic
+  struct OrecLazy_amd64_Generic
   {
       static TM_FASTCALL bool begin();
       static TM_FASTCALL void* read_ro(STM_READ_SIG(,));
@@ -57,30 +57,30 @@ namespace {
 
   template <class CM>
   void
-  OL_X86_64_Generic<CM>::Initialize(int id, const char* name)
+  OrecLazy_amd64_Generic<CM>::Initialize(int id, const char* name)
   {
       // set the name
       stm::stms[id].name      = name;
 
       // set the pointers
-      stm::stms[id].begin     = OL_X86_64_Generic<CM>::begin;
-      stm::stms[id].commit    = OL_X86_64_Generic<CM>::commit_ro;
-      stm::stms[id].read      = OL_X86_64_Generic<CM>::read_ro;
-      stm::stms[id].write     = OL_X86_64_Generic<CM>::write_ro;
-      stm::stms[id].rollback  = OL_X86_64_Generic<CM>::rollback;
+      stm::stms[id].begin     = OrecLazy_amd64_Generic<CM>::begin;
+      stm::stms[id].commit    = OrecLazy_amd64_Generic<CM>::commit_ro;
+      stm::stms[id].read      = OrecLazy_amd64_Generic<CM>::read_ro;
+      stm::stms[id].write     = OrecLazy_amd64_Generic<CM>::write_ro;
+      stm::stms[id].rollback  = OrecLazy_amd64_Generic<CM>::rollback;
       stm::stms[id].irrevoc   = irrevoc;
       stm::stms[id].switcher  = onSwitchTo;
       stm::stms[id].privatization_safe = false;
   }
 
   /**
-   *  OL_X86_64 begin:
+   *  OrecLazy_amd64 begin:
    *
    *    Sample the timestamp and prepare local vars
    */
   template <class CM>
   bool
-  OL_X86_64_Generic<CM>::begin()
+  OrecLazy_amd64_Generic<CM>::begin()
   {
       TxThread* tx = stm::Self;
       tx->allocator.onTxBegin();
@@ -90,13 +90,13 @@ namespace {
   }
 
   /**
-   *  OL_X86_64 commit (read-only context)
+   *  OrecLazy_amd64 commit (read-only context)
    *
    *    We just reset local fields and we're done
    */
   template <class CM>
   void
-  OL_X86_64_Generic<CM>::commit_ro()
+  OrecLazy_amd64_Generic<CM>::commit_ro()
   {
       TxThread* tx = stm::Self;
       // notify CM
@@ -107,14 +107,14 @@ namespace {
   }
 
   /**
-   *  OL_X86_64 commit (writing context)
+   *  OrecLazy_amd64 commit (writing context)
    *
    *    Using Wang-style timestamps, we grab all locks, validate, writeback,
    *    increment the timestamp, and then release all locks.
    */
   template <class CM>
   void
-  OL_X86_64_Generic<CM>::commit_rw()
+  OrecLazy_amd64_Generic<CM>::commit_rw()
   {
       TxThread* tx = stm::Self;
       // acquire locks
@@ -172,13 +172,13 @@ namespace {
   }
 
   /**
-   *  OL_X86_64 read (read-only context):
+   *  OrecLazy_amd64 read (read-only context):
    *
    *    in the best case, we just read the value, check the timestamp, log the
    *    orec and return
    */
   template <class CM>
-  void* OL_X86_64_Generic<CM>::read_ro(STM_READ_SIG(addr,))
+  void* OrecLazy_amd64_Generic<CM>::read_ro(STM_READ_SIG(addr,))
   {
       TxThread* tx = stm::Self;
       // get the orec addr
@@ -215,13 +215,13 @@ namespace {
   }
 
   /**
-   *  OL_X86_64 read (writing context):
+   *  OrecLazy_amd64 read (writing context):
    *
    *    Just like read-only context, but must check the write set first
    */
   template <class CM>
   void*
-  OL_X86_64_Generic<CM>::read_rw(STM_READ_SIG(addr,mask))
+  OrecLazy_amd64_Generic<CM>::read_rw(STM_READ_SIG(addr,mask))
   {
       TxThread* tx = stm::Self;
       // check the log for a RAW hazard, we expect to miss
@@ -236,13 +236,13 @@ namespace {
   }
 
   /**
-   *  OL_X86_64 write (read-only context):
+   *  OrecLazy_amd64 write (read-only context):
    *
    *    Buffer the write, and switch to a writing context
    */
   template <class CM>
   void
-  OL_X86_64_Generic<CM>::write_ro(STM_WRITE_SIG(addr,val,mask))
+  OrecLazy_amd64_Generic<CM>::write_ro(STM_WRITE_SIG(addr,val,mask))
   {
       TxThread* tx = stm::Self;
       // add to redo log
@@ -251,13 +251,13 @@ namespace {
   }
 
   /**
-   *  OL_X86_64 write (writing context):
+   *  OrecLazy_amd64 write (writing context):
    *
    *    Just buffer the write
    */
   template <class CM>
   void
-  OL_X86_64_Generic<CM>::write_rw(STM_WRITE_SIG(addr,val,mask))
+  OrecLazy_amd64_Generic<CM>::write_rw(STM_WRITE_SIG(addr,val,mask))
   {
       TxThread* tx = stm::Self;
       // add to redo log
@@ -265,14 +265,14 @@ namespace {
   }
 
   /**
-   *  OL_X86_64 rollback:
+   *  OrecLazy_amd64 rollback:
    *
    *    Release any locks we acquired (if we aborted during a commit()
    *    operation), and then reset local lists.
    */
   template <class CM>
   stm::scope_t*
-  OL_X86_64_Generic<CM>::rollback(STM_ROLLBACK_SIG(tx, except, len))
+  OrecLazy_amd64_Generic<CM>::rollback(STM_ROLLBACK_SIG(tx, except, len))
   {
       PreRollback(tx);
 
@@ -296,14 +296,14 @@ namespace {
   }
 
   /**
-   *  OL_X86_64 in-flight irrevocability:
+   *  OrecLazy_amd64 in-flight irrevocability:
    *
    *    Either commit the transaction or return false.
    */
    bool irrevoc(TxThread* tx)
    {
        return false;
-       // NB: In a prior release, we actually had a full OL_X86_64 commit
+       // NB: In a prior release, we actually had a full OrecLazy_amd64 commit
        //     here.  Any contributor who is interested in improving this code
        //     should note that such an approach is overkill: by the time this
        //     runs, there are no concurrent transactions, so in effect, all
@@ -311,7 +311,7 @@ namespace {
    }
 
   /**
-   *  OL_X86_64 validation:
+   *  OrecLazy_amd64 validation:
    *
    *    We only call this when in-flight, which means that we don't have any
    *    locks... This makes the code very simple, but it is still better to not
@@ -326,7 +326,7 @@ namespace {
   }
 
   /**
-   *  Switch to OL_X86_64:
+   *  Switch to OrecLazy_amd64:
    *
    *    The timestamp must be >= the maximum value of any orec.  Some algs use
    *    timestamp as a zero-one mutex.  If they do, then they back up the
@@ -345,18 +345,18 @@ namespace {
 // -----------------------------------------------------------------------------
 /*
 #define FOREACH_ORECLAZY(MACRO)               \
-    MACRO(OL_X86_64, HyperAggressiveCM)          \
-    MACRO(OL_X86_64Hour, HourglassCM)            \
-    MACRO(OL_X86_64Backoff, BackoffCM)           \
-    MACRO(OL_X86_64HB, HourglassBackoffCM)
+    MACRO(OrecLazy_amd64, HyperAggressiveCM)          \
+    MACRO(OrecLazy_amd64Hour, HourglassCM)            \
+    MACRO(OrecLazy_amd64Backoff, BackoffCM)           \
+    MACRO(OrecLazy_amd64HB, HourglassBackoffCM)
 */
 #define FOREACH_ORECLAZY(MACRO)                 \
-    MACRO(OL_X86_64, HyperAggressiveCM)
+    MACRO(OrecLazy_amd64, HyperAggressiveCM)
 
 #define INIT_ORECLAZY(ID, CM)                       \
     template <>                                     \
     void initTM<ID>() {                             \
-        OL_X86_64_Generic<stm::CM>::Initialize(ID, #ID); \
+        OrecLazy_amd64_Generic<stm::CM>::Initialize(ID, #ID); \
     }
 
 namespace stm {

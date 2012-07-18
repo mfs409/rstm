@@ -9,7 +9,7 @@
  */
 
 /**
- *  PTM Implementation
+ *  PessimisticTM Implementation
  *
  *  Based on A.Matveev et.al's paper "Towards a Fully Pessimistic STM
  *  Model", TRANSACT'12, FEB.2012
@@ -53,7 +53,7 @@ namespace {
        {0xFFFFFFFF, false},{0xFFFFFFFF, false},{0xFFFFFFFF, false},
        {0xFFFFFFFF, false},{0xFFFFFFFF, false},{0xFFFFFFFF, false}};
 
-  struct PTM {
+  struct PessimisticTM {
       static TM_FASTCALL bool begin();
       static TM_FASTCALL void* read_ro(STM_READ_SIG(,));
       static TM_FASTCALL void* read_rw(STM_READ_SIG(,));
@@ -70,11 +70,11 @@ namespace {
   };
 
   /**
-   *  PTM begin:
+   *  PessimisticTM begin:
    *  Master thread set cntr from even to odd.
    */
   bool
-  PTM::begin()
+  PessimisticTM::begin()
   {
       TxThread* tx = stm::Self;
       // starts
@@ -124,11 +124,11 @@ namespace {
   }
 
   /**
-   *  PTM commit (read-only):
+   *  PessimisticTM commit (read-only):
    *  Read-only transaction commit immediately
    */
   void
-  PTM::commit_read_only()
+  PessimisticTM::commit_read_only()
   {
       TxThread* tx = stm::Self;
       // Set the tx_version to the maximum value
@@ -141,14 +141,14 @@ namespace {
   }
 
   /**
-   *  PTM commit (read-only):
+   *  PessimisticTM commit (read-only):
    *  For those who did not mark themselves read_only
    *  at the begining of each transactions, but who do not have any writes
    *
    *  [mfs] Is this optimal?  There might be a fast path we can employ here.
    */
   void
-  PTM::commit_ro()
+  PessimisticTM::commit_ro()
   {
       TxThread* tx = stm::Self;
       // Set the tx_version to the maximum value
@@ -162,13 +162,13 @@ namespace {
   }
 
   /**
-   *  PTM commit (writing context):
+   *  PessimisticTM commit (writing context):
    *
    *  [mfs] This function needs more documentation.  The algorithm is not
    *        particularly clear from the code.
    */
   void
-  PTM::commit_rw()
+  PessimisticTM::commit_rw()
   {
       TxThread* tx = stm::Self;
       // Wait if tx_version is even
@@ -235,10 +235,10 @@ namespace {
   }
 
   /**
-   *  PTM read (read-only transaction)
+   *  PessimisticTM read (read-only transaction)
    */
   void*
-  PTM::read_ro(STM_READ_SIG(addr,))
+  PessimisticTM::read_ro(STM_READ_SIG(addr,))
   {
       TxThread* tx = stm::Self;
       // read_only tx only wait for one round at most
@@ -260,10 +260,10 @@ namespace {
   }
 
   /**
-   *  PTM read (writing transaction)
+   *  PessimisticTM read (writing transaction)
    */
   void*
-  PTM::read_rw(STM_READ_SIG(addr,mask))
+  PessimisticTM::read_rw(STM_READ_SIG(addr,mask))
   {
       TxThread* tx = stm::Self;
       // check the log for a RAW hazard, we expect to miss
@@ -278,20 +278,20 @@ namespace {
   }
 
   /**
-   *  PTM write (for read-only transactions): Do nothing
+   *  PessimisticTM write (for read-only transactions): Do nothing
    */
   void
-  PTM::write_read_only(STM_WRITE_SIG(addr,val,mask))
+  PessimisticTM::write_read_only(STM_WRITE_SIG(addr,val,mask))
   {
       printf("Read-only tx called writes!\n");
       return;
   }
 
   /**
-   *  PTM write (read-only context): for first write
+   *  PessimisticTM write (read-only context): for first write
    */
   void
-  PTM::write_ro(STM_WRITE_SIG(addr,val,mask))
+  PessimisticTM::write_ro(STM_WRITE_SIG(addr,val,mask))
   {
       TxThread* tx = stm::Self;
       // Add to write set
@@ -300,10 +300,10 @@ namespace {
   }
 
   /**
-   *  PTM write (writing context)
+   *  PessimisticTM write (writing context)
    */
   void
-  PTM::write_rw(STM_WRITE_SIG(addr,val,mask))
+  PessimisticTM::write_rw(STM_WRITE_SIG(addr,val,mask))
   {
       TxThread* tx = stm::Self;
       // record the new value in a redo log
@@ -311,30 +311,30 @@ namespace {
   }
 
   /**
-   *  PTM unwinder:
+   *  PessimisticTM unwinder:
    */
   stm::scope_t*
-  PTM::rollback(STM_ROLLBACK_SIG(tx, except, len))
+  PessimisticTM::rollback(STM_ROLLBACK_SIG(tx, except, len))
   {
       return NULL;
   }
 
   /**
-   *  PTM in-flight irrevocability:
+   *  PessimisticTM in-flight irrevocability:
    */
   bool
-  PTM::irrevoc(TxThread*)
+  PessimisticTM::irrevoc(TxThread*)
   {
-      UNRECOVERABLE("PTM Irrevocability not yet supported");
+      UNRECOVERABLE("PessimisticTM Irrevocability not yet supported");
       return false;
   }
 
   /**
-   *  Switch to PTM:
+   *  Switch to PessimisticTM:
    *
    */
   void
-  PTM::onSwitchTo()
+  PessimisticTM::onSwitchTo()
   {
       writer_lock.val = 0;
       global_version.val = 1;
@@ -343,22 +343,22 @@ namespace {
 
 namespace stm {
   /**
-   *  PTM initialization
+   *  PessimisticTM initialization
    */
   template<>
-  void initTM<PTM>()
+  void initTM<PessimisticTM>()
   {
       // set the name
-      stms[PTM].name      = "PTM";
+      stms[PessimisticTM].name      = "PessimisticTM";
       // set the pointers
-      stms[PTM].begin     = ::PTM::begin;
-      stms[PTM].commit    = ::PTM::commit_ro;
-      stms[PTM].read      = ::PTM::read_ro;
-      stms[PTM].write     = ::PTM::write_ro;
-      stms[PTM].rollback  = ::PTM::rollback;
-      stms[PTM].irrevoc   = ::PTM::irrevoc;
-      stms[PTM].switcher  = ::PTM::onSwitchTo;
-      stms[PTM].privatization_safe = true;
+      stms[PessimisticTM].begin     = ::PessimisticTM::begin;
+      stms[PessimisticTM].commit    = ::PessimisticTM::commit_ro;
+      stms[PessimisticTM].read      = ::PessimisticTM::read_ro;
+      stms[PessimisticTM].write     = ::PessimisticTM::write_ro;
+      stms[PessimisticTM].rollback  = ::PessimisticTM::rollback;
+      stms[PessimisticTM].irrevoc   = ::PessimisticTM::irrevoc;
+      stms[PessimisticTM].switcher  = ::PessimisticTM::onSwitchTo;
+      stms[PessimisticTM].privatization_safe = true;
   }
 }
 
