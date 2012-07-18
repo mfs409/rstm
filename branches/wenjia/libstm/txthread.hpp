@@ -106,7 +106,7 @@ namespace stm
       bool read_only;               // mark a transaction to be read-only txn
       bool progress_is_seen;        // for recording waiting progress
 
-      /*** FOR NanoELA */
+      /*** FOR ELA via x86 tick() */
       volatile uint64_t last_val_time; // time of last validation
 
       /*** PER-THREAD FIELDS FOR ENABLING ADAPTIVITY POLICIES */
@@ -126,6 +126,9 @@ namespace stm
        *  The other function pointers can be overwritten by remote threads,
        *  but that the synchronization when using the begin() function avoids
        *  the need for those pointers to be volatile.
+       *
+       *  NB: read/write/commit pointers were moved out of the descriptor
+       *      object to make user code less dependent on this file
        */
 
       /**

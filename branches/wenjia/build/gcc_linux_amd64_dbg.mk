@@ -10,7 +10,7 @@
 
 #
 # This makefile is for building the RSTM libraries and benchmarks using
-# library API, GCC, Linux, amd64, -O3
+# library API, GCC, Linux, amd64, -O0
 #
 # Warning: This just handles platform configuration.  Everything else is
 #          handled via per-folder Makefiles
@@ -19,9 +19,9 @@
 #
 # Compiler config
 #
-PLATFORM  = lib_gcc_linux_amd64_opt
+PLATFORM  = gcc_linux_amd64_dbg
 CXX       = g++
-CXXFLAGS += -O3 -ggdb -m64 -march=native -mtune=native -msse2 -mfpmath=sse
+CXXFLAGS += -O0 -ggdb -m64 -march=native -mtune=native -msse2 -mfpmath=sse
 LDFLAGS  += -lrt -lpthread -m64
 
 #
@@ -32,7 +32,7 @@ CXXFLAGS += -DSTM_CC_GCC
 CXXFLAGS += -DSTM_OS_LINUX
 CXXFLAGS += -DSTM_CPU_X86
 CXXFLAGS += -DSTM_BITS_64
-CXXFLAGS += -DSTM_OPT_O3
+CXXFLAGS += -DSTM_OPT_O0
 CXXFLAGS += -DSTM_WS_WORDLOG
 CXXFLAGS += -DSTM_PROFILETMTRIGGER_NONE
 CXXFLAGS += -DSTM_TLS_GCC
