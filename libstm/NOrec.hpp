@@ -8,6 +8,9 @@
  *          Please see the file LICENSE.RSTM for licensing information
  */
 
+#ifndef NOREC_HPP__
+#define NOREC_HPP__
+
 /**
  *  NOrec Implementation
  *
@@ -319,9 +322,7 @@ namespace {
         NOrec_Generic<CM>::initialize(ID, #ID);     \
     }
 
-namespace stm {
-  FOREACH_NOREC(INIT_NOREC)
-}
-
 #undef FOREACH_NOREC
 #undef INIT_NOREC
+
+#endif // NOREC_HPP__

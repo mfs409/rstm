@@ -13,7 +13,7 @@
  */
 
 /**
- *  LLT_X86_64 Implementation
+ *  LLT_amd64 Implementation
  *
  *    This STM very closely resembles the GV1 variant of TL2.  That is, it uses
  *    orecs and lazy acquire.  Its clock requires everyone to increment it to
@@ -41,7 +41,7 @@ using stm::get_orec;
  *  circular dependencies.
  */
 namespace {
-  struct LLT_X86_64
+  struct LLT_amd64
   {
       static TM_FASTCALL bool begin();
       static TM_FASTCALL void* read_ro(STM_READ_SIG(,));
@@ -58,10 +58,10 @@ namespace {
   };
 
   /**
-   *  LLT_X86_64 begin:
+   *  LLT_amd64 begin:
    */
   bool
-  LLT_X86_64::begin()
+  LLT_amd64::begin()
   {
       TxThread* tx = stm::Self;
       tx->allocator.onTxBegin();
@@ -71,10 +71,10 @@ namespace {
   }
 
   /**
-   *  LLT_X86_64 commit (read-only):
+   *  LLT_amd64 commit (read-only):
    */
   void
-  LLT_X86_64::commit_ro()
+  LLT_amd64::commit_ro()
   {
       TxThread* tx = stm::Self;
       // read-only, so just reset lists
@@ -83,13 +83,13 @@ namespace {
   }
 
   /**
-   *  LLT_X86_64 commit (writing context):
+   *  LLT_amd64 commit (writing context):
    *
    *    Get all locks, validate, do writeback.  Use the counter to avoid some
    *    validations.
    */
   void
-  LLT_X86_64::commit_rw()
+  LLT_amd64::commit_rw()
   {
       TxThread* tx = stm::Self;
       // acquire locks
@@ -135,12 +135,12 @@ namespace {
   }
 
   /**
-   *  LLT_X86_64 read (read-only transaction)
+   *  LLT_amd64 read (read-only transaction)
    *
-   *    We use "check twice" timestamps in LLT_X86_64
+   *    We use "check twice" timestamps in LLT_amd64
    */
   void*
-  LLT_X86_64::read_ro(STM_READ_SIG(addr,))
+  LLT_amd64::read_ro(STM_READ_SIG(addr,))
   {
       TxThread* tx = stm::Self;
       // get the orec addr
@@ -164,10 +164,10 @@ namespace {
   }
 
   /**
-   *  LLT_X86_64 read (writing transaction)
+   *  LLT_amd64 read (writing transaction)
    */
   void*
-  LLT_X86_64::read_rw(STM_READ_SIG(addr,mask))
+  LLT_amd64::read_rw(STM_READ_SIG(addr,mask))
   {
       TxThread* tx = stm::Self;
       // check the log for a RAW hazard, we expect to miss
@@ -199,10 +199,10 @@ namespace {
   }
 
   /**
-   *  LLT_X86_64 write (read-only context)
+   *  LLT_amd64 write (read-only context)
    */
   void
-  LLT_X86_64::write_ro(STM_WRITE_SIG(addr,val,mask))
+  LLT_amd64::write_ro(STM_WRITE_SIG(addr,val,mask))
   {
       TxThread* tx = stm::Self;
       // add to redo log
@@ -211,10 +211,10 @@ namespace {
   }
 
   /**
-   *  LLT_X86_64 write (writing context)
+   *  LLT_amd64 write (writing context)
    */
   void
-  LLT_X86_64::write_rw(STM_WRITE_SIG(addr,val,mask))
+  LLT_amd64::write_rw(STM_WRITE_SIG(addr,val,mask))
   {
       TxThread* tx = stm::Self;
       // add to redo log
@@ -222,10 +222,10 @@ namespace {
   }
 
   /**
-   *  LLT_X86_64 unwinder:
+   *  LLT_amd64 unwinder:
    */
   stm::scope_t*
-  LLT_X86_64::rollback(STM_ROLLBACK_SIG(tx, except, len))
+  LLT_amd64::rollback(STM_ROLLBACK_SIG(tx, except, len))
   {
       PreRollback(tx);
 
@@ -246,19 +246,19 @@ namespace {
   }
 
   /**
-   *  LLT_X86_64 in-flight irrevocability:
+   *  LLT_amd64 in-flight irrevocability:
    */
   bool
-  LLT_X86_64::irrevoc(TxThread*)
+  LLT_amd64::irrevoc(TxThread*)
   {
       return false;
   }
 
   /**
-   *  LLT_X86_64 validation
+   *  LLT_amd64 validation
    */
   void
-  LLT_X86_64::validate(TxThread* tx)
+  LLT_amd64::validate(TxThread* tx)
   {
       // validate
       foreach (OrecList, i, tx->r_orecs) {
@@ -270,14 +270,14 @@ namespace {
   }
 
   /**
-   *  Switch to LLT_X86_64:
+   *  Switch to LLT_amd64:
    *
    *    The timestamp must be >= the maximum value of any orec.  Some algs use
    *    timestamp as a zero-one mutex.  If they do, then they back up the
    *    timestamp first, in timestamp_max.
    */
   void
-  LLT_X86_64::onSwitchTo()
+  LLT_amd64::onSwitchTo()
   {
       // timestamp.val = MAXIMUM(timestamp.val, timestamp_max.val);
   }
@@ -285,22 +285,22 @@ namespace {
 
 namespace stm {
   /**
-   *  LLT_X86_64 initialization
+   *  LLT_amd64 initialization
    */
   template<>
-  void initTM<LLT_X86_64>()
+  void initTM<LLT_amd64>()
   {
       // set the name
-      stms[LLT_X86_64].name      = "LLT_X86_64";
+      stms[LLT_amd64].name      = "LLT_amd64";
 
       // set the pointers
-      stms[LLT_X86_64].begin     = ::LLT_X86_64::begin;
-      stms[LLT_X86_64].commit    = ::LLT_X86_64::commit_ro;
-      stms[LLT_X86_64].read      = ::LLT_X86_64::read_ro;
-      stms[LLT_X86_64].write     = ::LLT_X86_64::write_ro;
-      stms[LLT_X86_64].rollback  = ::LLT_X86_64::rollback;
-      stms[LLT_X86_64].irrevoc   = ::LLT_X86_64::irrevoc;
-      stms[LLT_X86_64].switcher  = ::LLT_X86_64::onSwitchTo;
-      stms[LLT_X86_64].privatization_safe = false;
+      stms[LLT_amd64].begin     = ::LLT_amd64::begin;
+      stms[LLT_amd64].commit    = ::LLT_amd64::commit_ro;
+      stms[LLT_amd64].read      = ::LLT_amd64::read_ro;
+      stms[LLT_amd64].write     = ::LLT_amd64::write_ro;
+      stms[LLT_amd64].rollback  = ::LLT_amd64::rollback;
+      stms[LLT_amd64].irrevoc   = ::LLT_amd64::irrevoc;
+      stms[LLT_amd64].switcher  = ::LLT_amd64::onSwitchTo;
+      stms[LLT_amd64].privatization_safe = false;
   }
 }

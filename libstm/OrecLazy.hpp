@@ -344,7 +344,7 @@ namespace {
         OrecLazy_Generic<stm::CM>::Initialize(ID, #ID); \
     }
 
-namespace stm {
-  FOREACH_ORECLAZY(INIT_ORECLAZY)
-}
+// namespace stm {
+//   FOREACH_ORECLAZY(INIT_ORECLAZY)
+// }
 

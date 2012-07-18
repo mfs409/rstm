@@ -8,6 +8,9 @@
  *          Please see the file LICENSE.RSTM for licensing information
  */
 
+#ifndef BYEAU_HPP__
+#define BYEAU_HPP__
+
 /**
  *  ByEAU Implementations
  *
@@ -412,9 +415,7 @@ namespace {
         ByEAU_Generic<CM>::Initialize(ID, #ID); \
     }
 
-namespace stm {
-  FOREACH_BYEAU(INIT_BYEAU)
-}
-
 #undef FOREACH_BYEAU
 #undef INIT_BYEAU
+
+#endif // BYEAU_HPP__

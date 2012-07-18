@@ -65,14 +65,14 @@ using stm::UndoLogEntry;
  *  Declare the functions that we're going to implement, so that we can avoid
  *  circular dependencies.
  *
- *  NB: X86_OE_NC actually does better without fine-grained switching for
+ *  NB: OrecEager_amd64 actually does better without fine-grained switching for
  *      read-only transactions, so we don't support the read-only optimization
  *      in this code.
  */
 namespace
 {
   template <class CM>
-  struct X86_OE_NC_Generic
+  struct OrecEager_amd64_Generic
   {
       static TM_FASTCALL bool begin();
       static TM_FASTCALL void commit();
@@ -88,15 +88,15 @@ namespace
 
   template <class CM>
   void
-  X86_OE_NC_Generic<CM>::initialize(int id, const char* name)
+  OrecEager_amd64_Generic<CM>::initialize(int id, const char* name)
   {
       // set the name
       stm::stms[id].name      = name;
 
       // set the pointers
-      stm::stms[id].begin     = X86_OE_NC_Generic<CM>::begin;
-      stm::stms[id].commit    = X86_OE_NC_Generic<CM>::commit;
-      stm::stms[id].rollback  = X86_OE_NC_Generic<CM>::rollback;
+      stm::stms[id].begin     = OrecEager_amd64_Generic<CM>::begin;
+      stm::stms[id].commit    = OrecEager_amd64_Generic<CM>::commit;
+      stm::stms[id].rollback  = OrecEager_amd64_Generic<CM>::rollback;
 
       stm::stms[id].read      = read;
       stm::stms[id].write     = write;
@@ -107,7 +107,7 @@ namespace
 
   template <class CM>
   bool
-  X86_OE_NC_Generic<CM>::begin()
+  OrecEager_amd64_Generic<CM>::begin()
   {
       TxThread* tx = stm::Self;
       // sample the timestamp and prepare local structures
@@ -118,7 +118,7 @@ namespace
   }
 
   /**
-   *  X86_OE_NC commit:
+   *  OrecEager_amd64 commit:
    *
    *    read-only transactions do no work
    *
@@ -127,7 +127,7 @@ namespace
    */
   template <class CM>
   void
-  X86_OE_NC_Generic<CM>::commit()
+  OrecEager_amd64_Generic<CM>::commit()
   {
       TxThread* tx= stm::Self;
       // use the lockset size to identify if tx is read-only
@@ -167,7 +167,7 @@ namespace
   }
 
   /**
-   *  X86_OE_NC read:
+   *  OrecEager_amd64 read:
    *
    *    Must check orec twice, and may need to validate
    */
@@ -213,7 +213,7 @@ namespace
   }
 
   /**
-   *  X86_OE_NC write:
+   *  OrecEager_amd64 write:
    *
    *    Lock the orec, log the old value, do the write
    */
@@ -263,13 +263,13 @@ namespace
   }
 
   /**
-   *  X86_OE_NC rollback:
+   *  OrecEager_amd64 rollback:
    *
    *    Run the redo log, possibly bump timestamp
    */
   template <class CM>
   stm::scope_t*
-  X86_OE_NC_Generic<CM>::rollback(STM_ROLLBACK_SIG(tx, except, len))
+  OrecEager_amd64_Generic<CM>::rollback(STM_ROLLBACK_SIG(tx, except, len))
   {
       // common rollback code
       PreRollback(tx);
@@ -297,7 +297,7 @@ namespace
   }
 
   /**
-   *  X86_OE_NC in-flight irrevocability:
+   *  OrecEager_amd64 in-flight irrevocability:
    *
    *    Either commit the transaction or return false.  Note that we're already
    *    serial by the time this code runs.
@@ -338,7 +338,7 @@ namespace
   }
 
   /**
-   *  X86_OE_NC validation:
+   *  OrecEager_amd64 validation:
    *
    *    Make sure that all orecs that we've read have timestamps older than our
    *    start time, unless we locked those orecs.  If we locked the orec, we
@@ -358,7 +358,7 @@ namespace
   }
 
   /**
-   *  Switch to X86_OE_NC:
+   *  Switch to OrecEager_amd64:
    *
    *    The timestamp must be >= the maximum value of any orec.  Some algs use
    *    timestamp as a zero-one mutex.  If they do, then they back up the
@@ -375,24 +375,24 @@ namespace
 // Register initialization as declaratively as possible.
 // -----------------------------------------------------------------------------
 /*
-#define FOREACH_X86_OE_NC(MACRO)                \
-    MACRO(X86_OE_NC, HyperAggressiveCM)         \
-    MACRO(X86_OE_NCHour, HourglassCM)           \
-    MACRO(X86_OE_NCBackoff, BackoffCM)          \
-    MACRO(X86_OE_NCHB, HourglassBackoffCM)
+#define FOREACH_OrecEager_amd64(MACRO)                \
+    MACRO(OrecEager_amd64, HyperAggressiveCM)         \
+    MACRO(OrecEager_amd64Hour, HourglassCM)           \
+    MACRO(OrecEager_amd64Backoff, BackoffCM)          \
+    MACRO(OrecEager_amd64HB, HourglassBackoffCM)
 */
-#define FOREACH_X86_OE_NC(MACRO)                \
-    MACRO(X86_OE_NC, HyperAggressiveCM)
+#define FOREACH_OrecEager_amd64(MACRO)                \
+    MACRO(OrecEager_amd64, HyperAggressiveCM)
 
-#define INIT_X86_OE_NC(ID, CM)                          \
+#define INIT_OrecEager_amd64(ID, CM)                          \
     template <>                                         \
     void initTM<ID>() {                                 \
-        X86_OE_NC_Generic<stm::CM>::initialize(ID, #ID);    \
+        OrecEager_amd64_Generic<stm::CM>::initialize(ID, #ID);    \
     }
 
 namespace stm {
-  FOREACH_X86_OE_NC(INIT_X86_OE_NC)
+  FOREACH_OrecEager_amd64(INIT_OrecEager_amd64)
 }
 
-#undef FOREACH_X86_OE_NC
-#undef INIT_X86_OE_NC
+#undef FOREACH_OrecEager_amd64
+#undef INIT_OrecEager_amd64

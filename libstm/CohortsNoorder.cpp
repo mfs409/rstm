@@ -9,7 +9,7 @@
  */
 
 /**
- *  Cohortsnoorder Implementation
+ *  CohortsNoorder Implementation
  *
  *  This algs is based on LLT, except that we add cohorts' properties.
  *  But unlike cohorts, we do not give orders at the beginning of any
@@ -56,7 +56,7 @@ using stm::last_order;
  *  circular dependencies.
  */
 namespace {
-  struct Cohortsnoorder
+  struct CohortsNoorder
   {
     static TM_FASTCALL bool begin();
     static TM_FASTCALL void* read_ro(STM_READ_SIG(,));
@@ -75,13 +75,13 @@ namespace {
   };
 
   /**
-   *  Cohortsnoorder begin:
+   *  CohortsNoorder begin:
    *  At first, every tx can start, until one of the tx is ready to commit.
    *  Then no tx is allowed to start until all the transactions finishes their
    *  commits.
    */
   bool
-  Cohortsnoorder::begin()
+  CohortsNoorder::begin()
   {
       TxThread* tx = stm::Self;
     S1:
@@ -107,10 +107,10 @@ namespace {
   }
 
   /**
-   *  Cohortsnoorder commit (read-only):
+   *  CohortsNoorder commit (read-only):
    */
   void
-  Cohortsnoorder::commit_ro()
+  CohortsNoorder::commit_ro()
   {
       TxThread* tx = stm::Self;
     // decrease total number of tx
@@ -122,10 +122,10 @@ namespace {
   }
 
   /**
-   *  Cohortsnoorder commit (writing context):
+   *  CohortsNoorder commit (writing context):
    */
   void
-  Cohortsnoorder::commit_rw()
+  CohortsNoorder::commit_rw()
   {
       TxThread* tx = stm::Self;
       // increase # of tx waiting to commit
@@ -179,10 +179,10 @@ namespace {
   }
 
   /**
-   *  Cohortsnoorder read (read-only transaction)
+   *  CohortsNoorder read (read-only transaction)
    */
   void*
-  Cohortsnoorder::read_ro(STM_READ_SIG(addr,))
+  CohortsNoorder::read_ro(STM_READ_SIG(addr,))
   {
       TxThread* tx = stm::Self;
       // log orec
@@ -191,10 +191,10 @@ namespace {
   }
 
   /**
-   *  Cohortsnoorder read (writing transaction)
+   *  CohortsNoorder read (writing transaction)
    */
   void*
-  Cohortsnoorder::read_rw(STM_READ_SIG(addr,mask))
+  CohortsNoorder::read_rw(STM_READ_SIG(addr,mask))
   {
       TxThread* tx = stm::Self;
       // check the log for a RAW hazard, we expect to miss
@@ -212,10 +212,10 @@ namespace {
   }
 
   /**
-   *  Cohortsnoorder write (read-only context)
+   *  CohortsNoorder write (read-only context)
    */
   void
-  Cohortsnoorder::write_ro(STM_WRITE_SIG(addr,val,mask))
+  CohortsNoorder::write_ro(STM_WRITE_SIG(addr,val,mask))
   {
       TxThread* tx = stm::Self;
       // add to redo log
@@ -224,10 +224,10 @@ namespace {
   }
 
   /**
-   *  Cohortsnoorder write (writing context)
+   *  CohortsNoorder write (writing context)
    */
   void
-  Cohortsnoorder::write_rw(STM_WRITE_SIG(addr,val,mask))
+  CohortsNoorder::write_rw(STM_WRITE_SIG(addr,val,mask))
   {
       TxThread* tx = stm::Self;
       // add to redo log
@@ -235,10 +235,10 @@ namespace {
   }
 
   /**
-   *  Cohortsnoorder unwinder:
+   *  CohortsNoorder unwinder:
    */
   stm::scope_t*
-  Cohortsnoorder::rollback(STM_ROLLBACK_SIG(tx, except, len))
+  CohortsNoorder::rollback(STM_ROLLBACK_SIG(tx, except, len))
   {
       PreRollback(tx);
 
@@ -259,19 +259,19 @@ namespace {
   }
 
   /**
-   *  Cohortsnoorder in-flight irrevocability:
+   *  CohortsNoorder in-flight irrevocability:
    */
   bool
-  Cohortsnoorder::irrevoc(TxThread*)
+  CohortsNoorder::irrevoc(TxThread*)
   {
       return false;
   }
 
   /**
-   *  Cohortsnoorder validation
+   *  CohortsNoorder validation
    */
   void
-  Cohortsnoorder::validate(TxThread* tx)
+  CohortsNoorder::validate(TxThread* tx)
   {
       foreach (OrecList, i, tx->r_orecs) {
           uintptr_t ivt = (*i)->v.all;
@@ -285,7 +285,7 @@ namespace {
    *   Cohorts Tx Abort Wrapper
    */
     void
-    Cohortsnoorder::TxAbortWrapper(TxThread* tx)
+    CohortsNoorder::TxAbortWrapper(TxThread* tx)
     {
       // Increase total number of committed tx
       ADD(&committed.val, 1);
@@ -295,14 +295,14 @@ namespace {
     }
 
   /**
-   *  Switch to Cohortsnoorder:
+   *  Switch to CohortsNoorder:
    *
    *    The timestamp must be >= the maximum value of any orec.  Some algs use
    *    timestamp as a zero-one mutex.  If they do, then they back up the
    *    timestamp first, in timestamp_max.
    */
   void
-  Cohortsnoorder::onSwitchTo()
+  CohortsNoorder::onSwitchTo()
   {
       timestamp.val = MAXIMUM(timestamp.val, timestamp_max.val);
   }
@@ -310,22 +310,22 @@ namespace {
 
 namespace stm {
   /**
-   *  Cohortsnoorder initialization
+   *  CohortsNoorder initialization
    */
   template<>
-  void initTM<Cohortsnoorder>()
+  void initTM<CohortsNoorder>()
   {
       // set the name
-      stms[Cohortsnoorder].name      = "Cohortsnoorder";
+      stms[CohortsNoorder].name      = "CohortsNoorder";
 
       // set the pointers
-      stms[Cohortsnoorder].begin     = ::Cohortsnoorder::begin;
-      stms[Cohortsnoorder].commit    = ::Cohortsnoorder::commit_ro;
-      stms[Cohortsnoorder].read      = ::Cohortsnoorder::read_ro;
-      stms[Cohortsnoorder].write     = ::Cohortsnoorder::write_ro;
-      stms[Cohortsnoorder].rollback  = ::Cohortsnoorder::rollback;
-      stms[Cohortsnoorder].irrevoc   = ::Cohortsnoorder::irrevoc;
-      stms[Cohortsnoorder].switcher  = ::Cohortsnoorder::onSwitchTo;
-      stms[Cohortsnoorder].privatization_safe = false;
+      stms[CohortsNoorder].begin     = ::CohortsNoorder::begin;
+      stms[CohortsNoorder].commit    = ::CohortsNoorder::commit_ro;
+      stms[CohortsNoorder].read      = ::CohortsNoorder::read_ro;
+      stms[CohortsNoorder].write     = ::CohortsNoorder::write_ro;
+      stms[CohortsNoorder].rollback  = ::CohortsNoorder::rollback;
+      stms[CohortsNoorder].irrevoc   = ::CohortsNoorder::irrevoc;
+      stms[CohortsNoorder].switcher  = ::CohortsNoorder::onSwitchTo;
+      stms[CohortsNoorder].privatization_safe = false;
   }
 }

@@ -23,6 +23,9 @@
  *    can aggregate statistics in two ways.
  */
 
+#ifndef PROFILEAPP_HPP__
+#define PROFILEAPP_HPP__
+
 #include "profiling.hpp"
 #include "algs.hpp"
 #include "RedoRAWUtils.hpp"
@@ -306,9 +309,11 @@ namespace {
         ProfileApp<MODE>::Initialize(ID, #ID);   \
     }
 
-namespace stm {
-  FOREACH_PROFILEAPP(INIT_PROFILEAPP)
-}
+// namespace stm {
+//   FOREACH_PROFILEAPP(INIT_PROFILEAPP)
+// }
 
 #undef FOREACH_PROFILEAPP
 #undef INIT_PROFILEAPP
+
+#endif // PROFILEAPP_HPP__
