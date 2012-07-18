@@ -144,23 +144,23 @@ namespace {
       // get the lock and validate (use RingSTM obstruction-free
       // technique)
       while (!bcasptr(&timestamp.val, tx->start_time, tx->start_time + 1))
-    if ((tx->start_time = validate(tx)) == VALIDATION_FAILED) {
-      // Mark self status
-      tx->status = COHORTS_COMMITTED;
-      WBR;
-      // mark self as done
-      last_complete.val = tx->order;
+          if ((tx->start_time = validate(tx)) == VALIDATION_FAILED) {
+              // Mark self status
+              tx->status = COHORTS_COMMITTED;
+              WBR;
+              // mark self as done
+              last_complete.val = tx->order;
 
-      // Am I the last one?
-      for (uint32_t i = 0; lastone != false && i < threadcount.val; ++i)
-        lastone &= (threads[i]->status != COHORTS_CPENDING);
+              // Am I the last one?
+              for (uint32_t i = 0; lastone != false && i < threadcount.val; ++i)
+                  lastone &= (threads[i]->status != COHORTS_CPENDING);
 
-      // If I'm the last one, release gatekeeper lock
-      if (lastone)
-        gatekeeper = 0;
+              // If I'm the last one, release gatekeeper lock
+              if (lastone)
+                  gatekeeper = 0;
 
-      tx->tmabort(tx);
-    }
+              tx->tmabort(tx);
+          }
 
       // do write back
       tx->writes.writeback();
@@ -198,9 +198,9 @@ namespace {
   CohortsLN::read_ro(STM_READ_SIG(addr,))
   {
       TxThread* tx = stm::Self;
-    void * tmp = *addr;
-    STM_LOG_VALUE(tx, addr, tmp, mask);
-    return tmp;
+      void * tmp = *addr;
+      STM_LOG_VALUE(tx, addr, tmp, mask);
+      return tmp;
   }
 
   /**
@@ -280,28 +280,28 @@ namespace {
   uintptr_t
   validate(TxThread* tx)
   {
-    while (true) {
-      // read the lock until it is even
-      uintptr_t s = timestamp.val;
-      if ((s & 1) == 1)
-    continue;
+      while (true) {
+          // read the lock until it is even
+          uintptr_t s = timestamp.val;
+          if ((s & 1) == 1)
+              continue;
 
-      // check the read set
-      CFENCE;
-      // don't branch in the loop---consider it backoff if we fail
-      // validation early
-      bool valid = true;
-      foreach (ValueList, i, tx->vlist)
-    valid &= STM_LOG_VALUE_IS_VALID(i, tx);
+          // check the read set
+          CFENCE;
+          // don't branch in the loop---consider it backoff if we fail
+          // validation early
+          bool valid = true;
+          foreach (ValueList, i, tx->vlist)
+              valid &= STM_LOG_VALUE_IS_VALID(i, tx);
 
-      if (!valid)
-    return VALIDATION_FAILED;
+          if (!valid)
+              return VALIDATION_FAILED;
 
-      // restart if timestamp changed during read set iteration
-      CFENCE;
-      if (timestamp.val == s)
-    return s;
-    }
+          // restart if timestamp changed during read set iteration
+          CFENCE;
+          if (timestamp.val == s)
+              return s;
+      }
   }
 
   /**
@@ -315,13 +315,13 @@ namespace {
   void
   CohortsLN::onSwitchTo()
   {
-    last_complete.val = 0;
-    if (timestamp.val & 1)
-      ++timestamp.val;
-    // when switching algs, mark all tx committed status
-    for (uint32_t i = 0; i < threadcount.val; ++i) {
-      threads[i]->status = COHORTS_COMMITTED;
-    }
+      last_complete.val = 0;
+      if (timestamp.val & 1)
+          ++timestamp.val;
+      // when switching algs, mark all tx committed status
+      for (uint32_t i = 0; i < threadcount.val; ++i) {
+          threads[i]->status = COHORTS_COMMITTED;
+      }
   }
 }
 
