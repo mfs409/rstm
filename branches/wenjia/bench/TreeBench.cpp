@@ -19,6 +19,7 @@
 #include <iostream>
 #include <alt-license/rand_r_32.h>
 #include <stm.hpp>
+#include <cassert>
 #include "bmconfig.hpp"
 
 /**
