@@ -21,9 +21,10 @@ ALGNAMES = CGL BitEager BitEagerRedo BitLazy ByEAR ByEAUHA ByEAUBackoff	     \
            CohortsLF CohortsLI CohortsLN CohortsLNI CohortsLazy CohortsNOrec \
            CohortsNoorder CohortsOld Fastlane1 Fastlane2 FastlaneSwitch LLT  \
            LLT_amd64 MCS NOrec NOrecHour NOrecBackoff NOrecHB NOrecPrio Nano \
-           NanoELA OrEAU OrEAUFCM OrEAUHA OrEAUHour OrecALA OrecELA	     \
+           NanoELA_amd64 OrEAU OrEAUFCM OrEAUHA OrEAUHour OrecALA OrecELA    \
            OrecEager OrecEagerBackoff OrecEagerHour OrecEagerHB		     \
-           OrecEagerRedo OrecEager_amd64 OrecFair OrecLazy OrecLazyBackoff   \
-           OrecLazyHB OrecLazyHour OrecLazy_amd64 PessimisticTM Pipeline     \
-           PipelineTurbo ProfileAppAvg ProfileAppMax ProfileAppAll ProfileTM \
-           RingALA RingSW Serial Swiss TLI TML TMLLazy Ticket Wealth
+           OrecEagerRedo OrecEager_amd64 OrecELA_amd64 OrecFair OrecLazy     \
+           OrecLazyBackoff OrecLazyHB OrecLazyHour OrecLazy_amd64	     \
+           PessimisticTM Pipeline PipelineTurbo ProfileAppAvg ProfileAppMax  \
+           ProfileAppAll ProfileTM RingALA RingSW Serial Swiss TLI TML	     \
+           TMLLazy Ticket Wealth

@@ -19,7 +19,7 @@
 #
 # Compiler config
 #
-PLATFORM  = lib_gcc_solaris_amd64_opt
+PLATFORM  = gcc_solaris_amd64_opt
 CXX       = g++
 CXXFLAGS += -O3 -ggdb -m64 -march=native -mtune=native -msse2 -mfpmath=sse
 LDFLAGS  += -lrt -lpthread -m64 -lmtmalloc

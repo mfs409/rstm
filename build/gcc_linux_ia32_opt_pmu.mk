@@ -19,7 +19,7 @@
 #
 # Compiler config
 #
-PLATFORM  = lib_gcc_linux_ia32_opt_pmu
+PLATFORM  = gcc_linux_ia32_opt_pmu
 CXX       = g++
 CXXFLAGS += -O3 -ggdb -m32 -march=native -mtune=native -msse2 -mfpmath=sse
 LDFLAGS  += -lrt -lpthread -m32 -lpapi
