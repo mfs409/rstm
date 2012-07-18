@@ -45,7 +45,7 @@ namespace stm
       OrecLazy,  OrecLazyHour,  OrecLazyBackoff,  OrecLazyHB,
       NOrec,     NOrecHour,     NOrecBackoff,     NOrecHB,
       Wealth, Cohorts, Cohorts2, Cohortsnoorder, Cohortsold, CohortsLazy, CohortsEager,
-      CohortsLI, CohortsNOrec, CohortsLN, CohortsFilter, CohortsLF, CohortsEF,
+      CohortsLI, CohortsNOrec, CohortsLN, CohortsLNI, CohortsFilter, CohortsLF, CohortsEF,
       Fastlane1, Fastlane2, PTM, FastlaneSwitch, CTokenTurboELA, CohortsEN,
       CohortsEN2, CTokenNOrec, Cohorts3, CohortsENQ, CohortsEN2Q, PipelineTurbo,
       CTokenELA, CTokenQ, CTokenTurboQ,
