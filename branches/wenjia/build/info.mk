@@ -14,31 +14,31 @@
 # ensure that typing 'make' without a platform just spits out instructions
 #
 
-PLATFORMS = lib_gcc_linux_ia32_dbg     lib_gcc_linux_ia32_opt		\
-            lib_gcc_linux_x86_64_dbg   lib_gcc_linux_x86_64_opt		\
-            lib_gcc_solaris_ia32_dbg   lib_gcc_solaris_ia32_opt		\
-            lib_gcc_solaris_x86_64_dbg lib_gcc_solaris_x86_64_opt       \
-            gcctm_solaris_ia32_dbg     gcctm_solaris_ia32_opt           \
-            gcctm_solaris_x86_64_dbg   gcctm_solaris_x86_64_opt         \
-	    lib_gcc_linux_arm7_32_opt  lib_gcc_linux_ia32_opt_pmu
+PLATFORMS = gcc_linux_ia32_dbg        gcc_linux_ia32_opt		\
+            gcc_linux_x86_64_dbg      gcc_linux_x86_64_opt		\
+            gcc_solaris_ia32_dbg      gcc_solaris_ia32_opt		\
+            gcc_solaris_x86_64_dbg    gcc_solaris_x86_64_opt            \
+            gcctm_solaris_ia32_dbg    gcctm_solaris_ia32_opt            \
+            gcctm_solaris_x86_64_dbg  gcctm_solaris_x86_64_opt          \
+	    gcc_linux_arm7_32_opt     gcc_linux_ia32_opt_pmu
 info:
 	@echo "You must specify your platform as the build target."
 	@echo "Valid platforms are:"
-	@echo "  lib_gcc_linux_ia32_dbg"
+	@echo "  gcc_linux_ia32_dbg"
 	@echo "      library API, gcc, Linux, x86, 32-bit, -O0"
-	@echo "  lib_gcc_linux_ia32_opt"
+	@echo "  gcc_linux_ia32_opt"
 	@echo "      library API, gcc, Linux, x86, 32-bit, -O3"
-	@echo "  lib_gcc_linux_x86_64_dbg"
+	@echo "  gcc_linux_x86_64_dbg"
 	@echo "      library API, gcc, Linux, x86, 64-bit, -O0"
-	@echo "  lib_gcc_linux_x86_64_opt"
+	@echo "  gcc_linux_x86_64_opt"
 	@echo "      library API, gcc, Linux, x86, 64-bit, -O3"
-	@echo "  lib_gcc_solaris_ia32_dbg"
+	@echo "  gcc_solaris_ia32_dbg"
 	@echo "      library API, gcc, Solaris, x86, 32-bit, -O0"
-	@echo "  lib_gcc_solaris_ia32_opt"
+	@echo "  gcc_solaris_ia32_opt"
 	@echo "      library API, gcc, Solaris, x86, 32-bit, -O0"
-	@echo "  lib_gcc_solaris_x86_64_dbg"
+	@echo "  gcc_solaris_x86_64_dbg"
 	@echo "      library API, gcc, Solaris, x86, 64-bit, -O0"
-	@echo "  lib_gcc_solaris_x86_64_opt"
+	@echo "  gcc_solaris_x86_64_opt"
 	@echo "      library API, gcc, Solaris, x86, 64-bit, -O0"
 	@echo "  gcctm_solaris_ia32_dbg"
 	@echo "      gcctm API, gcc, Solaris, x86, 32-bit, -O0"
@@ -48,7 +48,7 @@ info:
 	@echo "      gcctm API, gcc, Solaris, x86, 64-bit, -O0"
 	@echo "  gcctm_solaris_x86_64_opt"
 	@echo "      gcctm API, gcc, Solaris, x86, 64-bit, -O3"
-	@echo "  lib_gcc_linux_arm7_32_opt"
+	@echo "  gcc_linux_arm7_32_opt"
 	@echo "      library API, gcc, Linux, ARM7, 32-bit, -O3"
-	@echo "  lib_gcc_linux_ia32_opt_pmu"
+	@echo "  gcc_linux_ia32_opt_pmu"
 	@echo "      library API, gcc, Linux, x86, 32-bit, -O3, PMU support"
