@@ -20,7 +20,7 @@ PLATFORMS = gcc_linux_ia32_dbg        gcc_linux_ia32_opt		\
             gcc_solaris_x86_64_dbg    gcc_solaris_x86_64_opt            \
             gcctm_solaris_ia32_dbg    gcctm_solaris_ia32_opt            \
             gcctm_solaris_x86_64_dbg  gcctm_solaris_x86_64_opt          \
-	    gcc_linux_arm7_32_opt     gcc_linux_ia32_opt_pmu
+	    gcc_linux_armv7_opt     gcc_linux_ia32_opt_pmu
 info:
 	@echo "You must specify your platform as the build target."
 	@echo "Valid platforms are:"
@@ -48,7 +48,7 @@ info:
 	@echo "      gcctm API, gcc, Solaris, x86, 64-bit, -O0"
 	@echo "  gcctm_solaris_x86_64_opt"
 	@echo "      gcctm API, gcc, Solaris, x86, 64-bit, -O3"
-	@echo "  gcc_linux_arm7_32_opt"
+	@echo "  gcc_linux_armv7_opt"
 	@echo "      library API, gcc, Linux, ARM7, 32-bit, -O3"
 	@echo "  gcc_linux_ia32_opt_pmu"
 	@echo "      library API, gcc, Linux, x86, 32-bit, -O3, PMU support"
