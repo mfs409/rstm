@@ -11,7 +11,7 @@
 #ifndef DISJOINT_HPP__
 #define DISJOINT_HPP__
 
-#include <stm.hpp>
+#include <rstm.hpp>
 
   // this is a benchmark for evaluating the overhead that TM induces for a
   // variety of read/write ratios when there are no conflicts.  The benchmark
