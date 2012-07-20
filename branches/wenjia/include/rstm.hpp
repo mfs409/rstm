@@ -32,14 +32,6 @@
  *  TM_END_FAST_INITIALIZATION    : For fast initialization
  *  TM_GET_ALGNAME()              : Get the current algorithm name
  *
- *  Compiler Compatibility::Transaction Descriptor Management:
- *
- *  TM_GET_THREAD()  : for getting the thread's descriptor, if needed
- *  TM_ARG_ALONE     : for passing descriptors to transactional functions
- *  TM_ARG           : (same)
- *  TM_PARAM         : (same)
- *  TM_PARAM_ALONE   : (same)
- *
  *  Compiler Compatibility::Annotations (unused in library):
  *
  *  TM_WAIVER        : mark a block that does not get TM instrumentation

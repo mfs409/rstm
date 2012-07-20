@@ -12,7 +12,7 @@
 #define DLIST_HPP__
 
 #include <limits.h>
-#include <stm.hpp>
+#include <rstm.hpp>
 
 // Doubly-Linked List workload
 class DList

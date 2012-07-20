@@ -15,7 +15,7 @@
 
 #include <stdint.h>
 #include <iostream>
-#include <stm.hpp>
+#include <rstm.hpp>
 #include "bmconfig.hpp"
 
 /**

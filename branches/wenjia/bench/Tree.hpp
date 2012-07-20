@@ -12,7 +12,7 @@
 #define TREE_HPP__
 
 #include <climits>
-#include <stm.hpp> // need this for malloc and free
+#include <rstm.hpp> // need this for malloc and free
 
 class RBTree
 {
