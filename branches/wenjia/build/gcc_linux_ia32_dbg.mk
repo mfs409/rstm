@@ -23,6 +23,9 @@ PLATFORM  = gcc_linux_ia32_dbg
 CXX       = g++
 CXXFLAGS += -O0 -ggdb -m32 -march=native -mtune=native -msse2 -mfpmath=sse
 LDFLAGS  += -lrt -lpthread -m32
+CFLAGS   += -m32
+ASFLAGS  += -m32
+CC        = gcc
 
 #
 # Options to pass to STM files

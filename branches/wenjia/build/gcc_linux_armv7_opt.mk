@@ -23,6 +23,9 @@ PLATFORM  = gcc_linux_armv7_opt
 CXX       = g++
 CXXFLAGS += -O3 -ggdb -march=armv7-a
 LDFLAGS  += -lrt -lpthread -m32
+CFLAGS   += -m32
+ASFLAGS  += -m32
+CC        = gcc
 
 #
 # Options to pass to STM files

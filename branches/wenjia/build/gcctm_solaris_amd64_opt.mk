@@ -27,6 +27,9 @@ CXX       = g++
 CXXFLAGS += -O3 -ggdb -m64 -march=native -mtune=native -msse2 -mfpmath=sse \
             -fgnu-tm
 LDFLAGS  += -lrt -lpthread -m64 -lmtmalloc -fgnu-tm
+CFLAGS   += -m64
+ASFLAGS  += -m64
+CC        = gcc
 
 #
 # Since this is a GCCTM build, we override so that we don't build all the

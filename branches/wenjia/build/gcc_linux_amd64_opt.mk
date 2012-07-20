@@ -23,6 +23,9 @@ PLATFORM  = gcc_linux_amd64_opt
 CXX       = g++
 CXXFLAGS += -O3 -ggdb -m64 -march=native -mtune=native -msse2 -mfpmath=sse
 LDFLAGS  += -lrt -lpthread -m64
+CFLAGS   += -m64
+ASFLAGS  += -m64
+CC        = gcc
 
 #
 # Options to pass to STM files

@@ -23,6 +23,9 @@ PLATFORM  = gcc_solaris_amd64_dbg
 CXX       = g++
 CXXFLAGS += -O0 -ggdb -m64 -march=native -mtune=native -msse2 -mfpmath=sse
 LDFLAGS  += -lrt -lpthread -m64 -lmtmalloc
+CFLAGS   += -m64
+ASFLAGS  += -m64
+CC        = gcc
 
 #
 # Options to pass to stm files
