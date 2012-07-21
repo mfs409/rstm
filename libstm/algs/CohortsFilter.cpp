@@ -138,7 +138,7 @@ namespace {
               committed.val++;
               CFENCE;
               last_complete.val = tx->order;
-              tx->tmabort(tx);
+              tx->tmabort();
           }
 
       // do write back

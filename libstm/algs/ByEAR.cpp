@@ -92,7 +92,7 @@ namespace {
       TxThread* tx = stm::Self;
       // atomically mark self committed
       if (!bcas32(&tx->alive, TX_ACTIVE, TX_COMMITTED))
-          tx->tmabort(tx);
+          tx->tmabort();
 
       // we committed... replay redo log
       tx->writes.writeback();
@@ -132,11 +132,11 @@ namespace {
           switch (threads[owner-1]->alive) {
             case TX_COMMITTED:
               // abort myself if the owner is writing back
-              tx->tmabort(tx);
+              tx->tmabort();
             case TX_ACTIVE:
               // abort the owner(it's active)
               if (!bcas32(&threads[owner-1]->alive, TX_ACTIVE, TX_ABORTED))
-                  tx->tmabort(tx);
+                  tx->tmabort();
               break;
             case TX_ABORTED:
               // if the owner is unwinding, go through and read
@@ -151,7 +151,7 @@ namespace {
 
       // check for remote abort
       if (tx->alive == TX_ABORTED)
-          tx->tmabort(tx);
+          tx->tmabort();
       return result;
   }
 
@@ -189,11 +189,11 @@ namespace {
           switch (threads[owner-1]->alive) {
             case TX_COMMITTED:
               // abort myself if the owner is writing back
-              tx->tmabort(tx);
+              tx->tmabort();
             case TX_ACTIVE:
               // abort the owner(it's active)
               if (!bcas32(&threads[owner-1]->alive, TX_ACTIVE, TX_ABORTED))
-                  tx->tmabort(tx);
+                  tx->tmabort();
               break;
             case TX_ABORTED:
               // if the owner is unwinding, go through and read
@@ -208,7 +208,7 @@ namespace {
 
       // check for remote abort
       if (tx->alive == TX_ABORTED)
-          tx->tmabort(tx);
+          tx->tmabort();
 
       return result;
   }
@@ -232,7 +232,7 @@ namespace {
               break;
           // liveness check
           if (tx->alive == TX_ABORTED)
-              tx->tmabort(tx);
+              tx->tmabort();
       }
 
       // log the lock, drop any read locks I have
@@ -248,7 +248,7 @@ namespace {
       for (int i = 0; i < 60; ++i)
           if (lock->reader[i] != 0 && threads[i]->alive == TX_ACTIVE)
               if (!bcas32(&threads[i]->alive, TX_ACTIVE, TX_ABORTED))
-                  tx->tmabort(tx);
+                  tx->tmabort();
 
       // add to redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
@@ -281,7 +281,7 @@ namespace {
               break;
           // liveness check
           if (tx->alive == TX_ABORTED)
-              tx->tmabort(tx);
+              tx->tmabort();
       }
 
       // log the lock, drop any read locks I have
@@ -292,7 +292,7 @@ namespace {
       for (int i = 0; i < 60; ++i)
           if (lock->reader[i] != 0 && threads[i]->alive == TX_ACTIVE)
               if (!bcas32(&threads[i]->alive, TX_ACTIVE, TX_ABORTED))
-                  tx->tmabort(tx);
+                  tx->tmabort();
 
       // add to redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));

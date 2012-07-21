@@ -114,14 +114,14 @@ namespace {
           if (ivt <= tx->start_time) {
               // abort if cannot acquire
               if (!bcasptr(&o->v.all, ivt, tx->my_lock.all))
-                  tx->tmabort(tx);
+                  tx->tmabort();
               // save old version to o->p, log lock
               o->p = ivt;
               tx->locks.insert(o);
           }
           // else if we don't hold the lock abort
           else if (ivt != tx->my_lock.all) {
-              tx->tmabort(tx);
+              tx->tmabort();
           }
       }
 
@@ -134,7 +134,7 @@ namespace {
               // read this orec
               uintptr_t ivt = (*i)->v.all;
               if ((ivt > tx->start_time) && (ivt != tx->my_lock.all))
-                  tx->tmabort(tx);
+                  tx->tmabort();
           }
       }
 
@@ -204,7 +204,7 @@ namespace {
           foreach (OrecList, i, tx->r_orecs) {
               // if orec locked or newer than start time, abort
               if ((*i)->v.all > tx->start_time)
-                  tx->tmabort(tx);
+                  tx->tmabort();
           }
 
           uintptr_t cs = last_complete.val;
@@ -320,7 +320,7 @@ namespace {
       foreach (OrecList, i, tx->r_orecs) {
           // if orec locked or newer than start time, abort
           if ((*i)->v.all > tx->start_time)
-              tx->tmabort(tx);
+              tx->tmabort();
       }
       // careful here: we can't scale the start time past last_complete.val,
       // unless we want to re-introduce the need for prevalidation on every

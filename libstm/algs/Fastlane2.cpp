@@ -143,7 +143,7 @@ namespace {
               CFENCE;
               // Release lock upon failed validation
               helper.val = 0;
-              tx->tmabort(tx);
+              tx->tmabort();
           }
 
       // Remember validation time
@@ -164,7 +164,7 @@ namespace {
                   // [mfs] see above: an atomic SUB is not strictly needed
                   SUB(&timestamp.val, 1);
                   helper.val = 0;
-                  tx->tmabort(tx);
+                  tx->tmabort();
               }
 
       // Write updates to memory
@@ -213,7 +213,7 @@ namespace {
 
       // validate read value
       if (o->v.all > tx->start_time)
-          tx->tmabort(tx);
+          tx->tmabort();
 
       // log orec
       tx->r_orecs.insert(o);

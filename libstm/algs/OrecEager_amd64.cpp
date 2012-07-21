@@ -147,7 +147,7 @@ namespace
               // abort unless orec older than start or owned by me
               uintptr_t ivt = (*i)->v.all;
               if ((ivt > tx->start_time) && (ivt != tx->my_lock.all))
-                  tx->tmabort(tx);
+                  tx->tmabort();
           }
       //}
 
@@ -201,9 +201,9 @@ namespace
 
           // abort if locked
           if (__builtin_expect(ivt.fields.lock, 0))
-              tx->tmabort(tx);
+              tx->tmabort();
 
-          tx->tmabort(tx);
+          tx->tmabort();
 
           // scale timestamp if ivt is too new, then try again
           uintptr_t newts = tick();
@@ -230,7 +230,7 @@ namespace
           // common case: uncontended location... try to lock it, abort on fail
           if (ivt.all <= tx->start_time) {
               if (!bcasptr(&o->v.all, ivt.all, tx->my_lock.all))
-                  tx->tmabort(tx);
+                  tx->tmabort();
 
               // save old value, log lock, do the write, and return
               o->p = ivt.all;
@@ -251,9 +251,9 @@ namespace
 
           // fail if lock held by someone else
           if (ivt.fields.lock)
-              tx->tmabort(tx);
+              tx->tmabort();
 
-          tx->tmabort(tx);
+          tx->tmabort();
 
           // unlocked but too new... scale forward and try again
           uintptr_t newts = tick();
@@ -353,7 +353,7 @@ namespace
           uintptr_t ivt = (*i)->v.all;
           // if unlocked and newer than start time, abort
           if ((ivt > tx->start_time) && (ivt != tx->my_lock.all))
-              tx->tmabort(tx);
+              tx->tmabort();
       }
   }
 

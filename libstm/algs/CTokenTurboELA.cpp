@@ -105,7 +105,7 @@ namespace {
           // check if an adaptivity event necessitates that we abort to change
           // modes
           if (TxThread::tmbegin != begin)
-              tx->tmabort(tx);
+              tx->tmabort();
       }
       // validate
       //
@@ -116,7 +116,7 @@ namespace {
           uintptr_t ivt = (*i)->v.all;
           // if it has a timestamp of ts_cache or greater, abort
           if (ivt > tx->ts_cache)
-              tx->tmabort(tx);
+              tx->tmabort();
       }
       // writeback
       if (tx->writes.size() != 0) {
@@ -175,7 +175,7 @@ namespace {
       uintptr_t ivt = o->v.all;
       // abort if this changed since the last time I saw someone finish
       if (ivt > tx->ts_cache)
-          tx->tmabort(tx);
+          tx->tmabort();
 
       // log orec
       tx->r_orecs.insert(o);
@@ -195,7 +195,7 @@ namespace {
               uintptr_t ivt_inner = (*i)->v.all;
               // if it has a timestamp of ts_cache or greater, abort
               if (ivt_inner > tx->ts_cache)
-                  tx->tmabort(tx);
+                  tx->tmabort();
           }
           // now update the ts_cache to remember that at this time, we were
           // still valid
@@ -225,7 +225,7 @@ namespace {
       uintptr_t ivt = o->v.all;
       // abort if this changed since the last time I saw someone finish
       if (ivt > tx->ts_cache)
-          tx->tmabort(tx);
+          tx->tmabort();
 
       // log orec
       tx->r_orecs.insert(o);
@@ -347,7 +347,7 @@ namespace {
               uintptr_t ivt = (*i)->v.all;
               // if it has a timestamp of ts_cache or greater, abort
               if (ivt > tx->ts_cache)
-                  tx->tmabort(tx);
+                  tx->tmabort();
           }
 
       // now update the finish_cache to remember that at this time, we were

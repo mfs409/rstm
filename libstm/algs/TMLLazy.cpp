@@ -84,7 +84,7 @@ namespace {
       TxThread* tx = stm::Self;
       // we have writes... if we can't get the lock, abort
       if (!bcasptr(&timestamp.val, tx->start_time, tx->start_time + 1))
-          tx->tmabort(tx);
+          tx->tmabort();
 
       // we're committed... run the redo log
       tx->writes.writeback();
@@ -111,7 +111,7 @@ namespace {
       // NB: this form of /if/ appears to be faster
       if (__builtin_expect(timestamp.val == tx->start_time, true))
           return tmp;
-      tx->tmabort(tx);
+      tx->tmabort();
       // unreachable
       return NULL;
   }

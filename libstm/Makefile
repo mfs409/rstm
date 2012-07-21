@@ -21,8 +21,8 @@ include ./algs.mk
 
 #
 # Output folder: we build in-tree, unless this is overridden.  Note that the
-# folder is built at parse time, so that we don't have to depend on its
-# existance, but we need to handle parses of this file when a library wasn't
+# folder is built at parse time, so that we don't have to depend on it
+# existing, but we need to handle parses of this file when a library wasn't
 # given
 #
 ODIR := obj.$(PLATFORM)
@@ -42,6 +42,10 @@ CXXFLAGS += -MMD -I$(ODIR)
 #
 CXXNAMES = algs cbr inst irrevocability policies profiling static txthread \
            types WBMMPolicy $(ALGNAMES)
+
+ifeq ($(CHECKPOINT),asm)
+CXXNAMES += checkpoint gcc
+endif
 
 #
 # The name of the library to build
@@ -76,6 +80,10 @@ $(ODIR)/%.o: %.cpp
 $(ODIR)/%.o: algs/%.cpp
 	@echo [CXX] $< "-->" $@
 	@$(CXX) $(CXXFLAGS) -c -o $@ $<
+
+$(ODIR)/%.o: %.S
+	@echo [CC] $< "-->" $@
+	@$(CC) $(ASFLAGS) -c -o $@ $<
 
 #
 # Rule for building the library
