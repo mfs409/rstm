@@ -27,6 +27,7 @@
 #include "UndoLog.hpp"
 #include "ValueList.hpp"
 #include "WBMMPolicy.hpp"
+#include "checkpoint.hpp"
 
 namespace stm
 {
@@ -150,7 +151,7 @@ namespace stm
        * Some advanced APIs may not want a NORETURN abort function, but the stm
        * library at the moment only handles this option.
        */
-      static NORETURN void tmabort(TxThread*);
+      static NORETURN void tmabort();
 
       /*** how to become irrevocable in-flight */
       static bool(*tmirrevoc)(TxThread*);

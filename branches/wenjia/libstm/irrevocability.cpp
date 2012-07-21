@@ -135,7 +135,7 @@ namespace stm
       //  we'll just abort all the time.  The impact should be minimal.
       if (!bcasptr(&TxThread::tmbegin, stms[curr_policy.ALG_ID].begin,
                    &begin_blocker))
-          tx->tmabort(tx);
+          tx->tmabort();
 
       // wait for everyone to be out of a transaction (scope == NULL)
       for (unsigned i = 0; i < threadcount.val; ++i)
@@ -161,7 +161,7 @@ namespace stm
       // begin_blocker sets our barriers to be irrevocable if we have our
       // irrevocable flag set.
       tx->irrevocable = true;
-      tx->tmabort(tx);
+      tx->tmabort();
   }
 
   /**

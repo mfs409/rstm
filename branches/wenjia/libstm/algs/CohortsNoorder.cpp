@@ -291,7 +291,7 @@ namespace {
       ADD(&committed.val, 1);
 
       // abort
-      tx->tmabort(tx);
+      tx->tmabort();
     }
 
   /**

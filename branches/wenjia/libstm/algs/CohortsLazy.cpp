@@ -297,7 +297,7 @@ namespace {
                   last_order = tx->order + 1;
                   gatekeeper = 0;
               }
-              tx->tmabort(tx);
+              tx->tmabort();
           }
       }
   }

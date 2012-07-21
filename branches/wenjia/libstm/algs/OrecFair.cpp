@@ -153,7 +153,7 @@ namespace
           // else if we don't hold the lock abort
           else if (ivt.all != tx->my_lock.all) {
               if (!ivt.fields.lock)
-                  tx->tmabort(tx);
+                  tx->tmabort();
               // priority test... if I have priority, and the last unlocked
               // version of the orec was the one I read, and the current
               // owner has less priority than me, wait
@@ -163,7 +163,7 @@ namespace
                       continue;
                   }
               }
-              tx->tmabort(tx);
+              tx->tmabort();
           }
           ++i;
       }
@@ -185,7 +185,7 @@ namespace
               unsigned mask = 1lu<<(slot % rrec_t::BITS);
               if (accumulator.bits[bucket] & mask) {
                   if (threads[slot]->prio > tx->prio)
-                      tx->tmabort(tx);
+                      tx->tmabort();
               }
           }
       }
@@ -510,7 +510,7 @@ namespace
           // only a problem if locked or newer than start time
           if (ivt.all > tx->start_time) {
               if (!ivt.fields.lock)
-                  tx->tmabort(tx);
+                  tx->tmabort();
               // priority test... if I have priority, and the last unlocked
               // orec was the one I read, and the current owner has less
               // priority than me, wait
@@ -520,7 +520,7 @@ namespace
                       continue;
                   }
               }
-              tx->tmabort(tx);
+              tx->tmabort();
           }
           ++i;
       }
@@ -543,7 +543,7 @@ namespace
               ivt.all = (*i)->v.all;
               // if unlocked and newer than start time, abort
               if (!ivt.fields.lock && (ivt.all > tx->start_time))
-                  tx->tmabort(tx);
+                  tx->tmabort();
 
               // if locked and not by me, do a priority test
               if (ivt.fields.lock && (ivt.all != tx->my_lock.all)) {
@@ -556,7 +556,7 @@ namespace
                       spin64();
                       continue;
                   }
-                  tx->tmabort(tx);
+                  tx->tmabort();
               }
               ++i;
           }
@@ -568,7 +568,7 @@ namespace
               ivt.all = (*i)->v.all;
               // if unlocked and newer than start time, abort
               if ((ivt.all > tx->start_time) && (ivt.all != tx->my_lock.all))
-                  tx->tmabort(tx);
+                  tx->tmabort();
           }
       }
   }

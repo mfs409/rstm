@@ -104,7 +104,7 @@ namespace stm
           if (!tx->strong_HG)
               while (fcm_timestamp.val)
                   if (TxThread::tmbegin == begin_blocker)
-                      tx->tmabort(tx);
+                      tx->tmabort();
       }
 
       /**
@@ -166,7 +166,7 @@ namespace stm
           if (!tx->strong_HG)
               while (fcm_timestamp.val)
                   if (TxThread::tmbegin == begin_blocker)
-                      tx->tmabort(tx);
+                      tx->tmabort();
       }
 
       /**
@@ -220,7 +220,7 @@ namespace stm
           if (!tx->strong_HG)
               while (fcm_timestamp.val)
                   if (TxThread::tmbegin == begin_blocker)
-                      tx->tmabort(tx);
+                      tx->tmabort();
       }
 
       /**

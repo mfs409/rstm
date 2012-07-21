@@ -97,7 +97,7 @@ namespace
       while (last_complete.val != (uintptr_t)(tx->order - 1)) {
           // Check if we need to abort due to an adaptivity event
           if (TxThread::tmbegin != begin)
-              tx->tmabort(tx);
+              tx->tmabort();
       }
 
       // since we have the token, we can validate before getting locks
@@ -152,7 +152,7 @@ namespace
       // NB: this is a pretty serious tradeoff... it admits false aborts for
       //     the sake of preventing a 'check if locked' test
       if (ivt > tx->ts_cache)
-          tx->tmabort(tx);
+          tx->tmabort();
 
       // log orec
       tx->r_orecs.insert(o);
@@ -251,7 +251,7 @@ namespace
           uintptr_t ivt = (*i)->v.all;
           // if it has a timestamp of ts_cache or greater, abort
           if (ivt > tx->ts_cache)
-              tx->tmabort(tx);
+              tx->tmabort();
       }
       // now update the finish_cache to remember that at this time, we were
       // still valid

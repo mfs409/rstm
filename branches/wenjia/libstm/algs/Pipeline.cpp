@@ -104,7 +104,7 @@ namespace {
           // in this wait loop, we need to check if an adaptivity action is
           // underway :(
           if (TxThread::tmbegin != begin)
-              tx->tmabort(tx);
+              tx->tmabort();
       }
       // oldest tx doesn't need validation
 
@@ -114,7 +114,7 @@ namespace {
               uintptr_t ivt = (*i)->v.all;
               // if it has a timestamp of ts_cache or greater, abort
               if (ivt > tx->ts_cache)
-                  tx->tmabort(tx);
+                  tx->tmabort();
           }
 
       // mark self as complete
@@ -143,7 +143,7 @@ namespace {
       // wait our turn, validate, writeback
       while (last_complete.val != ((uintptr_t)tx->order - 1)) {
           if (TxThread::tmbegin != begin)
-              tx->tmabort(tx);
+              tx->tmabort();
       }
 
       // oldest tx doesn't need validation
@@ -153,7 +153,7 @@ namespace {
               uintptr_t ivt = (*i)->v.all;
               // if it has a timestamp of ts_cache or greater, abort
               if (ivt > tx->ts_cache)
-                  tx->tmabort(tx);
+                  tx->tmabort();
           }
 
       // mark every location in the write set, and perform write-back
@@ -200,7 +200,7 @@ namespace {
       uintptr_t ivt = o->v.all;
       // abort if this changed since the last time I saw someone finish
       if (ivt > tx->ts_cache)
-          tx->tmabort(tx);
+          tx->tmabort();
       // log orec
       tx->r_orecs.insert(o);
 
@@ -230,7 +230,7 @@ namespace {
       uintptr_t ivt = o->v.all;
       // abort if this changed since the last time I saw someone finish
       if (ivt > tx->ts_cache)
-          tx->tmabort(tx);
+          tx->tmabort();
       // log orec
       tx->r_orecs.insert(o);
 

@@ -159,7 +159,7 @@ namespace {
               if (lastone)
                   gatekeeper = 0;
 
-              tx->tmabort(tx);
+              tx->tmabort();
           }
 
       // do write back

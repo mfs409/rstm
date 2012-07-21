@@ -28,6 +28,11 @@ ASFLAGS  += -m32
 CC        = gcc
 
 #
+# Flag to indicate this platform should use custom ASM for checkpointing
+#
+CHECKPOINT = asm
+
+#
 # Options to pass to STM files
 #
 CXXFLAGS += -DSTM_API_LIB

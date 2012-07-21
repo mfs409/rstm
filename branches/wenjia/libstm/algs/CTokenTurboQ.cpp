@@ -120,7 +120,7 @@ namespace {
               // if it has a timestamp of ts_cache or greater, abort
               if (ivt > tx->ts_cache) {
                   tx->status = ABORT;
-                  tx->tmabort(tx);
+                  tx->tmabort();
               }
           }
 
@@ -192,7 +192,7 @@ namespace {
       uintptr_t ivt = o->v.all;
       // abort if this changed since the last time I saw someone finish
       if (ivt > tx->ts_cache)
-          tx->tmabort(tx);
+          tx->tmabort();
 
       // log orec
       tx->r_orecs.insert(o);
@@ -222,7 +222,7 @@ namespace {
       // abort if this changed since the last time I saw someone finish
       if (ivt > tx->ts_cache) {
           tx->status = ABORT;
-          tx->tmabort(tx);
+          tx->tmabort();
       }
 
       // log orec
@@ -347,7 +347,7 @@ namespace {
                   // if it has a timestamp of ts_cache or greater, abort
                   if (ivt > tx->ts_cache) {
                       tx->status = ABORT;
-                      tx->tmabort(tx);
+                      tx->tmabort();
                   }
               }
           }
@@ -376,7 +376,7 @@ namespace {
               // if it has a timestamp of ts_cache or greater, abort
               if (ivt > tx->ts_cache) {
                   tx->status = ABORT;
-                  tx->tmabort(tx);
+                  tx->tmabort();
               }
           }
       // update ts_cache, indicating I'm still valid up till now

@@ -143,7 +143,7 @@ namespace {
           lock->readers.unsetbit(tx->id-1);
           while (lock->owner != 0) {
               if (++tries > READ_TIMEOUT)
-                  tx->tmabort(tx);
+                  tx->tmabort();
           }
       }
   }
@@ -192,7 +192,7 @@ namespace {
           lock->readers.unsetbit(tx->id-1);
           while (lock->owner != 0) {
               if (++tries > READ_TIMEOUT)
-                  tx->tmabort(tx);
+                  tx->tmabort();
           }
       }
   }
@@ -212,7 +212,7 @@ namespace {
       // get the write lock, with timeout
       while (!bcasptr(&(lock->owner), 0u, tx->id))
           if (++tries > ACQUIRE_TIMEOUT)
-              tx->tmabort(tx);
+              tx->tmabort();
 
       // log the lock, drop any read locks I have
       tx->w_bitlocks.insert(lock);
@@ -224,7 +224,7 @@ namespace {
           tries = 0;
           while (lock->readers.bits[b])
               if (++tries > DRAIN_TIMEOUT)
-                  tx->tmabort(tx);
+                  tx->tmabort();
       }
 
       // record in redo log
@@ -254,7 +254,7 @@ namespace {
       // get the write lock, with timeout
       while (!bcasptr(&(lock->owner), 0u, tx->id))
           if (++tries > ACQUIRE_TIMEOUT)
-              tx->tmabort(tx);
+              tx->tmabort();
 
       // log the lock, drop any read locks I have
       tx->w_bitlocks.insert(lock);
@@ -266,7 +266,7 @@ namespace {
           tries = 0;
           while (lock->readers.bits[b])
               if (++tries > DRAIN_TIMEOUT)
-                  tx->tmabort(tx);
+                  tx->tmabort();
       }
 
       // record in redo log

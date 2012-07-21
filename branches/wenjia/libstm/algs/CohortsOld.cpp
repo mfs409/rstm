@@ -93,7 +93,7 @@ namespace {
 
           // check if an adaptivity action is underway
           if (TxThread::tmbegin != begin){
-              tx->tmabort(tx);
+              tx->tmabort();
           }
       }
 
@@ -379,7 +379,7 @@ namespace {
       SUB(&started.val, 2);
 
       // abort
-      tx->tmabort(tx);
+      tx->tmabort();
   }
 
   /**
@@ -397,7 +397,7 @@ namespace {
       last_complete.val = tx->order;
 
       // abort
-      tx->tmabort(tx);
+      tx->tmabort();
   }
 
   /**

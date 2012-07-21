@@ -165,7 +165,7 @@ namespace {
       if (!validate(tx)) {
           tx->turn.val = DONE;
           if (q == &(tx->turn)) q = NULL;
-          tx->tmabort(tx);
+          tx->tmabort();
       }
 
       // do write back

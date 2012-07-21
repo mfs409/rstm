@@ -35,8 +35,9 @@ namespace stm
    *
    *  This is ugly because rollback has a configuration-dependent signature.
    */
-  NORETURN void TxThread::tmabort(TxThread* tx)
+  NORETURN void TxThread::tmabort()
   {
+      stm::TxThread* tx = stm::Self;
 #if defined(STM_ABORT_ON_THROW)
       TxThread::tmrollback(tx, NULL, 0);
 #else
@@ -209,7 +210,7 @@ namespace stm
       // register this restart
       ++tx->num_restarts;
       // call the abort code
-      tx->tmabort(tx);
+      tx->tmabort();
   }
 
 

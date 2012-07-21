@@ -132,7 +132,7 @@ namespace
               // bad read: we'll go back to top, but first make sure we didn't
               // get aborted
               if (tx->alive == ABORTED)
-                  tx->tmabort(tx);
+                  tx->tmabort();
               continue;
           }
           // the read was good: log the orec
@@ -172,10 +172,10 @@ namespace
           // if locked, CM will either tell us to self-abort, or to continue
           if (ivt.fields.lock) {
               if (cm_should_abort(tx, ivt.fields.id))
-                  tx->tmabort(tx);
+                  tx->tmabort();
               // check liveness before continuing
               if (tx->alive == ABORTED)
-                  tx->tmabort(tx);
+                  tx->tmabort();
               continue;
           }
 
@@ -183,7 +183,7 @@ namespace
           if (!bcasptr(&o->v.all, ivt.all, tx->my_lock.all)) {
               // check liveness before continuing
               if (tx->alive == ABORTED)
-                  tx->tmabort(tx);
+                  tx->tmabort();
               continue;
           }
 
@@ -288,7 +288,7 @@ namespace
   {
       foreach (OrecList, i, tx->r_orecs) {
           if ((*i)->p > tx->start_time)
-              tx->tmabort(tx);
+              tx->tmabort();
       }
   }
 
@@ -304,7 +304,7 @@ namespace
                   foreach (NanorecList, i, tx->nanorecs) {
                       i->o->p = i->v;
                   }
-                  tx->tmabort(tx);
+                  tx->tmabort();
               }
           }
       }

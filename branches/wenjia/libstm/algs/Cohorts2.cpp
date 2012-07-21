@@ -131,7 +131,7 @@ namespace {
               last_complete.val = tx->order;
               // decrement #
               faa32(&cohort_gate, -256);
-              tx->tmabort(tx);
+              tx->tmabort();
           }
 
       // Last one in cohort can skip the orec marking
