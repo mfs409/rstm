@@ -52,7 +52,7 @@ namespace {
       static TM_FASTCALL void commit_ro();
       static TM_FASTCALL void commit_rw();
 
-      static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
+      static void rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
       static void onSwitchTo();
   };
@@ -250,7 +250,7 @@ namespace {
    *    Release any locks we acquired (if we aborted during a commit()
    *    operation), and then reset local lists.
    */
-  stm::scope_t*
+  void
   Nano::rollback(STM_ROLLBACK_SIG(tx, except, len))
   {
       PreRollback(tx);
@@ -268,7 +268,7 @@ namespace {
       tx->nanorecs.reset();
       tx->writes.reset();
       tx->locks.reset();
-      return PostRollback(tx, read_ro, write_ro, commit_ro);
+      PostRollback(tx, read_ro, write_ro, commit_ro);
   }
 
   /**

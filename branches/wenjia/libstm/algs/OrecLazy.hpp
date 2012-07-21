@@ -46,7 +46,7 @@ namespace {
       static TM_FASTCALL void commit_ro();
       static TM_FASTCALL void commit_rw();
 
-      static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
+      static void rollback(STM_ROLLBACK_SIG(,,));
       static void Initialize(int id, const char* name);
   };
 
@@ -261,7 +261,7 @@ namespace {
    *    operation), and then reset local lists.
    */
   template <class CM>
-  stm::scope_t*
+  void
   OrecLazy_Generic<CM>::rollback(STM_ROLLBACK_SIG(tx, except, len))
   {
       PreRollback(tx);
@@ -282,7 +282,7 @@ namespace {
       tx->r_orecs.reset();
       tx->writes.reset();
       tx->locks.reset();
-      return PostRollback(tx, read_ro, write_ro, commit_ro);
+      PostRollback(tx, read_ro, write_ro, commit_ro);
   }
 
   /**
@@ -328,23 +328,3 @@ namespace {
       timestamp.val = MAXIMUM(timestamp.val, timestamp_max.val);
   }
 }
-
-// -----------------------------------------------------------------------------
-// Register initialization as declaratively as possible.
-// -----------------------------------------------------------------------------
-#define FOREACH_ORECLAZY(MACRO)                 \
-    MACRO(OrecLazy, HyperAggressiveCM)          \
-    MACRO(OrecLazyHour, HourglassCM)            \
-    MACRO(OrecLazyBackoff, BackoffCM)           \
-    MACRO(OrecLazyHB, HourglassBackoffCM)
-
-#define INIT_ORECLAZY(ID, CM)                       \
-    template <>                                     \
-    void initTM<ID>() {                             \
-        OrecLazy_Generic<stm::CM>::Initialize(ID, #ID); \
-    }
-
-// namespace stm {
-//   FOREACH_ORECLAZY(INIT_ORECLAZY)
-// }
-

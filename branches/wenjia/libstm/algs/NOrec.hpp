@@ -50,7 +50,7 @@ namespace {
       static TM_FASTCALL void* read_rw(STM_READ_SIG(,));
       static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,));
       static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,));
-      static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
+      static void rollback(STM_ROLLBACK_SIG(,,));
       static void initialize(int id, const char* name);
   };
 
@@ -289,7 +289,7 @@ namespace {
   }
 
   template <class CM>
-  stm::scope_t*
+  void
   NOrec_Generic<CM>::rollback(STM_ROLLBACK_SIG(tx, except, len))
   {
       stm::PreRollback(tx);
@@ -304,25 +304,8 @@ namespace {
 
       tx->vlist.reset();
       tx->writes.reset();
-      return stm::PostRollback(tx, read_ro, write_ro, commit_ro);
+      stm::PostRollback(tx, read_ro, write_ro, commit_ro);
   }
 } // (anonymous namespace)
-
-// Register NOrec initializer functions. Do this as declaratively as
-// possible. Remember that they need to be in the stm:: namespace.
-#define FOREACH_NOREC(MACRO)                    \
-    MACRO(NOrec, HyperAggressiveCM)             \
-    MACRO(NOrecHour, HourglassCM)               \
-    MACRO(NOrecBackoff, BackoffCM)              \
-    MACRO(NOrecHB, HourglassBackoffCM)
-
-#define INIT_NOREC(ID, CM)                      \
-    template <>                                 \
-    void initTM<ID>() {                         \
-        NOrec_Generic<CM>::initialize(ID, #ID);     \
-    }
-
-#undef FOREACH_NOREC
-#undef INIT_NOREC
 
 #endif // NOREC_HPP__

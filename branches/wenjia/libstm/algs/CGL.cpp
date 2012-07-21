@@ -41,7 +41,7 @@ namespace
       static TM_FASTCALL void write(STM_WRITE_SIG(,,  ));
       static TM_FASTCALL void commit();
 
-      static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
+      static void rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
       static void onSwitchTo();
   };
@@ -81,11 +81,10 @@ namespace
    *
    *    In CGL, aborts are never valid
    */
-  stm::scope_t*
+  void
   CGL::rollback(STM_ROLLBACK_SIG(,,))
   {
       UNRECOVERABLE("ATTEMPTING TO ABORT AN IRREVOCABLE CGL TRANSACTION");
-      return NULL;
   }
 
   /**

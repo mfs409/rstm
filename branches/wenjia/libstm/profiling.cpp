@@ -60,7 +60,7 @@ namespace
 
       // wait for everyone to be out of a transaction (scope == NULL)
       for (unsigned i = 0; i < threadcount.val; ++i)
-          while ((i != (tx->id-1)) && (threads[i]->scope))
+          while ((i != (tx->id-1)) && (threads[i]->in_tx))
               spin64();
 
       // remember the prior algorithm
@@ -88,7 +88,7 @@ namespace
 
       // wait for everyone to be out of a transaction (scope == NULL)
       for (unsigned i = 0; i < threadcount.val; ++i)
-          while ((i != (tx->id-1)) && (threads[i]->scope))
+          while ((i != (tx->id-1)) && (threads[i]->in_tx))
               spin64();
 
       // since this operation is done, we can clear out any state related to

@@ -73,7 +73,7 @@ namespace
       static TM_FASTCALL void write(STM_WRITE_SIG(,,));
       static TM_FASTCALL void commit();
 
-      static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
+      static void rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
       static void onSwitchTo();
       static void cm_start(TxThread*);
@@ -251,7 +251,7 @@ namespace
   }
 
   // rollback a transaction
-  stm::scope_t*
+  void
   Swiss::rollback(STM_ROLLBACK_SIG(tx, except, len))
   {
       PreRollback(tx);
@@ -277,7 +277,7 @@ namespace
 
       // contention management on rollback
       cm_on_rollback(tx);
-      return PostRollback(tx);
+      PostRollback(tx);
   }
 
   // Validate a transaction's read set

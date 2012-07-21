@@ -50,7 +50,7 @@ namespace {
       static TM_FASTCALL void commit_ro();
       static TM_FASTCALL void commit_rw();
 
-      static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
+      static void rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
       static void onSwitchTo();
       static NOINLINE void validate(TxThread* tx, uintptr_t finish_cache);
@@ -195,7 +195,7 @@ namespace {
   /**
    *  CTokenNOrec unwinder:
    */
-  stm::scope_t*
+  void
   CTokenNOrec::rollback(STM_ROLLBACK_SIG(tx, except, len))
   {
       PreRollback(tx);
@@ -212,7 +212,7 @@ namespace {
       //     performed some writes, then it has an order.  If it has an
       //     order, but restarts and is read-only, then it still must call
       //     commit_rw to finish in-order
-      return PostRollback(tx);
+      PostRollback(tx);
   }
 
   /**

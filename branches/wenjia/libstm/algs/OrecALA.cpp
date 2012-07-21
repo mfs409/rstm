@@ -48,7 +48,7 @@ namespace {
       static TM_FASTCALL void commit_ro();
       static TM_FASTCALL void commit_rw();
 
-      static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
+      static void rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
       static void onSwitchTo();
       static NOINLINE void privtest(TxThread* tx, uintptr_t ts);
@@ -243,7 +243,7 @@ namespace {
    *    turn and then increment the trailing timestamp, to keep the two counters
    *    consistent.
    */
-  stm::scope_t*
+  void
   OrecALA::rollback(STM_ROLLBACK_SIG(tx, except, len))
   {
       PreRollback(tx);
@@ -269,7 +269,7 @@ namespace {
               spin64();
           last_complete.val = tx->end_time;
       }
-      return PostRollback(tx, read_ro, write_ro, commit_ro);
+      PostRollback(tx, read_ro, write_ro, commit_ro);
   }
 
   /**

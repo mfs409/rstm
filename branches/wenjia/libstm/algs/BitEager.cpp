@@ -42,7 +42,7 @@ namespace {
       static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,));
       static TM_FASTCALL void commit_ro();
       static TM_FASTCALL void commit_rw();
-      static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
+      static void rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
       static void onSwitchTo();
   };
@@ -273,7 +273,7 @@ namespace {
   /**
    *  BitEager unwinder:
    */
-  stm::scope_t*
+  void
   BitEager::rollback(STM_ROLLBACK_SIG(tx, except, len))
   {
       PreRollback(tx);
@@ -295,7 +295,7 @@ namespace {
       // randomized exponential backoff
       exp_backoff(tx);
 
-      return PostRollback(tx, read_ro, write_ro, commit_ro);
+      PostRollback(tx, read_ro, write_ro, commit_ro);
   }
 
   /**

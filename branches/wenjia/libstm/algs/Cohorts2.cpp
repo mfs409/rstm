@@ -55,7 +55,7 @@ namespace {
       static TM_FASTCALL void commit_ro();
       static TM_FASTCALL void commit_rw();
 
-      static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
+      static void rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
       static void onSwitchTo();
   };
@@ -221,7 +221,7 @@ namespace {
   /**
    *  Cohorts2 unwinder:
    */
-  stm::scope_t*
+  void
   Cohorts2::rollback(STM_ROLLBACK_SIG(tx, except, len))
   {
       PreRollback(tx);
@@ -235,7 +235,7 @@ namespace {
       tx->r_orecs.reset();
       tx->writes.reset();
 
-      return PostRollback(tx);
+      PostRollback(tx);
   }
 
   /**

@@ -64,7 +64,7 @@ namespace {
       static TM_FASTCALL void commit_rw();
       static TM_FASTCALL void commit_read_only();
 
-      static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
+      static void rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
       static void onSwitchTo();
   };
@@ -313,10 +313,10 @@ namespace {
   /**
    *  PessimisticTM unwinder:
    */
-  stm::scope_t*
+  void
   PessimisticTM::rollback(STM_ROLLBACK_SIG(tx, except, len))
   {
-      return NULL;
+      UNRECOVERABLE("PessimisticTM should never call rollback");
   }
 
   /**

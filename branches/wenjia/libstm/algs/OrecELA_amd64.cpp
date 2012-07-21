@@ -49,7 +49,7 @@ namespace
       static TM_FASTCALL void commit_ro();
       static TM_FASTCALL void commit_rw();
 
-      static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
+      static void rollback(STM_ROLLBACK_SIG(,,));
       static void Initialize(int id, const char* name);
   };
 
@@ -282,7 +282,7 @@ namespace
    *    operation), and then reset local lists.
    */
   template <class CM>
-  stm::scope_t*
+  void
   OrecELA_amd64_Generic<CM>::rollback(STM_ROLLBACK_SIG(tx, except, len))
   {
       tx->last_val_time = 0x7FFFFFFFFFFFFFFFLL;
@@ -304,7 +304,7 @@ namespace
       tx->r_orecs.reset();
       tx->writes.reset();
       tx->locks.reset();
-      return PostRollback(tx, read_ro, write_ro, commit_ro);
+      PostRollback(tx, read_ro, write_ro, commit_ro);
   }
 
   /**

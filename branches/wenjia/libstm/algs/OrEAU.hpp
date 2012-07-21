@@ -54,7 +54,7 @@ namespace {
       static TM_FASTCALL void commit_ro();
       static TM_FASTCALL void commit_rw();
 
-      static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
+      static void rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
       static void onSwitchTo();
       static NOINLINE void validate(TxThread*);
@@ -353,7 +353,7 @@ namespace {
    *  OrEAU unwinder:
    */
   template <class CM>
-  stm::scope_t*
+  void
   OrEAU_Generic<CM>::rollback(STM_ROLLBACK_SIG(tx, except, len))
   {
       PreRollback(tx);
@@ -383,7 +383,7 @@ namespace {
       tx->undo_log.reset();
       tx->locks.reset();
 
-      return PostRollback(tx, read_ro, write_ro, commit_ro);
+      PostRollback(tx, read_ro, write_ro, commit_ro);
   }
 
   /**
@@ -431,23 +431,5 @@ namespace {
       timestamp.val = MAXIMUM(timestamp.val, timestamp_max.val);
   }
 }
-
-
-// Register ByEAU initializer functions. Do this as declaratively as
-// possible. Remember that they need to be in the stm:: namespace.
-#define FOREACH_OREAU(MACRO)                    \
-    MACRO(OrEAU, BackoffCM)                     \
-    MACRO(OrEAUFCM, FCM)                        \
-    MACRO(OrEAUHA, HyperAggressiveCM)           \
-    MACRO(OrEAUHour, HourglassCM)
-
-#define INIT_OREAU(ID, CM)                      \
-    template <>                                 \
-    void initTM<ID>() {                         \
-        OrEAU_Generic<CM>::initialize(ID, #ID); \
-    }
-
-#undef FOREACH_OREAU
-#undef INIT_OREAU
 
 #endif // OREAU_HPP__

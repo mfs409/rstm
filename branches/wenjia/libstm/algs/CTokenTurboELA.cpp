@@ -52,7 +52,7 @@ namespace {
       static TM_FASTCALL void commit_rw();
       static TM_FASTCALL void commit_turbo();
 
-      static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
+      static void rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
       static void onSwitchTo();
       static NOINLINE void validate(TxThread*, uintptr_t finish_cache);
@@ -299,7 +299,7 @@ namespace {
    *    NB: self-aborts in Turbo Mode are not supported.  We could add undo
    *        logging to address this, and add it in Pipeline too.
    */
-  stm::scope_t*
+  void
   CTokenTurboELA::rollback(STM_ROLLBACK_SIG(tx, except, len))
   {
       PreRollback(tx);
@@ -318,7 +318,7 @@ namespace {
       //     performed some writes, then it has an order.  If it has an
       //     order, but restarts and is read-only, then it still must call
       //     commit_rw to finish in-order
-      return PostRollback(tx);
+      PostRollback(tx);
   }
 
   /**

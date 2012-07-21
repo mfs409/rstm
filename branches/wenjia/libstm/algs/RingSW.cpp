@@ -44,7 +44,7 @@ namespace {
       static TM_FASTCALL void commit_ro();
       static TM_FASTCALL void commit_rw();
 
-      static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
+      static void rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
       static void onSwitchTo();
       static NOINLINE void check_inflight(TxThread* tx, uintptr_t my_index);
@@ -201,7 +201,7 @@ namespace {
   /**
    *  RingSW unwinder:
    */
-  stm::scope_t*
+  void
   RingSW::rollback(STM_ROLLBACK_SIG(tx, except, len))
   {
       PreRollback(tx);
@@ -217,7 +217,7 @@ namespace {
           tx->writes.reset();
           tx->wf->clear();
       }
-      return PostRollback(tx, read_ro, write_ro, commit_ro);
+      PostRollback(tx, read_ro, write_ro, commit_ro);
   }
 
   /**

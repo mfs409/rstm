@@ -54,7 +54,8 @@ namespace stm
       uint32_t       num_aborts;    // stats counter: aborts
       uint32_t       num_restarts;  // stats counter: restart()s
       uint32_t       num_ro;        // stats counter: read-only commits
-      scope_t* volatile scope;      // used to roll back; also flag for isTxnl
+      volatile bool  in_tx;         // flag for if we are in a transaction
+      scope_t*       checkpoint;    // used to roll back
 #ifdef STM_PROTECT_STACK
       void**         stack_high;    // the stack pointer at begin_tx time
       void**         stack_low;     // norec stack low-water mark
@@ -145,7 +146,7 @@ namespace stm
        * stack. Rollback behavior changes per-implementation (some, such as
        * CGL, can't rollback) so we add it here.
        */
-      static scope_t* (*tmrollback)(STM_ROLLBACK_SIG(,,));
+      static void (*tmrollback)(STM_ROLLBACK_SIG(,,));
 
       /**
        * The function for aborting a transaction. The "tmabort" function is
