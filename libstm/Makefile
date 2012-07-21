@@ -67,9 +67,13 @@ DEPS = $(patsubst %, $(ODIR)/%.d, $(CXXNAMES))
 -include $(DEPS)
 
 #
-# Rule for building individual .o files
+# Rules for building individual .o files
 #
 $(ODIR)/%.o: %.cpp
+	@echo [CXX] $< "-->" $@
+	@$(CXX) $(CXXFLAGS) -c -o $@ $<
+
+$(ODIR)/%.o: algs/%.cpp
 	@echo [CXX] $< "-->" $@
 	@$(CXX) $(CXXFLAGS) -c -o $@ $<
 
