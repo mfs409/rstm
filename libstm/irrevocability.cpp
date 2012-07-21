@@ -13,7 +13,7 @@
 #include "txthread.hpp"    // TxThread stuff
 #include "policies.hpp"    // curr_policy
 #include "algs.hpp"        // stms
-#include "tml_inline.hpp"
+#include "algs/tml_inline.hpp"
 
 using stm::UNRECOVERABLE;
 using stm::TxThread;
