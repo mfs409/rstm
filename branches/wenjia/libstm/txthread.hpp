@@ -27,8 +27,9 @@
 #include "UndoLog.hpp"
 #include "ValueList.hpp"
 #include "WBMMPolicy.hpp"
+#ifdef STM_CHECKPOINT_ASM
 #include "checkpoint.hpp"
-
+#endif
 namespace stm
 {
   /**

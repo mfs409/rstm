@@ -21,8 +21,8 @@
 
 #include "../profiling.hpp"
 #include "../algs.hpp"
-#include "../tml_inline.hpp"
 #include "../UndoLog.hpp" // STM_DO_MASKED_WRITE
+#include "tml_inline.hpp"
 
 using stm::TxThread;
 using stm::timestamp;

@@ -12,7 +12,7 @@
 #include <iostream>
 #include "txthread.hpp"
 #include "policies.hpp"
-#include "tml_inline.hpp"
+#include "algs/tml_inline.hpp"
 #include "algs.hpp"
 #include "inst.hpp"
 

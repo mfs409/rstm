@@ -31,6 +31,7 @@ CC        = gcc
 # Flag to indicate this platform should use custom ASM for checkpointing
 #
 CHECKPOINT = asm
+CXXFLAGS += -DSTM_CHECKPOINT_ASM
 
 #
 # Options to pass to STM files
