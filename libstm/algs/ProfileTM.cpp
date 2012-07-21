@@ -39,7 +39,7 @@ namespace
       static TM_FASTCALL void commit_ro();
       static TM_FASTCALL void commit_rw();
 
-      static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
+      static void rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
       static void onSwitchTo();
   };
@@ -75,9 +75,8 @@ namespace
       // we're in begin_blocker, but don't resume until we're neither in
       // begin_blocker nor begin().
       while (true) {
-          // first, clear the outer scope, because it's our 'tx/nontx' flag
-          stm::scope_t* b = tx->scope;
-          tx->scope = 0;
+          // first, mark self not transactional
+          tx->in_tx = 0;
           // next, wait for a good begin pointer
           while ((TxThread::tmbegin == begin) ||
                  (TxThread::tmbegin == stm::begin_blocker))
@@ -85,9 +84,9 @@ namespace
           CFENCE;
           // now reinstall the scope
 #ifdef STM_CPU_SPARC
-          tx->scope = b; WBR;
+          tx->in_tx = 1; WBR;
 #else
-          casptr((volatile uintptr_t*)&tx->scope, (uintptr_t)0, (uintptr_t)b);
+          casptr(&tx->in_tx, 0, 1);
 #endif
           // read the begin function pointer AFTER setting the scope
           bool TM_FASTCALL (*beginner)() = TxThread::tmbegin;
@@ -221,8 +220,7 @@ namespace
    *
    *    NB: This code has not been tested in a while
    */
-  stm::scope_t*
-  ProfileTM::rollback(STM_ROLLBACK_SIG(tx, except, len))
+  void ProfileTM::rollback(STM_ROLLBACK_SIG(tx, except, len))
   {
       PreRollback(tx);
 
@@ -259,9 +257,9 @@ namespace
       //    we call profile_oncomplete() or not.
       if (++last_complete.val == profile_txns) {
           profile_oncomplete(tx);
-          return PostRollbackNoTrigger(tx);
+          PostRollbackNoTrigger(tx);
       }
-      return PostRollbackNoTrigger(tx, read_ro, write_ro, commit_ro);
+      PostRollbackNoTrigger(tx, read_ro, write_ro, commit_ro);
   }
 
   /**

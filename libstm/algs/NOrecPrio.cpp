@@ -45,7 +45,7 @@ namespace {
       static TM_FASTCALL void commit_ro();
       static TM_FASTCALL void commit_rw();
 
-      static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
+      static void rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
       static void onSwitchTo();
 
@@ -228,7 +228,7 @@ namespace {
    *
    *    If we abort, be sure to release priority
    */
-  stm::scope_t*
+  void
   NOrecPrio::rollback(STM_ROLLBACK_SIG(tx, except, len))
   {
       PreRollback(tx);
@@ -245,7 +245,7 @@ namespace {
           faaptr(&prioTxCount.val, -1);
           tx->prio = 0;
       }
-      return PostRollback(tx, read_ro, write_ro, commit_ro);
+      PostRollback(tx, read_ro, write_ro, commit_ro);
   }
 
   /**

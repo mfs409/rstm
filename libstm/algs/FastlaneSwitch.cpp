@@ -63,7 +63,7 @@ namespace {
       static TM_FASTCALL void commit_rw();
       static TM_FASTCALL void commit_master();
 
-      static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
+      static void rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
       static void onSwitchTo();
       static NOINLINE bool validate(TxThread* tx);
@@ -336,7 +336,7 @@ namespace {
   /**
    *  FastlaneSwitch unwinder:
    */
-  stm::scope_t*
+  void
   FastlaneSwitch::rollback(STM_ROLLBACK_SIG(tx, except, len))
   {
       PreRollback(tx);
@@ -350,7 +350,7 @@ namespace {
       tx->r_orecs.reset();
       tx->writes.reset();
 
-      return PostRollback(tx);
+      PostRollback(tx);
   }
 
   /**

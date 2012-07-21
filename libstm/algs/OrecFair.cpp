@@ -62,7 +62,7 @@ namespace
       static TM_FASTCALL void commit_ro();
       static TM_FASTCALL void commit_rw();
 
-      static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
+      static void rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
       static void onSwitchTo();
       static NOINLINE void validate(TxThread*);
@@ -447,7 +447,7 @@ namespace
    *        templated contention manager.  That is because we are trying to
    *        be completely faithful to [Spear PPoPP 2009]
    */
-  stm::scope_t*
+  void
   OrecFair::rollback(STM_ROLLBACK_SIG(tx, except, len))
   {
       PreRollback(tx);
@@ -479,7 +479,7 @@ namespace
       // randomized exponential backoff
       exp_backoff(tx);
 
-      return PostRollback(tx, read_ro, write_ro, commit_ro);
+      PostRollback(tx, read_ro, write_ro, commit_ro);
   }
 
   /**

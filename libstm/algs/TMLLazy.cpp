@@ -43,7 +43,7 @@ namespace {
       static TM_FASTCALL void commit_ro();
       static TM_FASTCALL void commit_rw();
 
-      static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
+      static void rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
       static void onSwitchTo();
   };
@@ -160,7 +160,7 @@ namespace {
   /**
    *  TMLLazy unwinder
    */
-  stm::scope_t*
+  void
   TMLLazy::rollback(STM_ROLLBACK_SIG(tx, except, len))
   {
       PreRollback(tx);
@@ -170,7 +170,7 @@ namespace {
       STM_ROLLBACK(tx->writes, except, len);
 
       tx->writes.reset();
-      return PostRollback(tx, read_ro, write_ro, commit_ro);
+      PostRollback(tx, read_ro, write_ro, commit_ro);
   }
 
   /**

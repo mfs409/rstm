@@ -47,10 +47,9 @@ namespace {
    *      X's default gcc-4.2.1. It's fine if we use the fully qualified
    *      namespace here.
    */
-  stm::scope_t* rollback_irrevocable(STM_ROLLBACK_SIG(,,))
+  void rollback_irrevocable(STM_ROLLBACK_SIG(,,))
   {
       UNRECOVERABLE("Irrevocable thread attempted to rollback.");
-      return NULL;
   }
 
   /**
@@ -89,9 +88,9 @@ namespace {
    */
   inline void set_irrevocable_barriers(TxThread& tx)
   {
-      stm::tmread           = stms[CGL].read;
-      stm::tmwrite          = stms[CGL].write;
-      stm::tmcommit         = commit_irrevocable;
+      stm::tmread         = stms[CGL].read;
+      stm::tmwrite        = stms[CGL].write;
+      stm::tmcommit       = commit_irrevocable;
       tx.tmrollback       = rollback_irrevocable;
       TxThread::tmirrevoc = stms[CGL].irrevoc;
       old_abort_handler   = tx.tmabort;
@@ -158,7 +157,7 @@ namespace stm
 
       // wait for everyone to be out of a transaction (scope == NULL)
       for (unsigned i = 0; i < threadcount.val; ++i)
-          while ((i != (tx->id-1)) && (threads[i]->scope))
+          while ((i != (tx->id-1)) && (threads[i]->in_tx))
               spin64();
 
       // try to become irrevocable inflight
@@ -218,18 +217,14 @@ namespace stm
       // adapt without longjmp
       while (true) {
           // first, clear the outer scope, because it's our 'tx/nontx' flag
-          scope_t* b = tx->scope;
-          tx->scope = 0;
+          tx->in_tx = 0;
           // next, wait for the begin_blocker to be uninstalled
           while (TxThread::tmbegin == begin_blocker)
               spin64();
           CFENCE;
-          // now re-install the scope
-#ifdef STM_CPU_SPARC
-          tx->scope = b; WBR;
-#else
-          casptr((volatile uintptr_t*)&tx->scope, (uintptr_t)0, (uintptr_t)b);
-#endif
+          // now re-state that we are in tx
+          tx->in_tx = 1; WBR;
+
           // read the begin function pointer AFTER setting the scope
           bool TM_FASTCALL (*beginner)() = TxThread::tmbegin;
           // if begin_blocker is no longer installed, we can call the pointer

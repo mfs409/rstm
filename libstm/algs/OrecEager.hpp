@@ -72,7 +72,7 @@ namespace {
       static TM_FASTCALL bool begin();
       static TM_FASTCALL void commit();
       static void initialize(int id, const char* name);
-      static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
+      static void rollback(STM_ROLLBACK_SIG(,,));
   };
 
   TM_FASTCALL void* read(STM_READ_SIG(,));
@@ -263,7 +263,7 @@ namespace {
    *    Run the redo log, possibly bump timestamp
    */
   template <class CM>
-  stm::scope_t*
+  void
   OrecEager_Generic<CM>::rollback(STM_ROLLBACK_SIG(tx, except, len))
   {
       // common rollback code
@@ -296,7 +296,7 @@ namespace {
       CM::onAbort(tx);
 
       // common unwind code when no pointer switching
-      return PostRollback(tx);
+      PostRollback(tx);
   }
 
   /**
@@ -371,23 +371,5 @@ namespace {
       timestamp.val = MAXIMUM(timestamp.val, stm::timestamp_max.val);
   }
 } // (anonymous namespace)
-
-// -----------------------------------------------------------------------------
-// Register initialization as declaratively as possible.
-// -----------------------------------------------------------------------------
-#define FOREACH_ORECEAGER(MACRO)                \
-    MACRO(OrecEager, HyperAggressiveCM)         \
-    MACRO(OrecEagerHour, HourglassCM)           \
-    MACRO(OrecEagerBackoff, BackoffCM)          \
-    MACRO(OrecEagerHB, HourglassBackoffCM)
-
-#define INIT_ORECEAGER(ID, CM)                          \
-    template <>                                         \
-    void initTM<ID>() {                                 \
-        OrecEager_Generic<stm::CM>::initialize(ID, #ID);    \
-    }
-
-#undef FOREACH_ORECEAGER
-#undef INIT_ORECEAGER
 
 #endif // ORECEAGER_HPP__

@@ -35,12 +35,12 @@ namespace
   NORETURN void
   default_abort_handler(TxThread* tx)
   {
-      jmp_buf* scope = (jmp_buf*)TxThread::tmrollback(tx
 #if defined(STM_ABORT_ON_THROW)
-                                                      , NULL, 0
+      TxThread::tmrollback(tx, NULL, 0);
+#else
+      TxThread::tmrollback(tx);
 #endif
-                                               );
-      // need to null out the scope
+      jmp_buf* scope = (jmp_buf*)tx->checkpoint;
       longjmp(*scope, 1);
   }
 } // (anonymous namespace)
@@ -59,7 +59,7 @@ namespace stm
       : nesting_depth(0),
         allocator(),
         num_commits(0), num_aborts(0), num_restarts(0),
-        num_ro(0), scope(NULL),
+        num_ro(0), checkpoint(NULL), in_tx(0),
 #ifdef STM_STACK_PROTECT
         stack_high(NULL),
         stack_low(~0x0),
@@ -180,7 +180,7 @@ namespace stm
   /**
    *  The tmrollback, tmabort, and tmirrevoc pointers
    */
-  scope_t* (*TxThread::tmrollback)(STM_ROLLBACK_SIG(,,));
+  void (*TxThread::tmrollback)(STM_ROLLBACK_SIG(,,));
   NORETURN void (*TxThread::tmabort)(TxThread*) = default_abort_handler;
   bool (*TxThread::tmirrevoc)(TxThread*) = NULL;
 
@@ -295,7 +295,7 @@ namespace stm
 
       // wait for everyone to be out of a transaction (scope == NULL)
       for (unsigned i = 0; i < threadcount.val; ++i)
-          while (threads[i]->scope)
+          while (threads[i]->in_tx)
               spin64();
 
       // figure out the algorithm for the STM, and set the adapt policy
@@ -441,11 +441,12 @@ namespace stm
       // *before* the read of the begin function pointer.  On modern x86, a
       // CAS is faster than using WBR or xchg to achieve the ordering.  On
       // SPARC, WBR is best.
+      tx->checkpoint = s;
 #ifdef STM_CPU_SPARC
-      tx->scope = s; WBR;
+      tx->in_tx = 1;
+      WBR;
 #else
-      // NB: this CAS fails on a transaction restart... is that too expensive?
-      casptr((volatile uintptr_t*)&tx->scope, (uintptr_t)0, (uintptr_t)s);
+      casptr(&tx->in_tx, 0, 1);
 #endif
 
       // some adaptivity mechanisms need to know nontransactional and
@@ -476,7 +477,8 @@ namespace stm
 
       // zero scope (to indicate "not in tx")
       CFENCE;
-      tx->scope = NULL;
+      tx->checkpoint = NULL;
+      tx->in_tx = 0;
 
       // record start of nontransactional time
       tx->end_txn_time = tick();

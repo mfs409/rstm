@@ -77,7 +77,7 @@ namespace
       static TM_FASTCALL bool begin();
       static TM_FASTCALL void commit();
       static void initialize(int id, const char* name);
-      static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
+      static void rollback(STM_ROLLBACK_SIG(,,));
   };
 
   TM_FASTCALL void* read(STM_READ_SIG(,));
@@ -268,7 +268,7 @@ namespace
    *    Run the redo log, possibly bump timestamp
    */
   template <class CM>
-  stm::scope_t*
+  void
   OrecEager_amd64_Generic<CM>::rollback(STM_ROLLBACK_SIG(tx, except, len))
   {
       // common rollback code
@@ -293,7 +293,7 @@ namespace
       CM::onAbort(tx);
 
       // common unwind code when no pointer switching
-      return PostRollback(tx);
+      PostRollback(tx);
   }
 
   /**

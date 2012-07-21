@@ -44,7 +44,7 @@ namespace {
       static TM_FASTCALL void write(STM_WRITE_SIG(,,));
       static TM_FASTCALL void commit();
 
-      static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
+      static void rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
       static void onSwitchTo();
   };
@@ -135,11 +135,11 @@ namespace {
    *        back must be read-only, and thus the logs have no writes to
    *        exception objects pending.
    */
-  stm::scope_t*
+  void
   TML::rollback(STM_ROLLBACK_SIG(tx,,))
   {
       PreRollback(tx);
-      return PostRollback(tx);
+      PostRollback(tx);
   }
 
   /**

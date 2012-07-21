@@ -63,7 +63,7 @@ namespace {
       static TM_FASTCALL void* read_turbo(STM_READ_SIG(,));
       static TM_FASTCALL void write_turbo(STM_WRITE_SIG(,,));
 
-      static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
+      static void rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
       static void onSwitchTo();
       static NOINLINE void validate(TxThread* tx);
@@ -330,7 +330,7 @@ namespace {
   /**
    *  CohortsLNI unwinder:
    */
-  stm::scope_t*
+  void
   CohortsLNI::rollback(STM_ROLLBACK_SIG(tx, except, len))
   {
       PreRollback(tx);
@@ -344,7 +344,7 @@ namespace {
       tx->vlist.reset();
       tx->writes.reset();
 
-      return PostRollback(tx);
+      PostRollback(tx);
   }
 
   /**

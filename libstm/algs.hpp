@@ -139,7 +139,7 @@ namespace stm
        * rolls the transaction back without unwinding, returns the scope (which
        * is set to null during rollback)
        */
-      scope_t* (* rollback)(STM_ROLLBACK_SIG(,,));
+      void (* rollback)(STM_ROLLBACK_SIG(,,));
 
       /*** the restart, retry, and irrevoc methods to use */
       bool  (* irrevoc)(TxThread*);
@@ -327,8 +327,9 @@ namespace stm
       ++tx->consec_aborts;
   }
 
-  inline scope_t* PostRollback(TxThread* tx, ReadBarrier read_ro,
-                               WriteBarrier write_ro, CommitBarrier commit_ro)
+  inline void
+  PostRollback(TxThread* tx, ReadBarrier read_ro,
+               WriteBarrier write_ro, CommitBarrier commit_ro)
   {
       tx->allocator.onTxAbort();
       tx->nesting_depth = 0;
@@ -336,19 +337,15 @@ namespace stm
       tmwrite = write_ro;
       tmcommit = commit_ro;
       Trigger::onAbort(tx);
-      scope_t* scope = tx->scope;
-      tx->scope = NULL;
-      return scope;
+      tx->in_tx = false;
   }
 
-  inline scope_t* PostRollback(TxThread* tx)
+  inline void PostRollback(TxThread* tx)
   {
       tx->allocator.onTxAbort();
       tx->nesting_depth = 0;
       Trigger::onAbort(tx);
-      scope_t* scope = tx->scope;
-      tx->scope = NULL;
-      return scope;
+      tx->in_tx = false;
   }
 
   /**
@@ -357,19 +354,16 @@ namespace stm
    *  function, which does everything the prior PostRollback did except for
    *  calling the "Trigger::onAbort()" method.
    */
-  inline scope_t*
-  PostRollbackNoTrigger(TxThread* tx,
-                        stm::ReadBarrier r, stm::WriteBarrier w,
-                        stm::CommitBarrier c)
+  inline void
+  PostRollbackNoTrigger(TxThread* tx, ReadBarrier r,
+                        WriteBarrier w, CommitBarrier c)
   {
       tx->allocator.onTxAbort();
       tx->nesting_depth = 0;
       tmread = r;
       tmwrite = w;
       tmcommit = c;
-      scope_t* scope = tx->scope;
-      tx->scope = NULL;
-      return scope;
+      tx->in_tx = false;
   }
 
   /**
@@ -378,13 +372,11 @@ namespace stm
   *  That means that it will adapt /out of/ ProfileTM, which in turn means
   *  that we cannot reset the pointers on abort.
   */
-  inline scope_t* PostRollbackNoTrigger(TxThread* tx)
+  inline void PostRollbackNoTrigger(TxThread* tx)
   {
       tx->allocator.onTxAbort();
       tx->nesting_depth = 0;
-      scope_t* scope = tx->scope;
-      tx->scope = NULL;
-      return scope;
+      tx->in_tx = false;
   }
 
   inline void GoTurbo(TxThread* tx, ReadBarrier r, WriteBarrier w,

@@ -37,7 +37,7 @@ namespace {
       static TM_FASTCALL void write(STM_WRITE_SIG(,,  ));
       static TM_FASTCALL void commit();
 
-      static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
+      static void rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
       static void onSwitchTo();
   };
@@ -95,7 +95,7 @@ namespace {
   /**
    *  Serial unwinder:
    */
-  stm::scope_t*
+  void
   Serial::rollback(STM_ROLLBACK_SIG(tx, except, len))
   {
       PreRollback(tx);
@@ -109,7 +109,7 @@ namespace {
       // reset lists
       tx->undo_log.reset();
 
-      return PostRollback(tx);
+      PostRollback(tx);
   }
 
   /**

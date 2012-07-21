@@ -65,7 +65,7 @@ namespace {
       static TM_FASTCALL void commit_ro();
       static TM_FASTCALL void commit_rw();
 
-      static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
+      static void rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
       static void onSwitchTo();
   };
@@ -256,11 +256,10 @@ namespace {
    *    abort, retry, or restart.
    */
   template <int COUNTMODE>
-  stm::scope_t*
+  void
   ProfileApp<COUNTMODE>::rollback(STM_ROLLBACK_SIG(,,))
   {
       UNRECOVERABLE("ProfileApp should never incur an abort");
-      return NULL;
   }
 
   /**

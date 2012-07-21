@@ -59,7 +59,7 @@ namespace {
       static TM_FASTCALL void commit_turbo();
 
 
-      static stm::scope_t* rollback(STM_ROLLBACK_SIG(,,));
+      static void rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
       static void onSwitchTo();
       static NOINLINE void validate(TxThread*, uintptr_t finish_cache);
@@ -316,7 +316,7 @@ namespace {
    *    NB: Self-abort is not supported in PipelineTurbo.  Adding undo logging to
    *        turbo mode would resolve the issue.
    */
-  stm::scope_t*
+  void
   PipelineTurbo::rollback(STM_ROLLBACK_SIG(tx, except, len))
   {
       PreRollback(tx);
@@ -334,7 +334,7 @@ namespace {
       // NB: at one time, this implementation could not reset pointers on
       //     abort.  This situation may remain, but it is not certain that it
       //     has not been resolved.
-      return PostRollback(tx);
+      PostRollback(tx);
   }
 
   /**
