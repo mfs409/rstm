@@ -24,7 +24,10 @@ namespace
    *  The name of the algorithm with which libstm was initialized
    */
   const char* init_lib_name;
+} // (anonymous namespace)
 
+namespace stm
+{
   /**
    *  The default mechanism that libstm uses for an abort. An API environment
    *  may also provide its own abort mechanism (see itm2stm for an example of
@@ -32,8 +35,7 @@ namespace
    *
    *  This is ugly because rollback has a configuration-dependent signature.
    */
-  NORETURN void
-  default_abort_handler(TxThread* tx)
+  NORETURN void TxThread::tmabort(TxThread* tx)
   {
 #if defined(STM_ABORT_ON_THROW)
       TxThread::tmrollback(tx, NULL, 0);
@@ -43,10 +45,7 @@ namespace
       jmp_buf* scope = (jmp_buf*)tx->checkpoint;
       longjmp(*scope, 1);
   }
-} // (anonymous namespace)
 
-namespace stm
-{
   /*** BACKING FOR GLOBAL VARS DECLARED IN TXTHREAD.HPP */
   pad_word_t threadcount          = {0}; // thread count
   TxThread*  threads[MAX_THREADS] = {0}; // all TxThreads
@@ -178,10 +177,9 @@ namespace stm
   bool TM_FASTCALL (*volatile TxThread::tmbegin)() = begin_CGL;
 
   /**
-   *  The tmrollback, tmabort, and tmirrevoc pointers
+   *  The tmrollback and tmirrevoc pointers
    */
   void (*TxThread::tmrollback)(STM_ROLLBACK_SIG(,,));
-  NORETURN void (*TxThread::tmabort)(TxThread*) = default_abort_handler;
   bool (*TxThread::tmirrevoc)(TxThread*) = NULL;
 
   /*** the init factory */
@@ -358,7 +356,7 @@ namespace stm
   /**
    *  Initialize the TM system.
    */
-  void sys_init(stm::AbortHandler conflict_abort_handler)
+  void sys_init()
   {
       static volatile uint32_t mtx = 0;
 
@@ -387,10 +385,6 @@ namespace stm
           profiles = (dynprof_t*)malloc(profile_txns * sizeof(dynprof_t));
           for (unsigned i = 0; i < profile_txns; i++)
               profiles[i].clear();
-
-          // Initialize the global abort handler.
-          if (conflict_abort_handler)
-              TxThread::tmabort = conflict_abort_handler;
 
           // now set the phase
           set_policy(cfg);

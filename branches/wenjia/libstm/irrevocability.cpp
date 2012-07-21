@@ -22,23 +22,8 @@ using stm::stms;
 using stm::curr_policy;
 using stm::CGL;
 
-namespace {
-  /**
-   *  The abort handler is set during sys_init. We overwrite it with
-   *  abort_irrevocable when a transaction becomes irrevocable, and we save the
-   *  old one here so we can restore it during commit.
-   */
-  AbortHandler old_abort_handler = NULL;
-
-  /**
-   *  Handler for abort attempts while irrevocable. Useful for trapping problems
-   *  early.
-   */
-  NORETURN void abort_irrevocable(TxThread* tx)
-  {
-      UNRECOVERABLE("Irrevocable thread attempted to abort.");
-  }
-
+namespace
+{
   /**
    *  Handler for rollback attempts while irrevocable. Useful for trapping
    *  problems early.
@@ -59,12 +44,11 @@ namespace {
    */
   inline void unset_irrevocable_barriers(TxThread& tx)
   {
-      stm::tmread           = stms[curr_policy.ALG_ID].read;
-      stm::tmwrite          = stms[curr_policy.ALG_ID].write;
-      stm::tmcommit         = stms[curr_policy.ALG_ID].commit;
+      stm::tmread         = stms[curr_policy.ALG_ID].read;
+      stm::tmwrite        = stms[curr_policy.ALG_ID].write;
+      stm::tmcommit       = stms[curr_policy.ALG_ID].commit;
       tx.tmrollback       = stms[curr_policy.ALG_ID].rollback;
       TxThread::tmirrevoc = stms[curr_policy.ALG_ID].irrevoc;
-      tx.tmabort          = old_abort_handler;
   }
 
   /**
@@ -93,8 +77,6 @@ namespace {
       stm::tmcommit       = commit_irrevocable;
       tx.tmrollback       = rollback_irrevocable;
       TxThread::tmirrevoc = stms[CGL].irrevoc;
-      old_abort_handler   = tx.tmabort;
-      tx.tmabort          = abort_irrevocable;
   }
 }
 

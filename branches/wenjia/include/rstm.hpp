@@ -100,7 +100,7 @@ namespace stm
    *  We rely on the default setjmp/longjmp abort handling when using the
    *  library API.
    */
-  void sys_init(void (*abort_handler)(TxThread*) = NULL);
+  void sys_init();
 
   /**
    *  Shut down the library.  This just dumps some statistics.
