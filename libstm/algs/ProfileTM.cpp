@@ -82,13 +82,13 @@ namespace
                  (TxThread::tmbegin == stm::begin_blocker))
               spin64();
           CFENCE;
-          // now reinstall the scope
+          // now reestablish that we are in a transaction
 #ifdef STM_CPU_SPARC
           tx->in_tx = 1; WBR;
 #else
           casptr(&tx->in_tx, 0, 1);
 #endif
-          // read the begin function pointer AFTER setting the scope
+          // read the begin function pointer AFTER setting the in_tx flag
           bool TM_FASTCALL (*beginner)() = TxThread::tmbegin;
           // if begin_blocker is no longer installed, and ProfileTM::begin
           // isn't installed either, we can call the pointer to start a
