@@ -20,8 +20,8 @@
 #define TXTHREAD_HPP__
 
 #include "../alt-license/rand_r_32.h"
-#include "locks.hpp"
 #include "../include/ThreadLocal.hpp"
+#include "locks.hpp"
 #include "metadata.hpp"
 #include "WriteSet.hpp"
 #include "UndoLog.hpp"
@@ -32,14 +32,7 @@ namespace stm
 {
   /**
    *  The TxThread struct holds all of the metadata that a thread needs in
-   *  order to use any of the STM algorithms we support.  In the past, this
-   *  class also had all global STM metadata as static fields, and had lots
-   *  of methods to support the various STM implementations.  This proved to
-   *  be too cumbersome for some compilers, so we now use this simpler
-   *  interface.  This file can be included in application code without
-   *  pulling in an obscene amount of STM-related function definitions.
-   *
-   *  Unfortunately, we still have to pull in metadata.hpp :(
+   *  order to use any of the STM algorithms we support.
    *
    *  NB: the order of fields has not been rigorously studied.  It is very
    *      likely that a better order would improve performance.

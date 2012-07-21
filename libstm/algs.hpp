@@ -29,34 +29,6 @@
 
 namespace stm
 {
-  // /**
-  //  *  The ALGS enum lists every STM algorithm we have
-  //  */
-  // enum ALGS {
-  //     // first, list the supported STM algorithms... we need CGL to be 0, from
-  //     // there everything will be in-order
-  //     CGL = 0, Ticket, TML, RingSW, OrecALA,
-  //     OrecELA, TMLLazy, NOrecPrio, OrecFair, CToken, CTokenTurbo, Pipeline,
-  //     BitLazy, LLT, TLI, ByteEager, MCS, Serial, BitEager, ByteLazy,
-  //     ByEAR, OrecEagerRedo, ByteEagerRedo, BitEagerRedo,
-  //     RingALA, Nano, Swiss,
-  //     ByEAU, ByEAUFCM, ByEAUHA, ByEAUHour,
-  //     OrEAU, OrEAUFCM, OrEAUHA, OrEAUHour,
-  //     OrecEager, OrecEagerHour, OrecEagerBackoff, OrecEagerHB,
-  //     OrecLazy,  OrecLazyHour,  OrecLazyBackoff,  OrecLazyHB,
-  //     NOrec,     NOrecHour,     NOrecBackoff,     NOrecHB,
-  //     Wealth, Cohorts, Cohorts2, Cohortsnoorder, Cohortsold, CohortsLazy, CohortsEager,
-  //     CohortsLI, CohortsNOrec, CohortsLN, CohortsLNI, CohortsFilter, CohortsLF, CohortsEF,
-  //     Fastlane1, Fastlane2, PTM, FastlaneSwitch, CTokenTurboELA, CohortsEN,
-  //     CohortsEN2, CTokenNOrec, Cohorts3, CohortsENQ, CohortsEN2Q, PipelineTurbo,
-  //     CTokenELA, CTokenQ, CTokenTurboQ,
-  //     // [mfs] experimental stuff
-  //     X86_OE_NC, LLT_X86_64, OL_X86_64, NanoELA,
-  //     // ProfileTM support.  These are not true STMs
-  //     ProfileTM, ProfileAppAvg, ProfileAppMax, ProfileAppAll,
-  //     // end with a distinct value
-  //     ALG_MAX };
-
   /**
    *  These constants are used throughout the STM implementations
    */
