@@ -31,7 +31,7 @@ namespace
  */
   struct ProfileTM
   {
-      static TM_FASTCALL bool begin();
+      static void begin();
       static TM_FASTCALL void* read_ro(STM_READ_SIG(,));
       static TM_FASTCALL void* read_rw(STM_READ_SIG(,));
       static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,));
@@ -51,7 +51,7 @@ namespace
    *    but allowing any thread to participate in the set of transactions
    *    that we run.
    */
-  bool
+  void
   ProfileTM::begin()
   {
       TxThread* tx = stm::Self;
@@ -68,12 +68,12 @@ namespace
           profiles[last_complete.val].clear();
           // record the start time, so we can compute duration
           profiles[last_complete.val].txn_time = tick();
-          return false;
       }
 
       // uh-oh, we can't fit this transaction into the range... act like
       // we're in begin_blocker, but don't resume until we're neither in
       // begin_blocker nor begin().
+      void (*beginner)();
       while (true) {
           // first, mark self not transactional
           tx->in_tx = 0;
@@ -89,14 +89,15 @@ namespace
           casptr(&tx->in_tx, 0, 1);
 #endif
           // read the begin function pointer AFTER setting the in_tx flag
-          bool TM_FASTCALL (*beginner)() = stm::tmbegin;
+          beginner = stm::tmbegin;
           // if begin_blocker is no longer installed, and ProfileTM::begin
           // isn't installed either, we can call the pointer to start a
           // transaction, and then return.  Otherwise, we missed our window,
           // so we need to go back to the top of the loop
           if ((beginner != stm::begin_blocker) && (beginner != begin))
-              return beginner();
+              break;
       }
+      beginner();
   }
 
   /**

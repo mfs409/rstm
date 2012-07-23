@@ -39,7 +39,7 @@ using stm::WriteSetEntry;
  */
 namespace {
   struct CTokenTurbo {
-      static TM_FASTCALL bool begin();
+      static void begin();
       static TM_FASTCALL void* read_ro(STM_READ_SIG(,));
       static TM_FASTCALL void* read_rw(STM_READ_SIG(,));
       static TM_FASTCALL void* read_turbo(STM_READ_SIG(,));
@@ -59,8 +59,7 @@ namespace {
   /**
    *  CTokenTurbo begin:
    */
-  bool
-  CTokenTurbo::begin()
+  void CTokenTurbo::begin()
   {
       TxThread* tx = stm::Self;
       tx->allocator.onTxBegin();
@@ -73,8 +72,6 @@ namespace {
       // NB: this only applies to transactions that aborted after doing a write
       if (tx->ts_cache == ((uintptr_t)tx->order - 1))
           GoTurbo(tx, read_turbo, write_turbo, commit_turbo);
-
-      return false;
   }
 
   /**

@@ -41,7 +41,7 @@ using stm::get_orec;
 namespace {
   struct LLT
   {
-      static TM_FASTCALL bool begin();
+      static void begin();
       static TM_FASTCALL void* read_ro(STM_READ_SIG(,));
       static TM_FASTCALL void* read_rw(STM_READ_SIG(,));
       static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,));
@@ -58,14 +58,12 @@ namespace {
   /**
    *  LLT begin:
    */
-  bool
-  LLT::begin()
+  void LLT::begin()
   {
       TxThread* tx = stm::Self;
       tx->allocator.onTxBegin();
       // get a start time
       tx->start_time = timestamp.val;
-      return false;
   }
 
   /**

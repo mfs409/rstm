@@ -143,7 +143,6 @@ _rstm_restore_checkpoint:
  * 
  *  -  (%esp): return address
  *  - 4(%esp): flags
- *  - X(%esp): ... (varargs param to _ITM_beginTransaction)
  */
         .text        
         .p2align 4,,15
@@ -168,10 +167,7 @@ _ITM_beginTransaction:
         movl    (%esp), %eax            // get the return address from
         movl    %eax, EIP(%edx)         // the stack
 
-        movl    4(%esp), %eax           // remember flags in case we
-        movl    %eax, EAX(%edx)         // are aborted
-
-        movl    %esp, ESP(%edx)
+        movl    %esp, ESP(%edx)         // save callee saves
         movl    %ebp, EBP(%edx)
         movl    %ebx, EBX(%edx)
         movl    %esi, ESI(%edx)
@@ -222,25 +218,24 @@ _ITM_beginTransaction_nested:
 _rstm_restore_checkpoint:
         ASM_DOT_CFI_STARTPROC
 
-        movl    0x4(%esp), %ecx         // load the continuation and
-        movl    0x8(%esp), %edx         // grab the transaction, using %edx
-                                        // prepares for the regparm(2)
-                                        // continuation call, do these before
-                                        // we clobber esp/ebp
+        movl    _ZN3stm4SelfE@indntpoff, %edx
+        movl    %gs:(%edx), %edx        // %edx holds the descriptor
         
-        movl    ESP(%edx), %esp         // restore the checkpoint registers and
-        movl    EBP(%edx), %ebp         // the return return address
+        movl    ESP(%edx), %esp         // restore the callee saves
+        movl    EBP(%edx), %ebp
         movl    EBX(%edx), %ebx
         movl    ESI(%edx), %esi
         movl    EDI(%edx), %edi
-        movl    EIP(%edx), %eax         
+        
+        movl    EIP(%edx), %eax         // restore the return address
         movl    %eax, (%esp)
 
-        movl    EAX(%edx), %eax         // restore the flags (eax is correct
-        movl    %eax, 0x4(%esp)         // for calling the continuation, stack
-                                        // write is probably useless)
-
-        jmp     *%ecx                   // call the continuation as a sibling
+        // at this point, the stack frame is indistinguishable from if we had
+	// called _ITM_beginTransaction.  Since we never un-set in_tx, now we
+	// can just call the function pointer to do per-algorithm begin code
+        
+        movl    _ZN3stm7tmbeginE, %eax  //
+        jmp     *%eax                   // call the continuation as a sibling
                                         // call. 
                 
         ASM_DOT_CFI_ENDPROC

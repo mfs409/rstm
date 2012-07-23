@@ -42,7 +42,7 @@ using stm::get_orec;
  */
 namespace {
   struct CTokenELA {
-      static TM_FASTCALL bool begin();
+      static void begin();
       static TM_FASTCALL void* read_ro(STM_READ_SIG(,));
       static TM_FASTCALL void* read_rw(STM_READ_SIG(,));
       static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,));
@@ -59,14 +59,12 @@ namespace {
   /**
    *  CTokenELA begin:
    */
-  bool
-  CTokenELA::begin()
+  void CTokenELA::begin()
   {
       TxThread* tx = stm::Self;
       tx->allocator.onTxBegin();
       // get time of last finished txn, to know when to validate
       tx->ts_cache = last_complete.val;
-      return false;
   }
 
   /**
@@ -86,8 +84,7 @@ namespace {
    *
    *  NB:  Only valid if using pointer-based adaptivity
    */
-  void
-  CTokenELA::commit_rw()
+  void CTokenELA::commit_rw()
   {
       TxThread* tx = stm::Self;
       // wait until it is our turn to commit, then validate, acquire, and do

@@ -34,7 +34,7 @@ using stm::WriteSetEntry;
 namespace {
   struct ByteEagerRedo
   {
-      static TM_FASTCALL bool begin();
+      static void begin();
       static TM_FASTCALL void* read_ro(STM_READ_SIG(,));
       static TM_FASTCALL void* read_rw(STM_READ_SIG(,));
       static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,));
@@ -63,12 +63,10 @@ namespace {
   /**
    *  ByteEagerRedo begin:
    */
-  bool
-  ByteEagerRedo::begin()
+  void ByteEagerRedo::begin()
   {
       TxThread* tx = stm::Self;
       tx->allocator.onTxBegin();
-      return false;
   }
 
   /**

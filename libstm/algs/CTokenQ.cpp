@@ -42,7 +42,7 @@ namespace {
   struct cohorts_node_t* volatile q = NULL;
 
   struct CTokenQ {
-      static TM_FASTCALL bool begin();
+      static void begin();
       static TM_FASTCALL void* read_ro(STM_READ_SIG(,));
       static TM_FASTCALL void* read_rw(STM_READ_SIG(,));
       static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,));
@@ -59,8 +59,7 @@ namespace {
   /**
    *  CTokenQ begin:
    */
-  bool
-  CTokenQ::begin()
+  void CTokenQ::begin()
   {
       TxThread* tx = stm::Self;
       tx->allocator.onTxBegin();
@@ -70,8 +69,6 @@ namespace {
 
       // reset tx->node[X].val
       tx->node[tx->nn].val = NOTDONE;
-
-      return false;
   }
 
   /**

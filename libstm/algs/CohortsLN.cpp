@@ -52,7 +52,7 @@ namespace {
   NOINLINE uintptr_t validate(TxThread* tx);
 
   struct CohortsLN {
-      static TM_FASTCALL bool begin();
+      static void begin();
       static TM_FASTCALL void* read_ro(STM_READ_SIG(,));
       static TM_FASTCALL void* read_rw(STM_READ_SIG(,));
       static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,));
@@ -72,8 +72,7 @@ namespace {
    *  tx is allowed to start until all the transactions finishes their
    *  commits.
    */
-  bool
-  CohortsLN::begin()
+  void CohortsLN::begin()
   {
       TxThread* tx = stm::Self;
     S1:
@@ -95,8 +94,6 @@ namespace {
 
       //begin
       tx->allocator.onTxBegin();
-
-      return true;
   }
 
   /**

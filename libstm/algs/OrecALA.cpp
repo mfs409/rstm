@@ -40,7 +40,7 @@ using stm::UNRECOVERABLE;
  */
 namespace {
   struct OrecALA {
-      static TM_FASTCALL bool begin();
+      static void begin();
       static TM_FASTCALL void* read_ro(STM_READ_SIG(,));
       static TM_FASTCALL void* read_rw(STM_READ_SIG(,));
       static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,));
@@ -66,8 +66,7 @@ namespace {
    *    NB: the latter option might be better, since there is no timestamp
    *        scaling
    */
-  bool
-  OrecALA::begin()
+  void OrecALA::begin()
   {
       TxThread* tx = stm::Self;
       tx->allocator.onTxBegin();
@@ -76,7 +75,6 @@ namespace {
       tx->start_time = last_complete.val;
       tx->ts_cache = tx->start_time;
       tx->end_time = 0;
-      return false;
   }
 
   /**

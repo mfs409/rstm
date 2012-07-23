@@ -36,7 +36,7 @@ using stm::WriteSetEntry;
 namespace {
   struct TLI
   {
-      static TM_FASTCALL bool begin();
+      static void begin();
       static TM_FASTCALL void* read_ro(STM_READ_SIG(,));
       static TM_FASTCALL void* read_rw(STM_READ_SIG(,));
       static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,));
@@ -53,14 +53,12 @@ namespace {
   /**
    *  TLI begin:
    */
-  bool
-  TLI::begin()
+  void TLI::begin()
   {
       TxThread* tx = stm::Self;
       // mark self as alive
       tx->allocator.onTxBegin();
       tx->alive = 1;
-      return false;
   }
 
   /**

@@ -54,7 +54,7 @@ namespace
 {
   struct NanoELA_amd64
   {
-      static TM_FASTCALL bool begin();
+      static void begin();
       static TM_FASTCALL void* read_ro(STM_READ_SIG(,));
       static TM_FASTCALL void* read_rw(STM_READ_SIG(,));
       static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,));
@@ -70,12 +70,10 @@ namespace
   /**
    *  NanoELA_amd64 begin:
    */
-  bool
-  NanoELA_amd64::begin()
+  void NanoELA_amd64::begin()
   {
       TxThread* tx = stm::Self;
       tx->allocator.onTxBegin();
-      return false;
   }
 
   /**

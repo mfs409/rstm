@@ -57,7 +57,7 @@ namespace {
   struct ProfileApp
   {
       static void Initialize(int id, const char* name);
-      static TM_FASTCALL bool begin();
+      static void begin();
       static TM_FASTCALL void* read_ro(STM_READ_SIG(,));
       static TM_FASTCALL void* read_rw(STM_READ_SIG(,));
       static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,));
@@ -99,13 +99,11 @@ namespace {
    *    Start measuring tx runtime
    */
   template <int COUNTMODE>
-  bool
-  ProfileApp<COUNTMODE>::begin()
+  void ProfileApp<COUNTMODE>::begin()
   {
       TxThread* tx = stm::Self;
       tx->allocator.onTxBegin();
       profiles[0].txn_time = tick();
-      return false;
   }
 
   /**

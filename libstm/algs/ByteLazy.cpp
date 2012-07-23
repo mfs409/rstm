@@ -36,7 +36,7 @@ using stm::threads;
 namespace {
   struct ByteLazy
   {
-      static TM_FASTCALL bool begin();
+      static void begin();
       static TM_FASTCALL void* read_ro(STM_READ_SIG(,));
       static TM_FASTCALL void* read_rw(STM_READ_SIG(,));
       static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,));
@@ -52,14 +52,12 @@ namespace {
   /**
    *  ByteLazy begin:
    */
-  bool
-  ByteLazy::begin()
+  void ByteLazy::begin()
   {
       TxThread* tx = stm::Self;
       tx->allocator.onTxBegin();
       // mark self as alive
       tx->alive = 1;
-      return false;
   }
 
   /**

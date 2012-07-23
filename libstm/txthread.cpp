@@ -180,7 +180,7 @@ namespace stm
    *  The begin function pointer.  Note that we need tmbegin to equal
    *  begin_cgl initially, since "0" is the default algorithm
    */
-  bool TM_FASTCALL (*volatile tmbegin)() = begin_CGL;
+  void (*volatile tmbegin)() = begin_CGL;
 
   /**
    *  The tmrollback and tmirrevoc pointers

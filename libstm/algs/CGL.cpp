@@ -124,13 +124,12 @@ namespace stm {
    *    This is external and declared in algs.hpp so that we can access it as a
    *    default in places.
    */
-  bool begin_CGL()
+  void begin_CGL()
   {
       TxThread* tx = stm::Self;
       // get the lock and notify the allocator
       tx->begin_wait = tatas_acquire(&timestamp.val);
       tx->allocator.onTxBegin();
-      return true;
   }
 
   /**

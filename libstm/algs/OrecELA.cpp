@@ -41,7 +41,7 @@ using stm::id_version_t;
  */
 namespace {
   struct OrecELA {
-      static TM_FASTCALL bool begin();
+      static void begin();
       static TM_FASTCALL void* read_ro(STM_READ_SIG(,));
       static TM_FASTCALL void* read_rw(STM_READ_SIG(,));
       static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,));
@@ -64,8 +64,7 @@ namespace {
    *    wait for it to finish writeback.  In this code, we choose the former
    *    option.
    */
-  bool
-  OrecELA::begin()
+  void OrecELA::begin()
   {
       TxThread* tx = stm::Self;
       tx->allocator.onTxBegin();
@@ -73,7 +72,6 @@ namespace {
       // avoid spinning in begin()
       tx->start_time = last_complete.val;
       tx->end_time = 0;
-      return false;
   }
 
   /**

@@ -68,7 +68,7 @@ namespace
 {
   struct Swiss
   {
-      static TM_FASTCALL bool begin();
+      static void begin();
       static TM_FASTCALL void* read(STM_READ_SIG(,));
       static TM_FASTCALL void write(STM_WRITE_SIG(,,));
       static TM_FASTCALL void commit();
@@ -88,14 +88,13 @@ namespace
    * begin swiss transaction: set to active, notify allocator, get start
    * time, and notify CM
    */
-  bool Swiss::begin()
+  void Swiss::begin()
   {
       TxThread* tx = stm::Self;
       tx->alive = ACTIVE;
       tx->allocator.onTxBegin();
       tx->start_time = timestamp.val;
       cm_start(tx);
-      return false;
   }
 
   // word based transactional read

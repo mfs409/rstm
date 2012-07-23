@@ -37,7 +37,7 @@ using stm::ValueListEntry;
  */
 namespace {
   struct NOrecPrio {
-      static TM_FASTCALL bool begin();
+      static void begin();
       static TM_FASTCALL void* read_ro(STM_READ_SIG(,));
       static TM_FASTCALL void* read_rw(STM_READ_SIG(,));
       static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,));
@@ -59,8 +59,7 @@ namespace {
    *    We're using the 'classic' NOrec begin technique here.  Also, we check if
    *    we need priority here, rather than retaining it across an abort.
    */
-  bool
-  NOrecPrio::begin()
+  void NOrecPrio::begin()
   {
       TxThread* tx = stm::Self;
       // Sample the sequence lock until it is even (unheld)
@@ -76,8 +75,6 @@ namespace {
           faiptr(&prioTxCount.val);
           tx->prio = prio_bump;
       }
-
-      return false;
   }
 
   /**

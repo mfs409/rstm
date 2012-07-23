@@ -36,7 +36,7 @@ using stm::WriteSetEntry;
  */
 namespace {
   struct RingSW {
-      static TM_FASTCALL bool begin();
+      static void begin();
       static TM_FASTCALL void* read_ro(STM_READ_SIG(,));
       static TM_FASTCALL void* read_rw(STM_READ_SIG(,));
       static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,));
@@ -57,14 +57,12 @@ namespace {
    *    writeback-complete.  In the old RingSW, this was hard.  In the new
    *    RingSW, inspired by FastPath, this is easy.
    */
-  bool
-  RingSW::begin()
+  void RingSW::begin()
   {
       TxThread* tx = stm::Self;
       tx->allocator.onTxBegin();
       // start time is when the last txn completed
       tx->start_time = last_complete.val;
-      return false;
   }
 
   /**

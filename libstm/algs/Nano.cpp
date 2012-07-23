@@ -44,7 +44,7 @@ using stm::id_version_t;
 namespace {
   struct Nano
   {
-      static TM_FASTCALL bool begin();
+      static void begin();
       static TM_FASTCALL void* read_ro(STM_READ_SIG(,));
       static TM_FASTCALL void* read_rw(STM_READ_SIG(,));
       static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,));
@@ -60,12 +60,10 @@ namespace {
   /**
    *  Nano begin:
    */
-  bool
-  Nano::begin()
+  void Nano::begin()
   {
       TxThread* tx = stm::Self;
       tx->allocator.onTxBegin();
-      return false;
   }
 
   /**

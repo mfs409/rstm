@@ -58,7 +58,7 @@ using stm::last_order;
 namespace {
   struct CohortsNoorder
   {
-    static TM_FASTCALL bool begin();
+    static void begin();
     static TM_FASTCALL void* read_ro(STM_READ_SIG(,));
     static TM_FASTCALL void* read_rw(STM_READ_SIG(,));
     static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,));
@@ -80,8 +80,7 @@ namespace {
    *  Then no tx is allowed to start until all the transactions finishes their
    *  commits.
    */
-  bool
-  CohortsNoorder::begin()
+  void CohortsNoorder::begin()
   {
       TxThread* tx = stm::Self;
     S1:
@@ -102,8 +101,6 @@ namespace {
 
       // get a start time
       tx->start_time = timestamp.val;
-
-      return false;
   }
 
   /**

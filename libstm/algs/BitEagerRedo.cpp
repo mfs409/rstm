@@ -35,7 +35,7 @@ using stm::rrec_t;
 namespace {
   struct BitEagerRedo
   {
-      static TM_FASTCALL bool begin();
+      static void begin();
       static TM_FASTCALL void* read_ro(STM_READ_SIG(,));
       static TM_FASTCALL void* read_rw(STM_READ_SIG(,));
       static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,));
@@ -64,12 +64,10 @@ namespace {
   /**
    *  BitEagerRedo begin:
    */
-  bool
-  BitEagerRedo::begin()
+  void BitEagerRedo::begin()
   {
       TxThread* tx = stm::Self;
       tx->allocator.onTxBegin();
-      return false;
   }
 
   /**

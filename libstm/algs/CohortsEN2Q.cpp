@@ -51,7 +51,7 @@ namespace {
   struct cohorts_node_t* volatile q = NULL;
 
   struct CohortsEN2Q {
-      static TM_FASTCALL bool begin();
+      static void begin();
       static TM_FASTCALL void* read_ro(STM_READ_SIG(,));
       static TM_FASTCALL void* read_rw(STM_READ_SIG(,));
       static TM_FASTCALL void* read_turbo(STM_READ_SIG(,));
@@ -74,8 +74,7 @@ namespace {
    *  tx is allowed to start until all the transactions finishes their
    *  commits.
    */
-  bool
-  CohortsEN2Q::begin()
+  void CohortsEN2Q::begin()
   {
       TxThread* tx = stm::Self;
       tx->allocator.onTxBegin();
@@ -97,7 +96,6 @@ namespace {
 
       // reset local turn val
       tx->turn.val = NOTDONE;
-      return true;
   }
 
   /**

@@ -102,7 +102,7 @@ namespace stm
        * the begin, commit, read, and write methods a tx uses when it
        * starts
        */
-      bool  (*TM_FASTCALL begin) ();
+      void  (* begin) ();
       void  (*TM_FASTCALL commit)();
       void* (*TM_FASTCALL read)  (STM_READ_SIG(,));
       void  (*TM_FASTCALL write) (STM_WRITE_SIG(,,));
@@ -229,7 +229,7 @@ namespace stm
   }
 
   // This is used as a default in txthread.cpp... just forwards to CGL::begin.
-  TM_FASTCALL bool begin_CGL();
+  void begin_CGL();
 
   typedef TM_FASTCALL void* (*ReadBarrier)(STM_READ_SIG(,));
   typedef TM_FASTCALL void (*WriteBarrier)(STM_WRITE_SIG(,,));

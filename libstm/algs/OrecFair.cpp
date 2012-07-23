@@ -54,7 +54,7 @@ using stm::WriteSetEntry;
 namespace
 {
   struct OrecFair {
-      static TM_FASTCALL bool begin();
+      static void begin();
       static TM_FASTCALL void* read_ro(STM_READ_SIG(,));
       static TM_FASTCALL void* read_rw(STM_READ_SIG(,));
       static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,));
@@ -75,8 +75,7 @@ namespace
    *    When a transaction aborts, it releases its priority.  Here we re-acquire
    *    priority.
    */
-  bool
-  OrecFair::begin()
+  void OrecFair::begin()
   {
       TxThread* tx = stm::Self;
       tx->allocator.onTxBegin();
@@ -87,7 +86,6 @@ namespace
           faiptr(&prioTxCount.val);
           tx->prio = prio_bump;
       }
-      return false;
   }
 
   /**

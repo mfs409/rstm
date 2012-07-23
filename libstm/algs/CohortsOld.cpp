@@ -50,7 +50,7 @@ using stm::locks;
  */
 namespace {
   struct CohortsOld {
-      static TM_FASTCALL bool begin();
+      static void begin();
       static TM_FASTCALL void* read_ro(STM_READ_SIG(,));
       static TM_FASTCALL void* read_rw(STM_READ_SIG(,));
       static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,));
@@ -74,8 +74,7 @@ namespace {
    *  tx is allowed to start until all the transactions finishes their
    *  commits.
    */
-  bool
-  CohortsOld::begin()
+  void CohortsOld::begin()
   {
       TxThread* tx = stm::Self;
       // wait until we are allowed to start
@@ -104,8 +103,6 @@ namespace {
       tx->allocator.onTxBegin();
       // get time of last finished txn
       tx->ts_cache = last_complete.val;
-
-      return false;
   }
 
   /**

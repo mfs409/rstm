@@ -42,7 +42,7 @@ namespace {
   template <class CM>
   struct NOrec_Generic
   {
-      static TM_FASTCALL bool begin();
+      static void begin();
       static TM_FASTCALL void commit(TxThread*);
       static TM_FASTCALL void commit_ro();
       static TM_FASTCALL void commit_rw();
@@ -127,8 +127,7 @@ namespace {
   }
 
   template <class CM>
-  bool
-  NOrec_Generic<CM>::begin()
+  void NOrec_Generic<CM>::begin()
   {
       TxThread* tx = stm::Self;
       // Originally, NOrec required us to wait until the timestamp is odd
@@ -143,8 +142,6 @@ namespace {
 
       // notify CM
       CM::onBegin(tx);
-
-      return false;
   }
 
   template <class CM>

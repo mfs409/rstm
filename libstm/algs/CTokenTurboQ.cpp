@@ -49,7 +49,7 @@ namespace {
   struct cohorts_node_t fakenode;
 
   struct CTokenTurboQ {
-      static TM_FASTCALL bool begin();
+      static void begin();
       static TM_FASTCALL void* read_ro(STM_READ_SIG(,));
       static TM_FASTCALL void* read_rw(STM_READ_SIG(,));
       static TM_FASTCALL void* read_turbo(STM_READ_SIG(,));
@@ -69,8 +69,7 @@ namespace {
   /**
    *  CTokenTurboQ begin:
    */
-  bool
-  CTokenTurboQ::begin()
+  void CTokenTurboQ::begin()
   {
       TxThread* tx = stm::Self;
       tx->allocator.onTxBegin();
@@ -86,7 +85,6 @@ namespace {
           tx->order = ++timestamp.val;
           GoTurbo(tx, read_turbo, write_turbo, commit_turbo);
       }
-      return false;
   }
 
   /**

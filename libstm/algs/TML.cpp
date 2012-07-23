@@ -39,7 +39,7 @@ using stm::UNRECOVERABLE;
  */
 namespace {
   struct TML {
-      static TM_FASTCALL bool begin();
+      static void begin();
       static TM_FASTCALL void* read(STM_READ_SIG(,));
       static TM_FASTCALL void write(STM_WRITE_SIG(,,));
       static TM_FASTCALL void commit();
@@ -52,8 +52,7 @@ namespace {
   /**
    *  TML begin:
    */
-  bool
-  TML::begin()
+  void TML::begin()
   {
       TxThread* tx = stm::Self;
       int counter = 0;
@@ -66,7 +65,6 @@ namespace {
       // notify the allocator
       tx->begin_wait = counter;
       tx->allocator.onTxBegin();
-      return false;
   }
 
   /**

@@ -35,7 +35,7 @@ using stm::UndoLogEntry;
 namespace {
   struct BitEager
   {
-      static TM_FASTCALL bool begin();
+      static void begin();
       static TM_FASTCALL void* read_ro(STM_READ_SIG(,));
       static TM_FASTCALL void* read_rw(STM_READ_SIG(,));
       static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,));
@@ -63,19 +63,16 @@ namespace {
   /**
    *  BitEager begin:
    */
-  bool
-  BitEager::begin()
+  void BitEager::begin()
   {
       TxThread* tx = stm::Self;
       tx->allocator.onTxBegin();
-      return false;
   }
 
   /**
    *  BitEager commit (read-only):
    */
-  void
-  BitEager::commit_ro()
+  void BitEager::commit_ro()
   {
       TxThread* tx = stm::Self;
 

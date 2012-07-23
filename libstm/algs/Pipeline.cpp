@@ -1,4 +1,4 @@
-/**
+  /**
  *  Copyright (C) 2011
  *  University of Rochester Department of Computer Science
  *    and
@@ -47,7 +47,7 @@ using stm::WriteSetEntry;
  */
 namespace {
   struct Pipeline {
-      static TM_FASTCALL bool begin();
+      static void begin();
       static TM_FASTCALL void* read_ro(STM_READ_SIG(,));
       static TM_FASTCALL void* read_rw(STM_READ_SIG(,));
       static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,));
@@ -72,8 +72,7 @@ namespace {
    *    ts_cache and order tells how many transactions need to commit.  Whenever
    *    one does, this tx will need to validate.
    */
-  bool
-  Pipeline::begin()
+  void Pipeline::begin()
   {
       TxThread* tx = stm::Self;
       tx->allocator.onTxBegin();
@@ -83,8 +82,6 @@ namespace {
           tx->order = 1 + faiptr(&timestamp.val);
 
       tx->ts_cache = last_complete.val;
-
-      return false;
   }
 
   /**

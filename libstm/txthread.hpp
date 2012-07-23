@@ -199,7 +199,7 @@ namespace stm
    * use this return to execute completely uninstrumented code if it's
    * available.
    */
-  extern TM_FASTCALL bool(*volatile tmbegin)();
+  extern void(*volatile tmbegin)();
 
 } // namespace stm
 
