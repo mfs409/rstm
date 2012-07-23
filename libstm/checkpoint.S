@@ -19,6 +19,7 @@
 
 // describe the descriptor layout
 #define DEPTH 0
+#define INTX 8
 #define RBP 8
 #define RSP 16
 #define RIP 24
@@ -47,12 +48,12 @@ _ITM_beginTransaction:
         // we can just return. I pretty much just copied this wholesale from a
         // C implementation, except that I messed with the instruction
         // scheduling to preserve registers that I need for the checkpoint.
-        movq	_ZN3stm4SelfE@gottpoff(%rip), %rsi
-	    movq	%fs:(%rsi), %rsi        // %rsi == tx
-	    movl	DEPTH(%rsi), %edx       // %edx == nesting_depth
-	    addl	$1, %edx                // if(++nesting_depth == 1)
-	    movl	%edx, DEPTH(%rsi)       //     goto nested
-	    cmpl	$1, %edx                // 
+        movq    _ZN3stm4SelfE@gottpoff(%rip), %rsi
+        movq    %fs:(%rsi), %rsi        // %rsi == tx
+        movl    DEPTH(%rsi), %edx       // %edx == nesting_depth
+        addl    $1, %edx                // if(++nesting_depth == 1)
+        movl    %edx, DEPTH(%rsi)       //     goto nested
+        cmpl    $1, %edx                // 
         jne     _ITM_beginTransaction_nested
         
         movq    (%rsp), %rdx            // grab the return address
@@ -70,7 +71,7 @@ _ITM_beginTransaction:
         // stm::tm_begin(%rdi=flags, %rsi=TX*, %rdx=return flag)
         movl    $4, %edx
         jmp     _ZN3stm8tm_beginEjPNS_2TXEj
-
+        
 _ITM_beginTransaction_nested:
         // nested transactions take the instrumented path, but don't request
         // that any saving be done locally, because we don't support nested
@@ -120,6 +121,7 @@ _rstm_restore_checkpoint:
         
 // describe the checkpoint offsets
 #define DEPTH 0
+#define INTX 8
 #define EBP 4
 #define ESP 8
 #define EIP 12
@@ -152,19 +154,22 @@ _ITM_beginTransaction:
         
         // At the moment, RSTM doesn't support nested aborts. We get the TX*
         // and bump the depth, and only checkpoint the outermost transaction.
-	    movl	_ZN3stm4SelfE@indntpoff, %edx
-	    movl	%gs:(%edx), %edx
-    	movl	DEPTH(%edx), %eax       // %eax == nesting_depth
-	    addl	$1, %eax                // if(++nesting_depth == 1)
-	    movl	%eax, DEPTH(%edx)       //     goto nested
-	    cmpl	$1, %eax                //
+        movl    _ZN3stm4SelfE@indntpoff, %edx
+        movl    %gs:(%edx), %edx        // %edx holds the descriptor
+        movl    DEPTH(%edx), %eax       // %eax == nesting_depth
+        addl    $1, %eax                // if(++nesting_depth == 1)
+        movl    %eax, DEPTH(%edx)       //     goto nested
+        cmpl    $1, %eax                //
         jne     _ITM_beginTransaction_nested
 
-        movl    (%esp), %eax                    // get the return address from
-        movl    %eax, EIP(%edx)                 // the stack
+        // if we didn't jump, we need to checkpoint the sp, ip, and callee
+        // saves
+        
+        movl    (%esp), %eax            // get the return address from
+        movl    %eax, EIP(%edx)         // the stack
 
-        movl    4(%esp), %eax                   // remember flags in case we
-        movl    %eax, EAX(%edx)                 // are aborted
+        movl    4(%esp), %eax           // remember flags in case we
+        movl    %eax, EAX(%edx)         // are aborted
 
         movl    %esp, ESP(%edx)
         movl    %ebp, EBP(%edx)
@@ -172,11 +177,30 @@ _ITM_beginTransaction:
         movl    %esi, ESI(%edx)
         movl    %edi, EDI(%edx)
 
-        // regparm(3) stm::tm_begin(%eax=flags, %edx=TX*, %ecx=return flag)
-        movl    4(%esp), %eax
-        movl    $4, %ecx
-        jmp     _ZN3stm8tm_beginEjPNS_2TXEj
+        // Adaptivity now requires us to do the following:
+
+        // mark self as transactional:
+        //
+        // casptr(&tx->in_tx, 0, 1);
+        movl    $0x1, %ecx
+        xor     %eax, %eax
+        // [mfs] We could do a test and set instead...
+        lock cmpxchg %cl, INTX(%edx)
+
+        // Update tick info:
+        // [mfs] this is not done yet, and needs to be added!
+        //
+        // if (tx->end_txn_time)
+        //     tx->total_nontxn_time += (tick() - tx->end_txn_time);
+
         
+        // call the per-algorithm begin function (i.e.,
+        // TM_FASTCALL bool(*volatile tmbegin)()).  Note that we need
+	// ordering for the read of this function pointer **after** the write to
+	// tx->in_tx
+        movl    _ZN3stm7tmbeginE, %eax
+        jmp     *%eax
+
 _ITM_beginTransaction_nested:
         movl    0x1, %eax
         ret

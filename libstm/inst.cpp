@@ -75,7 +75,7 @@ namespace stm
       TxThread::tmirrevoc  = stms[new_alg].irrevoc;
       curr_policy.ALG_ID   = new_alg;
       CFENCE;
-      TxThread::tmbegin    = stms[new_alg].begin;
+      tmbegin    = stms[new_alg].begin;
   }
 
 } // namespace stm

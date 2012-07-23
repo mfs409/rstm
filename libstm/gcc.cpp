@@ -305,14 +305,17 @@ namespace stm
   void begin(scope_t* s, uint32_t);
 }
 
-
 /** Used as a restore_checkpoint continuation to restart a transaction. */
-static uint32_t TM_FASTCALL
-restart(uint32_t flags, stm::TxThread* tx) {
-    stm::begin(NULL, a_restoreLiveVariables);
+static uint32_t TM_FASTCALL restart(uint32_t flags)
+{
+    // NB: it would be essentially free to pass the descriptor as a second
+    //     parameter to tmbegin, because we could pass it to this function
+    //     for free...
+    stm::tmbegin();
 }
 
-void _ITM_abortTransaction()
+NORETURN
+void stm::TxThread::tmabort()
 {
     // [mfs] this is a hack for now.  With compiler support, 'why' should
     //       become a parameter
@@ -322,7 +325,7 @@ void _ITM_abortTransaction()
     if (why & TMConflict) {
         stm::TxThread::tmrollback(tx);
         tx->nesting_depth = 1;          // no closed nesting yet.
-        restore_checkpoint(restart, tx);
+        restore_checkpoint(restart);
     }
 #if 0 // NOT USED IN WENJIA BRANCH (YET?)
 else if (why & userAbort) {

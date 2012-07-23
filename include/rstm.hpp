@@ -46,6 +46,15 @@
 #include "macros.hpp"
 #include "ThreadLocal.hpp"
 
+#ifdef STM_CHECKPOINT_ASM
+#include "../libstm/libitm.h"
+// [mfs] TODO: need to move the include out of libstm if we use it here
+extern uint32_t _ITM_beginTransaction(uint32_t, ...)
+    ITM_REGPARM __attribute__((returns_twice));
+// [mfs] TODO: some adaptivity stuff is not correct inside of
+// _ITM_beginTransaction... custom ASM work is still needed
+#endif
+
 namespace stm
 {
   /**
@@ -54,11 +63,13 @@ namespace stm
   class TxThread;
   typedef void scope_t;
 
+#ifndef STM_CHECKPOINT_ASM
   /**
    *  Code to start a transaction.  We assume the caller already performed a
    *  setjmp, and is passing a valid setjmp buffer to this function.
    */
   void begin(scope_t* s, uint32_t abort_flags);
+#endif
 
   /**
    *  Code to commit a transaction.
@@ -172,6 +183,29 @@ namespace stm
 #define TM_READ(var)       stm::stm_read(&var)
 #define TM_WRITE(var, val) stm::stm_write(&var, val)
 
+#ifdef STM_CHECKPOINT_ASM
+
+/**
+ *  This is the way to start a transaction
+ */
+#define TM_BEGIN(TYPE)                                      \
+    {                                                       \
+    _ITM_beginTransaction(0);                               \
+    {                                                       \
+
+
+/**
+ *  [wer210] This is the way to start a Read-Only transaction.
+ *  Only used for Pessimistic TM for now!
+ *  set tx->read_only true.
+ */
+#define TM_BEGIN_READONLY(TYPE)                             \
+    {                                                       \
+    stm::declare_read_only();                               \
+    _ITM_beginTransaction(0);                               \
+    {
+
+#else
 /**
  *  This is the way to start a transaction
  */
@@ -196,6 +230,7 @@ namespace stm
     stm::begin(&_jmpbuf, abort_flags);                      \
     CFENCE;                                                 \
     {
+#endif
 
 /**
  *  This is the way to commit a transaction.  Note that these macros weakly

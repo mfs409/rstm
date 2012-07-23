@@ -41,16 +41,27 @@ namespace stm
    */
   struct TxThread
   {
+      /**
+       * THESE FIELDS MUST NOT BE MOVED.  THEY MUST BE IN THIS ORDER OR THE
+       * CUSTOM ASM IN CHECKPOINT.S WILL BREAK
+       */
+#ifdef STM_CHECKPOINT_ASM
+      uint32_t nesting_depth;       // nesting
+      checkpoint_t checkpoint;
+      volatile bool  in_tx;         // flag for if we are in a transaction
+#else
+      uint32_t       nesting_depth; // nesting; 0 == not in transaction
+      scope_t*       checkpoint;    // used to roll back
+      volatile bool  in_tx;         // flag for if we are in a transaction
+#endif
+
       /*** THESE FIELDS DEAL WITH THE STM IMPLEMENTATIONS ***/
       uint32_t       id;            // per thread id
-      uint32_t       nesting_depth; // nesting; 0 == not in transaction
       WBMMPolicy     allocator;     // buffer malloc/free
       uint32_t       num_commits;   // stats counter: commits
       uint32_t       num_aborts;    // stats counter: aborts
       uint32_t       num_restarts;  // stats counter: restart()s
       uint32_t       num_ro;        // stats counter: read-only commits
-      volatile bool  in_tx;         // flag for if we are in a transaction
-      scope_t*       checkpoint;    // used to roll back
 #ifdef STM_PROTECT_STACK
       void**         stack_high;    // the stack pointer at begin_tx time
       void**         stack_low;     // norec stack low-water mark
@@ -110,31 +121,6 @@ namespace stm
       uint64_t      total_nontxn_time; // time on non-transactional work
       pmu_t         pmu;               // for accessing the hardware PMU
 
-      /*** POINTERS TO INSTRUMENTATION */
-
-      /**
-       *  The read/write/commit instrumentation is reached via per-thread
-       *  function pointers, which can be exchanged easily during execution.
-       *
-       *  The begin function is not a per-thread pointer, and thus we can use
-       *  it for synchronization.  This necessitates it being volatile.
-       *
-       *  The other function pointers can be overwritten by remote threads,
-       *  but that the synchronization when using the begin() function avoids
-       *  the need for those pointers to be volatile.
-       *
-       *  NB: read/write/commit pointers were moved out of the descriptor
-       *      object to make user code less dependent on this file
-       */
-
-      /**
-       * The global pointer for starting transactions. The return value should
-       * be true if the transaction was started as irrevocable, the caller can
-       * use this return to execute completely uninstrumented code if it's
-       * available.
-       */
-      static TM_FASTCALL bool(*volatile tmbegin)();
-
       /**
        * Some APIs, in particular the itm API at the moment, want to be able
        * to rollback the top level of nesting without actually unwinding the
@@ -185,10 +171,35 @@ namespace stm
   /*** GLOBAL VARIABLES RELATED TO THREAD MANAGEMENT */
   extern THREAD_LOCAL_DECL_TYPE(TxThread*) Self; // this thread's TxThread
 
+  /*** POINTERS TO INSTRUMENTATION */
+
   /*** Per-thread commit, read, and write pointers */
   extern THREAD_LOCAL_DECL_TYPE(TM_FASTCALL void(*tmcommit)());
   extern THREAD_LOCAL_DECL_TYPE(TM_FASTCALL void*(*tmread)(STM_READ_SIG(,)));
   extern THREAD_LOCAL_DECL_TYPE(TM_FASTCALL void(*tmwrite)(STM_WRITE_SIG(,,)));
+
+  /**
+   *  The read/write/commit instrumentation is reached via per-thread
+   *  function pointers, which can be exchanged easily during execution.
+   *
+   *  The begin function is not a per-thread pointer, and thus we can use
+   *  it for synchronization.  This necessitates it being volatile.
+   *
+   *  The other function pointers can be overwritten by remote threads,
+   *  but that the synchronization when using the begin() function avoids
+   *  the need for those pointers to be volatile.
+   *
+   *  NB: read/write/commit pointers were moved out of the descriptor
+   *      object to make user code less dependent on this file
+   */
+
+  /**
+   * The global pointer for starting transactions. The return value should
+   * be true if the transaction was started as irrevocable, the caller can
+   * use this return to execute completely uninstrumented code if it's
+   * available.
+   */
+  extern TM_FASTCALL bool(*volatile tmbegin)();
 
 } // namespace stm
 

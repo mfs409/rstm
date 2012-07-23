@@ -103,7 +103,7 @@ namespace {
       while (last_complete.val != ((uintptr_t)tx->order - 1)) {
           // in this wait loop, we need to check if an adaptivity action is
           // underway :(
-          if (TxThread::tmbegin != begin)
+          if (stm::tmbegin != begin)
               tx->tmabort();
       }
       // oldest tx doesn't need validation
@@ -142,7 +142,7 @@ namespace {
       TxThread* tx = stm::Self;
       // wait our turn, validate, writeback
       while (last_complete.val != ((uintptr_t)tx->order - 1)) {
-          if (TxThread::tmbegin != begin)
+          if (stm::tmbegin != begin)
               tx->tmabort();
       }
 
