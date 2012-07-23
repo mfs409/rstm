@@ -35,3 +35,6 @@ default: info
 %: $(MKFOLDER)/%.mk
 	@cd libstm && $(MAKE) $@
 	@cd bench && $(MAKE) $@
+clean:
+	@rm -rf libstm/obj.*
+	@rm -rf bench/obj.* 
