@@ -47,12 +47,12 @@ namespace stm
        */
 #ifdef STM_CHECKPOINT_ASM
       uint32_t nesting_depth;       // nesting
-      checkpoint_t checkpoint;
       volatile bool  in_tx;         // flag for if we are in a transaction
+      checkpoint_t checkpoint;
 #else
       uint32_t       nesting_depth; // nesting; 0 == not in transaction
-      scope_t*       checkpoint;    // used to roll back
       volatile bool  in_tx;         // flag for if we are in a transaction
+      scope_t*       checkpoint;    // used to roll back
 #endif
 
       /*** THESE FIELDS DEAL WITH THE STM IMPLEMENTATIONS ***/

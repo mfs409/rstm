@@ -20,15 +20,14 @@
 // describe the descriptor layout
 #define DEPTH 0
 #define INTX 8
-#define RBP 8
-#define RSP 16
-#define RIP 24
-#define RBX 32
-#define R12 40
-#define R13 48
-#define R14 56
-#define R15 64
-#define RDI 72
+#define RBP 16
+#define RSP 24
+#define RIP 32
+#define RBX 40
+#define R12 48
+#define R13 56
+#define R14 64
+#define R15 72
         
 /**
  *  The x86_64 _ITM_beginTransaction gets a checkpoint (or NULL in a nested
@@ -133,14 +132,13 @@ _rstm_restore_checkpoint:
         
 // describe the checkpoint offsets
 #define DEPTH 0
-#define INTX 8
-#define EBP 4
-#define ESP 8
-#define EIP 12
-#define EBX 16
-#define ESI 20
-#define EDI 24
-#define EAX 28 // not callee-saves, but we use it to remember flags
+#define INTX 4
+#define EBP 8
+#define ESP 12
+#define EIP 16
+#define EBX 20
+#define ESI 24
+#define EDI 28
 
 /**
  *  The i386 _ITM_beginTransaction gets a checkpoint (or NULL in a nested
