@@ -38,7 +38,7 @@ namespace stm
    * (implemented in irrevocability.cpp because it uses some static functions
    * declared there)
    */
-  bool begin_blocker() TM_FASTCALL;
+  void begin_blocker();
 
   /**
    *  This is the code for deciding whether to adapt or not.  It's a little bit

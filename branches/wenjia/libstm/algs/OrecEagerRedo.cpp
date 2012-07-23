@@ -40,7 +40,7 @@ using stm::id_version_t;
 namespace {
   struct OrecEagerRedo
   {
-      static TM_FASTCALL bool begin();
+      static void begin();
       static TM_FASTCALL void* read_ro(STM_READ_SIG(,));
       static TM_FASTCALL void* read_rw(STM_READ_SIG(,));
       static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,));
@@ -59,13 +59,11 @@ namespace {
    *
    *    Standard begin: just get a start time
    */
-  bool
-  OrecEagerRedo::begin()
+  void OrecEagerRedo::begin()
   {
       TxThread* tx = stm::Self;
       tx->allocator.onTxBegin();
       tx->start_time = timestamp.val;
-      return false;
   }
 
   /**

@@ -32,7 +32,7 @@ using stm::UNRECOVERABLE;
 namespace {
   struct Serial
   {
-      static TM_FASTCALL bool begin();
+      static void begin();
       static TM_FASTCALL void* read(STM_READ_SIG(,));
       static TM_FASTCALL void write(STM_WRITE_SIG(,,  ));
       static TM_FASTCALL void commit();
@@ -45,14 +45,12 @@ namespace {
   /**
    *  Serial begin:
    */
-  bool
-  Serial::begin()
+  void Serial::begin()
   {
       TxThread* tx = stm::Self;
       // get the lock and notify the allocator
       tx->begin_wait = tatas_acquire(&timestamp.val);
       tx->allocator.onTxBegin();
-      return false;
   }
 
   /**

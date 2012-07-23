@@ -52,7 +52,7 @@ namespace {
   volatile uint32_t master = 0;           // Master lock
 
   struct FastlaneSwitch {
-      static TM_FASTCALL bool begin();
+      static void begin();
       static TM_FASTCALL void* read_ro(STM_READ_SIG(,));
       static TM_FASTCALL void* read_rw(STM_READ_SIG(,));
       static TM_FASTCALL void* read_master(STM_READ_SIG(,));
@@ -75,8 +75,7 @@ namespace {
    *  FastlaneSwitch begin:
    *  Master thread set cntr from even to odd.
    */
-  bool
-  FastlaneSwitch::begin()
+  void FastlaneSwitch::begin()
   {
       TxThread* tx = stm::Self;
       // starts
@@ -111,7 +110,6 @@ namespace {
 
           // go master mode
           GoTurbo (tx, read_master, write_master, commit_master);
-          return true;
       }
 
       // helpers get even counter (discard LSD & MSB)
@@ -122,8 +120,6 @@ namespace {
       // [mfs] I don't think this is needed... the prior commit should have
       // reset these to the _ro variants already.
       GoTurbo (tx, read_ro, write_ro, commit_ro);
-
-      return true;
   }
 
   /**

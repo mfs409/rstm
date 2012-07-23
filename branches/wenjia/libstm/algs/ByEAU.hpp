@@ -60,7 +60,7 @@ namespace {
   {
       static void Initialize(int id, const char* name);
 
-      static TM_FASTCALL bool begin();
+      static void begin();
       static TM_FASTCALL void* read_ro(STM_READ_SIG(,));
       static TM_FASTCALL void* read_rw(STM_READ_SIG(,));
       static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,));
@@ -98,8 +98,7 @@ namespace {
    *  ByEAU_Generic begin:
    */
   template <class CM>
-  bool
-  ByEAU_Generic<CM>::begin()
+  void ByEAU_Generic<CM>::begin()
   {
       TxThread* tx = stm::Self;
       // mark self alive
@@ -108,7 +107,6 @@ namespace {
       CM::onBegin(tx);
       // NB: allocator call at end since CM may block
       tx->allocator.onTxBegin();
-      return false;
   }
 
   /**

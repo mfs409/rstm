@@ -46,7 +46,7 @@ namespace {
   struct OrEAU_Generic
   {
       static void initialize(int id, const char* name);
-      static TM_FASTCALL bool begin();
+      static void begin();
       static TM_FASTCALL void* read_ro(STM_READ_SIG(,));
       static TM_FASTCALL void* read_rw(STM_READ_SIG(,));
       static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,));
@@ -85,8 +85,7 @@ namespace {
    *  OrEAU begin:
    */
   template <class CM>
-  bool
-  OrEAU_Generic<CM>::begin()
+  void OrEAU_Generic<CM>::begin()
   {
       TxThread* tx = stm::Self;
       tx->allocator.onTxBegin();
@@ -94,7 +93,6 @@ namespace {
       tx->alive = TX_ACTIVE;
       // notify CM
       CM::onBegin(tx);
-      return false;
   }
 
   /**

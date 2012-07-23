@@ -47,7 +47,7 @@ using stm::WriteSetEntry;
  */
 namespace {
   struct PipelineTurbo {
-      static TM_FASTCALL bool begin();
+      static void begin();
       static TM_FASTCALL void* read_ro(STM_READ_SIG(,));
       static TM_FASTCALL void* read_rw(STM_READ_SIG(,));
       static TM_FASTCALL void* read_turbo(STM_READ_SIG(,));
@@ -77,8 +77,7 @@ namespace {
    *    ts_cache and order tells how many transactions need to commit.  Whenever
    *    one does, this tx will need to validate.
    */
-  bool
-  PipelineTurbo::begin()
+  void PipelineTurbo::begin()
   {
       TxThread* tx = stm::Self;
       tx->allocator.onTxBegin();
@@ -90,7 +89,6 @@ namespace {
       tx->ts_cache = last_complete.val;
       if (tx->ts_cache == ((uintptr_t)tx->order - 1))
           GoTurbo(tx, read_turbo, write_turbo, commit_turbo);
-      return false;
   }
 
   /**

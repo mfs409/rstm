@@ -31,7 +31,7 @@ using stm::ticketlock;
 namespace {
   struct Ticket
   {
-      static TM_FASTCALL bool begin();
+      static void begin();
       static TM_FASTCALL void* read(STM_READ_SIG(,));
       static TM_FASTCALL void write(STM_WRITE_SIG(,,  ));
       static TM_FASTCALL void commit();
@@ -44,13 +44,12 @@ namespace {
   /**
    *  Ticket begin:
    */
-  bool
-  Ticket::begin() {
+  void Ticket::begin()
+  {
       TxThread* tx = stm::Self;
       // get the ticket lock
       tx->begin_wait = ticket_acquire(&ticketlock);
       tx->allocator.onTxBegin();
-      return true;
   }
 
   /**

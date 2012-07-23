@@ -49,7 +49,7 @@
 #ifdef STM_CHECKPOINT_ASM
 #include "../libstm/libitm.h"
 // [mfs] TODO: need to move the include out of libstm if we use it here
-extern uint32_t _ITM_beginTransaction(uint32_t, ...)
+extern uint32_t _ITM_beginTransaction(uint32_t)
     ITM_REGPARM __attribute__((returns_twice));
 // [mfs] TODO: some adaptivity stuff is not correct inside of
 // _ITM_beginTransaction... custom ASM work is still needed
@@ -190,7 +190,7 @@ namespace stm
  */
 #define TM_BEGIN(TYPE)                                      \
     {                                                       \
-    _ITM_beginTransaction(0);                               \
+    _ITM_beginTransaction();                                \
     {                                                       \
 
 
@@ -202,7 +202,7 @@ namespace stm
 #define TM_BEGIN_READONLY(TYPE)                             \
     {                                                       \
     stm::declare_read_only();                               \
-    _ITM_beginTransaction(0);                               \
+    _ITM_beginTransaction();                                \
     {
 
 #else

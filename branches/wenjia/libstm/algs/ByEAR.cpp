@@ -35,7 +35,7 @@ using stm::threads;
 namespace {
   struct ByEAR
   {
-      static TM_FASTCALL bool begin();
+      static void begin();
       static TM_FASTCALL void* read_ro(STM_READ_SIG(,));
       static TM_FASTCALL void* read_rw(STM_READ_SIG(,));
       static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,));
@@ -58,14 +58,12 @@ namespace {
   /**
    *  ByEAR begin:
    */
-  bool
-  ByEAR::begin()
+  void ByEAR::begin()
   {
       TxThread* tx = stm::Self;
       tx->allocator.onTxBegin();
       // set self to active
       tx->alive = TX_ACTIVE;
-      return false;
   }
 
   /**

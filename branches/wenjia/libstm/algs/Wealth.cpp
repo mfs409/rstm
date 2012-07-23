@@ -42,7 +42,7 @@ using stm::get_orec;
  */
 namespace {
   struct Wealth {
-      static TM_FASTCALL bool begin();
+      static void begin();
       static TM_FASTCALL void* read_ro(STM_READ_SIG(,));
       static TM_FASTCALL void* read_rw(STM_READ_SIG(,));
       static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,));
@@ -59,14 +59,12 @@ namespace {
   /**
    *  Wealth begin:
    */
-  bool
-  Wealth::begin()
+  void Wealth::begin()
   {
       TxThread* tx = stm::Self;
       tx->allocator.onTxBegin();
       // get time of last finished txn, to know when to validate
       tx->ts_cache = last_complete.val;
-      return false;
   }
 
   /**

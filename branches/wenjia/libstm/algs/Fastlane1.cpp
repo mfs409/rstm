@@ -43,7 +43,7 @@ namespace {
   const uint32_t MSB = 0x80000000;
 
   struct Fastlane1 {
-      static TM_FASTCALL bool begin();
+      static void begin();
       static TM_FASTCALL void* read_ro(STM_READ_SIG(,));
       static TM_FASTCALL void* read_rw(STM_READ_SIG(,));
       static TM_FASTCALL void* read_master(STM_READ_SIG(,));
@@ -63,8 +63,7 @@ namespace {
    *  Fastlane1 begin:
    *  Master thread set timestamp.val from even to odd.
    */
-  bool
-  Fastlane1::begin()
+  void Fastlane1::begin()
   {
       TxThread* tx = stm::Self;
       tx->allocator.onTxBegin();
@@ -84,12 +83,10 @@ namespace {
           // go master mode
           if (stm::tmread != read_master)
               GoTurbo(tx, read_master, write_master, commit_master);
-          return true;
       }
 
       // helpers get even counter (discard LSD & MSB)
       tx->start_time = timestamp.val & ~1 & ~MSB;
-      return true;
   }
 
   /**

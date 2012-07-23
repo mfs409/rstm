@@ -186,17 +186,18 @@ namespace stm
    *  doubles as an irrevocability mechanism for implementations where we don't
    *  have (or can't write) an in-flight irrevocability mechanism.
    */
-  bool begin_blocker()
+  void begin_blocker()
   {
       TxThread* tx = Self;
 
       // if the caller is trying to restart as irrevocable, let them
       if (tx->irrevocable) {
           set_irrevocable_barriers(*tx);
-          return true;
+          return;
       }
 
       // adapt without longjmp
+      void (*beginner)();
       while (true) {
           // first, clear the outer scope, because it's our 'tx/nontx' flag
           tx->in_tx = 0;
@@ -208,13 +209,14 @@ namespace stm
           tx->in_tx = 1; WBR;
 
           // read the begin function pointer AFTER setting the scope
-          bool TM_FASTCALL (*beginner)() = tmbegin;
+          beginner = tmbegin;
           // if begin_blocker is no longer installed, we can call the pointer
           // to start a transaction, and then return.  Otherwise, we missed our
           // window, so we need to go back to the top of the loop.
           if (beginner != begin_blocker)
-              return beginner();
+              break;
       }
+      beginner();
   }
 }
 

@@ -74,7 +74,7 @@ namespace
   template <class CM>
   struct OrecEager_amd64_Generic
   {
-      static TM_FASTCALL bool begin();
+      static void begin();
       static TM_FASTCALL void commit();
       static void initialize(int id, const char* name);
       static void rollback(STM_ROLLBACK_SIG(,,));
@@ -106,15 +106,13 @@ namespace
   }
 
   template <class CM>
-  bool
-  OrecEager_amd64_Generic<CM>::begin()
+  void OrecEager_amd64_Generic<CM>::begin()
   {
       TxThread* tx = stm::Self;
       // sample the timestamp and prepare local structures
       tx->allocator.onTxBegin();
       tx->start_time = tick();
       CM::onBegin(tx);
-      return false;
   }
 
   /**

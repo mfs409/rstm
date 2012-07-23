@@ -54,7 +54,7 @@ namespace {
        {0xFFFFFFFF, false},{0xFFFFFFFF, false},{0xFFFFFFFF, false}};
 
   struct PessimisticTM {
-      static TM_FASTCALL bool begin();
+      static void begin();
       static TM_FASTCALL void* read_ro(STM_READ_SIG(,));
       static TM_FASTCALL void* read_rw(STM_READ_SIG(,));
       static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,));
@@ -73,8 +73,7 @@ namespace {
    *  PessimisticTM begin:
    *  Master thread set cntr from even to odd.
    */
-  bool
-  PessimisticTM::begin()
+  void PessimisticTM::begin()
   {
       TxThread* tx = stm::Self;
       // starts
@@ -94,8 +93,7 @@ namespace {
           GoTurbo(tx, read_ro, write_read_only, commit_read_only);
       }
       // For Read-Write transactions
-      else
-      {
+      else {
           // Set the thread's entry writer_waiting to TRUE
           MY.writer_waiting = true;
 
@@ -120,7 +118,6 @@ namespace {
           // Go read-write mode
           GoTurbo(tx, read_rw, write_rw, commit_rw);
       }
-      return true;
   }
 
   /**

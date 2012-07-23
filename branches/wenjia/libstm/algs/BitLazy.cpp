@@ -50,7 +50,7 @@ using stm::WriteSetEntry;
 namespace {
   struct BitLazy
   {
-      static TM_FASTCALL bool begin();
+      static void begin();
       static TM_FASTCALL void* read_ro(STM_READ_SIG(,));
       static TM_FASTCALL void* read_rw(STM_READ_SIG(,));
       static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,));
@@ -66,13 +66,11 @@ namespace {
   /**
    *  BitLazy begin:
    */
-  bool
-  BitLazy::begin()
+  void BitLazy::begin()
   {
       TxThread* tx = stm::Self;
       tx->allocator.onTxBegin();
       tx->alive = 1;
-      return false;
   }
 
   /**

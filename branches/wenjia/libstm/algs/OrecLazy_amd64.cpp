@@ -39,7 +39,7 @@ namespace {
   template <class CM>
   struct OrecLazy_amd64_Generic
   {
-      static TM_FASTCALL bool begin();
+      static void begin();
       static TM_FASTCALL void* read_ro(STM_READ_SIG(,));
       static TM_FASTCALL void* read_rw(STM_READ_SIG(,));
       static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,));
@@ -79,14 +79,12 @@ namespace {
    *    Sample the timestamp and prepare local vars
    */
   template <class CM>
-  bool
-  OrecLazy_amd64_Generic<CM>::begin()
+  void OrecLazy_amd64_Generic<CM>::begin()
   {
       TxThread* tx = stm::Self;
       tx->allocator.onTxBegin();
       tx->start_time = tickp() & 0x7FFFFFFFFFFFFFFFLL;
       CM::onBegin(tx);
-      return false;
   }
 
   /**

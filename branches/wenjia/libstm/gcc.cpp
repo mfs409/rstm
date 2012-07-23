@@ -300,20 +300,6 @@ cancel(uint32_t, TX*) {
 
 #endif
 
-namespace stm
-{
-  void begin(scope_t* s, uint32_t);
-}
-
-/** Used as a restore_checkpoint continuation to restart a transaction. */
-static uint32_t TM_FASTCALL restart(uint32_t flags)
-{
-    // NB: it would be essentially free to pass the descriptor as a second
-    //     parameter to tmbegin, because we could pass it to this function
-    //     for free...
-    stm::tmbegin();
-}
-
 NORETURN
 void stm::TxThread::tmabort()
 {
@@ -325,7 +311,7 @@ void stm::TxThread::tmabort()
     if (why & TMConflict) {
         stm::TxThread::tmrollback(tx);
         tx->nesting_depth = 1;          // no closed nesting yet.
-        restore_checkpoint(restart);
+        restore_checkpoint(stm::tmbegin);
     }
 #if 0 // NOT USED IN WENJIA BRANCH (YET?)
 else if (why & userAbort) {

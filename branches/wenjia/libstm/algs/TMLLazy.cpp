@@ -35,7 +35,7 @@ using stm::WriteSetEntry;
  */
 namespace {
   struct TMLLazy {
-      static TM_FASTCALL bool begin();
+      static void begin();
       static TM_FASTCALL void* read_ro(STM_READ_SIG(,));
       static TM_FASTCALL void* read_rw(STM_READ_SIG(,));
       static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,));
@@ -51,8 +51,7 @@ namespace {
   /**
    *  TMLLazy begin:
    */
-  bool
-  TMLLazy::begin()
+  void TMLLazy::begin()
   {
       TxThread* tx = stm::Self;
       // Sample the sequence lock until it is even (unheld)
@@ -61,7 +60,6 @@ namespace {
 
       // notify the allocator
       tx->allocator.onTxBegin();
-      return false;
   }
 
   /**

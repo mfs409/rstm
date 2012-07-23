@@ -31,7 +31,7 @@ using stm::mcslock;
 namespace  {
   struct MCS
   {
-      static TM_FASTCALL bool begin();
+      static void begin();
       static TM_FASTCALL void* read(STM_READ_SIG(,));
       static TM_FASTCALL void write(STM_WRITE_SIG(,,));
       static TM_FASTCALL void commit();
@@ -45,14 +45,12 @@ namespace  {
   /**
    *  MCS begin:
    */
-  bool
-  MCS::begin()
+  void MCS::begin()
   {
       TxThread* tx = stm::Self;
       // acquire the MCS lock
       tx->begin_wait = mcs_acquire(&mcslock, tx->my_mcslock);
       tx->allocator.onTxBegin();
-      return true;
   }
 
   /**

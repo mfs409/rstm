@@ -114,7 +114,7 @@ extern "C" {
         ITM_REGPARM;
     extern _ITM_transactionId_t _ITM_getTransactionId(void)
         ITM_REGPARM;
-    extern uint32_t _ITM_beginTransaction(uint32_t, ...)
+    extern uint32_t _ITM_beginTransaction()
         ITM_REGPARM __attribute__((returns_twice));
     extern void _ITM_abortTransaction(_ITM_abortReason)
          ITM_REGPARM ITM_NORETURN;
