@@ -28,6 +28,7 @@ namespace
 
 namespace stm
 {
+#ifndef STM_CHECKPOINT_ASM
   /**
    *  The default mechanism that libstm uses for an abort. An API environment
    *  may also provide its own abort mechanism (see itm2stm for an example of
@@ -46,6 +47,7 @@ namespace stm
       jmp_buf* scope = (jmp_buf*)tx->checkpoint;
       longjmp(*scope, 1);
   }
+#endif
 
   /*** BACKING FOR GLOBAL VARS DECLARED IN TXTHREAD.HPP */
   pad_word_t threadcount          = {0}; // thread count
@@ -57,9 +59,12 @@ namespace stm
    */
   TxThread::TxThread()
       : nesting_depth(0),
+#ifndef STM_CHECKPOINT_ASM
+        checkpoint(NULL),
+#endif
         allocator(),
         num_commits(0), num_aborts(0), num_restarts(0),
-        num_ro(0), checkpoint(NULL), in_tx(0),
+        num_ro(0), in_tx(0),
 #ifdef STM_STACK_PROTECT
         stack_high(NULL),
         stack_low(~0x0),
@@ -175,7 +180,7 @@ namespace stm
    *  The begin function pointer.  Note that we need tmbegin to equal
    *  begin_cgl initially, since "0" is the default algorithm
    */
-  bool TM_FASTCALL (*volatile TxThread::tmbegin)() = begin_CGL;
+  bool TM_FASTCALL (*volatile tmbegin)() = begin_CGL;
 
   /**
    *  The tmrollback and tmirrevoc pointers
@@ -287,7 +292,7 @@ namespace stm
           int i = curr_policy.ALG_ID;
           if (i == ProfileTM)
               continue;
-          if (bcasptr(&TxThread::tmbegin, stms[i].begin, &begin_blocker))
+          if (bcasptr(&tmbegin, stms[i].begin, &begin_blocker))
               break;
           spin64();
       }
@@ -415,6 +420,7 @@ namespace stm
   THREAD_LOCAL_DECL_TYPE(TM_FASTCALL void*(*tmread)(STM_READ_SIG(,)));
   THREAD_LOCAL_DECL_TYPE(TM_FASTCALL void(*tmwrite)(STM_WRITE_SIG(,,)));
 
+#ifndef STM_CHECKPOINT_ASM
   /**
    *  Code to start a transaction.  We assume the caller already performed a
    *  setjmp, and is passing a valid setjmp buffer to this function.
@@ -452,8 +458,9 @@ namespace stm
           tx->total_nontxn_time += (tick() - tx->end_txn_time);
 
       // now call the per-algorithm begin function
-      TxThread::tmbegin();
+      tmbegin();
   }
+#endif
 
   /**
    *  Code to commit a transaction.  As in begin(), we are using forced
@@ -470,9 +477,8 @@ namespace stm
       // dispatch to the appropriate end function
       tmcommit();
 
-      // zero scope (to indicate "not in tx")
+      // indicate "not in tx"
       CFENCE;
-      tx->checkpoint = NULL;
       tx->in_tx = 0;
 
       // record start of nontransactional time

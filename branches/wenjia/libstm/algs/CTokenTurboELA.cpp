@@ -104,7 +104,7 @@ namespace {
       while (last_complete.val != ((uintptr_t)tx->order - 1)) {
           // check if an adaptivity event necessitates that we abort to change
           // modes
-          if (TxThread::tmbegin != begin)
+          if (stm::tmbegin != begin)
               tx->tmabort();
       }
       // validate

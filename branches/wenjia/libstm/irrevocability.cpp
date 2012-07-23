@@ -62,7 +62,7 @@ namespace
       unset_irrevocable_barriers(*tx);
       // now allow other transactions to run
       CFENCE;
-      TxThread::tmbegin = stms[curr_policy.ALG_ID].begin;
+      stm::tmbegin = stms[curr_policy.ALG_ID].begin;
       // finally, call the standard commit cleanup routine
       OnReadOnlyCommit(tx);
   }
@@ -133,7 +133,7 @@ namespace stm
       //  thread is running the 'wait for everyone' code that immediately
       //  follows this CAS.  Since we can't distinguish the three cases,
       //  we'll just abort all the time.  The impact should be minimal.
-      if (!bcasptr(&TxThread::tmbegin, stms[curr_policy.ALG_ID].begin,
+      if (!bcasptr(&stm::tmbegin, stms[curr_policy.ALG_ID].begin,
                    &begin_blocker))
           tx->tmabort();
 
@@ -201,14 +201,14 @@ namespace stm
           // first, clear the outer scope, because it's our 'tx/nontx' flag
           tx->in_tx = 0;
           // next, wait for the begin_blocker to be uninstalled
-          while (TxThread::tmbegin == begin_blocker)
+          while (tmbegin == begin_blocker)
               spin64();
           CFENCE;
           // now re-state that we are in tx
           tx->in_tx = 1; WBR;
 
           // read the begin function pointer AFTER setting the scope
-          bool TM_FASTCALL (*beginner)() = TxThread::tmbegin;
+          bool TM_FASTCALL (*beginner)() = tmbegin;
           // if begin_blocker is no longer installed, we can call the pointer
           // to start a transaction, and then return.  Otherwise, we missed our
           // window, so we need to go back to the top of the loop.

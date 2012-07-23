@@ -93,7 +93,7 @@ namespace {
       // wait until it is our turn to commit, then validate, acquire, and do
       // writeback
       while (last_complete.val != (uintptr_t)(tx->order - 1)) {
-          if (TxThread::tmbegin != begin)
+          if (stm::tmbegin != begin)
               tx->tmabort();
       }
 

@@ -78,8 +78,8 @@ namespace
           // first, mark self not transactional
           tx->in_tx = 0;
           // next, wait for a good begin pointer
-          while ((TxThread::tmbegin == begin) ||
-                 (TxThread::tmbegin == stm::begin_blocker))
+          while ((stm::tmbegin == begin) ||
+                 (stm::tmbegin == stm::begin_blocker))
               spin64();
           CFENCE;
           // now reestablish that we are in a transaction
@@ -89,7 +89,7 @@ namespace
           casptr(&tx->in_tx, 0, 1);
 #endif
           // read the begin function pointer AFTER setting the in_tx flag
-          bool TM_FASTCALL (*beginner)() = TxThread::tmbegin;
+          bool TM_FASTCALL (*beginner)() = stm::tmbegin;
           // if begin_blocker is no longer installed, and ProfileTM::begin
           // isn't installed either, we can call the pointer to start a
           // transaction, and then return.  Otherwise, we missed our window,

@@ -94,7 +94,7 @@ namespace {
       // writeback
       while (last_complete.val != (uintptr_t)(tx->order - 1)) {
           // Check if we need to abort due to an adaptivity event
-          if (TxThread::tmbegin != begin)
+          if (stm::tmbegin != begin)
               tx->tmabort();
       }
 

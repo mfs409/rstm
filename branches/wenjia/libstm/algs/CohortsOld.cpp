@@ -92,7 +92,7 @@ namespace {
           }
 
           // check if an adaptivity action is underway
-          if (TxThread::tmbegin != begin){
+          if (stm::tmbegin != begin){
               tx->tmabort();
           }
       }
@@ -140,7 +140,7 @@ namespace {
 
       // Wait until it is our turn to commit, validate, and do writeback
       while (last_complete.val != (uintptr_t)(tx->order - 1)) {
-          if (TxThread::tmbegin != begin)
+          if (stm::tmbegin != begin)
               TxAbortWrapper_cm(tx);
       }
 
