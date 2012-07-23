@@ -55,28 +55,38 @@ _ITM_beginTransaction:
         movl    %edx, DEPTH(%rsi)       //     goto nested
         cmpl    $1, %edx                // 
         jne     _ITM_beginTransaction_nested
+
+        // if we didn't jump, we need to checkpoint the sp, ip, and callee
+	// saves
         
-        movq    (%rsp), %rdx            // grab the return address
-        movq    %rdx, RIP(%rsi)         // from the stack
+        movq    (%rsp), %rdx            // get the return address from
+        movq    %rdx, RIP(%rsi)         // the stack
         
-        movq    %rbp, RBP(%rsi)
+        movq    %rbp, RBP(%rsi)         // save callee saves
         movq    %rsp, RSP(%rsi)
         movq    %rbx, RBX(%rsi)
         movq    %r12, R12(%rsi)
         movq    %r13, R13(%rsi)
         movq    %r14, R14(%rsi)
         movq    %r15, R15(%rsi)
-        movq    %rdi, RDI(%rsi)         // save flags for abort path
 
-        // stm::tm_begin(%rdi=flags, %rsi=TX*, %rdx=return flag)
-        movl    $4, %edx
-        jmp     _ZN3stm8tm_beginEjPNS_2TXEj
+        // TODO: need to mark self as transactional with CAS/XCHG
+
+        // TODO: need to update the tick info
+        
+        // call the per-algorithm begin function (i.e.,
+        // TM_FASTCALL bool(*volatile tmbegin)()).  Note that we need
+	// ordering for the read of this function pointer **after** the write to
+	// tx->in_tx
+        movq    _ZN3stm7tmbeginE, %rdx
+        jmp     *%rdx
         
 _ITM_beginTransaction_nested:
         // nested transactions take the instrumented path, but don't request
         // that any saving be done locally, because we don't support nested
         // abort/cancel at this point.
-        movl    0x1, %eax
+        movl    0x1, %eax // [mfs] do we need this?  Verify for 64-bit and
+	                  //       32-bit
         ret
         
         ASM_DOT_CFI_ENDPROC
@@ -96,7 +106,10 @@ _ITM_beginTransaction_nested:
 _rstm_restore_checkpoint:
         ASM_DOT_CFI_STARTPROC
 
-        movq    RBP(%rsi), %rbp
+        movq    _ZN3stm4SelfE@gottpoff(%rip), %rsi
+        movq    %fs:(%rsi), %rsi        // %rsi holds the descriptor
+
+        movq    RBP(%rsi), %rbp         // restore the callee saves
         movq    RSP(%rsi), %rsp
         movq    RBX(%rsi), %rbx
         movq    R12(%rsi), %r12
@@ -107,10 +120,9 @@ _rstm_restore_checkpoint:
         movq    RIP(%rsi), %rax         // put the return address on
         movq    %rax, (%rsp)            // the stack
 
-        movq    %rdi, %rax              // restore the flags and call the 
-        movq    RDI(%rsi), %rdi         // continuation using a sibling call
-
-        jmp     *%rax
+        movq    _ZN3stm7tmbeginE, %rdx  //
+        jmp     *%rdx                   // call the continuation as a sibling
+                                        // call. 
         
         ASM_DOT_CFI_ENDPROC
         ASM_DOT_SIZE(_rstm_restore_checkpoint, .-_rstm_restore_checkpoint)
