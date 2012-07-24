@@ -14,7 +14,7 @@
  */
         
 #include "checkpoint.hpp"
-        
+
 #if defined(__x86_64__) && defined(__LP64__)
 
 // describe the descriptor layout
@@ -47,8 +47,13 @@ _ITM_beginTransaction:
         // we can just return. I pretty much just copied this wholesale from a
         // C implementation, except that I messed with the instruction
         // scheduling to preserve registers that I need for the checkpoint.
+#ifdef STM_OS_SOLARIS
+	movq	%fs:0, %rax
+	movq	_ZN3stm4SelfE@tpoff(%rax), %rsi
+#else
         movq    _ZN3stm4SelfE@gottpoff(%rip), %rsi
         movq    %fs:(%rsi), %rsi        // %rsi == tx
+#endif
         movl    DEPTH(%rsi), %edx       // %edx == nesting_depth
         addl    $1, %edx                // if(++nesting_depth == 1)
         movl    %edx, DEPTH(%rsi)       //     goto nested
@@ -105,8 +110,13 @@ _ITM_beginTransaction_nested:
 _rstm_restore_checkpoint:
         ASM_DOT_CFI_STARTPROC
 
+#ifdef STM_OS_SOLARIS
+	movq	%fs:0, %rax
+	movq	_ZN3stm4SelfE@tpoff(%rax), %rsi
+#else
         movq    _ZN3stm4SelfE@gottpoff(%rip), %rsi
-        movq    %fs:(%rsi), %rsi        // %rsi holds the descriptor
+        movq    %fs:(%rsi), %rsi        // %rsi == tx
+#endif
 
         movq    RBP(%rsi), %rbp         // restore the callee saves
         movq    RSP(%rsi), %rsp
