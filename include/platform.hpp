@@ -344,6 +344,12 @@ inline uint64_t tick()
 {
     return 0;
 }
+
+inline uint64_t tickp()
+
+{
+   return 0;
+}
 #endif
 
 #if defined(STM_CPU_SPARC) && defined(STM_BITS_64)
