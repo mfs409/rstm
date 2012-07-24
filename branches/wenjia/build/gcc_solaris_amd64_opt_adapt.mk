@@ -24,7 +24,7 @@ CXX       = g++
 CXXFLAGS += -O3 -ggdb -m64 -march=native -mtune=native -msse2 -mfpmath=sse
 LDFLAGS  += -lrt -lpthread -m64 -lmtmalloc
 CFLAGS   += -m64
-ASFLAGS  += -m64
+ASFLAGS  += -m64 -DSTM_OS_SOLARIS
 CC        = gcc
 
 #
