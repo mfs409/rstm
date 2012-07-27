@@ -186,7 +186,17 @@ namespace {
       }
 
       // First global version increment, global_version.val will be even
+      //
+      // [mfs] I'm guessing that we need WBR ordering here?  In any case, to
+      //       port to SPARC I'm using a WBR instead of a swap, since it
+      //       should be faster.
+#ifdef STM_CPU_X86
       atomicswap32(&global_version.val, global_version.val + 1);
+#else
+      CFENCE;
+      global_version.val++;
+      WBR;
+#endif
 
       // update my local version
       MY.tx_version = global_version.val;

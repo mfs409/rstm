@@ -42,7 +42,7 @@ using stm::get_orec;
 using stm::gatekeeper;
 using stm::last_order;
 
-volatile uint32_t in = 0;
+volatile uintptr_t in = 0;
 
 /**
  *  Declare the functions that we're going to implement, so that we can avoid
@@ -87,7 +87,7 @@ namespace {
 
       // set started
       //
-      atomicswap32(&tx->status, COHORTS_STARTED);
+      atomicswapptr(&tx->status, COHORTS_STARTED);
       //      tx->status = COHORTS_STARTED;
       //WBR;
 
@@ -288,7 +288,7 @@ namespace {
       // If every one else is ready to commit, do in place write, go turbo mode
       if (count == 1) {
           // setup in place write flag
-          atomicswap32(&in, 1);
+          atomicswapptr(&in, 1);
 
           // double check
           for (uint32_t i = 0; i < threadcount.val && count < 0; ++i)

@@ -48,7 +48,7 @@ using stm::last_order;
  */
 namespace {
   const uintptr_t VALIDATION_FAILED = 1;
-  volatile uint32_t inplace = 0;
+  volatile uintptr_t inplace = 0;
 
   struct CohortsLNI {
       static void begin();
@@ -88,7 +88,7 @@ namespace {
 
       // set started
       //
-      atomicswap32(&tx->status, COHORTS_STARTED);
+      atomicswapptr(&tx->status, COHORTS_STARTED);
       //      tx->status = COHORTS_STARTED;
       //WBR;
 
@@ -284,7 +284,7 @@ namespace {
       // If every one else is ready to commit, do in place write, go turbo mode
       if (count == 1) {
           // setup in place write flag
-          atomicswap32(&inplace, 1);
+          atomicswapptr(&inplace, 1);
 
           // double check
           for (uint32_t i = 0; i < threadcount.val && count < 0; ++i)

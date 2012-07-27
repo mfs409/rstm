@@ -41,7 +41,7 @@ using stm::cohorts_node_t;
  *  circular dependencies.
  */
 namespace {
-  volatile uint32_t inplace = 0;
+  volatile uintptr_t inplace = 0;
   NOINLINE bool validate(TxThread* tx);
   // global linklist's head
   struct cohorts_node_t* volatile q = NULL;
@@ -233,7 +233,7 @@ namespace {
       // If everyone else is ready to commit, do in place write
       if (started.val == 1) {
           // set up flag indicating in place write starts
-          atomicswap32(&inplace, 1);
+          atomicswapptr(&inplace, 1);
           // double check is necessary
           if (started.val == 1) {
               // in place write

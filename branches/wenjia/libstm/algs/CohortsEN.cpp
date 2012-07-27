@@ -46,7 +46,7 @@ using stm::committed;
  *  circular dependencies.
  */
 namespace {
-  volatile uint32_t inplace = 0;
+  volatile uintptr_t inplace = 0;
   NOINLINE bool validate(TxThread* tx);
 
   struct CohortsEN {
@@ -237,7 +237,7 @@ namespace {
       // If everyone else is ready to commit, do in place write
       if (cpending.val + 1 == started.val) {
           // set up flag indicating in place write starts
-          atomicswap32(&inplace, 1);
+          atomicswapptr(&inplace, 1);
           // double check is necessary
           if (cpending.val + 1 == started.val) {
               // in place write
@@ -274,7 +274,7 @@ namespace {
       // Try to go turbo when "writes.size() >= TIMES"
       if (tx->writes.size() >= TIMES && cpending.val + 1 == started.val) {
           // set up flag indicating in place write starts
-          atomicswap32(&inplace, 1);
+          atomicswapptr(&inplace, 1);
           // double check is necessary
           if (cpending.val + 1 == started.val) {
               // write back
