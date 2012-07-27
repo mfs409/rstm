@@ -101,7 +101,7 @@ namespace stm
       bool           irrevocable;   // tells begin_blocker that I'm THE ONE
 
       /*** FOR COHORTS USE */
-      volatile uint32_t status;     // tx status
+      volatile uintptr_t status;    // tx status
       AddressList r_addrs;          // tx read addresses
       cohorts_node_t turn;          // tx turn node
 

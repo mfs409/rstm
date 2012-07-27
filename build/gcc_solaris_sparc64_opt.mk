@@ -10,7 +10,7 @@
 
 #
 # This makefile is for building the RSTM libraries and benchmarks using
-# library API, GCC, Solaris, sparc (32-bit), -O3
+# library API, GCC, Solaris, sparc (64-bit), -O3
 #
 # Warning: This just handles platform configuration.  Everything else is
 #          handled via per-folder Makefiles
@@ -19,12 +19,12 @@
 #
 # Compiler config
 #
-PLATFORM  = gcc_solaris_sparc32_opt
+PLATFORM  = gcc_solaris_sparc64_opt
 CXX       = g++
-CXXFLAGS += -O3 -ggdb -m32 -native
-LDFLAGS  += -lrt -lpthread -m32 -lmtmalloc
-CFLAGS   += -m32
-ASFLAGS  += -m32
+CXXFLAGS += -O3 -ggdb -m64 -native
+LDFLAGS  += -lrt -lpthread -m64 -lmtmalloc
+CFLAGS   += -m64
+ASFLAGS  += -m64
 CC        = gcc
 
 #
@@ -34,7 +34,7 @@ CXXFLAGS += -DSTM_API_LIB
 CXXFLAGS += -DSTM_CC_GCC
 CXXFLAGS += -DSTM_OS_SOLARIS
 CXXFLAGS += -DSTM_CPU_SPARC
-CXXFLAGS += -DSTM_BITS_32
+CXXFLAGS += -DSTM_BITS_64
 CXXFLAGS += -DSTM_OPT_O3
 CXXFLAGS += -DSTM_WS_WORDLOG
 CXXFLAGS += -DSTM_PROFILETMTRIGGER_NONE
