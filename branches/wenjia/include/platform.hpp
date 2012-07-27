@@ -207,6 +207,14 @@ inline uint64_t internal_cas64(volatile uint64_t* ptr, uint64_t old,
                      :"=r"(v1) :"0"(v1), "r"(p1):"memory"); \
         v1;                                                 \
     })
+#define atomicswap32(p, v)                                  \
+    ({                                                      \
+        __typeof((v)) v1 = v;                               \
+        __typeof((p)) p1 = p;                               \
+        __asm__ volatile("swap [%2], %0;"                   \
+                     :"=r"(v1) :"0"(v1), "r"(p1):"memory"); \
+        v1;                                                 \
+    })
 #else
 #define atomicswapptr(p, v)                     \
     ({                                          \
@@ -365,6 +373,18 @@ inline uint64_t tick()
     __asm__ volatile("rd %%tick, %[val]" : [val] "=r" (val) : :);
     return val;
 }
+
+/**
+ *  No equivalent to rdtscp that I'm aware of for SPARC, especially given our
+ *  specialized use of the function, so we'll just define tickp the same as
+ *  tick
+ */
+inline uint64_t tickp()
+{
+    uint64_t val;
+    __asm__ volatile("rd %%tick, %[val]" : [val] "=r" (val) : :);
+    return val;
+}
 #endif
 
 #if defined(STM_CPU_SPARC) && defined(STM_BITS_32)
@@ -378,6 +398,27 @@ inline uint64_t tick()
  *    http://sourceware.org/binutils/docs-2.20/as/Sparc_002dRegs.html
  */
 inline uint64_t tick()
+{
+    uint32_t lo = 0, hi = 0;
+    __asm__ volatile("rd   %%tick, %%o2;"
+                     "srlx %%o2,   32, %[high];"
+                     "sra  %%o2,   0,  %[low];"
+                     : [high] "=r"(hi),
+                       [low]  "=r"(lo)
+                     :
+                     : "%o2" );
+    uint64_t ans = hi;
+    ans = ans << 32;
+    ans |= lo;
+    return ans;
+}
+
+/**
+ *  No equivalent to rdtscp that I'm aware of for SPARC, especially given our
+ *  specialized use of the function, so we'll just define tickp the same as
+ *  tick
+ */
+inline uint64_t tickp()
 {
     uint32_t lo = 0, hi = 0;
     __asm__ volatile("rd   %%tick, %%o2;"
