@@ -85,18 +85,24 @@ endef
 #
 # Executables: what to build depends on whether we are using the gcctm or not
 #
-ifeq ($(LIB_OVERRIDE),true)
-# building for gcctm: one exe for each benchmark
-BENCHEXES = $(patsubst %, $(ODIR)/%.gcctm, $(BENCHNAMES))
-else
+
+#
 # non-gcctm build:
 #   use the EXE_template to link each STMALG to BENCHNAME.stmapi.o, to link
 #   each LOCKALG to BENCHNAME.lockapi.o, and to link each CUSTOMALG to
 #   BENCHNAME.fptrapi.o
+#
 $(foreach bench,$(BENCHNAMES),$(foreach alg,$(STMALGS),$(eval $(call EXE_template,$(bench),$(alg),stm))))
 $(foreach bench,$(BENCHNAMES),$(foreach alg,$(LOCKALGS),$(eval $(call EXE_template,$(bench),$(alg),lock))))
 $(foreach bench,$(BENCHNAMES),$(foreach alg,$(CUSTOMALGS),$(eval $(call EXE_template,$(bench),$(alg),fptr))))
+
+#
+# building for gcctm: one exe for each benchmark.  We overwrite BENCHEXES because GNU Make 3.80 doesn't let us do foreach inside of an if
+#
+ifeq ($(LIB_OVERRIDE),true)
+BENCHEXES = $(patsubst %, $(ODIR)/%.gcctm, $(BENCHNAMES))
 endif
+
 
 #
 # Rules for compiling individual benchmarks according to the specified API
