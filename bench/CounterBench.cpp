@@ -8,7 +8,7 @@
  *          Please see the file LICENSE.RSTM for licensing information
  */
 
-#include <stm/config.h>
+#include <stm.h>
 
 #if defined(STM_CPU_SPARC)
 #include <sys/types.h>
@@ -16,7 +16,6 @@
 
 #include <stdint.h>
 #include <iostream>
-#include <api/api.hpp>
 #include "bmconfig.hpp"
 
 /**
@@ -66,7 +65,7 @@ bench_test(uintptr_t, uint32_t*)
     TM_BEGIN(atomic) {
         // increment the counter
         TM_WRITE(counter, 1 + TM_READ(counter));
-    } TM_END;
+    } TM_END();
 }
 
 /*** Ensure the final state of the benchmark satisfies all invariants */
