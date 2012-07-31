@@ -47,9 +47,9 @@
 #elif defined(__i386__)                         /* x86_64 -m32, i?86 */
 # define CHECKPOINT_SIZE 7
 #elif defined(__sparc__) && defined(__LP64__)   /* sparcv9 -m64 */
-#error No checkpoint infrastructure for sparcv9 at the moment. Patches welcome.
+# define CHECKPOINT_SIZE 20 /* [mfs] This is way too big! */
 #elif defined(__sparc__)                        /* sparcv9 -m32, sparc */
-#error No checkpoint infrastructure for sparc at the moment. Patches welcome.
+# define CHECKPOINT_SIZE 20 /* [mfs] This is way too big! */
 #else
 # error "No checkpoint available for your architecture"
 #endif
