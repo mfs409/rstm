@@ -266,7 +266,7 @@ namespace stm
                     << app_profiles->write_nonwaw / divisor << ", "
                     << app_profiles->write_waw / divisor << ", "
                     << app_profiles->txn_time / divisor << ", "
-                    << ((100*app_profiles->timecounter)/nontxn_count) << ", "
+                    << ((100*app_profiles->timecounter)/(nontxn_count+1)) << ", "
                     << pct_ro << " #" << std::endl;
       }
 
