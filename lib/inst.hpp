@@ -149,10 +149,9 @@ namespace {
           for (size_t i = 1, e = N - 1; i < e; ++i)
               f(base + i, words[i], ~0);
 
-          // if we have a final word to read, do so (% power of two for
-          // unsigned type should be optimized)
-          if (N > 1 && (end % sizeof(void*)))
-              f(base + N - 1, words[N - 1], make_mask(0, off));
+          // if we have a final word to read, do so
+          if ((N > 1) && (end > sizeof(T)))
+              f(base + N - 1, words[N - 1], make_mask(0, off % sizeof(T)));
 
           // some algorithms want to do special stuff after accessing a
           // potentially N-word access.
@@ -181,7 +180,7 @@ namespace {
           union {
               void* words[N];
               uint8_t bytes[sizeof(void*[N])];
-          };
+          } buf = {0};
 
           // If this transaction is read-only, then we don't need to do RAW
           // checks and we should use the ReadRO function that we're
@@ -189,14 +188,14 @@ namespace {
           // WordType.
           IsReadOnly readonly;
           if (readonly(tx)) {
-              ProcessWords(addr, words, Reader<ReadRO, NullType>(tx));
+              ProcessWords(addr, buf.words, Reader<ReadRO, NullType>(tx));
           }
           else
-              ProcessWords(addr, words, Reader<ReadRW, WordType>(tx));
+              ProcessWords(addr, buf.words, Reader<ReadRW, WordType>(tx));
 
           // use the 'bytes' half of the union to return the value as the
           // correct type
-          return *reinterpret_cast<T*>(bytes + OffsetOf(addr));
+          return *reinterpret_cast<T*>(buf.bytes + OffsetOf(addr));
       }
 
       /**
@@ -221,18 +220,18 @@ namespace {
           union {
               void* words[N];
               uint8_t bytes[sizeof(void*[N])];
-          };
+          } buf = {0};
 
           // Put the to-write value into the union at the right offset.
-          *reinterpret_cast<T*>(bytes + OffsetOf(addr)) = val;
+          *reinterpret_cast<T*>(buf.bytes + OffsetOf(addr)) = val;
 
           // If this transaction is readonly, then we use the configured
           // WriteRO functor, otherwise we use the Write functor.
           IsReadOnly readonly;
           if (readonly(tx))
-              ProcessWords(addr, words, Writer<WriteRO>(tx));
+              ProcessWords(addr, buf.words, Writer<WriteRO>(tx));
           else
-              ProcessWords(addr, words, Writer<WriteRW>(tx));
+              ProcessWords(addr, buf.words, Writer<WriteRW>(tx));
       }
 
       /**
@@ -251,13 +250,13 @@ namespace {
           union {
               void* words[N];
               uint8_t bytes[sizeof(void*[N])];
-          };
+          } buf = {0};
 
           // Put the to-log value into the union at the right offset.
-          *reinterpret_cast<T*>(bytes + OffsetOf(addr)) = *addr;
+          *reinterpret_cast<T*>(buf.bytes + OffsetOf(addr)) = *addr;
 
           // repurpose the undo log for logging.
-          ProcessWords(addr, words, Writer<Logger>(tx));
+          ProcessWords(addr, buf.words, Writer<Logger>(tx));
       }
 
       /**
