@@ -66,7 +66,7 @@ void stm::WBMMPolicy::handle_full_prelimbo()
             // free the node and move on
             limbo_t* old = current;
             current = current->older;
-            free(old);
+            delete old;
         }
     }
     prelimbo = new limbo_t();
