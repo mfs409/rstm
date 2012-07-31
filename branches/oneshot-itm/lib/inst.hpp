@@ -150,8 +150,8 @@ namespace {
               f(base + i, words[i], ~0);
 
           // if we have a final word to read, do so
-          if ((N > 1) && (end > sizeof(T)))
-              f(base + N - 1, words[N - 1], make_mask(0, off % sizeof(T)));
+          if ((N > 1) && (end > sizeof(void*)))
+              f(base + N - 1, words[N - 1], make_mask(0, end % sizeof(void*)));
 
           // some algorithms want to do special stuff after accessing a
           // potentially N-word access.
