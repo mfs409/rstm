@@ -156,7 +156,7 @@ run(uintptr_t id)
         CFG.time = getElapsedTime();
     }
 
-    // wait until read of start timer finishes, then start transactios
+    // wait until read of start timer finishes, then start transactions
     barrier(1);
 
     uint32_t count = 0;
