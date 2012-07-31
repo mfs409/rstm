@@ -193,7 +193,7 @@ namespace {
 
       // Mark self status
       tx->status = COHORTS_COMMITTED;
-      //WBR;
+      WBR;// this one cannot be omitted...
 
       // Am I the last one?
       for (uint32_t i = 0;lastone != false && i < threadcount.val; ++i)
