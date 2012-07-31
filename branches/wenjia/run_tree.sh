@@ -34,12 +34,12 @@ fi
 BAY_CONFIG="-v32 -r4096 -n10 -p40 -i2 -e8 -s1"
 GEN_CONFIG="-g16384 -s64 -n16777216"
 INT_CONFIG="-a10 -l128 -n262144 -s1"
-KLO_CONFIG="-m40 -n40 -t0.00001 -i inputs/random-n65536-d32-c16.txt"
-KHI_CONFIG="-m15 -n15 -t0.00001 -i inputs/random-n65536-d32-c16.txt"
+KLO_CONFIG="-m40 -n40 -T0.00001 -i inputs/random-n65536-d32-c16.txt"
+KHI_CONFIG="-m15 -n15 -T0.00001 -i inputs/random-n65536-d32-c16.txt"
 LAB_CONFIG="-i inputs/random-x512-y512-z7-n512.txt"
 SSC_CONFIG="-s20 -i1.0 -u1.0 -l3 -p3"
-VLO_CONFIG="-n2 -q90 -u98 -r1048576 -t4194304"
-VHI_CONFIG="-n4 -q60 -u90 -r1048576 -t4194304"
+VLO_CONFIG="-n2 -q90 -u98 -r1048576 -T4194304"
+VHI_CONFIG="-n4 -q60 -u90 -r1048576 -T4194304"
 YAD_CONFIG="-a15 -i inputs/ttimeu100000.2"
 TR1_CONFIG="-m256 -R33"
 TR2_CONFIG="-m1048576 -R33"
@@ -49,7 +49,7 @@ TR3_CONFIG="-m1048576 -R80"
 # array 1:  our mnemonic for this experiment
 names=( "" bay gen int klo khi lab ssc vlo vhi yad tree1 tree2 tree3 )
 # array 2:  the name of the 'threads' parameter
-tparam=( "" t t t p p t t c c t p p p)
+tparam=( "" t t t t t t t t t t p p p)
 # array 3:  the name of the executable to run
 exes=( "" ./bayes/$OBJ/bayes  ./genome/$OBJ/genome  ./intruder/$OBJ/intruder  ./kmeans/$OBJ/kmeans ./kmeans/$OBJ/kmeans  ./labyrinth_ext1/$OBJ/labyrinth  ./ssca2/$OBJ/ssca2  ./vacation/$OBJ/vacation  ./vacation/$OBJ/vacation  ./yada/$OBJ/yada ./bench/$OBJ/TreeBench ./bench/$OBJ/TreeBench ./bench/$OBJ/TreeBench)
 # the config strings are tricky, so do them this way
