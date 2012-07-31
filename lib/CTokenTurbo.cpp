@@ -228,6 +228,9 @@ namespace {
               validate(tx, last_complete.val);
           return tmp;
       }
+
+      void preRead(TX*) {}
+      void postRead(TX*) {}
   };
 
   /**
@@ -264,6 +267,9 @@ namespace {
           }
           return tmp;
       }
+
+      void preRead(TX*) {}
+      void postRead(TX*) {}
   };
 
   /** CTokenTurbo write */
@@ -296,6 +302,9 @@ namespace {
               tx->writes.insert(addr, val, mask);
           }
       }
+
+      void preWrite(TX*) {}
+      void postWrite(TX*) {}
   };
 
   template <typename T>

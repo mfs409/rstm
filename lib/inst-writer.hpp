@@ -25,6 +25,14 @@ namespace stm {
       void operator()(void** address, void* value, uintptr_t mask) const {
           write(address, value, tx, mask);
       }
+
+      void preAccess() {
+          write.preWrite(tx);
+      }
+
+      void postAccess() {
+          write.postWrite(tx);
+      }
   };
 }
 

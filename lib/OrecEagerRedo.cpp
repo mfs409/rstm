@@ -216,6 +216,9 @@ namespace {
               tx->start_time = newts;
           }
       }
+
+      void preRead(TX*) {}
+      void postRead(TX*) {}
   };
 
   /**
@@ -258,6 +261,9 @@ namespace {
               tx->start_time = newts;
           }
       }
+
+      void preWrite(TX*) {}
+      void postWrite(TX*) {}
   };
 
   template <typename T>

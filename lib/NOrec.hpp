@@ -161,6 +161,9 @@ namespace {
           tx->vlist.insert(addr, tmp, mask);
           return tmp;
       }
+
+      void preRead(TX*) {}
+      void postRead(TX*) {}
   };
 }
 

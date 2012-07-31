@@ -242,6 +242,9 @@ namespace {
           // return the value we read
           return tmp;
       }
+
+      void preRead(TX*) {}
+      void postRead(TX*) {}
   };
 }
 

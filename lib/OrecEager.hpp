@@ -190,6 +190,9 @@ namespace {
    *    Must check orec twice, and may need to validate
    */
   struct Read {
+      void preRead(TX*) {}
+      void postRead(TX*) {}
+
       void* operator()(void** addr, TX* tx, uintptr_t) const {
           // get the orec addr, then start loop to read a consistent value
           orec_t* o = get_orec(addr);
@@ -230,6 +233,9 @@ namespace {
 
   template <typename WordType>
   struct Write {
+      void preWrite(TX*) {}
+      void postWrite(TX*) {}
+
       void operator()(void** addr, void* val, TX* tx, uintptr_t mask) const {
           // get the orec addr, then enter loop to get lock from a consistent
           // state

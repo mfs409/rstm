@@ -29,6 +29,14 @@ namespace stm {
       operator()(void** address, void*& w, uintptr_t mask) const {
           w = read(address, tx, mask);
       }
+
+      void preAccess() {
+          read.preRead(tx);
+      }
+
+      void postAccess() {
+          read.postRead(tx);
+      }
   };
 
   template <class Read>
@@ -43,6 +51,14 @@ namespace stm {
       operator()(void** address, void*& w, uintptr_t mask) const {
           if (!tx->writes.find(address, w))
               w = read(address, tx, mask);
+      }
+
+      void preAccess() {
+          read.preRead(tx);
+      }
+
+      void postAccess() {
+          read.postRead(tx);
       }
   };
 
@@ -60,6 +76,14 @@ namespace stm {
               uintptr_t mem = (uintptr_t)read(address, tx, missing);
               w = (void*)((uintptr_t)w ^ (((uintptr_t)w ^ mem) & missing));
           }
+      }
+
+      void preAccess() {
+          read.preRead(tx);
+      }
+
+      void postAccess() {
+          read.postRead(tx);
       }
   };
 }

@@ -108,6 +108,9 @@ namespace {
           void operator()(void** addr, void* val, TX* tx, uintptr_t mask) const {
               tx->undo_log.insert(addr, val, mask);
           }
+
+          void preWrite(TX*) {}
+          void postWrite(TX*) {}
       };
 
       static inline size_t OffsetOf(const T* const addr) {
@@ -127,13 +130,17 @@ namespace {
        */
       template <typename F, size_t N>
       static void __attribute__((always_inline))
-      ProcessWords(T* addr, void* (&words)[N], const F& f) {
+      ProcessWords(T* addr, void* (&words)[N], F f) {
           // get the base and the offset of the address, in case we're dealing
           // with a sub-word or unaligned access. BaseOf and OffsetOf return
           // constants whenever they can.
           void** const base = BaseOf(addr);
           const size_t off = OffsetOf(addr);
           const size_t end = off + sizeof(T);
+
+          // some algorithms want to do special stuff before performing a
+          // potentially N > 1 word access.
+          f.preAccess();
 
           // deal with the first word (there's always at least one)
           f(base, words[0], make_mask(off, min(sizeof(void*), end)));
@@ -146,6 +153,10 @@ namespace {
           // unsigned type should be optimized)
           if (N > 1 && (end % sizeof(void*)))
               f(base + N - 1, words[N - 1], make_mask(0, off));
+
+          // some algorithms want to do special stuff after accessing a
+          // potentially N-word access.
+          f.postAccess();
       }
 
     public:
@@ -177,8 +188,9 @@ namespace {
           // configured with. Otherwise, do RAW checks based on the configured
           // WordType.
           IsReadOnly readonly;
-          if (readonly(tx))
+          if (readonly(tx)) {
               ProcessWords(addr, words, Reader<ReadRO, NullType>(tx));
+          }
           else
               ProcessWords(addr, words, Reader<ReadRW, WordType>(tx));
 
@@ -360,6 +372,9 @@ namespace {
           void operator()(void** addr, void* val, TX* tx, uintptr_t mask) const {
               tx->writes.insert(addr, val, mask);
           }
+
+          void preWrite(TX*) {}
+          void postWrite(TX*) {}
       };
 
       typedef GenericInst<T, true, Word, CheckWritesetForReadOnly,
