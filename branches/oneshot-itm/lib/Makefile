@@ -92,7 +92,7 @@ librstm: $(ADAPTHEADER) $(LIBS) $(ADAPTLIB)
 #
 $(ODIR)/%.o: %.cpp
 	@echo [CXX] $< "-->" $@
-	$(_V)$(CXX) $(CXXFLAGS) -c -o $@ $<
+	$(_V)$(CXX) $(filter-out -fgnu-tm,$(CXXFLAGS)) -c -o $@ $<
 #
 # Rule for building individual files in the lib folder
 #

@@ -225,6 +225,9 @@ namespace {
           tx->r_orecs.insert(get_orec(addr));
           return *addr;
       }
+
+      void preRead(TX*) {}
+      void postRead(TX*) {}
   };
   /**
    *  Eager transactional write.
@@ -267,6 +270,9 @@ namespace {
           // record the new value in a redo log
           tx->writes.insert(addr, val, mask);
       }
+
+      void preWrite(TX*) {}
+      void postWrite(TX*) {}
   };
 
   template <typename T>

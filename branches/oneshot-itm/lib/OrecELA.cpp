@@ -269,6 +269,9 @@ namespace {
               tx->start_time = (newts < cs) ? newts : cs;
           }
       }
+
+      void preRead(TX*) {}
+      void postRead(TX*) {}
   };
 }
 

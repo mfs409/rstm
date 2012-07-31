@@ -166,6 +166,9 @@ namespace {
               validate(tx, last_complete.val);
           return tmp;
       }
+
+      void preRead(TX*) {}
+      void postRead(TX*) {}
   };
 
   struct Write {
@@ -178,6 +181,9 @@ namespace {
           // record the new value in a redo log
           tx->writes.insert(addr, val, mask);
       }
+
+      void preWrite(TX*) {}
+      void postWrite(TX*) {}
   };
 
   template <typename T>

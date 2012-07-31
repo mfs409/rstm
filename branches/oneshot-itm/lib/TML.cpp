@@ -113,18 +113,29 @@ void alg_tm_end() {
 namespace {
   struct Read {
       void* operator()(void** addr, TX* tx, uintptr_t mask) const {
-          void* val = *addr;
+          return *addr;
+      }
+
+      void preRead(TX*) {
+      }
+
+      void postRead(TX* tx) {
           afterread_TML(tx);
-          return val;
       }
   };
 
   template <class WordType>
   struct Write {
       void operator()(void** addr, void* val, TX* tx, uintptr_t mask) const {
-          beforewrite_TML(tx);
           WordType::Write(addr, val, mask);
       }
+
+      void preWrite(TX* tx) {
+          beforewrite_TML(tx);
+      }
+
+      void postWrite(TX*) {
+      };
   };
 
   template <typename T>

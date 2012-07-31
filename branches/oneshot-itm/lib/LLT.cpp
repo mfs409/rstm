@@ -174,6 +174,9 @@ namespace {
           tx->r_orecs.insert(o);
           return tmp;
       }
+
+      void preRead(TX*) {}
+      void postRead(TX*) {}
   };
 }
 

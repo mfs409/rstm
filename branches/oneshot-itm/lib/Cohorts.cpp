@@ -198,6 +198,9 @@ namespace {
           tx->r_orecs.insert(get_orec(addr));
           return *addr;
       }
+
+      void preRead(TX*) {}
+      void postRead(TX*) {}
   };
 }
 

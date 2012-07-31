@@ -198,6 +198,9 @@ namespace {
               tx->start_time = newts;
           }
       }
+
+      void preRead(TX*) {}
+      void postRead(TX*) {}
   };
 }
 
