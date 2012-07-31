@@ -293,7 +293,6 @@ _rstm_restore_checkpoint:
     .type   _ITM_beginTransaction, #function
     .register %g3, #scratch
     .register %g2, #scratch
-    .returns_twice
 _ITM_beginTransaction:
 
     // Step 1: need to get the TLS information into a usable register.  Note
