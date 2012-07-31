@@ -309,34 +309,32 @@ _ITM_beginTransaction:
     add   %g2, %o7, %g2 // g2 holds pc plus got addr
     or    %g0, %g1, %o7 // o7 restored to original value
     ld    [%g2+%g3], %g1, %tie_ld(_ZN3stm4SelfE) // o1 holds address of most of Self
-    add   %g7, %g1, %g1,%tie_add(_ZN3stm4SelfE) // o0 adds in the g7 magic
-    ld    [%g1], %o0 // dereference to get the pointer to the descriptor into o0
+    add   %g7, %g1, %g1,%tie_add(_ZN3stm4SelfE) // g1 adds in the g7 magic
+    ld    [%g1], %g1 // dereference to get the pointer to the descriptor into g1
 
-    // now that %o0 has the pointer to the descriptor, we can do this code:
+    // now that %g1 has the pointer to the descriptor, we can do this code:
     //  if (++tx->nesting_depth > 1) return;
-    ld  [%o0], %o4 // %o4 holds the value of the nesting depth
-    add %o4, 1, %o5 // nesting_depth++
-    cmp %o5, 1
+    ld  [%g1], %g2 // %g2 holds the value of the nesting depth
+    add %g2, 1, %g3 // nesting_depth++
+    cmp %g3, 1
     bgu,pn  %icc, .frameearlyexit_ITM_beginTransaction_
-    st  %o5, [%o0]
+    st  %g3, [%g1]
 
     // now it's time to do tx->in_tx = 1; WBR.  We can do this with a stb instruction
-    or %g0, 1, %o4
-    stb %o4, [%o0+4] ! volatile
+    or %g0, 1, %g2
+    stb %g2, [%g1+4] ! volatile
 
     // Save SP, FP, PC (return address)
-    st  %i7, [%o0+(4*15)]
-    st  %fp, [%o0+(4*16)]
-    st  %sp, [%o0+(4*17)]
-    add %o7, 8, %g1
-    st  %g1, [%o0+(4*19)]       // return address is caller + 8
+    st  %i7, [%g1+(4*15)]
+    st  %fp, [%g1+(4*16)]
+    st  %sp, [%g1+(4*17)]
+    add %o7, 8, %g2
+    st  %g2, [%g1+(4*19)]       // return address is caller + 8
 
     // the tick stuff should go here
 
     // load the function pointer from TLS
     sethi  %hi(_ZN3stm7tmbeginE), %g2
-    //or  %g2,%m44(_ZN3stm7tmbeginE),%g3
-    //sll     %g3,12,%g3
     ld  [%g2+%lo(_ZN3stm7tmbeginE)],%g2 ! volatile
     jmpl    %g2,%g0
     nop
