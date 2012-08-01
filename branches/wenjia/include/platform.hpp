@@ -339,7 +339,7 @@ inline uint64_t tick()
 inline uint64_t tickp()
 {
     uint32_t tmp[2];
-    asm volatile ("rdtscp" : "=a" (tmp[1]), "=d" (tmp[0]) : "c" (0x10) );
+    asm volatile ("rdtscp" : "=a" (tmp[1]), "=d" (tmp[0]) : "c" (0x10) : "memory");
     return (((uint64_t)tmp[0]) << 32) | tmp[1];
 }
 #endif
@@ -504,7 +504,8 @@ inline uint64_t getElapsedTime()
 /**
  *  Yield the CPU
  */
-inline void yield_cpu() {
+inline void yield_cpu()
+{
     sched_yield();
 }
 

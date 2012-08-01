@@ -314,13 +314,14 @@ _ITM_beginTransaction:
 
     // now that %g1 has the pointer to the descriptor, we can do this code:
     //  if (++tx->nesting_depth > 1) return;
-    ld  [%g1], %g2 // %g2 holds the value of the nesting depth
-    add %g2, 1, %g3 // nesting_depth++
-    cmp %g3, 1
+    ld      [%g1], %g2  // %g2 holds the value of the nesting depth
+    add     %g2, 1, %g3 // nesting_depth++
+    cmp     %g3, 1
     bgu,pn  %icc, .frameearlyexit_ITM_beginTransaction_
-    st  %g3, [%g1]
+    st      %g3, [%g1]
 
-    // now it's time to do tx->in_tx = 1; WBR.  We can do this with a stb instruction
+    // now it's time to do tx->in_tx = 1; WBR.  We can do this with a stb
+    // instruction
     or %g0, 1, %g2
     stb %g2, [%g1+4] ! volatile
 
@@ -328,15 +329,22 @@ _ITM_beginTransaction:
     st  %i7, [%g1+(4*15)]
     st  %fp, [%g1+(4*16)]
     st  %sp, [%g1+(4*17)]
-    add %o7, 8, %g2
-    st  %g2, [%g1+(4*19)]       // return address is caller + 8
+    // [mfs] This next line ***SHOULD BE*** incorrect.  We're indicating that
+    //       the continuation should return into the delay slot, instead of
+    //       returning to the instruction after the delay slot (Note: the
+    //       continuation calls retl, so it jumps to o7+8).  Yet, for some
+    //       reason, doing this works for TreeBench (and has no impact on
+    //       CounterBench), whereas skipping the sub and saving %o7 directly
+    //       leads to crashes in TreeBench.
+    sub %o7, 4, %g2
+    st  %g2, [%g1+(4*19)]
 
     // the tick stuff should go here
 
     // load the function pointer from TLS
     sethi  %hi(_ZN3stm7tmbeginE), %g2
-    ld  [%g2+%lo(_ZN3stm7tmbeginE)],%g2 ! volatile
-    jmpl    %g2,%g0
+    ld     [%g2+%lo(_ZN3stm7tmbeginE)],%g2 ! volatile
+    jmpl   %g2,%g0
     nop
 .frameearlyexit_ITM_beginTransaction_:
     retl

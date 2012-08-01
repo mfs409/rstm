@@ -111,7 +111,7 @@ namespace
       TxThread* tx = stm::Self;
       // sample the timestamp and prepare local structures
       tx->allocator.onTxBegin();
-      tx->start_time = tick();
+      tx->start_time = tickp();
       CM::onBegin(tx);
   }
 
@@ -137,7 +137,7 @@ namespace
       }
 
       // increment the global timestamp
-      uintptr_t end_time = tick();
+      uintptr_t end_time = tickp();
 
       // skip validation if nobody else committed since my last validation
       //if (end_time != (tx->start_time + 1)) {
@@ -204,7 +204,7 @@ namespace
           tx->tmabort();
 
           // scale timestamp if ivt is too new, then try again
-          uintptr_t newts = tick();
+          uintptr_t newts = tickp();
           validate(tx);
           tx->start_time = newts;
       }
@@ -254,7 +254,7 @@ namespace
           tx->tmabort();
 
           // unlocked but too new... scale forward and try again
-          uintptr_t newts = tick();
+          uintptr_t newts = tickp();
           validate(tx);
           tx->start_time = newts;
       }
