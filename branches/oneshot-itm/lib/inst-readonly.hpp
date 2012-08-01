@@ -21,7 +21,7 @@ namespace stm {
    *  ReadOnly transactions.
    */
   struct NoReadOnly {
-      bool operator()(TX* tx) const {
+      bool operator()(TX*) const {
           return false;
       }
   };

@@ -14,5 +14,5 @@ namespace stm
   __thread TX* Self = NULL;
 
   /*** Count of all threads ***/
-  pad_word_t threadcount = {0};
+  pad_word_t threadcount = {0, {0}};
 }

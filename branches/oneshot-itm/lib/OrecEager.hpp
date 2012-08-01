@@ -61,7 +61,7 @@ using namespace stm;
  */
 
 /*** The only metadata we need is a single global padded lock ***/
-static pad_word_t timestamp = {0};
+static pad_word_t timestamp = {0,{0}};
 
 template <class CM>
 static void alg_tm_rollback(TX* tx)

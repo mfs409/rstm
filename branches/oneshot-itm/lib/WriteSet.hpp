@@ -198,7 +198,7 @@ namespace stm {
                                   ilength(0), version(1), list(NULL),
                                   capacity(init), lsize(0) {
           // find a "good" index size for the initial capacity of the list
-          while (doubleIndexLength() < 3 * init)
+          while (doubleIndexLength() < 3u * (unsigned)init)
               ;
           index = new IndexType[ilength];
           list = new ListType[init];

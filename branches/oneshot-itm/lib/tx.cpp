@@ -101,6 +101,6 @@ pthread_create(pthread_t *thread, const pthread_attr_t *attr,
 
 namespace stm {
   // for CM
-  pad_word_t fcm_timestamp = {0};
-  pad_word_t epochs[MAX_THREADS] = {{0}};
+  pad_word_t fcm_timestamp = {0,{0}};
+  pad_word_t epochs[MAX_THREADS] = {{0,{0}}};
 }

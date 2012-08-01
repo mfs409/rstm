@@ -59,7 +59,7 @@ static void alg_tm_rollback(TX* tx)
 }
 
 /*** The only metadata we need is a single global padded lock ***/
-static pad_word_t timestamp = {0};
+static pad_word_t timestamp = {0,{0}};
 
 /**
  *  OrecLazy begin:

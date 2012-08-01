@@ -288,8 +288,7 @@ namespace stm {
    *  The basic low level memcpy loop is simple.
    */
   template <typename Reader, typename Writer, typename Buffer>
-  static void* memcpy_inner(void* dest, const void* src, size_t n,
-                            Reader& read, Writer& write, Buffer& buffer)
+  static void memcpy_inner(Reader& read, Writer& write, Buffer& buffer)
   {
       // while we still have bytes to write
       // do
@@ -304,8 +303,6 @@ namespace stm {
       //     increment write cursor
       //
       //   rebase the buffer to deal with remaining bytes
-      //
-      // return dest
       while (!write.complete()) {
           while (!read.complete() && read.tryPut(buffer))
               ++read;
@@ -315,8 +312,6 @@ namespace stm {
 
           buffer.rebase();
       }
-
-      return dest;
   }
 
   /**
@@ -329,7 +324,8 @@ namespace stm {
       MemcpyBuffer<2> buffer;
       MemcpyCursor<ReadWord> read(src, n, r);
       MemcpyCursor<WriteWord> write(dest, n, w);
-      return memcpy_inner(dest, src, n, read, write, buffer);
+      memcpy_inner(read, write, buffer);
+      return dest;
   }
 
   /**
@@ -342,7 +338,8 @@ namespace stm {
       MemcpyReverseBuffer<2> buffer;
       MemcpyReverseCursor<ReadWord> read(src, n, r);
       MemcpyReverseCursor<WriteWord> write(dest, n, w);
-      return memcpy_inner(dest, src, n, read, write, buffer);
+      memcpy_inner(read, write, buffer);
+      return dest;
   }
 
   struct NonTxRead {

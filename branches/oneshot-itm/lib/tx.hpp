@@ -81,11 +81,31 @@ namespace stm {
       bool           strong_HG;     // for strong hourglass
 
       /*** constructor ***/
-      TX() : nesting_depth(0), commits_ro(0), commits_rw(0), aborts(0),
-             checkpoint(), allocator(), start_time(0), writes(64),
-             locks(64), vlist(64), r_orecs(64), ts_cache(0), order(-1),
-             turbo(false), userCallbacks(), cxa_catch_count(0),
-             cxa_unthrown(0), end_time(0), undo_log(64) {
+      TX() : nesting_depth(0),
+             checkpoint(),
+             id(),
+             ts_cache(0),
+             order(-1),
+             start_time(0),
+             my_lock(),
+             locks(64),
+             r_orecs(64),
+             writes(64),
+             vlist(64),
+             end_time(0),
+             undo_log(64),
+             turbo(false),
+             userCallbacks(),
+             cxa_catch_count(0),
+             cxa_unthrown(0),
+             commits_ro(0),
+             commits_rw(0),
+             aborts(0),
+             allocator(),
+             consec_aborts(0),
+             seed(0),
+             alive(0),
+             strong_HG(false) {
           id = faiptr(&threadcount.val);
           threads[id] = this;
           // set up my lock word

@@ -22,7 +22,7 @@
 PLATFORM  = dragoneggtm_linux_x86_64_opt
 CXX       = g++ -fplugin=dragonegg
 CC       ?= gcc -fplugin=dragonegg
-CXXFLAGS += -O3 -ggdb -m64 -march=native -mtune=native -msse2 -mfpmath=sse -fgnu-tm
+CXXFLAGS += -O3 -ggdb -m64 -march=native -mtune=native -msse2 -mfpmath=sse -fgnu-tm -fno-strict-aliasing -Wall -Wextra -Werror
 LDFLAGS  += -ldl -lrt -lpthread -m64
 
 #
