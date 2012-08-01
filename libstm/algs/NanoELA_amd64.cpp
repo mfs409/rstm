@@ -100,7 +100,7 @@ namespace
       TxThread* tx = stm::Self;
       // as per Menon SPAA 2008, we need to start by updating our
       // linearization time
-      uint64_t mynum = tick();
+      uint64_t mynum = tickp();
       tx->last_val_time = mynum;
       CFENCE;
 

@@ -65,7 +65,7 @@ namespace {
       TxThread* tx = stm::Self;
       tx->allocator.onTxBegin();
       // get a start time
-      tx->start_time = tick();
+      tx->start_time = tickp();
   }
 
   /**
@@ -112,7 +112,7 @@ namespace {
       }
 
       // increment the global timestamp since we have writes
-      uintptr_t end_time = tick();
+      uintptr_t end_time = tickp();
 
       // validate
       validate(tx);

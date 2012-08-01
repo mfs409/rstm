@@ -46,6 +46,33 @@ namespace stm
    * far as actually doing memory allocation. Callers should delete[] the
    * index table, increment the table size, and then reallocate it.
    */
+#if defined(STM_OVERRIDE_WRITESET_LIST)
+
+  /***  Writeset constructor.  Note that the version must start at 1. */
+  WriteSet::WriteSet(const size_t initial_capacity)
+      : list(NULL), capacity(initial_capacity), lsize(0)
+  {
+      list  = typed_malloc<WriteSetEntry>(capacity);
+  }
+
+  /***  Writeset destructor */
+  WriteSet::~WriteSet()
+  {
+      free(list);
+  }
+
+  /***  Resize the writeset */
+  void WriteSet::resize()
+  {
+      WriteSetEntry* temp  = list;
+      capacity     *= 2;
+      list          = typed_malloc<WriteSetEntry>(capacity);
+      memcpy(list, temp, sizeof(WriteSetEntry) * lsize);
+      free(temp);
+  }
+
+
+#else
   inline size_t WriteSet::doubleIndexLength()
   {
       assert(shift != 0 &&
@@ -135,6 +162,7 @@ namespace stm
   }
 #else
   // rollback was inlined
+#endif
 #endif
 
 #if !defined(STM_ABORT_ON_THROW)
