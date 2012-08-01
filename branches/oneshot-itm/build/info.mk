@@ -22,7 +22,8 @@ PLATFORMS = lib_gcc_linux_ia32_dbg      lib_gcc_linux_ia32_opt		 \
             lib_gcc_solaris_x86_64_dbg  lib_gcc_solaris_x86_64_opt   \
             gcctm_solaris_ia32_dbg      gcctm_solaris_ia32_opt       \
             gcctm_solaris_x86_64_dbg    gcctm_solaris_x86_64_opt     \
-            lib_clang_linux_x86_64_dbg  lib_clang_linux_x86_64_opt
+            lib_clang_linux_x86_64_dbg  lib_clang_linux_x86_64_opt   \
+            dragoneggtm_linux_ia32_opt  dragoneggtm_linux_x86_64_opt
 
 info:
 	@echo "You must specify your platform as the build target."
@@ -55,3 +56,7 @@ info:
 	@echo "      gcctm API, gcc, Solaris, x86, 64-bit, -O0"
 	@echo "  gcctm_solaris_x86_64_opt"
 	@echo "      gcctm API, gcc, Solaris, x86, 64-bit, -O3"
+	@echo "  dragoneggtm_linux_ia32_opt"
+	@echo "      gcctm API, gcc+dragonegg, Linux, x86, 32-bit, -O3"
+	@echo "  dragoneggtm_linux_x86_64_opt"
+	@echo "      gcctm API, gcc+dragonegg, Linux, x86, 64-bit, -O3"
