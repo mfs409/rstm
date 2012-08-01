@@ -203,7 +203,7 @@ namespace {
       STM_LOG_VALUE(tx, addr, tmp, mask);
       // test if I can go turbo
       if (tx->status == TURBO)
-          GoTurbo(tx, read_turbo, write_turbo, commit_turbo);
+          stm::GoTurbo(read_turbo, write_turbo, commit_turbo);
       return tmp;
   }
 
@@ -225,7 +225,7 @@ namespace {
       // test if I can go turbo
       if (tx->status == TURBO) {
           tx->writes.writeback();
-          GoTurbo(tx, read_turbo, write_turbo, commit_turbo);
+          stm::GoTurbo(read_turbo, write_turbo, commit_turbo);
       }
       return tmp;
   }
@@ -241,11 +241,11 @@ namespace {
           // in place write
           *addr = val;
           // go turbo mode
-          OnFirstWrite(tx, read_turbo, write_turbo, commit_turbo);
+          stm::OnFirstWrite(read_turbo, write_turbo, commit_turbo);
           return;
       }
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
-      OnFirstWrite(tx, read_rw, write_rw, commit_rw);
+      stm::OnFirstWrite(read_rw, write_rw, commit_rw);
   }
 
   /**
@@ -272,7 +272,7 @@ namespace {
           // in place write
           *addr = val;
           // go turbo mode
-          OnFirstWrite(tx, read_turbo, write_turbo, commit_turbo);
+          stm::OnFirstWrite(read_turbo, write_turbo, commit_turbo);
           return;
       }
       // record the new value in a redo log

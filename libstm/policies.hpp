@@ -240,7 +240,7 @@ namespace stm
   };
 
   /*** Used in txthread to initialize the policy subsystem */
-  void pol_init(const char* mode);
+  void pol_init();
 
   /**
    *  Just like stm_name_map, we sometimes need to turn a policy name into its

@@ -104,7 +104,11 @@ namespace
       // read-only
       tx->r_orecs.reset();
       OnReadOnlyCommit(tx);
+#ifdef STM_BITS_32
+      stm::UNRECOVERABLE("Error: trying to run in 32-bit mode!");
+#else
       tx->start_time = 0x7FFFFFFFFFFFFFFFLL;
+#endif
   }
 
   /**
@@ -159,7 +163,11 @@ namespace
       CFENCE;
 
       // announce that I'm done
+#ifdef STM_BITS_32
+      stm::UNRECOVERABLE("Error: attempting to run 64-bit algorithm in 32-bit code.");
+#else
       tx->start_time = 0x7FFFFFFFFFFFFFFFLL;
+#endif
 
       // release locks
       foreach (OrecList, i, tx->locks)
@@ -176,7 +184,7 @@ namespace
 
       // quiesce
       CFENCE;
-      for (int id = 0; id < stm::threadcount.val; ++id)
+      for (uint32_t id = 0; id < stm::threadcount.val; ++id)
           while (stm::threads[id]->last_val_time < end_time) spin64();
   }
 
@@ -256,7 +264,7 @@ namespace
       TxThread* tx = stm::Self;
       // add to redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
-      OnFirstWrite(tx, read_rw, write_rw, commit_rw);
+      stm::OnFirstWrite(read_rw, write_rw, commit_rw);
   }
 
   /**
@@ -310,7 +318,7 @@ namespace
    *
    *    Either commit the transaction or return false.
    */
-   bool irrevoc(TxThread* tx)
+   bool irrevoc(TxThread*)
    {
        return false;
        // NB: In a prior release, we actually had a full OrecELA_amd64 commit

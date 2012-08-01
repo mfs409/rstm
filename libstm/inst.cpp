@@ -20,7 +20,7 @@
 namespace stm
 {
 
-  void install_algorithm_local(int new_alg, TxThread* tx)
+  void install_algorithm_local(int new_alg)
   {
       // set my read/write/commit pointers
       tmread     = stms[new_alg].read;

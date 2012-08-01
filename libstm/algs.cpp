@@ -19,7 +19,7 @@ namespace stm
    *  This is the Orec Timestamp, the NOrec/TML seqlock, the CGL lock, and the
    *  RingSW ring index
    */
-  pad_word_t timestamp = {0};
+  pad_word_t timestamp = {0, {0}};
 
   /**
    *  Sometimes we use the Timestamp not as a counter, but as a bool.  If we
@@ -29,49 +29,49 @@ namespace stm
    *  This is only used within STM implementations, to log and recover the
    *  value
    */
-  pad_word_t timestamp_max = {0};
+  pad_word_t timestamp_max = {0, {0}};
 
   /*** the set of orecs (locks) */
-  orec_t orecs[NUM_STRIPES] = {{{{0}}}};
+  orec_t orecs[NUM_STRIPES] = {{{{0, 0}}, 0}};
 
   /*** the set of nanorecs */
-  orec_t nanorecs[RING_ELEMENTS] = {{{{0}}}};
+  orec_t nanorecs[RING_ELEMENTS] = {{{{0, 0}}, 0}};
 
   /*** the ring */
-  pad_word_t last_complete = {0};
-  pad_word_t last_init     = {0};
+  pad_word_t last_complete = {0, {0}};
+  pad_word_t last_init     = {0, {0}};
   filter_t   ring_wf[RING_ELEMENTS] TM_ALIGN(16);
 
   /*** priority stuff */
-  pad_word_t prioTxCount       = {0};
+  pad_word_t prioTxCount       = {0, {0}};
   rrec_t     rrecs[RREC_COUNT] = {{{0}}};
 
   /*** the table of bytelocks */
-  bytelock_t bytelocks[NUM_STRIPES] = {{0}};
+  bytelock_t bytelocks[NUM_STRIPES] = {{0, {0}}};
 
   /*** the table of bitlocks */
-  bitlock_t bitlocks[NUM_STRIPES] = {{0}};
+  bitlock_t bitlocks[NUM_STRIPES] = {{0, {{0}}}};
 
   /*** the array of epochs */
-  pad_word_t epochs[MAX_THREADS] = {{0}};
+  pad_word_t epochs[MAX_THREADS] = {{0, {0}}};
 
   /*** Swiss greedy CM */
-  pad_word_t greedy_ts = {0};
+  pad_word_t greedy_ts = {0, {0}};
 
   /*** for MCS */
   mcs_qnode_t* mcslock = NULL;
 
   /*** for Ticket */
-  ticket_lock_t ticketlock  = {0};
+  ticket_lock_t ticketlock  = {0, 0};
 
   /*** for some CMs */
-  pad_word_t fcm_timestamp = {0};
+  pad_word_t fcm_timestamp = {0, {0}};
 
   /*** for Cohorts */
   volatile uint32_t locks[9] = {0};
-  pad_word_t started = {0};
-  pad_word_t cpending = {0};
-  pad_word_t committed = {0};
+  pad_word_t started = {0, {0}};
+  pad_word_t cpending = {0, {0}};
+  pad_word_t committed = {0, {0}};
   volatile int32_t last_order = 1;
   volatile uint32_t gatekeeper = 0;
   filter_t* global_filter = (filter_t*)FILTER_ALLOC(sizeof(filter_t));
@@ -79,11 +79,11 @@ namespace stm
   AddressList addrs = AddressList (64);
 
   /*** for Fastlane*/
-  pad_word_t helper = {0};
+  pad_word_t helper = {0, {0}};
 
   /*** for PTM*/
-  pad_word_t global_version = {1};
-  pad_word_t writer_lock = {0};
+  pad_word_t global_version = {1, {0}};
+  pad_word_t writer_lock = {0, {0}};
 
   /*** Store descriptions of the STM algorithms */
   alg_t stms[ALG_MAX];

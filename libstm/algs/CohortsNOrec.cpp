@@ -107,7 +107,7 @@ namespace {
   {
       TxThread* tx = stm::Self;
       // order of first tx in cohort
-      uint32_t first = last_complete.val + 1;
+      int32_t first = last_complete.val + 1;
       CFENCE;
 
       tx->order = ADD(&cpending.val, 1);
@@ -181,7 +181,7 @@ namespace {
       TxThread* tx = stm::Self;
       // record the new value in a redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
-      OnFirstWrite(tx, read_rw, write_rw, commit_rw);
+      stm::OnFirstWrite(read_rw, write_rw, commit_rw);
   }
 
   /**

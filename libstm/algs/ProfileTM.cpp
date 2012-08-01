@@ -86,7 +86,7 @@ namespace
 #ifdef STM_CPU_SPARC
           tx->in_tx = 1; WBR;
 #else
-          casptr(&tx->in_tx, 0, 1);
+          (void)casptr(&tx->in_tx, 0, 1);
 #endif
           // read the begin function pointer AFTER setting the in_tx flag
           beginner = stm::tmbegin;
@@ -165,7 +165,6 @@ namespace
   void*
   ProfileTM::read_ro(STM_READ_SIG(addr,))
   {
-      TxThread* tx = stm::Self;
       ++profiles[last_complete.val].read_ro;
       return *addr;
   }
@@ -198,7 +197,7 @@ namespace
       // do a buffered write
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
       ++profiles[last_complete.val].write_waw;
-      OnFirstWrite(tx, read_rw, write_rw, commit_rw);
+      stm::OnFirstWrite(read_rw, write_rw, commit_rw);
   }
 
   /**

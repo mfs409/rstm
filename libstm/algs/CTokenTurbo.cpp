@@ -71,7 +71,7 @@ namespace {
       //
       // NB: this only applies to transactions that aborted after doing a write
       if (tx->ts_cache == ((uintptr_t)tx->order - 1))
-          GoTurbo(tx, read_turbo, write_turbo, commit_turbo);
+          stm::GoTurbo(read_turbo, write_turbo, commit_turbo);
   }
 
   /**
@@ -222,7 +222,7 @@ namespace {
       // record the new value in a redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
 
-      OnFirstWrite(tx, read_rw, write_rw, commit_rw);
+      stm::OnFirstWrite(read_rw, write_rw, commit_rw);
 
       // go turbo?
       //
@@ -268,7 +268,7 @@ namespace {
   {
       PreRollback(tx);
       // we cannot be in turbo mode
-      if (CheckTurboMode(tx, read_turbo))
+      if (stm::CheckTurboMode(read_turbo))
           UNRECOVERABLE("Attempting to abort a turbo-mode transaction!");
 
       // Perform writes to the exception object if there were any... taking the
@@ -330,7 +330,7 @@ namespace {
                   CFENCE; // WBW
                   *i->addr = i->val;
               }
-              GoTurbo(tx, read_turbo, write_turbo, commit_turbo);
+              stm::GoTurbo(read_turbo, write_turbo, commit_turbo);
           }
       }
   }

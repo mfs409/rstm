@@ -248,7 +248,7 @@ namespace {
               // add entry to the global filter
               global_filter->add(addr);
               // go turbo mode
-              OnFirstWrite(tx, read_turbo, write_turbo, commit_turbo);
+              stm::OnFirstWrite(read_turbo, write_turbo, commit_turbo);
               return;
           }
           // reset flag
@@ -256,7 +256,7 @@ namespace {
       }
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
       tx->wf->add(addr);
-      OnFirstWrite(tx, read_rw, write_rw, commit_rw);
+      stm::OnFirstWrite(read_rw, write_rw, commit_rw);
   }
 
   /**

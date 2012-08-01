@@ -231,7 +231,7 @@ namespace {
               // save old, log lock, write, return
               o->p = ivt.all;
               tx->locks.insert(o);
-              OnFirstWrite(tx, read_rw, write_rw, commit_rw);
+              stm::OnFirstWrite(read_rw, write_rw, commit_rw);
               return;
           }
 
