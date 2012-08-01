@@ -9,7 +9,7 @@
  */
 
 /**
- *  CohortsLI Implementation
+ *  CohortsLNI2 Implementation
  *
  *  CohortsLazy with inplace write when tx is the last one in a cohort.
  */
@@ -34,22 +34,23 @@ using stm::last_complete;
 using stm::timestamp;
 using stm::timestamp_max;
 using stm::WriteSet;
-using stm::OrecList;
 using stm::UNRECOVERABLE;
 using stm::WriteSetEntry;
-using stm::orec_t;
-using stm::get_orec;
+
+using stm::ValueList;
+using stm::ValueListEntry;
 using stm::gatekeeper;
 using stm::last_order;
-
-volatile uintptr_t in = 0;
 
 /**
  *  Declare the functions that we're going to implement, so that we can avoid
  *  circular dependencies.
  */
 namespace {
-  struct CohortsLI {
+  volatile uintptr_t inplace = 0;
+  volatile uintptr_t counter = 0;
+
+  struct CohortsLNI2 {
       static void begin();
       static TM_FASTCALL void* read_ro(STM_READ_SIG(,));
       static TM_FASTCALL void* read_rw(STM_READ_SIG(,));
@@ -69,13 +70,13 @@ namespace {
   };
 
   /**
-   *  CohortsLI begin:
-   *  CohortsLI has a strict policy for transactions to begin. At first,
+   *  CohortsLNI2 begin:
+   *  CohortsLNI2 has a strict policy for transactions to begin. At first,
    *  every tx can start, until one of the tx is ready to commit. Then no
    *  tx is allowed to start until all the transactions finishes their
    *  commits.
    */
-  void CohortsLI::begin()
+  void CohortsLNI2::begin()
   {
       TxThread* tx = stm::Self;
       //begin
@@ -86,13 +87,10 @@ namespace {
       while (gatekeeper == 1);
 
       // set started
-      //
       atomicswapptr(&tx->status, COHORTS_STARTED);
-      //      tx->status = COHORTS_STARTED;
-      //WBR;
 
       // double check no one is ready to commit
-      if (gatekeeper == 1 || in == 1){
+      if (gatekeeper == 1 || inplace == 1){
           tx->status = COHORTS_COMMITTED;
           goto S1;
       }
@@ -102,26 +100,26 @@ namespace {
   }
 
   /**
-   *  CohortsLI commit (read-only):
+   *  CohortsLNI2 commit (read-only):
    */
   void
-  CohortsLI::commit_ro()
+  CohortsLNI2::commit_ro()
   {
       TxThread* tx = stm::Self;
       // mark self status
       tx->status = COHORTS_COMMITTED;
 
       // clean up
-      tx->r_orecs.reset();
+      tx->vlist.reset();
       OnReadOnlyCommit(tx);
   }
 
   /**
-   *  CohortsLI commit_turbo (for write in place tx use):
+   *  CohortsLNI2 commit_turbo (for write in place tx use):
    *
    */
   void
-  CohortsLI::commit_turbo()
+  CohortsLNI2::commit_turbo()
   {
       TxThread* tx = stm::Self;
       // Mark self pending to commit
@@ -131,7 +129,8 @@ namespace {
       tx->order = 1 + faiptr(&timestamp.val);
 
       // Turbo tx can clean up first
-      tx->r_orecs.reset();
+      tx->vlist.reset();
+      tx->writes.reset();
       OnReadWriteCommit(tx, read_ro, write_ro, commit_ro);
 
       // Wait for my turn
@@ -143,8 +142,10 @@ namespace {
       // I must be the last one, so release gatekeeper lock
       last_order = tx->order + 1;
       gatekeeper = 0;
+      counter = 0;
+
       // Reset inplace write flag
-      in = 0;
+      inplace = 0;
 
       // Mark self status
       tx->status = COHORTS_COMMITTED;
@@ -152,11 +153,11 @@ namespace {
 
 
   /**
-   *  CohortsLI commit (writing context):
+   *  CohortsLNI2 commit (writing context):
    *
    */
   void
-  CohortsLI::commit_rw()
+  CohortsLNI2::commit_rw()
   {
       TxThread* tx = stm::Self;
       // Mark a global flag, no one is allowed to begin now
@@ -171,31 +172,35 @@ namespace {
       // For later use, indicates if I'm the last tx in this cohort
       bool lastone = true;
 
-      // Wait until all tx are ready to commit
-      for (uint32_t i = 0; i < threadcount.val; ++i)
-          while (threads[i]->status == COHORTS_STARTED);
+      uint32_t left = 1;
+      while (left != 0)
+      {
+          left = 0;
+          for (uint32_t i = 0; i < threadcount.val; ++i)
+              left += (threads[i]->status == COHORTS_STARTED);
+          // if only one tx left, set global flag, inplace allowed
+          counter = (left == 1);
+      }
+
 
       // Wait for my turn
       while (last_complete.val != (uintptr_t)(tx->order - 1));
 
-      // If I'm the first one in this cohort and no inplace write happened
-      // then, I will do no validation, else validate
-      if (in == 1 || tx->order != last_order)
+      // If I'm the first one in this cohort and no inplace write happened,
+      // I will not do validation, else validate
+      if (inplace == 1 || tx->order != last_order)
           validate(tx);
 
-      // mark orec, do write back
-      foreach (WriteSet, i, tx->writes) {
-          orec_t* o = get_orec(i->addr);
-          o->v.all = tx->order;
-          *i->addr = i->val;
-      }
+      // Do write back
+      tx->writes.writeback();
+
       CFENCE;
       // Mark self as done
       last_complete.val = tx->order;
 
       // Mark self status
       tx->status = COHORTS_COMMITTED;
-      //WBR;
+      WBR;// this one cannot be omitted...
 
       // Am I the last one?
       for (uint32_t i = 0;lastone != false && i < threadcount.val; ++i)
@@ -205,40 +210,41 @@ namespace {
       if (lastone) {
           last_order = tx->order + 1;
           gatekeeper = 0;
+          counter = 0;
       }
 
       // commit all frees, reset all lists
-      tx->r_orecs.reset();
+      tx->vlist.reset();
       tx->writes.reset();
       OnReadWriteCommit(tx, read_ro, write_ro, commit_ro);
   }
 
   /**
-   *  CohortsLI read (read-only transaction)
+   *  CohortsLNI2 read (read-only transaction)
    */
   void*
-  CohortsLI::read_ro(STM_READ_SIG(addr,))
+  CohortsLNI2::read_ro(STM_READ_SIG(addr,))
   {
       TxThread* tx = stm::Self;
-      // log orec
-      tx->r_orecs.insert(get_orec(addr));
-      return *addr;
+      void *tmp = *addr;
+      STM_LOG_VALUE(tx, addr, tmp, mask);
+      return tmp;
   }
 
   /**
-   *  CohortsLI read_turbo (for write in place tx use)
+   *  CohortsLNI2 read_turbo (for write in place tx use)
    */
   void*
-  CohortsLI::read_turbo(STM_READ_SIG(addr,))
+  CohortsLNI2::read_turbo(STM_READ_SIG(addr,))
   {
       return *addr;
   }
 
   /**
-   *  CohortsLI read (writing transaction)
+   *  CohortsLNI2 read (writing transaction)
    */
   void*
-  CohortsLI::read_rw(STM_READ_SIG(addr,mask))
+  CohortsLNI2::read_rw(STM_READ_SIG(addr,mask))
   {
       TxThread* tx = stm::Self;
       // check the log for a RAW hazard, we expect to miss
@@ -246,19 +252,17 @@ namespace {
       bool found = tx->writes.find(log);
       REDO_RAW_CHECK(found, log, mask);
 
-      // log orec
-      tx->r_orecs.insert(get_orec(addr));
-
       void* tmp = *addr;
+      STM_LOG_VALUE(tx, addr, tmp, mask);
       REDO_RAW_CLEANUP(tmp, found, log, mask);
       return tmp;
   }
 
   /**
-   *  CohortsLI write (read-only context): for first write
+   *  CohortsLNI2 write (read-only context): for first write
    */
   void
-  CohortsLI::write_ro(STM_WRITE_SIG(addr,val,mask))
+  CohortsLNI2::write_ro(STM_WRITE_SIG(addr,val,mask))
   {
       TxThread* tx = stm::Self;
       // [mfs] this code is not in the best location.  Consider the following
@@ -279,62 +283,61 @@ namespace {
       // will require some sort of special attention.  But the tradeoff is more
       // potential to switch (not just first write), and without so much
       // redundant checking.
-
-      int32_t count = 0;
-      // scan to check others' status
-      for (uint32_t i = 0; i < threadcount.val && count < 2; ++i)
-          count += (threads[i]->status == COHORTS_STARTED);
-
-      // If every one else is ready to commit, do in place write, go turbo mode
-      if (count == 1) {
+      if (counter == 1) {
           // setup in place write flag
-          atomicswapptr(&in, 1);
-
-          // double check
-          for (uint32_t i = 0; i < threadcount.val && count < 0; ++i)
-              count -= (threads[i]->status == COHORTS_STARTED);
-          if (count == 0) {
-              // write inplace
-              write_turbo(addr, val);
-              // go turbo
-              stm::OnFirstWrite(read_turbo, write_turbo, commit_turbo);
-              return;
-          }
-          // reset flag
-          in = 0;
+          atomicswapptr(&inplace, 1);
+          // write inplace
+          write_turbo(addr, val);
+          // go turbo
+          stm::OnFirstWrite(read_turbo, write_turbo, commit_turbo);
+          return;
       }
+
       // record the new value in a redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
       stm::OnFirstWrite(read_rw, write_rw, commit_rw);
   }
   /**
-   *  CohortsLI write_turbo: for write in place tx
+   *  CohortsLNI2 write_turbo: for write in place tx
    */
   void
-  CohortsLI::write_turbo(STM_WRITE_SIG(addr,val,mask))
+  CohortsLNI2::write_turbo(STM_WRITE_SIG(addr,val,mask))
   {
-      orec_t* o = get_orec(addr);
-      o->v.all = last_complete.val + 1;
       *addr = val;
   }
 
 
   /**
-   *  CohortsLI write (writing context)
+   *  CohortsLNI2 write (writing context)
    */
   void
-  CohortsLI::write_rw(STM_WRITE_SIG(addr,val,mask))
+  CohortsLNI2::write_rw(STM_WRITE_SIG(addr,val,mask))
   {
       TxThread* tx = stm::Self;
+
+      // check if I can go turbo
+      if (counter == 1) {
+          // setup inplace write flag
+          atomicswapptr(&inplace, 1);
+          // write previous write set back
+          foreach (WriteSet, i, tx->writes)
+              *i->addr = i->val;
+          CFENCE;
+          *addr = val;
+          // go turbo
+          stm::GoTurbo(read_turbo, write_turbo, commit_turbo);
+          return;
+      }
+
       // record the new value in a redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
   }
 
   /**
-   *  CohortsLI unwinder:
+   *  CohortsLNI2 unwinder:
    */
   void
-  CohortsLI::rollback(STM_ROLLBACK_SIG(tx, except, len))
+  CohortsLNI2::rollback(STM_ROLLBACK_SIG(tx, except, len))
   {
       PreRollback(tx);
 
@@ -344,33 +347,30 @@ namespace {
       STM_ROLLBACK(tx->writes, except, len);
 
       // reset all lists
-      tx->r_orecs.reset();
+      tx->vlist.reset();
       tx->writes.reset();
 
       PostRollback(tx);
   }
 
   /**
-   *  CohortsLI in-flight irrevocability:
+   *  CohortsLNI2 in-flight irrevocability:
    */
   bool
-  CohortsLI::irrevoc(TxThread*)
+  CohortsLNI2::irrevoc(TxThread*)
   {
-      UNRECOVERABLE("CohortsLI Irrevocability not yet supported");
+      UNRECOVERABLE("CohortsLNI2 Irrevocability not yet supported");
       return false;
   }
 
   /**
-   *  CohortsLI validation for commit: check that all reads are valid
+   *  CohortsLNI2 validation for commit: check that all reads are valid
    */
-  void
-  CohortsLI::validate(TxThread* tx)
+  void CohortsLNI2::validate(TxThread* tx)
   {
-      foreach (OrecList, i, tx->r_orecs) {
-          // read this orec
-          uintptr_t ivt = (*i)->v.all;
-          // If orec changed, abort
-          if (ivt > tx->ts_cache) {
+      foreach (ValueList, i, tx->vlist) {
+          bool valid = STM_LOG_VALUE_IS_VALID(i, tx);
+          if (!valid) {
               // Mark self status
               tx->status = COHORTS_COMMITTED;
 
@@ -387,6 +387,7 @@ namespace {
               if (l) {
                   last_order = tx->order + 1;
                   gatekeeper = 0;
+                  counter = 0;
               }
               tx->tmabort();
           }
@@ -394,15 +395,10 @@ namespace {
   }
 
   /**
-   *  Switch to CohortsLI:
-   *
-   *    The timestamp must be >= the maximum value of any orec.  Some algs use
-   *    timestamp as a zero-one mutex.  If they do, then they back up the
-   *    timestamp first, in timestamp_max.
+   *  Switch to CohortsLNI2:
    *
    */
-  void
-  CohortsLI::onSwitchTo()
+  void CohortsLNI2::onSwitchTo()
   {
       timestamp.val = MAXIMUM(timestamp.val, timestamp_max.val);
       last_complete.val = timestamp.val;
@@ -413,24 +409,25 @@ namespace {
   }
 }
 
-namespace stm {
+namespace stm
+{
   /**
-   *  CohortsLI initialization
+   *  CohortsLNI2 initialization
    */
   template<>
-  void initTM<CohortsLI>()
+  void initTM<CohortsLNI2>()
   {
       // set the name
-      stms[CohortsLI].name      = "CohortsLI";
+      stms[CohortsLNI2].name      = "CohortsLNI2";
       // set the pointers
-      stms[CohortsLI].begin     = ::CohortsLI::begin;
-      stms[CohortsLI].commit    = ::CohortsLI::commit_ro;
-      stms[CohortsLI].read      = ::CohortsLI::read_ro;
-      stms[CohortsLI].write     = ::CohortsLI::write_ro;
-      stms[CohortsLI].rollback  = ::CohortsLI::rollback;
-      stms[CohortsLI].irrevoc   = ::CohortsLI::irrevoc;
-      stms[CohortsLI].switcher  = ::CohortsLI::onSwitchTo;
-      stms[CohortsLI].privatization_safe = true;
+      stms[CohortsLNI2].begin     = ::CohortsLNI2::begin;
+      stms[CohortsLNI2].commit    = ::CohortsLNI2::commit_ro;
+      stms[CohortsLNI2].read      = ::CohortsLNI2::read_ro;
+      stms[CohortsLNI2].write     = ::CohortsLNI2::write_ro;
+      stms[CohortsLNI2].rollback  = ::CohortsLNI2::rollback;
+      stms[CohortsLNI2].irrevoc   = ::CohortsLNI2::irrevoc;
+      stms[CohortsLNI2].switcher  = ::CohortsLNI2::onSwitchTo;
+      stms[CohortsLNI2].privatization_safe = true;
   }
 }
 
