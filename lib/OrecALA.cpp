@@ -42,8 +42,8 @@ const char* alg_tm_getalgname() {
 }
 
 /*** The only metadata we need is a single global padded lock ***/
-static pad_word_t timestamp = {0};
-static pad_word_t last_complete = {0};
+static pad_word_t timestamp = {0,{0}};
+static pad_word_t last_complete = {0,{0}};
 
 /**
  *  OrecALA rollback:

@@ -36,7 +36,7 @@ using stm::ValueList;
 using stm::Self;
 
 /*** The only metadata we need is a single global padded lock ***/
-static pad_word_t timestamp = {0};
+static pad_word_t timestamp = {0, {0}};
 
 static const uintptr_t VALIDATION_FAILED = 1;
 

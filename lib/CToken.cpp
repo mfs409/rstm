@@ -32,8 +32,8 @@
 
 using namespace stm;
 
-static pad_word_t timestamp = {0};
-static pad_word_t last_complete = {0};
+static pad_word_t timestamp = {0,{0}};
+static pad_word_t last_complete = {0,{0}};
 
 /**
  *  For querying to get the current algorithm name
@@ -208,7 +208,7 @@ void alg_tm_write(void** addr, void* val) {
     Inst<void*>::RSTM::Write(addr, val);
 }
 
-bool alg_tm_is_irrevocable(TX* tx) {
+bool alg_tm_is_irrevocable(TX*) {
     assert(false && "Unimplemented");
     return false;
 }

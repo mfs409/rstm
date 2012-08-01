@@ -23,7 +23,7 @@ namespace
   }
 }
 
-stm::pad_word_t stm::trans_nums[MAX_THREADS] = {{0}};
+stm::pad_word_t stm::trans_nums[MAX_THREADS] = {{0, {0}}};
 
 // [mfs] the caller has an odd timestamp at the time of the call.  Does that
 //       mean it will not reclaim some things as early as it might otherwise?

@@ -180,7 +180,7 @@ namespace {
           union {
               void* words[N];
               uint8_t bytes[sizeof(void*[N])];
-          } buf = {0};
+          } buf = {{0}};
 
           // If this transaction is read-only, then we don't need to do RAW
           // checks and we should use the ReadRO function that we're
@@ -220,7 +220,7 @@ namespace {
           union {
               void* words[N];
               uint8_t bytes[sizeof(void*[N])];
-          } buf = {0};
+          } buf = {{0}};
 
           // Put the to-write value into the union at the right offset.
           *reinterpret_cast<T*>(buf.bytes + OffsetOf(addr)) = val;
@@ -250,7 +250,7 @@ namespace {
           union {
               void* words[N];
               uint8_t bytes[sizeof(void*[N])];
-          } buf = {0};
+          } buf = {{0}};
 
           // Put the to-log value into the union at the right offset.
           *reinterpret_cast<T*>(buf.bytes + OffsetOf(addr)) = *addr;

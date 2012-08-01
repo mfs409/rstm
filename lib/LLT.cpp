@@ -59,7 +59,7 @@ void alg_tm_rollback(TX* tx) {
 }
 
 /*** The only metadata we need is a single global padded lock ***/
-static pad_word_t timestamp = {0};
+static pad_word_t timestamp = {0,{0}};
 
 /** LLT begin: only called for outermost transactions. */
 uint32_t alg_tm_begin(uint32_t, TX* tx, uint32_t extra)

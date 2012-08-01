@@ -30,7 +30,7 @@
 using namespace stm;
 
 /*** The only metadata we need is a single global padded lock ***/
-static pad_word_t timestamp = {0};
+static pad_word_t timestamp = {0, {0}};
 
 /**
  *  For querying to get the current algorithm name
@@ -112,7 +112,7 @@ void alg_tm_end() {
 
 namespace {
   struct Read {
-      void* operator()(void** addr, TX* tx, uintptr_t mask) const {
+      void* operator()(void** addr, TX*, uintptr_t) const {
           return *addr;
       }
 
@@ -126,7 +126,7 @@ namespace {
 
   template <class WordType>
   struct Write {
-      void operator()(void** addr, void* val, TX* tx, uintptr_t mask) const {
+      void operator()(void** addr, void* val, TX*, uintptr_t mask) const {
           WordType::Write(addr, val, mask);
       }
 

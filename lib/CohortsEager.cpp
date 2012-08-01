@@ -46,13 +46,13 @@ static volatile int32_t last_order = 0;  // order of last tx in a cohort + 1
 static volatile uint32_t gatekeeper = 0; // indicating whether tx can start
 static volatile uint32_t inplace = 0;
 
-static pad_word_t last_complete = {0};
+static pad_word_t last_complete = {0,{0}};
 
 /**
  *  This is the Orec Timestamp, the NOrec/TML seqlock, the CGL lock, and the
  *  RingSW ring index
  */
-static pad_word_t timestamp = {0};
+// static pad_word_t timestamp = {0,{0}}; [ld] defined but not used
 
 /**
  *  For querying to get the current algorithm name
@@ -297,7 +297,7 @@ void alg_tm_write(void** addr, void* val) {
     Inst<void*>::RSTM::Write(addr, val);
 }
 
-bool alg_tm_is_irrevocable(TX* tx) {
+bool alg_tm_is_irrevocable(TX*) {
     assert(false && "Uninstrumented!");
     return false;
 }
