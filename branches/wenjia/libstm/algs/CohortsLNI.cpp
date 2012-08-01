@@ -276,7 +276,7 @@ namespace {
       // potential to switch (not just first write), and without so much
       // redundant checking.
 
-      uint32_t count = 0;
+      int32_t count = 0;
       // scan to check others' status
       for (uint32_t i = 0; i < threadcount.val && count < 2; ++i)
           count += (threads[i]->status == COHORTS_STARTED);
