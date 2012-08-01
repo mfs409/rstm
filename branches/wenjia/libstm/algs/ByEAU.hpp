@@ -291,7 +291,7 @@ namespace {
       if (tx->alive == TX_ABORTED)
           tx->tmabort();
 
-      OnFirstWrite(tx, read_rw, write_rw, commit_rw);
+      stm::OnFirstWrite(read_rw, write_rw, commit_rw);
   }
 
   /**

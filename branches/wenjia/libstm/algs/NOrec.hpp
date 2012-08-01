@@ -31,7 +31,6 @@ using stm::WriteSetEntry;
 using stm::ValueList;
 using stm::ValueListEntry;
 
-
 namespace {
 
   const uintptr_t VALIDATION_FAILED = 1;
@@ -273,7 +272,7 @@ namespace {
       TxThread* tx = stm::Self;
       // buffer the write, and switch to a writing context
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
-      OnFirstWrite(tx, read_rw, write_rw, commit_rw);
+      stm::OnFirstWrite(read_rw, write_rw, commit_rw);
   }
 
   template <class CM>

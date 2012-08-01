@@ -297,7 +297,7 @@ namespace {
               // write inplace
               write_turbo(addr, val);
               // go turbo
-              OnFirstWrite(tx, read_turbo, write_turbo, commit_turbo);
+              stm::OnFirstWrite(read_turbo, write_turbo, commit_turbo);
               return;
           }
           // reset flag
@@ -305,7 +305,7 @@ namespace {
       }
       // record the new value in a redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
-      OnFirstWrite(tx, read_rw, write_rw, commit_rw);
+      stm::OnFirstWrite(read_rw, write_rw, commit_rw);
   }
   /**
    *  CohortsLI write_turbo: for write in place tx

@@ -270,7 +270,7 @@ namespace {
               tx->locks.insert(o);
               tx->undo_log.insert(UndoLogEntry(STM_UNDO_LOG_ENTRY(addr, *addr, mask)));
               STM_DO_MASKED_WRITE(addr, val, mask);
-              OnFirstWrite(tx, read_rw, write_rw, commit_rw);
+              stm::OnFirstWrite(read_rw, write_rw, commit_rw);
               return;
           }
 
@@ -392,7 +392,7 @@ namespace {
    */
   template <class CM>
   bool
-  OrEAU_Generic<CM>::irrevoc(TxThread* tx)
+  OrEAU_Generic<CM>::irrevoc(TxThread*)
   {
       return false;
   }

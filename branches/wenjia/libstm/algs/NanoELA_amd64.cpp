@@ -151,7 +151,7 @@ namespace
           (*i)->v.all = (*i)->p+1;
 
       // quiesce
-      for (int id = 0; id < stm::threadcount.val; ++id)
+      for (uint32_t id = 0; id < stm::threadcount.val; ++id)
           while (stm::threads[id]->last_val_time < mynum) spin64();
 
       // clean-up
@@ -256,7 +256,7 @@ namespace
       TxThread* tx = stm::Self;
       // add to redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
-      OnFirstWrite(tx, read_rw, write_rw, commit_rw);
+      stm::OnFirstWrite(read_rw, write_rw, commit_rw);
   }
 
   /**

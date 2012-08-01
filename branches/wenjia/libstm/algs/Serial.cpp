@@ -130,7 +130,7 @@ namespace {
    *        no global coordination.
    */
   bool
-  Serial::irrevoc(TxThread* tx)
+  Serial::irrevoc(TxThread*)
   {
       UNRECOVERABLE("Serial::irrevoc should not be called!");
       return false;

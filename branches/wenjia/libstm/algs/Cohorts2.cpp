@@ -122,7 +122,7 @@ namespace {
       while (last_complete.val != (uintptr_t)(tx->order - 1));
 
       // If I'm not the first one in a cohort to commit, validate reads
-      if (tx->order != tx->ts_cache + 1)
+      if (tx->order != (intptr_t)(tx->ts_cache + 1))
           if (!validate(tx)) {
               // mark self as done
               last_complete.val = tx->order;
@@ -201,7 +201,7 @@ namespace {
       TxThread* tx = stm::Self;
       // record the new value in a redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
-      OnFirstWrite(tx, read_rw, write_rw, commit_rw);
+      stm::OnFirstWrite(read_rw, write_rw, commit_rw);
   }
 
   /**

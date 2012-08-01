@@ -191,7 +191,6 @@ namespace {
   void*
   ProfileApp<COUNTMODE>::read_ro(STM_READ_SIG(addr,))
   {
-      TxThread* tx = stm::Self;
       // count the read
       ++profiles[0].read_ro;
       // read the actual value, direct from memory
@@ -232,7 +231,7 @@ namespace {
       // do a buffered write
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
       ++profiles[0].write_waw;
-      OnFirstWrite(tx, read_rw, write_rw, commit_rw);
+      stm::OnFirstWrite(read_rw, write_rw, commit_rw);
   }
 
   /**

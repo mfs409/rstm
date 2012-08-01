@@ -293,7 +293,7 @@ namespace {
               // write inplace
               write_turbo(addr, val);
               // go turbo
-              OnFirstWrite(tx, read_turbo, write_turbo, commit_turbo);
+              stm::OnFirstWrite(read_turbo, write_turbo, commit_turbo);
               return;
           }
           // reset flag
@@ -301,7 +301,7 @@ namespace {
       }
       // record the new value in a redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
-      OnFirstWrite(tx, read_rw, write_rw, commit_rw);
+      stm::OnFirstWrite(read_rw, write_rw, commit_rw);
   }
   /**
    *  CohortsLNI write_turbo: for write in place tx
@@ -357,8 +357,7 @@ namespace {
   /**
    *  CohortsLNI validation for commit: check that all reads are valid
    */
-  void
-  CohortsLNI::validate(TxThread* tx)
+  void CohortsLNI::validate(TxThread* tx)
   {
       foreach (ValueList, i, tx->vlist) {
           bool valid = STM_LOG_VALUE_IS_VALID(i, tx);
@@ -389,8 +388,7 @@ namespace {
    *  Switch to CohortsLNI:
    *
    */
-  void
-  CohortsLNI::onSwitchTo()
+  void CohortsLNI::onSwitchTo()
   {
       timestamp.val = MAXIMUM(timestamp.val, timestamp_max.val);
       last_complete.val = timestamp.val;
@@ -401,7 +399,8 @@ namespace {
   }
 }
 
-namespace stm {
+namespace stm
+{
   /**
    *  CohortsLNI initialization
    */

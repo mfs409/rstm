@@ -147,7 +147,7 @@ namespace {
       tx->order = ADD(&cpending.val, 1);
 
       // If I'm the next to the last, notify the last txn to go turbo
-      if (tx->order == started.val - 1)
+      if (tx->order == (intptr_t)started.val - 1)
           for (uint32_t i = 0; i < threadcount.val; i++)
               threads[i]->status = TURBO;
 
@@ -231,12 +231,12 @@ namespace {
           // in place write
           *addr = val;
           // go turbo mode
-          OnFirstWrite(tx, read_turbo, write_turbo, commit_turbo);
+          stm::OnFirstWrite(read_turbo, write_turbo, commit_turbo);
           return;
       }
 
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
-      OnFirstWrite(tx, read_rw, write_rw, commit_rw);
+      stm::OnFirstWrite(read_rw, write_rw, commit_rw);
   }
 
   /**
@@ -263,7 +263,7 @@ namespace {
           // in place write
           *addr = val;
           // go turbo mode
-          OnFirstWrite(tx, read_turbo, write_turbo, commit_turbo);
+          stm::OnFirstWrite(read_turbo, write_turbo, commit_turbo);
           return;
       }
       // record the new value in a redo log

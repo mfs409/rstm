@@ -24,7 +24,7 @@ namespace stm
   void install_algorithm(int new_alg, TxThread* tx);
 
   /*** make just this thread use a new algorith (use in ctors) */
-  void install_algorithm_local(int new_alg, TxThread* tx);
+  void install_algorithm_local(int new_alg);
 
 } // namespace stm
 

@@ -48,10 +48,10 @@ namespace {
       char _padding_[128-sizeof(uint32_t)-sizeof(bool)];
   };
   static struct Activity activity_array[MAXTHREADS] =
-      {{0xFFFFFFFF, false},{0xFFFFFFFF, false},{0xFFFFFFFF, false},
-       {0xFFFFFFFF, false},{0xFFFFFFFF, false},{0xFFFFFFFF, false},
-       {0xFFFFFFFF, false},{0xFFFFFFFF, false},{0xFFFFFFFF, false},
-       {0xFFFFFFFF, false},{0xFFFFFFFF, false},{0xFFFFFFFF, false}};
+      {{0xFFFFFFFF, false, {0}},{0xFFFFFFFF, false, {0}},{0xFFFFFFFF, false, {0}},
+       {0xFFFFFFFF, false, {0}},{0xFFFFFFFF, false, {0}},{0xFFFFFFFF, false, {0}},
+       {0xFFFFFFFF, false, {0}},{0xFFFFFFFF, false, {0}},{0xFFFFFFFF, false, {0}},
+       {0xFFFFFFFF, false, {0}},{0xFFFFFFFF, false, {0}},{0xFFFFFFFF, false, {0}}};
 
   struct PessimisticTM {
       static void begin();
@@ -90,7 +90,7 @@ namespace {
           //
           // [wer210] read-onlyness may change
           // go read-only mode
-          GoTurbo(tx, read_ro, write_read_only, commit_read_only);
+          stm::GoTurbo(read_ro, write_read_only, commit_read_only);
       }
       // For Read-Write transactions
       else {
@@ -116,7 +116,7 @@ namespace {
           MY.tx_version = global_version.val;
 
           // Go read-write mode
-          GoTurbo(tx, read_rw, write_rw, commit_rw);
+          stm::GoTurbo(read_rw, write_rw, commit_rw);
       }
   }
 
@@ -287,8 +287,7 @@ namespace {
   /**
    *  PessimisticTM write (for read-only transactions): Do nothing
    */
-  void
-  PessimisticTM::write_read_only(STM_WRITE_SIG(addr,val,mask))
+  void PessimisticTM::write_read_only(STM_WRITE_SIG(,,))
   {
       printf("Read-only tx called writes!\n");
       return;
@@ -303,7 +302,7 @@ namespace {
       TxThread* tx = stm::Self;
       // Add to write set
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
-      OnFirstWrite(tx, read_rw, write_rw, commit_rw);
+      stm::OnFirstWrite(read_rw, write_rw, commit_rw);
   }
 
   /**
@@ -320,8 +319,7 @@ namespace {
   /**
    *  PessimisticTM unwinder:
    */
-  void
-  PessimisticTM::rollback(STM_ROLLBACK_SIG(tx, except, len))
+  void PessimisticTM::rollback(STM_ROLLBACK_SIG(,,))
   {
       UNRECOVERABLE("PessimisticTM should never call rollback");
   }

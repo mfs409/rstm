@@ -82,7 +82,7 @@ namespace {
 
           // go master mode
           if (stm::tmread != read_master)
-              GoTurbo(tx, read_master, write_master, commit_master);
+              stm::GoTurbo(read_master, write_master, commit_master);
       }
 
       // helpers get even counter (discard LSD & MSB)
@@ -254,7 +254,7 @@ namespace {
       TxThread* tx = stm::Self;
       // Add to write set
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
-      OnFirstWrite(tx, read_rw, write_rw, commit_rw);
+      stm::OnFirstWrite(read_rw, write_rw, commit_rw);
   }
 
   /**

@@ -250,7 +250,7 @@ namespace {
       if (bl->owner)
           tx->tmabort();
 
-      OnFirstWrite(tx, read_rw, write_rw, commit_rw);
+      stm::OnFirstWrite(read_rw, write_rw, commit_rw);
   }
 
   /**

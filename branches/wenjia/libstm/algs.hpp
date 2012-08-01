@@ -285,8 +285,8 @@ namespace stm
       Trigger::onCommitLock(tx);
   }
 
-  inline void OnFirstWrite(TxThread* tx, ReadBarrier read_rw,
-                           WriteBarrier write_rw, CommitBarrier commit_rw)
+  inline void OnFirstWrite(ReadBarrier read_rw, WriteBarrier write_rw,
+                           CommitBarrier commit_rw)
   {
       tmread = read_rw;
       tmwrite = write_rw;
@@ -351,15 +351,14 @@ namespace stm
       tx->in_tx = false;
   }
 
-  inline void GoTurbo(TxThread* tx, ReadBarrier r, WriteBarrier w,
-                      CommitBarrier c)
+  inline void GoTurbo(ReadBarrier r, WriteBarrier w, CommitBarrier c)
   {
       tmread = r;
       tmwrite = w;
       tmcommit = c;
   }
 
-  inline bool CheckTurboMode(TxThread* tx, ReadBarrier read_turbo)
+  inline bool CheckTurboMode(ReadBarrier read_turbo)
   {
       return (tmread == read_turbo);
   }

@@ -145,7 +145,7 @@ namespace stm
 
 
   /*** for initializing the adaptivity policies */
-  void pol_init(const char* mode)
+  void pol_init()
   {
       // call all initialization functions
       init_pol_static();

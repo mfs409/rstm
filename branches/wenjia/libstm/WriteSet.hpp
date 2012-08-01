@@ -25,7 +25,7 @@
 #include <cstring>
 #endif
 #include <cassert>
-
+#include <cstdio>
 
 #if defined(STM_OVERRIDE_WRITESET_LIST)
 
@@ -200,11 +200,9 @@ namespace stm
 
 #elif defined(STM_OVERRIDE_WRITESET_HASH)
 
-// this is a copy just for reference, but will become a simpler hash
+// let's just see what happens if we use a simpler hash function...
 namespace stm
 {
-  // NB: 0x4c11db5 is prime and has lots of 1s and 0s.
-
   /**
    *  The WriteSet implementation is heavily influenced by the configuration
    *  parameters, STM_WS_(WORD/BYTE)LOG, and STM_ABORT_ON_THROW. This means
@@ -287,6 +285,10 @@ namespace stm
    */
   class WriteSet
   {
+      // NB: 0x4c11db5 is prime and has lots of 1s and 0s.
+      static const int prime = 0x4c11db5;
+      static const int SPILL_FACTOR = 8; // 8 probes and we resize the list...
+
       /***  data type for the index */
       struct index_t
       {
@@ -298,24 +300,22 @@ namespace stm
       };
 
       index_t* index;                             // hash entries
-      size_t   shift;                             // for the hash function
       size_t   ilength;                           // max size of hash
       size_t   version;                           // version for fast clearing
+      size_t   mask;
 
       WriteSetEntry* list;                        // the array of actual data
       size_t   capacity;                          // max array size
       size_t   lsize;                             // elements in the array
 
-
       /**
        *  hash function is straight from CLRS (that's where the magic
        *  constant comes from).
        */
-      size_t hash(void* const key) const
+      inline size_t hash(void* const key) const
       {
-          static const unsigned long long s = 2654435769ull;
-          const unsigned long long r = ((unsigned long long)key) * s;
-          return (size_t)((r & 0xFFFFFFFF) >> shift);
+          uintptr_t hashkey = prime * (uintptr_t)key;
+          return hashkey & mask;
       }
 
       /**
@@ -354,38 +354,10 @@ namespace stm
                   h = (h + 1) % ilength;
                   continue;
               }
-#if defined(STM_WS_WORDLOG)
               log.val = list[index[h].index].val;
               return true;
-#elif defined(STM_WS_BYTELOG)
-              // Need to intersect the mask to see if we really have a match. We
-              // may have a full intersection, in which case we can return the
-              // logged value. We can have no intersection, in which case we can
-              // return false. We can also have an awkward intersection, where
-              // we've written part of what we're trying to read. In that case,
-              // the "correct" thing to do is to read the word from memory, log
-              // it, and merge the returned value with the partially logged
-              // bytes.
-              WriteSetEntry& entry = list[index[h].index];
-              if (__builtin_expect((log.mask & entry.mask) == 0, false)) {
-                  log.mask = 0;
-                  return false;
-              }
-
-              // The update to the mask transmits the information the caller
-              // needs to know in order to distinguish between a complete and a
-              // partial intersection.
-              log.val = entry.val;
-              log.mask = entry.mask;
-              return true;
-#else
-#error "Preprocessor configuration error."
-#endif
           }
 
-#if defined(STM_WS_BYTELOG)
-          log.mask = 0x0; // report that there were no intersecting bytes
-#endif
           return false;
       }
 
@@ -422,6 +394,7 @@ namespace stm
       void insert(const WriteSetEntry& log)
       {
           size_t h = hash(log.addr);
+          int spills = 0;
 
           //  Find the slot that this address should hash to. If we find it,
           //  update the value. If we find an unused slot then it's a new
@@ -429,6 +402,7 @@ namespace stm
           while (index[h].version == version) {
               if (index[h].address != log.addr) {
                   h = (h + 1) % ilength;
+                  spills++;
                   continue; // continue probing at new h
               }
 
@@ -453,11 +427,20 @@ namespace stm
           if (__builtin_expect(lsize == capacity, false))
               resize();
 
+#if 0
           // if we reach our load-factor
           // NB: load factor could be better handled rather than the magic
           //     constant 3 (used in constructor too).
-          if (__builtin_expect((lsize * 3) >= ilength, false))
+          if (__builtin_expect((lsize * 3) >= ilength, false)) {
+              printf("fillflow\n");
               rebuild();
+          }
+#endif
+
+          if (__builtin_expect(spills > SPILL_FACTOR, false)) {
+              printf("spillflow\n");
+              rebuild();
+          }
       }
 
       /*** size() lets us know if the transaction is read-only */
@@ -725,7 +708,6 @@ namespace stm
       WriteSetEntry* list;                        // the array of actual data
       size_t   capacity;                          // max array size
       size_t   lsize;                             // elements in the array
-
 
       /**
        *  hash function is straight from CLRS (that's where the magic

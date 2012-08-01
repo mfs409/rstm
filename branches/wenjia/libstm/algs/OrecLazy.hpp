@@ -235,7 +235,7 @@ namespace {
       TxThread* tx = stm::Self;
       // add to redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
-      OnFirstWrite(tx, read_rw, write_rw, commit_rw);
+      stm::OnFirstWrite(read_rw, write_rw, commit_rw);
   }
 
   /**
@@ -288,8 +288,7 @@ namespace {
    *
    *    Either commit the transaction or return false.
    */
-   bool
-   irrevoc(TxThread* tx)
+   bool irrevoc(TxThread*)
    {
        return false;
        // NB: In a prior release, we actually had a full OrecLazy commit

@@ -126,7 +126,7 @@ namespace {
       while (last_complete.val != (uintptr_t)(tx->order - 1));
 
       // If I'm not the first one in a cohort to commit, validate reads
-      if (tx->order != first)
+      if (tx->order != (intptr_t)first)
           if (!validate(tx)) {
               committed.val++;
               CFENCE;
@@ -208,7 +208,7 @@ namespace {
       TxThread* tx = stm::Self;
       // record the new value in a redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
-      OnFirstWrite(tx, read_rw, write_rw, commit_rw);
+      stm::OnFirstWrite(read_rw, write_rw, commit_rw);
   }
 
   /**

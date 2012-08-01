@@ -182,7 +182,7 @@ namespace {
       // buffer the write and update the filter
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
       tx->wf->add(addr);
-      OnFirstWrite(tx, read_rw, write_rw, commit_rw);
+      stm::OnFirstWrite(read_rw, write_rw, commit_rw);
   }
 
   /**
@@ -222,7 +222,7 @@ namespace {
    *  RingSW in-flight irrevocability: use abort-and-restart
    */
   bool
-  RingSW::irrevoc(TxThread* tx)
+  RingSW::irrevoc(TxThread*)
   {
       return false;
   }

@@ -50,7 +50,7 @@ namespace stm
 #endif
 
   /*** BACKING FOR GLOBAL VARS DECLARED IN TXTHREAD.HPP */
-  pad_word_t threadcount          = {0}; // thread count
+  pad_word_t threadcount          = {0, {0}}; // thread count
   TxThread*  threads[MAX_THREADS] = {0}; // all TxThreads
   THREAD_LOCAL_DECL_TYPE(TxThread*) Self; // this thread's TxThread
 
@@ -58,13 +58,13 @@ namespace stm
    *  Constructor sets up the lists and vars
    */
   TxThread::TxThread()
-      : nesting_depth(0),
+      : nesting_depth(0), in_tx(0),
 #ifndef STM_CHECKPOINT_ASM
         checkpoint(NULL),
 #endif
         allocator(),
         num_commits(0), num_aborts(0), num_restarts(0),
-        num_ro(0), in_tx(0),
+        num_ro(0),
 #ifdef STM_STACK_PROTECT
         stack_high(NULL),
         stack_low(~0x0),
@@ -135,7 +135,7 @@ namespace stm
       rf->clear();
 
       // configure my TM instrumentation
-      install_algorithm_local(curr_policy.ALG_ID, this);
+      install_algorithm_local(curr_policy.ALG_ID);
 
       // set the pointer to this TxThread
       threads[id-1] = this;
@@ -381,7 +381,7 @@ namespace stm
           init_lib_name = cfg;
 
           // now initialize the the adaptive policies
-          pol_init(cfg);
+          pol_init();
 
           // this is (for now) how we make sure we have a buffer to hold
           // profiles.  This also specifies how many profiles we do at a time.
@@ -447,7 +447,7 @@ namespace stm
       tx->in_tx = 1;
       WBR;
 #else
-      casptr(&tx->in_tx, 0, 1);
+      (void)casptr(&tx->in_tx, 0, 1);
 #endif
 
       // some adaptivity mechanisms need to know nontransactional and

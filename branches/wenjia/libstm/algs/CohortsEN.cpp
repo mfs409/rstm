@@ -149,7 +149,7 @@ namespace {
   {
       TxThread* tx = stm::Self;
       // order of first tx in cohort
-      uint32_t first = last_complete.val + 1;
+      int32_t first = last_complete.val + 1;
       CFENCE;
 
       // increase # of tx waiting to commit, and use it as the order
@@ -243,7 +243,7 @@ namespace {
               // in place write
               *addr = val;
               // go turbo mode
-              OnFirstWrite(tx, read_turbo, write_turbo, commit_turbo);
+              stm::OnFirstWrite(read_turbo, write_turbo, commit_turbo);
               return;
           }
           // reset flag
@@ -251,7 +251,7 @@ namespace {
       }
 #endif
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
-      OnFirstWrite(tx, read_rw, write_rw, commit_rw);
+      stm::OnFirstWrite(read_rw, write_rw, commit_rw);
   }
 
   /**

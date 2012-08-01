@@ -204,7 +204,7 @@ namespace {
       TxThread* tx = stm::Self;
       // do a buffered write
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
-      OnFirstWrite(tx, read_rw, write_rw, commit_rw);
+      stm::OnFirstWrite(read_rw, write_rw, commit_rw);
   }
 
   /**
@@ -249,8 +249,7 @@ namespace {
    *  NOrecPrio in-flight irrevocability: Getting priority right is very
    *  hard, so we're just going to use abort-and-restart
    */
-  bool
-  NOrecPrio::irrevoc(TxThread* tx)
+  bool NOrecPrio::irrevoc(TxThread*)
   {
       return false;
   }
