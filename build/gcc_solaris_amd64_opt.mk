@@ -21,6 +21,7 @@
 #
 PLATFORM  = gcc_solaris_amd64_opt
 CXX       = g++
+CXXFLAGS += -Wall -Wextra -Werror
 CXXFLAGS += -O3 -ggdb -m64 -march=native -mtune=native -msse2 -mfpmath=sse
 LDFLAGS  += -lrt -lpthread -m64 -lmtmalloc
 CFLAGS   += -m64

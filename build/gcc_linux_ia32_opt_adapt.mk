@@ -21,6 +21,7 @@
 #
 PLATFORM  = gcc_linux_ia32_opt_adapt
 CXX       = g++
+CXXFLAGS += -Wall -Wextra -Werror
 CXXFLAGS += -O3 -ggdb -m32 -march=native -mtune=native -msse2 -mfpmath=sse
 LDFLAGS  += -lrt -lpthread -m32
 CFLAGS   += -m32
