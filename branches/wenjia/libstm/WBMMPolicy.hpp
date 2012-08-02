@@ -166,6 +166,38 @@ namespace stm
           allocs.reset();
           *my_ts = 1+*my_ts;
       }
+
+      /**
+       * Certain STM algorithms (most trivially CGL) do not require deferred
+       * reclamation.  For those algorithms, we offer the
+       * onTxCommitImmediate() routine, which immediately frees items
+       */
+      void onTxCommitImmediate()
+      {
+          AddressList::iterator i, e;
+          for (i = frees.begin(), e = frees.end(); i != e; ++i)
+              free(*i);
+          frees.reset();
+          allocs.reset();
+          *my_ts = 1+*my_ts;
+      }
+
+      /**
+       * Whenever we reach a global barrier (e.g., during an adaptivity
+       * algorithm switch), we know that everything in every limbo list entry
+       * can be reclaimed.  Using this method allows us to do the reclamation
+       * immediately.  Otherwise, we could get into strange out-of-memory
+       * bugs.  For example, suppose that many threads had large allocations
+       * in their limbo lists, and we switched to CGL.  At that point, all
+       * limbo memory would remain in limbo, even though it was all
+       * reclaimable.
+       */
+      void onGlobalBarrier()
+      {
+          // [mfs] TODO: we need to implement this (it's trivial) and then
+          //       start using it.
+      }
+
   }; // class stm::WBMMPolicy
 
 } // namespace stm
