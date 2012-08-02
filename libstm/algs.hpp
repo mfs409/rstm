@@ -271,7 +271,7 @@ namespace stm
 
   inline void OnCGLCommit(TxThread* tx)
   {
-      tx->allocator.onTxCommit();
+      tx->allocator.onTxCommitImmediate();
       tx->consec_ro = 0;
       ++tx->num_commits;
       Trigger::onCommitLock(tx);
