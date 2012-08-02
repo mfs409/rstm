@@ -21,6 +21,7 @@
 #
 PLATFORM  = gcc_linux_amd64_dbg
 CXX       = g++
+CXXFLAGS += -Wall -Wextra -Werror
 CXXFLAGS += -O0 -ggdb -m64 -march=native -mtune=native -msse2 -mfpmath=sse
 LDFLAGS  += -lrt -lpthread -m64
 CFLAGS   += -m64
