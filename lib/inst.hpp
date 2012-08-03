@@ -122,14 +122,50 @@ namespace {
       }
 
       /**
-       *  This is the fundamental loop used for both chunked read and write
-       *  access. It's basic job is to loop through each word in the words[]
-       *  array, and perform f() on it. This should be customized and inlined
-       *  for each type of F, and N (and possibly OffsetOf and BaseOf) is a
-       *  compile-time constant, so this should be optimized nicely.
+       *  Allocate a buffer on the stack, allowing us to deal with multi-word
+       *  and/or misaligned accesses.
        */
-      template <typename F, size_t N>
-      static __attribute__((always_inline)) void ProcessWords(T* addr, void* (&words)[N], F f) {
+      class Buffer {
+          void* words_[N];
+          size_t offset_;
+
+        public:
+          Buffer(T* addr) : words_(), offset_(OffsetOf(addr)) {
+          }
+
+          void set(T val) {
+              uint8_t* bytes = reinterpret_cast<uint8_t*>(words_);
+              bytes += offset_;
+              *reinterpret_cast<T*>(bytes) = val;
+
+              // This is a bit annoying. For some reason gcc-4.7.1 is happy to
+              // hoist accesses to words_ via operator[] over set()s. I suppose
+              // it has something to do with aliasing (i.e., there isn't a
+              // dependency between the store to "bytes" and reads from words_.
+              CFENCE;
+          }
+
+          T& get() {
+              uint8_t* bytes = reinterpret_cast<uint8_t*>(words_);
+              bytes += offset_;
+              return *reinterpret_cast<T*>(bytes);
+          }
+
+          void*& operator[](int i) {
+              return words_[i];
+          }
+      };
+
+      /**
+       *  This is the fundamental loop used for both chunked read and write
+       *  access. It's basic job is to loop through each word in the buffer,
+       *  and perform f() on it. This should be customized and inlined for each
+       *  type of F, and N (and possibly OffsetOf and BaseOf) is a compile-time
+       *  constant, so this should be optimized nicely.
+       */
+      template <typename F>
+      static __attribute__((always_inline))
+      void ProcessWords(T* addr, Buffer& buf, F f) {
           // get the base and the offset of the address, in case we're dealing
           // with a sub-word or unaligned access. BaseOf and OffsetOf return
           // constants whenever they can.
@@ -142,15 +178,15 @@ namespace {
           f.preAccess();
 
           // deal with the first word (there's always at least one)
-          f(base, words[0], make_mask(off, min(sizeof(void*), end)));
+          f(base, buf[0], make_mask(off, min(sizeof(void*), end)));
 
           // deal with any middle words for large types
           for (size_t i = 1, e = N - 1; i < e; ++i)
-              f(base + i, words[i], ~0);
+              f(base + i, buf[i], ~0);
 
           // if we have a final word to read, do so
           if ((N > 1) && (end > sizeof(void*)))
-              f(base + N - 1, words[N - 1], make_mask(0, end % sizeof(void*)));
+              f(base + N - 1, buf[N - 1], make_mask(0, end % sizeof(void*)));
 
           // some algorithms want to do special stuff after accessing a
           // potentially N-word access.
@@ -172,14 +208,8 @@ namespace {
           if (filter(addr, tx))
               return *addr;
 
-          // Allocate space on the stack to perform the chunks of the
-          // operation. The union is necessary for dealing with subword or
-          // unaligned accesses. This all gets optimized because N is a
-          // compile-time constant.
-          union {
-              void* words[N];
-              uint8_t bytes[sizeof(void*[N])];
-          } buf = {{0}};
+          // Allocate space on the stack to perform the chunks of the read.
+          Buffer buffer(addr);
 
           // If this transaction is read-only, then we don't need to do RAW
           // checks and we should use the ReadRO function that we're
@@ -187,15 +217,12 @@ namespace {
           // WordType.
           IsReadOnly readonly;
           if (readonly(tx)) {
-              ProcessWords(addr, buf.words, Reader<ReadRO, NullType>(tx));
+              ProcessWords(addr, buffer, Reader<ReadRO, NullType>(tx));
           }
           else
-              ProcessWords(addr, buf.words, Reader<ReadRW, WordType>(tx));
+              ProcessWords(addr, buffer, Reader<ReadRW, WordType>(tx));
 
-          // use the 'bytes' half of the union to return the value as the
-          // correct type
-          uint8_t* insert = buf.bytes + OffsetOf(addr);
-          return *reinterpret_cast<T*>(insert);
+          return buffer.get();
       }
 
       /**
@@ -213,28 +240,17 @@ namespace {
               return;
           }
 
-          // Allocate space on the stack to perform the chunks of the
-          // operation. The union is necessary for dealing with subword or
-          // unaligned accesses. This all gets optimized because N is a
-          // compile-time constant.
-          union {
-              uint8_t bytes[sizeof(void*[N])];
-              void* words[N];
-          } buf = {{0}};
-
-          CFENCE;
-
-          // Put the to-write value into the union at the right offset.
-          uint8_t* insert = buf.bytes + OffsetOf(addr);
-          *reinterpret_cast<T*>(insert) = val;
+          // Allocate space on the stack to perform the chunks of the write.
+          Buffer buffer(addr);
+          buffer.set(val);
 
           // If this transaction is readonly, then we use the configured
           // WriteRO functor, otherwise we use the Write functor.
           IsReadOnly readonly;
           if (readonly(tx))
-              ProcessWords(addr, buf.words, Writer<WriteRO>(tx));
+              ProcessWords(addr, buffer, Writer<WriteRO>(tx));
           else
-              ProcessWords(addr, buf.words, Writer<WriteRW>(tx));
+              ProcessWords(addr, buffer, Writer<WriteRW>(tx));
       }
 
       /**
@@ -250,17 +266,11 @@ namespace {
           // in a way that impacts the pre-longjmp execution.
 
           // Allocate space on the stack to perform the log.
-          union {
-              void* words[N];
-              uint8_t bytes[sizeof(void*[N])];
-          } buf = {{0}};
-
-          // Put the to-log value into the union at the right offset.
-          uint8_t* insert = buf.bytes + OffsetOf(addr);
-          *reinterpret_cast<T*>(insert) = *addr;
+          Buffer buffer(addr);
+          buffer.set(*addr);
 
           // repurpose the undo log for logging.
-          ProcessWords(addr, buf.words, Writer<Logger>(tx));
+          ProcessWords(addr, buffer, Writer<Logger>(tx));
       }
 
       /**
