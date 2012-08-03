@@ -22,7 +22,7 @@
 PLATFORM  = gcctm_linux_x86_64_dbg
 CXX       = g++
 CC       ?= gcc
-CXXFLAGS += -O0 -g -m64 -march=native -mtune=native -msse2 -mfpmath=sse -fgnu-tm
+CXXFLAGS += -O2 -g -m64 -march=native -mtune=native -msse2 -mfpmath=sse -fgnu-tm -Wall -Wextra -Wno-clobbered -Werror
 LDFLAGS  += -ldl -lrt -lpthread -m64
 
 #

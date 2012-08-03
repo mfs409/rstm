@@ -130,6 +130,8 @@ _ITM_cxa_end_catch(void) {
     __cxa_end_catch();
 }
 
+struct _Unwind_Exception;
+
 void
 exceptionOnAbort(void *exc_ptr) {
     TX* tx = Self;

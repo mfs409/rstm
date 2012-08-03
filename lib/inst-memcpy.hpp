@@ -43,21 +43,25 @@ namespace stm {
 
       void put(void* word, const size_t n) {
           assert(canPut(n) && "Not enough space for put");
-          *(void**)(bytes + back) = word;
+          uint8_t* address = bytes + back;
+          *reinterpret_cast<void**>(address) = word;
           back += n;
       }
 
       void get(void*& word, const size_t n) {
           assert(canGet(n) && "Not enough space for get");
-          word = *(void**)(bytes + front);
+          uint8_t* address = bytes + front;
+          word = *reinterpret_cast<void**>(address);
           front += n;
       }
 
       void rebase() {
           size_t n = back - front;
           assert(n < sizeof(void*) && "Write more bytes before rebase");
-          if (n != 0)
-              words[0] = *(void**)(bytes + front);
+          if (n != 0) {
+              uint8_t* address = bytes + front;
+              words[0] = *reinterpret_cast<void**>(address);
+          }
 
           front = 0;
           back = n;
@@ -178,14 +182,16 @@ namespace stm {
       // useful bytes should be the high-order bytes in word
       void put(void* word, const size_t n) {
           assert(canPut(n) && "Not enough space for put");
-          *(void**)(bytes + front - sizeof(void*)) = word;
+          uint8_t* address = bytes + front - sizeof(void*);
+          *reinterpret_cast<void**>(address) = word;
           front -= n;
       }
 
       // useful bytes will be the high-order bytes in word
       void get(void*& word, const size_t n) {
           assert(canGet(n) && "Not enough space for get");
-          word = *(void**)(bytes + back - sizeof(void*));
+          uint8_t* address = bytes + back - sizeof(void*);
+          word = *reinterpret_cast<void**>(address);
           back -= n;
       }
 
@@ -193,8 +199,10 @@ namespace stm {
           size_t n = back - front;
           assert(n < sizeof(void*) && "Write more bytes before rebase");
           // shift the unused bytes to the top of the buffer
-          if (n != 0)
-              words[N] = *(void**)(bytes + back - sizeof(void*));
+          if (n != 0) {
+              uint8_t* address = bytes + back - sizeof(void*);
+              words[N] = *reinterpret_cast<void**>(address);
+          }
 
           back = sizeof(bytes);
           front = back - n;

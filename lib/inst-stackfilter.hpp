@@ -46,7 +46,7 @@ namespace stm {
    */
   struct LocalFilter {
       template <typename T>
-      bool operator()(T* addr, TX* tx) {
+      bool operator()(T* addr, TX*) {
           uintptr_t frame = (uintptr_t)__builtin_frame_address(0);
           assert(frame && "__builtin_frame_address failed");
           return ((frame - (uintptr_t)&frame) > (frame - (uintptr_t)addr));
