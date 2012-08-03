@@ -47,6 +47,25 @@ namespace stm {
       return static_cast<size_t>(offset);
   }
 
+  /** Slightly silly utility to "splat" a byte into a word. */
+  template <size_t N>
+  struct Splat;
+
+  template <>
+  struct Splat<8> {
+      enum { N = 0x0101010101010101ull };
+  };
+
+  template <>
+  struct Splat<4> {
+      enum { N = 0x01010101ul };
+  };
+
+  inline void* splat(uint8_t val) {
+      uintptr_t temp = Splat<sizeof(void*)>::N;
+      temp *= static_cast<uintptr_t>(val);
+      return reinterpret_cast<void*>(temp);
+  }
 }
 
 #endif // RSTM_INST_COMMON_H

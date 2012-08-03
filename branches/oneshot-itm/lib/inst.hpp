@@ -348,18 +348,12 @@ namespace {
           // can only do aligned, masked accesses
           void** addr = base_of(target);
           size_t off = offset_of(target);
-
-          // the union just makes it easy to "splat" the uint8_t represented by
-          // src into a word.
-          const union {
-              uint8_t bytes[sizeof(void*)];
-              void* word;
-          } pattern = {{(uint8_t)src}};
+          void* word = splat(src);
 
           // perform writes while there are bytes left to write.
           while (n) {
               const size_t to_write = min(sizeof(void*) - off, n);
-              write(addr, pattern.word, make_mask(off, off + to_write));
+              write(addr, word, make_mask(off, off + to_write));
               n -= to_write;
               ++addr;
               off = 0;                  // unilaterally, after first iteration

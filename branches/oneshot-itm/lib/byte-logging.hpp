@@ -95,20 +95,9 @@ namespace stm {
               return;
           }
 
-          union {
-              void** word;
-              uint8_t* bytes;
-          } uaddr = { addr };
-
-          union {
-              void* word;
-              uint8_t bytes[sizeof(void*)];
-          } uval = { val };
-
-          union {
-              uintptr_t word;
-              uint8_t bytes[sizeof(uintptr_t)];
-          } umask = { mask };
+          uint8_t* uaddr = reinterpret_cast<uint8_t*>(addr);
+          uint8_t* uval = reinterpret_cast<uint8_t*>(&val);
+          uint8_t* umask = reinterpret_cast<uint8_t*>(&mask);
 
           // We're just going to write out individual bytes, which turns all
           // subword accesses into byte accesses. This might be inefficient but
@@ -116,8 +105,8 @@ namespace stm {
           // supposed to be locked, and if there's a data race we can have any
           // sort of behavior.
           for (unsigned i = 0, e = sizeof(void*); i < e; ++i)
-              if (umask.bytes[i] == 0xFF)
-                  uaddr.bytes[i] = uval.bytes[i];
+              if (umask[i] == 0xFF)
+                  uaddr[i] = uval[i];
       }
 
       void writeTo(void** address) const {
