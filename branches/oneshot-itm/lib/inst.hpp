@@ -129,8 +129,7 @@ namespace {
        *  compile-time constant, so this should be optimized nicely.
        */
       template <typename F, size_t N>
-      static void __attribute__((always_inline))
-      ProcessWords(T* addr, void* (&words)[N], F f) {
+      static __attribute__((always_inline)) void ProcessWords(T* addr, void* (&words)[N], F f) {
           // get the base and the offset of the address, in case we're dealing
           // with a sub-word or unaligned access. BaseOf and OffsetOf return
           // constants whenever they can.
@@ -195,7 +194,8 @@ namespace {
 
           // use the 'bytes' half of the union to return the value as the
           // correct type
-          return *reinterpret_cast<T*>(buf.bytes + OffsetOf(addr));
+          uint8_t* insert = buf.bytes + OffsetOf(addr);
+          return *reinterpret_cast<T*>(insert);
       }
 
       /**
@@ -218,12 +218,15 @@ namespace {
           // unaligned accesses. This all gets optimized because N is a
           // compile-time constant.
           union {
-              void* words[N];
               uint8_t bytes[sizeof(void*[N])];
+              void* words[N];
           } buf = {{0}};
 
+          CFENCE;
+
           // Put the to-write value into the union at the right offset.
-          *reinterpret_cast<T*>(buf.bytes + OffsetOf(addr)) = val;
+          uint8_t* insert = buf.bytes + OffsetOf(addr);
+          *reinterpret_cast<T*>(insert) = val;
 
           // If this transaction is readonly, then we use the configured
           // WriteRO functor, otherwise we use the Write functor.
@@ -253,7 +256,8 @@ namespace {
           } buf = {{0}};
 
           // Put the to-log value into the union at the right offset.
-          *reinterpret_cast<T*>(buf.bytes + OffsetOf(addr)) = *addr;
+          uint8_t* insert = buf.bytes + OffsetOf(addr);
+          *reinterpret_cast<T*>(insert) = *addr;
 
           // repurpose the undo log for logging.
           ProcessWords(addr, buf.words, Writer<Logger>(tx));
@@ -368,7 +372,8 @@ namespace {
   template <typename T, typename Read>
   struct Lazy {
       struct BufferedWrite {
-          void operator()(void** addr, void* val, TX* tx, uintptr_t mask) const {
+          void __attribute__((noinline))
+          operator()(void** addr, void* val, TX* tx, uintptr_t mask) const {
               tx->writes.insert(addr, val, mask);
           }
 

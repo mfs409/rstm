@@ -22,8 +22,8 @@
 PLATFORM  = gcctm_linux_ia32_opt
 CXX       = g++
 CC       ?= gcc
-CXXFLAGS += -O3 -ggdb -m32 -march=native -mtune=native -msse2 -mfpmath=sse -fgnu-tm
-LDFLAGS  += -ldl -lrt -lpthread -m32 -fgnu-tm
+CXXFLAGS += -O3 -ggdb -m32 -march=native -mtune=native -msse2 -mfpmath=sse -fgnu-tm -Wall -Wextra -Wno-clobbered -Werror
+LDFLAGS  += -ldl -lrt -lpthread -m32
 ASFLAGS  += -m32
 
 #

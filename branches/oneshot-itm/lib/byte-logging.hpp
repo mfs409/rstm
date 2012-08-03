@@ -90,7 +90,7 @@ namespace stm {
       }
 
       static void Write(void** addr, void* val, uintptr_t mask) {
-          if (mask == ~0u) {
+          if (mask == ~(uintptr_t)0) {
               *addr = val;
               return;
           }

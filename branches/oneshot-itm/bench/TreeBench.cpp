@@ -85,7 +85,13 @@ void bench_test(uintptr_t, uint32_t* seed)
 }
 
 /*** Ensure the final state of the benchmark satisfies all invariants */
-bool bench_verify() { return SET->isSane(); }
+bool bench_verify() {
+    if (SET->isSane())
+        return true;
+
+    SET->print(std::cerr);
+    return false;
+}
 
 /**
  *  Step 4:

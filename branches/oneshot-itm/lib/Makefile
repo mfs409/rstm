@@ -92,13 +92,13 @@ librstm: $(ADAPTHEADER) $(LIBS) $(ADAPTLIB)
 #
 $(ODIR)/%.o: %.cpp
 	@echo [CXX] $< "-->" $@
-	$(_V)$(CXX) $(filter-out -fgnu-tm,$(CXXFLAGS)) -c -o $@ $<
+	$(_V)$(CXX) $(CPPFLAGS) $(filter-out -fgnu-tm,$(CXXFLAGS)) -c -o $@ $<
 #
 # Rule for building individual files in the lib folder
 #
 $(ODIR)/%.o: %.S
 	@echo [CCAS] $< "-->" $@
-	$(_V)$(CC) $(ASFLAGS) -c -o $@ $<
+	$(_V)$(CC) $(CPPFLAGS) $(ASFLAGS) -c -o $@ $<
 
 #
 # Rule for building .a files.  Since we use the same TX definition in all

@@ -22,7 +22,7 @@
 PLATFORM  = gcctm_linux_x86_64_opt
 CXX       = g++ -std=c++03
 CC       ?= gcc -std=c99
-CXXFLAGS += -O3 -ggdb -m64 -march=native -mtune=native -msse2 -mfpmath=sse -fgnu-tm -fno-strict-aliasing -Wall -Wextra -Wno-clobbered -Werror
+CXXFLAGS += -O3 -ggdb -m64 -march=native -mtune=native -msse2 -mfpmath=sse -fgnu-tm -Wall -Wextra -Wno-clobbered -Werror
 LDFLAGS  += -ldl -lrt -lpthread -m64
 
 #
