@@ -134,21 +134,17 @@ namespace {
           }
 
           void set(T val) {
-              uint8_t* bytes = reinterpret_cast<uint8_t*>(words_);
-              bytes += offset_;
-              *reinterpret_cast<T*>(bytes) = val;
-
-              // This is a bit annoying. For some reason gcc-4.7.1 is happy to
-              // hoist accesses to words_ via operator[] over set()s. I suppose
-              // it has something to do with aliasing (i.e., there isn't a
-              // dependency between the store to "bytes" and reads from words_.
-              CFENCE;
+              uint8_t* bytes = reinterpret_cast<uint8_t*>(words_) + offset_;
+              uint8_t* p = reinterpret_cast<uint8_t*>(&val);
+              memcpy(bytes, p, sizeof(val));
           }
 
-          T& get() {
-              uint8_t* bytes = reinterpret_cast<uint8_t*>(words_);
-              bytes += offset_;
-              return *reinterpret_cast<T*>(bytes);
+          T get() {
+              T val;
+              uint8_t* bytes = reinterpret_cast<uint8_t*>(words_) + offset_;
+              uint8_t* p = reinterpret_cast<uint8_t*>(&val);
+              memcpy(p, bytes, sizeof(val));
+              return val;
           }
 
           void*& operator[](int i) {
@@ -164,8 +160,7 @@ namespace {
        *  constant, so this should be optimized nicely.
        */
       template <typename F>
-      static __attribute__((always_inline))
-      void ProcessWords(T* addr, Buffer& buf, F f) {
+      static void ProcessWords(T* addr, Buffer& buf, F f) {
           // get the base and the offset of the address, in case we're dealing
           // with a sub-word or unaligned access. BaseOf and OffsetOf return
           // constants whenever they can.
