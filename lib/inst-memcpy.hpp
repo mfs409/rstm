@@ -22,19 +22,16 @@ namespace stm {
   class MemcpyBuffer {
       // need an extra word's worth of space, because we do sizeof(void*) chunk
       // operations, that may write garbage off the end of an N-word array.
-      union {
-          uint8_t bytes[sizeof(void* [N + 1])];
-          void* words[N + 1];
-      };
+      void* words[N + 1];
       size_t front;
       size_t back;
 
     public:
-      MemcpyBuffer() : bytes(), front(0), back(0) {
+      MemcpyBuffer() : words(), front(0), back(0) {
       }
 
       bool canPut(const size_t n) const {
-          return (n <= sizeof(bytes) - back);
+          return (n <= sizeof(words) - back);
       }
 
       bool canGet(const size_t n) const {
@@ -43,24 +40,32 @@ namespace stm {
 
       void put(void* word, const size_t n) {
           assert(canPut(n) && "Not enough space for put");
-          uint8_t* address = bytes + back;
-          *reinterpret_cast<void**>(address) = word;
+          uint8_t* to = reinterpret_cast<uint8_t*>(words) + back;
+          uint8_t* from = reinterpret_cast<uint8_t*>(word);
+          memcpy(to, from, sizeof(word));
           back += n;
       }
 
-      void get(void*& word, const size_t n) {
+      void* get(const size_t n) {
           assert(canGet(n) && "Not enough space for get");
-          uint8_t* address = bytes + front;
-          word = *reinterpret_cast<void**>(address);
+          // uint8_t* address = bytes + front;
+          // word = *reinterpret_cast<void**>(address);
+          void* word;
+          uint8_t* from = reinterpret_cast<uint8_t*>(words) + front;
+          uint8_t* to = reinterpret_cast<uint8_t*>(&word);
+          memcpy(to, from, sizeof(word));
           front += n;
+          return word;
       }
 
       void rebase() {
           size_t n = back - front;
           assert(n < sizeof(void*) && "Write more bytes before rebase");
           if (n != 0) {
-              uint8_t* address = bytes + front;
-              words[0] = *reinterpret_cast<void**>(address);
+              uint8_t* from = reinterpret_cast<uint8_t*>(words) + front;
+              uint8_t* to = reinterpret_cast<uint8_t*>(words);
+              // can't overlap, can they? could use memmove if that is the case
+              memcpy(to, from, sizeof(void*));
           }
 
           front = 0;
@@ -122,13 +127,15 @@ namespace stm {
           if (!buffer.canPut(n))
               return false;
 
-          union {
-              void* words[2];
-              uint8_t bytes[sizeof(void*[2])];
-          };
-
+          void* words[2];
+          void* word;
           f(addr, words[0], nextMask());
-          buffer.put(*(void**)(bytes + offset), n);
+
+          uint8_t* from = reinterpret_cast<uint8_t*>(words) + offset;
+          uint8_t* to = reinterpret_cast<uint8_t*>(&word);
+          memcpy(to, from, sizeof(word));
+
+          buffer.put(word, n);
           return true;
       }
 
@@ -138,12 +145,13 @@ namespace stm {
           if (!buffer.canGet(n))
               return false;
 
-          union {
-              void* words[2];
-              uint8_t bytes[sizeof(void*[2])];
-          };
+          void* words[2];
+          void* word = buffer.get(n);
 
-          buffer.get(*(void**)(bytes + offset), n);
+          uint8_t* from = reinterpret_cast<uint8_t*>(&word);
+          uint8_t* to = reinterpret_cast<uint8_t*>(words) + offset;
+          memcpy(to, from, sizeof(word));
+
           f(addr, words[0], nextMask());
           return true;
       }
