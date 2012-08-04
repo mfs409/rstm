@@ -512,4 +512,10 @@ namespace stm
         tx->read_only = true;
   }
 
+  /** test function*/
+  void* get_tls()
+  {
+    stm::TxThread* tx = stm::Self;
+    return tx;
+  }
 } // namespace stm
