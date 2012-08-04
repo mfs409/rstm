@@ -165,7 +165,9 @@ namespace stm
       void** my_tmcommit;
       void** my_tmread;
       void** my_tmwrite;
-
+      // test function
+      void* get_tls();
+  
   }; // class TxThread
 
   /*** GLOBAL VARIABLES RELATED TO THREAD MANAGEMENT */
