@@ -102,6 +102,9 @@ namespace stm
       size_t        lazy_hashing_cursor; // used in norecsandbox
       bool          sandboxing;          // true iff the algorithm needs it
       uintptr_t     full_validations;    // counts the number of full
+      uintptr_t     num_reads;
+      uintptr_t     num_writes;
+      uintptr_t     num_validation_barriers;
 
       /*** POINTERS TO INSTRUMENTATION */
 

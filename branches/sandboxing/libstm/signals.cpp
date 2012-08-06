@@ -150,7 +150,7 @@ prevalidate(int sig, siginfo_t* info, void* ctx, libc_sigaction_t cont)
           case SIGFPE:
           case SIGILL:
           case SIGABRT:
-            // We're going to longjmp from her. By setting the mask, and
+            // We're going to longjmp from here. By setting the mask, and
             // clearing the sig from the mask, we'll be ok.
             scope = (itm2stm::Checkpoint*)Self->scope;
             scope->restoreMask_ = true;
