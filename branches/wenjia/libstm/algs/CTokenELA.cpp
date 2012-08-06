@@ -114,6 +114,7 @@ namespace {
               *i->addr = i->val;
           }
       }
+      CFENCE;
 
       // mark self as done
       last_complete.val = tx->order;
