@@ -12,7 +12,6 @@
 #define TREE_HPP__
 
 #include <climits>
-#include <api/api.hpp> // need this for malloc and free
 
 class RBTree
 {
@@ -46,6 +45,7 @@ class RBTree
     static bool redViolation(const RBNode* p_r, const RBNode* x);
     static bool validParents(const RBNode* p, int xID, const RBNode* x);
     static bool inOrder(const RBNode* x, int lowerBound, int upperBound);
+    static void printInOrder(const RBNode*, std::ostream&);
 
   public:
     RBNode* sentinel;
@@ -54,22 +54,24 @@ class RBTree
 
     // standard IntSet methods
     TM_CALLABLE
-    bool lookup(int val TM_ARG) const;
+    bool lookup(int val) const;
 
     TM_CALLABLE
-    void insert(int val TM_ARG);
+    void insert(int val);
 
     TM_CALLABLE
-    void remove(int val TM_ARG);
+    void remove(int val);
 
     TM_CALLABLE
-    void modify(int val TM_ARG);
+    void modify(int val);
 
     bool isSane() const;
+
+    void print(std::ostream&) const;
 };
 
 // binary search for the node that has v as its value
-bool RBTree::lookup(int v TM_ARG) const
+bool RBTree::lookup(int v) const
 {
     // find v
     RBNode* x = TM_READ(sentinel->m_child[0]);
@@ -83,16 +85,16 @@ bool RBTree::lookup(int v TM_ARG) const
     return false;
 }
 
-void RBTree::modify(int v TM_ARG)
+void RBTree::modify(int v)
 {
-    if (lookup(v TM_PARAM))
-        remove(v TM_PARAM);
+    if (lookup(v))
+        remove(v);
     else
-        insert(v TM_PARAM);
+        insert(v);
 }
 
 // insert a node with v as its value if no such node exists in the tree
-void RBTree::insert(int v TM_ARG)
+void RBTree::insert(int v)
 {
     // find insertion point
     const RBNode* curr(sentinel);
@@ -211,7 +213,7 @@ void RBTree::insert(int v TM_ARG)
 }
 
 // remove the node with v as its value if it exists in the tree
-void RBTree::remove(int v TM_ARG)
+void RBTree::remove(int v)
 {
     // find v
     const RBNode* sentinel_r(sentinel);
@@ -473,11 +475,41 @@ bool RBTree::inOrder(const RBNode* x, int lowerBound, int upperBound)
 {
     if (!x)
         return true;
-    const RBNode* x_r(x);
-    return ((lowerBound <= x_r->m_val)
-            && (x_r->m_val <= upperBound)
-            && (inOrder(x_r->m_child[0], lowerBound, x_r->m_val - 1))
-            && (inOrder(x_r->m_child[1], x_r->m_val + 1, upperBound)));
+
+    bool inorder = true;
+
+    if (lowerBound > x->m_val) {
+        inorder = false;
+    }
+
+    if (x->m_val > upperBound) {
+        inorder = false;
+    }
+
+    if (!inOrder(x->m_child[0], lowerBound, x->m_val - 1)) {
+        inorder = false;
+    }
+
+    if (!inOrder(x->m_child[1], x->m_val + 1, upperBound)) {
+        inorder = false;
+    }
+
+    return inorder;
+}
+
+void RBTree::printInOrder(const RBTree::RBNode* node, std::ostream& os) {
+    os << " (" << node->m_val;
+    if (node->m_child[0] != NULL) {
+        printInOrder(node->m_child[0], os);
+    }
+    else
+        os << " .";
+    os << " ";
+    if (node->m_child[1] != NULL)
+        printInOrder(node->m_child[1], os);
+    else
+        os << ".";
+    os << ") ";
 }
 
 // build an empty tree
@@ -493,11 +525,38 @@ bool RBTree::isSane() const
         return true; // empty tree needs no checks
 
     const RBNode* root_r(root);
-    return ((BLACK == root_r->m_color) &&
-            (blackHeight(root) >= 0) &&
-            !(redViolation(sentinel_r, root)) &&
-            (validParents(sentinel, 0, root)) &&
-            (inOrder(root, INT_MIN, INT_MAX)));
+    bool sane = true;
+    if (BLACK != root_r->m_color) {
+        std::cerr << "RBTree root is not black\n";
+        sane = false;
+    }
+
+    if (blackHeight(root) < 0) {
+        std::cerr << "RBTree black height returning < 0\n";
+        sane = false;
+    }
+
+    if (redViolation(sentinel_r, root)) {
+        std::cerr << "RBTree red violation during sanity check\n";
+        sane = false;
+    }
+
+    if (!validParents(sentinel, 0, root)) {
+        std::cerr << "RBTree parents are not valid\n";
+        sane = false;
+    }
+
+    if (!inOrder(root, INT_MIN, INT_MAX)) {
+        std::cerr << "RBTree out of order\n";
+        sane = false;
+    }
+
+    return sane;
+}
+
+// deal with
+void RBTree::print(std::ostream& os) const {
+    printInOrder(sentinel, os);
 }
 
 #endif // TREE_HPP__

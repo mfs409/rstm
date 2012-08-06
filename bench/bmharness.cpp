@@ -11,13 +11,15 @@
 #ifndef BMHARNESS_HPP__
 #define BMHARNESS_HPP__
 
+// gross hack to ensure that all benchmarks use a rand_r with 32-bit range
+#include "../alt-license/rand_r.cpp"
+
 #include <cstdlib>
 #include <iostream>
 #include <signal.h>
 #include <pthread.h>
-#include <api/api.hpp>
-#include <common/platform.hpp>
-#include <common/locks.hpp>
+#include <platform.hpp>
+#include <locks.hpp>
 #include "bmconfig.hpp"
 
 using std::string;
@@ -68,7 +70,7 @@ namespace
    */
   void usage()
   {
-      std::cerr << "Usage: CounterBench -C <stm algorithm> [flags]\n";
+      std::cerr << "Usage: <BenchName> -C <stm algorithm> [flags]\n";
       std::cerr << "    -d: number of seconds to time (default 1)\n";
       std::cerr << "    -X: execute fixed tx count, not for a duration\n";
       std::cerr << "    -p: number of threads (default 1)\n";

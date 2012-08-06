@@ -11,14 +11,13 @@
 #ifndef DISJOINT_HPP__
 #define DISJOINT_HPP__
 
-#include <api/api.hpp>
 
-  // this is a benchmark for evaluating the overhead that TM induces for a
-  // variety of read/write ratios when there are no conflicts.  The benchmark
-  // is templated so that we can (at compile time) specify the number of
-  // locations that a transaction will touch, and the percentage of those
-  // locations that are to be written.  We don't actually care about the values
-  // read or written, since it's a microbenchmark.
+// this is a benchmark for evaluating the overhead that TM induces for a
+// variety of read/write ratios when there are no conflicts.  The benchmark
+// is templated so that we can (at compile time) specify the number of
+// locations that a transaction will touch, and the percentage of those
+// locations that are to be written.  We don't actually care about the values
+// read or written, since it's a microbenchmark.
 struct Disjoint
   {
       // const for keeping things from being 'too regular'
@@ -76,14 +75,14 @@ struct Disjoint
        *  optimized out
        */
       TM_CALLABLE
-      bool ro_transaction(uint32_t id, uint32_t startpoint TM_ARG)
+      bool ro_transaction(uint32_t id, uint32_t startpoint)
           __attribute__((noinline));
 
       /**
        *  do some reads, do some rmw's
        */
       TM_CALLABLE
-      void r_rw_transaction(uint32_t id, uint32_t startpoint TM_ARG)
+      void r_rw_transaction(uint32_t id, uint32_t startpoint)
       {
           PaddedBuffer& rBuffer =
               use_shared_read_buffer ? publicBuffer : privateBuffers[id];
@@ -100,7 +99,7 @@ struct Disjoint
               // set should_write based on /i/:
               // on odd, do a read/write if there are writes left to do
               // on even, do a read if there are reads left to do
-              if (i && 0x1)
+              if (i & 0x1)
                   should_write = (writes < writes_per_ten);
               else
                   should_write = !(reads < reads_per_ten);

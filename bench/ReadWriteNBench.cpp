@@ -8,7 +8,7 @@
  *          Please see the file LICENSE.RSTM for licensing information
  */
 
-#include <stm/config.h>
+#include <stm.h>
 #if defined(STM_CPU_SPARC)
 #include <sys/types.h>
 #endif
@@ -19,7 +19,6 @@
  */
 
 #include <iostream>
-#include <api/api.hpp>
 #include "bmconfig.hpp"
 
 /**
@@ -61,7 +60,10 @@ void bench_test(uintptr_t, uint32_t* seed)
     // NB: volatile needed because using a non-volatile local in conjunction
     //     with a setjmp-longjmp control transfer is undefined, and gcc won't
     //     allow it with -Wall -Werror.
-    volatile uint32_t local_seed = *seed;
+#ifndef STM_API_GCCTM
+    volatile
+#endif
+    uint32_t local_seed = *seed;
 
     TM_BEGIN(atomic) {
         int snapshot[1024];
@@ -73,7 +75,7 @@ void bench_test(uintptr_t, uint32_t* seed)
         for (uint32_t i = 0; i < CFG.ops; ++i) {
             TM_WRITE(matrix[loc[i]], 1 + snapshot[i]);
         }
-    } TM_END;
+    } TM_END();
     *seed = local_seed;
 }
 

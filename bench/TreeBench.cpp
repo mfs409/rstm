@@ -8,7 +8,7 @@
  *          Please see the file LICENSE.RSTM for licensing information
  */
 
-#include <stm/config.h>
+#include <stm.h>
 #if defined(STM_CPU_SPARC)
 #include <sys/types.h>
 #endif
@@ -18,7 +18,7 @@
  *    Include the configuration code for the harness, and the API code.
  */
 #include <iostream>
-#include <api/api.hpp>
+#include <cassert>
 #include "bmconfig.hpp"
 
 /**
@@ -40,8 +40,6 @@
 
 #include "Tree.hpp"
 
-
-
 /**
  *  Step 3:
  *    Declare an instance of the data type, and provide init, test, and verify
@@ -56,9 +54,10 @@ void bench_init()
 {
     SET = new RBTree();
     // warm up the datastructure
+    // [mfs] need to do this without transactions...
     TM_BEGIN_FAST_INITIALIZATION();
     for (uint32_t w = 0; w < CFG.elements; w+=2)
-        SET->insert(w TM_PARAM);
+        SET->insert(w);
     TM_END_FAST_INITIALIZATION();
     assert(SET->isSane());
 }
@@ -70,23 +69,29 @@ void bench_test(uintptr_t, uint32_t* seed)
     uint32_t act = rand_r(seed) % 100;
     if (act < CFG.lookpct) {
         TM_BEGIN(atomic) {
-            SET->lookup(val TM_PARAM);
-        } TM_END;
+            SET->lookup(val);
+        } TM_END();
     }
     else if (act < CFG.inspct) {
         TM_BEGIN(atomic) {
-            SET->insert(val TM_PARAM);
-        } TM_END;
+            SET->insert(val);
+        } TM_END();
     }
     else {
         TM_BEGIN(atomic) {
-            SET->remove(val TM_PARAM);
-        } TM_END;
+            SET->remove(val);
+        } TM_END();
     }
 }
 
 /*** Ensure the final state of the benchmark satisfies all invariants */
-bool bench_verify() { return SET->isSane(); }
+bool bench_verify() {
+    if (SET->isSane())
+        return true;
+
+    SET->print(std::cerr);
+    return false;
+}
 
 /**
  *  Step 4:
