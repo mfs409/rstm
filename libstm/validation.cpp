@@ -22,6 +22,8 @@ stm_validation_full() {
     if (!stms[curr_policy.ALG_ID].sandbox_signals)
         return;
 
+    ++Self->num_validation_barriers;
+
     if (!Self->tmvalidate(Self))
         Self->tmabort(Self);
 }

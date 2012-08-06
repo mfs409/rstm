@@ -172,6 +172,7 @@ OrecSandbox::commit_ro(TxThread* tx)
         tx->tmabort(tx);
 
     // Standard read-only commit at this point.
+    tx->num_reads += tx->r_orecs.size();
     tx->r_orecs.reset();
     tx->lazy_hashing_cursor = 0;
     OnReadOnlyCommit(tx);
@@ -255,6 +256,8 @@ OrecSandbox::commit_rw(TxThread* tx)
     last_complete.val = tx->end_time;
 
     // clean-up
+    tx->num_reads += tx->r_orecs.size();
+    tx->num_writes += tx->writes.size();
     tx->r_orecs.reset();
     tx->lazy_hashing_cursor = 0;
     tx->writes.reset();

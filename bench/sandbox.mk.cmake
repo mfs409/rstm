@@ -13,6 +13,8 @@ TreeBench: TreeBench.bc bmharness.o
 
 ListBench: ListBench.bc bmharness.o
 
+test-signal-handling: test-signal-handling.o
+
 TIME ?= 5
 RRS  ?= 100 75 50 25 0
 
