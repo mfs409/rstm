@@ -135,15 +135,13 @@ namespace {
 
           void set(T val) {
               uint8_t* bytes = reinterpret_cast<uint8_t*>(words_) + offset_;
-              uint8_t* p = reinterpret_cast<uint8_t*>(&val);
-              memcpy(bytes, p, sizeof(val));
+              memcpy(bytes, &val, sizeof(val));
           }
 
           T get() {
               T val;
               uint8_t* bytes = reinterpret_cast<uint8_t*>(words_) + offset_;
-              uint8_t* p = reinterpret_cast<uint8_t*>(&val);
-              memcpy(p, bytes, sizeof(val));
+              memcpy(&val, bytes, sizeof(val));
               return val;
           }
 

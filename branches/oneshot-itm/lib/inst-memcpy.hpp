@@ -41,8 +41,7 @@ namespace stm {
       void put(void* word, const size_t n) {
           assert(canPut(n) && "Not enough space for put");
           uint8_t* to = reinterpret_cast<uint8_t*>(words) + back;
-          uint8_t* from = reinterpret_cast<uint8_t*>(word);
-          memcpy(to, from, sizeof(word));
+          memcpy(to, &word, sizeof(word));
           back += n;
       }
 
@@ -52,8 +51,7 @@ namespace stm {
           // word = *reinterpret_cast<void**>(address);
           void* word;
           uint8_t* from = reinterpret_cast<uint8_t*>(words) + front;
-          uint8_t* to = reinterpret_cast<uint8_t*>(&word);
-          memcpy(to, from, sizeof(word));
+          memcpy(&word, from, sizeof(word));
           front += n;
           return word;
       }
@@ -63,9 +61,8 @@ namespace stm {
           assert(n < sizeof(void*) && "Write more bytes before rebase");
           if (n != 0) {
               uint8_t* from = reinterpret_cast<uint8_t*>(words) + front;
-              uint8_t* to = reinterpret_cast<uint8_t*>(words);
               // can't overlap, can they? could use memmove if that is the case
-              memcpy(to, from, sizeof(void*));
+              memcpy(&words, from, sizeof(void*));
           }
 
           front = 0;
@@ -132,8 +129,7 @@ namespace stm {
           f(addr, words[0], nextMask());
 
           uint8_t* from = reinterpret_cast<uint8_t*>(words) + offset;
-          uint8_t* to = reinterpret_cast<uint8_t*>(&word);
-          memcpy(to, from, sizeof(word));
+          memcpy(&word, from, sizeof(word));
 
           buffer.put(word, n);
           return true;
@@ -148,9 +144,8 @@ namespace stm {
           void* words[2];
           void* word = buffer.get(n);
 
-          uint8_t* from = reinterpret_cast<uint8_t*>(&word);
           uint8_t* to = reinterpret_cast<uint8_t*>(words) + offset;
-          memcpy(to, from, sizeof(word));
+          memcpy(to, &word, sizeof(word));
 
           f(addr, words[0], nextMask());
           return true;

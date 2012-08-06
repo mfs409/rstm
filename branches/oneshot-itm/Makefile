@@ -55,3 +55,8 @@ default: info
 #
 clean:
 	$(_V)$(RM)r $(LIBOUTDIRS) $(BENCHOUTDIRS)
+
+TMBUILD := gccrstm
+export TMBUILD
+stamp:
+	make -C patrick-stamp
