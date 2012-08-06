@@ -92,11 +92,7 @@ namespace
       TxThread* tx = stm::Self;
       // wait until it is our turn to commit, then validate, acquire, and do
       // writeback
-      while (last_complete.val != (uintptr_t)(tx->order - 1)) {
-          // Check if we need to abort due to an adaptivity event
-          if (stm::tmbegin != begin)
-              tx->tmabort();
-      }
+      while (last_complete.val != (uintptr_t)(tx->order - 1));
 
       // since we have the token, we can validate before getting locks
       if (last_complete.val > tx->ts_cache)
@@ -117,6 +113,7 @@ namespace
               *i->addr = i->val;
           }
       }
+      CFENCE;
 
       // mark self as done
       last_complete.val = tx->order;

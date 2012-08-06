@@ -115,6 +115,7 @@ namespace {
               *i->addr = i->val;
           }
       }
+      CFENCE;
       // record last_complete version
       last_complete.val = tx->order;
 
