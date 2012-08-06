@@ -93,6 +93,7 @@ namespace
 
       // set started
       tx->status = COHORTS_STARTED;
+      WBR;
 
       // double check no one is ready to commit
       if (q != NULL) {
@@ -122,7 +123,7 @@ namespace
   }
 
   /**
-   *  CohortsLNI2Q commit_turbo (for write in place tx use):
+   *  CohortsLNI2Q commit_turbo (for write inplace tx use):
    */
   void CohortsLNI2Q::commit_turbo()
   {
@@ -145,16 +146,16 @@ namespace
       // add myself to the queue
       do {
           tx->turn.next = q;
-      }while (!bcasptr(&q, tx->turn.next, &(tx->turn)));
+      } while (!bcasptr(&q, tx->turn.next, &(tx->turn)));
 
       // Mark self pending to commit
       tx->status = COHORTS_CPENDING;
       WBR;
 
+      // if only one tx left, set global flag, inplace allowed
       uint32_t left = 0;
       for (uint32_t i = 0; i < threadcount.val; ++i)
           left += (threads[i]->status & 1);
-      // if only one tx left, set global flag, inplace allowed
       //
       // [mfs] this is dangerous: it is possible for me to write 1, and
       //       then you to write 0 if you finish the loop first, but
@@ -166,18 +167,21 @@ namespace
       // Not first one? wait for your turn
       if (tx->turn.next != NULL)
           while (tx->turn.next->val != DONE);
-      else
+      else {
           // First one in a cohort waits until all tx are ready to commit
           for (uint32_t i = 0; i < threadcount.val; ++i)
               while (threads[i]->status == COHORTS_STARTED);
 
+          // do a quick filter comparison here?!?
+      }
+
       // Everyone must validate read
       if (!validate(tx)) {
           tx->turn.val = DONE;
-          tx->status = COHORTS_COMMITTED;
           if (q == &(tx->turn)) {
-              q = NULL;
               counter.val = 0;
+              CFENCE;
+              q = NULL;
           }
           tx->tmabort();
       }
@@ -188,13 +192,12 @@ namespace
 
       // Mark self status
       tx->turn.val = DONE;
-      tx->status = COHORTS_COMMITTED;
-      WBR; // this one cannot be omitted...
 
       // last one in a cohort reset q
       if (q == &(tx->turn)) {
-          q = NULL;
           counter.val = 0;
+          CFENCE;
+          q = NULL;
       }
 
       // commit all frees, reset all lists
@@ -303,8 +306,6 @@ namespace
           //       have some overhead that we should avoid, depending on how
           //       it handles stack writes.
           tx->writes.writeback();
-          // [mfs] I don't see why this fence is needed
-          //CFENCE;
           *addr = val;
           // go turbo
           stm::GoTurbo(read_turbo, write_turbo, commit_turbo);
