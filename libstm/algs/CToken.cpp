@@ -92,6 +92,7 @@ namespace
       TxThread* tx = stm::Self;
       // wait until it is our turn to commit, then validate, acquire, and do
       // writeback
+      // [wer210] This spin will cause trouble with adaptivity
       while (last_complete.val != (uintptr_t)(tx->order - 1));
 
       // since we have the token, we can validate before getting locks

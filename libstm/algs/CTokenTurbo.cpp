@@ -95,6 +95,7 @@ namespace {
   {
       TxThread* tx = stm::Self;
       // we need to transition to fast here, but not till our turn
+      // [wer210] This spin will cause trouble with adaptivity
       while (last_complete.val != ((uintptr_t)tx->order - 1))
           spin64();
 
