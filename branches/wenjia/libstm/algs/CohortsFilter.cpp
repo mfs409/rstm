@@ -28,11 +28,6 @@
 #include "../algs.hpp"
 #include "../RedoRAWUtils.hpp"
 
-// define atomic operations
-#define CAS __sync_val_compare_and_swap
-#define ADD __sync_add_and_fetch
-#define SUB __sync_sub_and_fetch
-
 using stm::TxThread;
 using stm::threads;
 using stm::threadcount;
@@ -82,11 +77,11 @@ namespace {
           spin64();
 
       // before tx begins, increase total number of tx
-      ADD(&started.val, 1);
+      faiptr(&started.val);
 
       // [NB] we must double check no one is ready to commit yet!
       if (cpending.val > committed.val) {
-          SUB(&started.val, 1);
+          faaptr(&started.val, -1);
           goto S1;
       }
 
@@ -101,7 +96,7 @@ namespace {
   {
       TxThread* tx = stm::Self;
       // decrease total number of tx started
-      SUB(&started.val, 1);
+      faaptr(&started.val, -1);
 
       // clean up
       tx->rf->clear();
@@ -119,7 +114,7 @@ namespace {
   {
       TxThread* tx = stm::Self;
       // increment num of tx ready to commit, and use it as the order
-      tx->order = ADD(&cpending.val, 1);
+      tx->order = 1 + faiptr(&cpending.val);
 
       // Wait until all tx are ready to commit
       while (cpending.val < started.val)

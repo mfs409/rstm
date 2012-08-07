@@ -12,8 +12,10 @@
 #define CM_HPP__
 
 #include <limits.h>
+#include "../include/abstract_cpu.hpp"
 #include "txthread.hpp"
 #include "algs.hpp"     // for exp_backoff
+#include "locks.hpp"
 
 /**
  *  Timeouts, thresholds, and states

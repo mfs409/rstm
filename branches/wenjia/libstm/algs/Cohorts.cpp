@@ -24,10 +24,6 @@
 #include "../algs.hpp"
 #include "../RedoRAWUtils.hpp"
 
-// define atomic operations
-#define ADD __sync_add_and_fetch
-#define SUB __sync_sub_and_fetch
-
 using stm::TxThread;
 using stm::last_complete;
 using stm::WriteSet;
@@ -44,11 +40,12 @@ using stm::committed;
  *  Declare the functions that we're going to implement, so that we can avoid
  *  circular dependencies.
  */
-namespace {
-
+namespace
+{
   NOINLINE bool validate(TxThread* tx);
 
-  struct Cohorts {
+  struct Cohorts
+  {
       static void begin();
       static TM_FASTCALL void* read_ro(STM_READ_SIG(,));
       static TM_FASTCALL void* read_rw(STM_READ_SIG(,));
@@ -77,11 +74,11 @@ namespace {
       while (cpending.val != committed.val);
 
       // before tx begins, increase total number of tx
-      ADD(&started.val, 1);
+      faiptr(&started.val);
 
       // [NB] we must double check no one is ready to commit yet!
       if (cpending.val > committed.val) {
-          SUB(&started.val, 1);
+          faaptr(&started.val, -1);
           goto S1;
       }
 
@@ -94,12 +91,11 @@ namespace {
   /**
    *  Cohorts commit (read-only):
    */
-  void
-  Cohorts::commit_ro()
+  void Cohorts::commit_ro()
   {
       TxThread* tx = stm::Self;
       // decrease total number of tx started
-      SUB(&started.val, 1);
+      faaptr(&started.val, -1);
 
       // clean up
       tx->r_orecs.reset();
@@ -112,15 +108,14 @@ namespace {
    *  RW commit is operated in turns. Transactions will be allowed to commit
    *  in an order which is given at the beginning of commit.
    */
-  void
-  Cohorts::commit_rw()
+  void Cohorts::commit_rw()
   {
       TxThread* tx = stm::Self;
       // get the order of first tx in a cohort
       uint32_t first = last_complete.val + 1;
 
       // increment num of tx ready to commit, and use it as the order
-      tx->order = ADD(&cpending.val, 1);
+      tx->order = 1+faiptr(&cpending.val);
 
       // Wait for my turn
       while (last_complete.val != (uintptr_t)(tx->order - 1));
@@ -245,15 +240,13 @@ namespace {
   /**
    *  Cohorts in-flight irrevocability:
    */
-  bool
-  Cohorts::irrevoc(TxThread*)
+  bool Cohorts::irrevoc(TxThread*)
   {
       UNRECOVERABLE("Cohorts Irrevocability not yet supported");
       return false;
   }
 
-  bool
-  validate(TxThread* tx)
+  bool validate(TxThread* tx)
   {
       // [mfs] use the luke trick?
       foreach (OrecList, i, tx->r_orecs) {
@@ -269,8 +262,7 @@ namespace {
    *  Switch to Cohorts:
    *
    */
-  void
-  Cohorts::onSwitchTo()
+  void Cohorts::onSwitchTo()
   {
       last_complete.val = 0;
   }

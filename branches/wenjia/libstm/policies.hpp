@@ -18,7 +18,7 @@
 #endif
 
 #include <inttypes.h>
-#include "../include/platform.hpp"
+//#include "../include/platform.hpp"
 #include "metadata.hpp"
 #include "txthread.hpp"
 #include "lib_globals.hpp"
@@ -287,7 +287,6 @@ namespace stm
    *  Helper function.  This is a terrible thing, and one we must get rid of,
    *  especially since we are calling it far more often than we should!
    */
-  TM_INLINE
   inline unsigned long long get_nontxtime()
   {
       // extimate the global nontx time per transaction

@@ -19,11 +19,6 @@
 #include "../algs.hpp"
 #include "../RedoRAWUtils.hpp"
 
-// define atomic operations
-#define CAS __sync_val_compare_and_swap
-#define ADD __sync_add_and_fetch
-#define SUB __sync_sub_and_fetch
-
 using stm::TxThread;
 using stm::WriteSet;
 using stm::UNRECOVERABLE;
@@ -32,9 +27,6 @@ using stm::ValueList;
 using stm::ValueListEntry;
 using stm::started;
 using stm::cohorts_node_t;
-
-#define NOTDONE 0
-#define DONE 1
 
 /**
  *  Declare the functions that we're going to implement, so that we can avoid
@@ -79,17 +71,17 @@ namespace {
       while (q != NULL);
 
       // before tx begins, increase total number of tx
-      ADD(&started.val, 1);
+      faiptr(&started.val);
 
       // [NB] we must double check no one is ready to commit yet
       // and no one entered in place write phase(turbo mode)
       if (q != NULL|| inplace == 1){
-          SUB(&started.val, 1);
+          faaptr(&started.val, -1);
           goto S1;
       }
 
       // reset local turn val
-      tx->turn.val = NOTDONE;
+      tx->turn.val = COHORTS_NOTDONE;
   }
 
   /**
@@ -100,7 +92,7 @@ namespace {
   {
       TxThread* tx = stm::Self;
       // decrease total number of tx started
-      SUB(&started.val, 1);
+      faaptr(&started.val, -1);
 
       // clean up
       tx->vlist.reset();
@@ -116,7 +108,7 @@ namespace {
   {
       TxThread* tx = stm::Self;
       // decrease total number of tx started
-      SUB(&started.val, 1);
+      faaptr(&started.val, -1);
 
       // clean up
       tx->vlist.reset();
@@ -146,11 +138,11 @@ namespace {
       }while (!bcasptr(&q, tx->turn.next, &(tx->turn)));
 
       // decrease total number of tx started
-      SUB(&started.val , 1);
+      faaptr(&started.val, -1);
 
       // wait for my turn
       if (tx->turn.next != NULL)
-          while (tx->turn.next->val != DONE);
+          while (tx->turn.next->val != COHORTS_DONE);
 
       // Wait until all tx are ready to commit
       while (started.val != 0);
@@ -160,7 +152,7 @@ namespace {
       if (inplace == 1 || tx->turn.next != NULL)
           if (!validate(tx)) {
               // mark self done
-              tx->turn.val = DONE;
+              tx->turn.val = COHORTS_DONE;
               // reset q if last one
               if (q == &(tx->turn)) q = NULL;
               // abort
@@ -172,7 +164,7 @@ namespace {
       CFENCE;
 
       // mark self as done
-      tx->turn.val = DONE;
+      tx->turn.val = COHORTS_DONE;
 
       // last one in cohort reset q
       if (q == &(tx->turn))

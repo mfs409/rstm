@@ -19,11 +19,6 @@
 #include "../algs.hpp"
 #include "../RedoRAWUtils.hpp"
 
-// define atomic operations
-#define CAS __sync_val_compare_and_swap
-#define ADD __sync_add_and_fetch
-#define SUB __sync_sub_and_fetch
-
 using stm::TxThread;
 using stm::last_complete;
 using stm::timestamp;
@@ -84,12 +79,12 @@ namespace {
       while (cpending.val != committed.val);
 
       // before tx begins, increase total number of tx
-      ADD(&started.val, 1);
+      faiptr(&started.val);
 
       // [NB] we must double check no one is ready to commit yet
       // and no one entered in place write phase(turbo mode)
       if (cpending.val > committed.val || inplace == 1){
-          SUB(&started.val, 1);
+          faaptr(&started.val, -1);
           goto S1;
       }
 
@@ -105,7 +100,7 @@ namespace {
   {
       TxThread* tx = stm::Self;
       // decrease total number of tx started
-      SUB(&started.val, 1);
+      faaptr(&started.val, -1);
 
       // clean up
       tx->r_orecs.reset();
@@ -121,7 +116,7 @@ namespace {
   {
       TxThread* tx = stm::Self;
       // increase # of tx waiting to commit, and use it as the order
-      tx->order = ADD(&cpending.val, 1);
+      tx->order = 1 + faiptr(&cpending.val);
 
       // clean up
       tx->r_orecs.reset();
@@ -152,7 +147,7 @@ namespace {
   {
       TxThread* tx = stm::Self;
       // increase # of tx waiting to commit, and use it as the order
-      tx->order = ADD(&cpending.val, 1);
+      tx->order = 1 + faiptr(&cpending.val);
 
       // Wait for my turn
       while (last_complete.val != (uintptr_t)(tx->order - 1));

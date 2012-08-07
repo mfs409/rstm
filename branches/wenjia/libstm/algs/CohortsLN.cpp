@@ -22,15 +22,6 @@
 #include "../algs.hpp"
 #include "../RedoRAWUtils.hpp"
 
-// define atomic operations
-#define CAS __sync_val_compare_and_swap
-#define ADD __sync_add_and_fetch
-#define SUB __sync_sub_and_fetch
-
-#define COHORTS_COMMITTED 0
-#define COHORTS_STARTED   1
-#define COHORTS_CPENDING  2
-
 using stm::TxThread;
 using stm::threads;
 using stm::threadcount;
@@ -126,7 +117,7 @@ namespace {
       tx->status = COHORTS_CPENDING;
 
       // Get an order
-      tx->order = ADD(&cpending.val, 1);
+      tx->order = 1+faiptr(&cpending.val);
 
       // For later use, indicates if I'm the last tx in this cohort
       bool lastone = true;

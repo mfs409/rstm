@@ -20,6 +20,7 @@
 #include "MiniVector.hpp"
 #include "BitFilter64.hpp"
 #include "BitFilter.hpp"
+#include "../include/abstract_compiler.hpp"
 
 namespace stm
 {

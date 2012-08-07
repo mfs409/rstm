@@ -811,7 +811,7 @@ namespace stm
        *  modifications to lots of STMs when we need to change writeback for a
        *  particular compiler.
        */
-      TM_INLINE void writeback()
+      inline void writeback()
       {
           for (iterator i = begin(), e = end(); i != e; ++i)
               i->writeback();

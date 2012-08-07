@@ -16,9 +16,9 @@
 #include <signal.h>
 #include <pthread.h>
 #include <rstm.hpp>
-#include <platform.hpp>
-//#include <locks.hpp>
 #include "bmconfig.hpp"
+#include "../include/abstract_timing.hpp"
+#include "../include/abstract_cpu.hpp"
 
 using std::string;
 using std::cout;
@@ -113,8 +113,7 @@ parseargs(int argc, char** argv)
  *  Run some nops between transactions, to simulate some time being spent on
  *  computation
  */
-void
-nontxnwork()
+void nontxnwork()
 {
     if (CFG.nops_after_tx)
         for (uint32_t i = 0; i < CFG.nops_after_tx; i++)

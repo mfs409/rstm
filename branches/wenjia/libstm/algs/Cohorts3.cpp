@@ -18,10 +18,6 @@
 #include "../algs.hpp"
 #include "../RedoRAWUtils.hpp"
 
-// define atomic operations
-#define ADD __sync_add_and_fetch
-#define SUB __sync_sub_and_fetch
-
 using stm::TxThread;
 using stm::WriteSet;
 using stm::UNRECOVERABLE;
@@ -30,9 +26,6 @@ using stm::ValueList;
 using stm::ValueListEntry;
 using stm::started;
 using stm::cohorts_node_t;
-
-#define NOTDONE 0
-#define DONE 1
 
 /**
  *  Declare the functions that we're going to implement, so that we can avoid
@@ -74,16 +67,16 @@ namespace {
       while (q != NULL);
 
       // before tx begins, increase total number of tx
-      ADD(&started.val, 1);
+      faiptr(&started.val);
 
       // [NB] we must double check no one is ready to commit yet
       if (q != NULL) {
-          SUB(&started.val, 1);
+          faaptr(&started.val, -1);
           goto S1;
       }
 
       // reset local turn val
-      tx->turn.val = NOTDONE;
+      tx->turn.val = COHORTS_NOTDONE;
   }
 
   /**
@@ -94,7 +87,7 @@ namespace {
   {
       TxThread* tx = stm::Self;
       // decrease total number of tx started
-      SUB(&started.val, 1);
+      faaptr(&started.val, -1);
 
       // clean up
       tx->vlist.reset();
@@ -117,16 +110,16 @@ namespace {
       } while (!bcasptr(&q, tx->turn.next, &(tx->turn)));
 
       // decrease total number of tx started
-      SUB(&started.val, 1);
+      faaptr(&started.val, -1);
 
       // if I'm not the 1st one in cohort
       if (tx->turn.next != NULL) {
           // wait for my turn
-          while (tx->turn.next->val != DONE);
+          while (tx->turn.next->val != COHORTS_DONE);
           // validate reads
           if (!validate(tx)) {
               // mark self done
-              tx->turn.val = DONE;
+              tx->turn.val = COHORTS_DONE;
               // reset q if last one
               if (q == &(tx->turn)) q = NULL;
               // abort
@@ -142,7 +135,7 @@ namespace {
       CFENCE;
 
       // mark self done
-      tx->turn.val = DONE;
+      tx->turn.val = COHORTS_DONE;
 
       // last one in cohort reset q
       if (q == &(tx->turn))

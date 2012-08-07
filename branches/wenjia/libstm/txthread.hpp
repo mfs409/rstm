@@ -21,6 +21,7 @@
 
 #include "../alt-license/rand_r_32.h"
 #include "../include/ThreadLocal.hpp"
+#include "../include/abstract_compiler.hpp"
 #include "locks.hpp"
 #include "metadata.hpp"
 #include "WriteSet.hpp"

@@ -17,16 +17,6 @@
 #include "../algs.hpp"
 #include "../RedoRAWUtils.hpp"
 
-// define atomic operations
-#define CAS __sync_val_compare_and_swap
-#define ADD __sync_add_and_fetch
-#define SUB __sync_sub_and_fetch
-
-// define tx status
-#define COHORTS_COMMITTED 0
-#define COHORTS_STARTED   1
-#define COHORTS_CPENDING  2
-
 using stm::TxThread;
 using stm::threads;
 using stm::threadcount;
@@ -42,6 +32,8 @@ using stm::get_orec;
 using stm::gatekeeper;
 using stm::last_order;
 
+// [mfs] This should probably be a pad_word_t, and should migrate to
+//       algs.cpp... it should also probably be in some sort of namespace.
 volatile uintptr_t in = 0;
 
 /**
@@ -65,6 +57,8 @@ namespace {
       static void rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
       static void onSwitchTo();
+      // [mfs] Ensure that we want this to be NOINLINE... it's only called
+      //       once...
       static NOINLINE void validate(TxThread* tx);
   };
 

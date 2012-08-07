@@ -24,11 +24,6 @@
 #include "../algs.hpp"
 #include "../RedoRAWUtils.hpp"
 
-// define atomic operations
-#define CAS __sync_val_compare_and_swap
-#define ADD __sync_fetch_and_add
-#define SUB __sync_fetch_and_sub
-
 using stm::TxThread;
 using stm::threads;
 using stm::threadcount;
@@ -87,7 +82,7 @@ namespace {
               locks[0] = 0;
 
               // now we can start again
-              CAS(&started.val, 0, -1);
+              casptr(&started.val, 0, -1);
           }
 
           // check if an adaptivity action is underway
@@ -98,7 +93,7 @@ namespace {
 
       CFENCE;
       // before start, increase total number of tx in one cohort
-      ADD(&started.val, 2);
+      faaptr(&started.val, 2);
 
       tx->allocator.onTxBegin();
       // get time of last finished txn
@@ -114,7 +109,7 @@ namespace {
   {
       TxThread* tx = stm::Self;
       // decrease total number of tx in a cohort
-      SUB(&started.val, 2);
+      faaptr(&started.val, -2);
 
       // commit all frees, reset all lists
       tx->r_orecs.reset();
@@ -147,10 +142,10 @@ namespace {
       if (started.val % 2 != 0)
       {
           // set started from odd to even, so that no one can begin now
-          ADD(&started.val, 1);
+          faiptr(&started.val);
 
           // set validation flag
-          CAS(&locks[0], 0, 1); // we need validations in read from now on
+          casptr(&locks[0], 0, 1); // we need validations in read from now on
 
           // wait until all the small locks are unlocked
           for(uint32_t i = 1; i < 9 ; i++)
@@ -184,7 +179,7 @@ namespace {
       OnReadWriteCommit(tx, read_ro, write_ro, commit_ro);
 
       // decrease total number of committing tx
-      SUB(&started.val, 2);
+      faaptr(&started.val, -2);
 
       // mark self as done
       last_complete.val = tx->order;
@@ -373,7 +368,7 @@ namespace {
   CohortsOld::TxAbortWrapper(TxThread* tx)
   {
       // decrease total number of tx in one cohort
-      SUB(&started.val, 2);
+      faaptr(&started.val, -2);
 
       // abort
       tx->tmabort();
@@ -388,7 +383,7 @@ namespace {
   CohortsOld::TxAbortWrapper_cm(TxThread* tx)
   {
       // decrease total number of tx in one cohort
-      SUB(&started.val, 2);
+      faaptr(&started.val, -2);
 
       // set self as completed
       last_complete.val = tx->order;

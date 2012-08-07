@@ -17,7 +17,7 @@
 #ifndef LOCKS_HPP__
 #define LOCKS_HPP__
 
-#include "../include/platform.hpp"
+#include "../include/abstract_cpu.hpp"
 
 /**
  *  Tune backoff parameters
