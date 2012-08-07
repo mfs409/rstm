@@ -216,7 +216,8 @@ namespace stm
    *
    *  NB: This uses getElapsedTime, which is slow compared to a granularity
    *      of 64 nops.  However, we can't switch to tick(), because sometimes
-   *      two successive tick() calls return the same value?
+   *      two successive tick() calls return the same value and tickp isn't
+   *      universal.
    */
   inline void exp_backoff(TxThread* tx)
   {
@@ -304,9 +305,8 @@ namespace stm
       ++tx->consec_aborts;
   }
 
-  inline void
-  PostRollback(TxThread* tx, ReadBarrier read_ro,
-               WriteBarrier write_ro, CommitBarrier commit_ro)
+  inline void PostRollback(TxThread* tx, ReadBarrier read_ro,
+                           WriteBarrier write_ro, CommitBarrier commit_ro)
   {
       tx->allocator.onTxAbort();
       tx->nesting_depth = 0;
@@ -331,9 +331,8 @@ namespace stm
    *  function, which does everything the prior PostRollback did except for
    *  calling the "Trigger::onAbort()" method.
    */
-  inline void
-  PostRollbackNoTrigger(TxThread* tx, ReadBarrier r,
-                        WriteBarrier w, CommitBarrier c)
+  inline void PostRollbackNoTrigger(TxThread* tx, ReadBarrier r,
+                                    WriteBarrier w, CommitBarrier c)
   {
       tx->allocator.onTxAbort();
       tx->nesting_depth = 0;
@@ -380,8 +379,11 @@ namespace stm
    */
   inline void bytelock_t::set_read_byte(uint32_t id)
   {
+      // [mfs] DANGER!  This is no longer valid code, since ARM is a
+      //       supported CPU.  We probably have bugs like this all over the
+      //       place :(
 #if defined(STM_CPU_SPARC)
-      reader[id] = 1;   WBR;
+      reader[id] = 1; WBR;
 #else
       atomicswap8(&reader[id], 1u);
 #endif
@@ -477,7 +479,7 @@ namespace stm
       }
   }
 
-      /*** simple printout */
+  /*** simple printout */
   inline void toxic_histogram_t::dump()
   {
       printf("abort_histogram: ");
