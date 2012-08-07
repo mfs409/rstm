@@ -143,10 +143,14 @@ namespace
   void CohortsLNI2Q::commit_rw()
   {
       TxThread* tx = stm::Self;
+      // pointer to the predecessor node in the queue
+      struct cohorts_node_t* pred;
+
       // add myself to the queue
-      do {
-          tx->turn.next = q;
-      } while (!bcasptr(&q, tx->turn.next, &(tx->turn)));
+      //do {
+      //    tx->turn.next = q;
+      //} while (!bcasptr(&q, tx->turn.next, &(tx->turn)));
+      pred = __sync_lock_test_and_set(&q, &(tx->turn));
 
       // Mark self pending to commit
       tx->status = COHORTS_CPENDING;
@@ -164,9 +168,20 @@ namespace
       //           just forbit one possible inplace write.
       counter.val = (left == 1);
 
+      /*
       // Not first one? wait for your turn
       if (tx->turn.next != NULL)
           while (tx->turn.next->val != DONE);
+      else {
+          // First one in a cohort waits until all tx are ready to commit
+          for (uint32_t i = 0; i < threadcount.val; ++i)
+              while (threads[i]->status == COHORTS_STARTED);
+
+          // do a quick filter comparison here?!?
+      }
+      */
+      if (pred != NULL)
+          while (pred->val != DONE);
       else {
           // First one in a cohort waits until all tx are ready to commit
           for (uint32_t i = 0; i < threadcount.val; ++i)
