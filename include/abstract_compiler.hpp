@@ -42,7 +42,7 @@
 // specify that parameters should be passed in registers (only applies to
 // ia32)
 #  if defined(STM_CPU_X86) && defined(STM_BITS_32)
-#    define TM_FASTCALL     __attribute__((regparm(3)))
+#    define TM_FASTCALL   __attribute__((regparm(3)))
 #  else
 #    define TM_FASTCALL
 #  endif

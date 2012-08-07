@@ -36,41 +36,47 @@
 #include <stdint.h>
 #include <limits.h>
 
-// The overlap on GCC between ia32 and amd64 is small enough that we only do
-// 32/64-bit specialization as needed within this block
-#if defined(STM_CPU_X86) && defined(STM_CC_GCC)
-
-#  define CACHELINE_BYTES     64
-
-#  define nop()               __asm__ volatile("nop")
-
-#  define CFENCE              __asm__ volatile ("":::"memory")
-#  define WBR                 __sync_synchronize()
-
+// given a modern GCC (we shall soon require 4.7.0 and recommend 4.7.1 on
+// ia32, amd64, sparc32, and sparc64; on ARM/Android it appears that the NDK
+// is at least 4.4, and we'll probably soon update this requirement to
+// 4.7-series as well), most of the cpu abstraction for atomic ops is
+// achieved via the same set of __sync_XYZ primitives:
+#if defined(STM_CC_GCC)
+   // CAS instructions that return the old value
 #  define cas32(p, o, n)      __sync_val_compare_and_swap(p, o, n)
 #  define cas64(p, o, n)      __sync_val_compare_and_swap(p, o, n)
 #  define casptr(p, o, n)     __sync_val_compare_and_swap(p, o, n)
-
+   // CAS instructions that return a boolean
 #  define bcas32(p, o, n)     __sync_bool_compare_and_swap(p, o, n)
 #  define bcas64(p, o, n)     __sync_bool_compare_and_swap(p, o, n)
 #  define bcasptr(p, o, n)    __sync_bool_compare_and_swap(p, o, n)
-
+   // test and set
 #  define tas(p)              __sync_lock_test_and_set(p, 1)
+   // fetch and increment
+#  define fai32(p)            __sync_fetch_and_add(p, 1)
+#  define fai64(p)            __sync_fetch_and_add(p, 1)
+#  define faiptr(p)           __sync_fetch_and_add(p, 1)
+   // fetch and add (can take a negative)
+#  define faa32(p, a)         __sync_fetch_and_add(p, a)
+#  define faa64(p, a)         __sync_fetch_and_add(p, a)
+#  define faaptr(p, a)        __sync_fetch_and_add(p, a)
+#endif
 
-// NB: GCC implements test_and_set via xchg instructions, so this is safe
+// these defines are specific to ia32 and amd64 gcc targets
+#if defined(STM_CPU_X86) && defined(STM_CC_GCC)
+   // size of a cache line
+#  define CACHELINE_BYTES     64
+   // no-op
+#  define nop()               __asm__ volatile("nop")
+   // compiler and memory fences
+#  define CFENCE              __asm__ volatile ("":::"memory")
+#  define WBR                 __sync_synchronize()
+   // NB: GCC implements test_and_set via xchg instructions, so this is safe
 #  define atomicswap8(p, v)   __sync_lock_test_and_set(p, v)
 #  define atomicswap32(p, v)  __sync_lock_test_and_set(p, v)
 #  define atomicswap64(p, v)  __sync_lock_test_and_set(p, v)
 #  define atomicswapptr(p, v) __sync_lock_test_and_set(p, v)
-
-#  define fai32(p)            __sync_fetch_and_add(p, 1)
-#  define fai64(p)            __sync_fetch_and_add(p, 1)
-#  define faiptr(p)           __sync_fetch_and_add(p, 1)
-
-#  define faa32(p, a)         __sync_fetch_and_add(p, a)
-#  define faa64(p, a)         __sync_fetch_and_add(p, a)
-#  define faaptr(p, a)        __sync_fetch_and_add(p, a)
-
+// atomic read of a 64-bit location depends on the BITS
 #  if defined(STM_BITS_32)
     /**
      *  atomic 64-bit load on ia32: achieve via cast to double
@@ -90,120 +96,75 @@
         *dest = *src;
     }
 #  endif
-
-  /**
-   *  On x86, we use the rdtsc instruction for tick()
-   */
+  // use rdtsc for high-precision tick counter
   inline uint64_t tick()
   {
       uint32_t tmp[2];
       asm volatile ("rdtsc" : "=a" (tmp[1]), "=d" (tmp[0]) : "c" (0x10) );
       return (((uint64_t)tmp[0]) << 32) | tmp[1];
   }
-
-  /**
-   *  On x86, we use the rdtscp instruction to ensure a pipeline barrier on tick()
-   */
+  // use rdtscp for high-precision tick counter with pipeline stall
   inline uint64_t tickp()
   {
       uint32_t tmp[2];
       asm volatile ("rdtscp" : "=a" (tmp[1]), "=d" (tmp[0]) : "c" (0x10) : "memory");
       return (((uint64_t)tmp[0]) << 32) | tmp[1];
   }
-
 #endif // STM_CPU_X86 && STM_CC_GCC
 
 // GCC armv7 is almost identical to GCC x86, but we split it out anyway,
 // since a few things differ
 #if defined(STM_CPU_ARMV7) && defined(STM_CC_GCC)
-
-// [mfs] Verify that ARM has 64-byte cache lines!
-#  define CACHELINE_BYTES     64
-
+   // size of a cache line
+#  define CACHELINE_BYTES     32
+   // no-op
 #  define nop()               __asm__ volatile("nop")
-
+   // compiler and memory fences.
+   // [mfs] these could be cleaner
 #  define CFENCE              __asm__ volatile("dmb":::"memory")
 #  define WBR                 __asm__ volatile("dmb":::"memory")
-// [mfs] Not sure if this is the right syntax, and we aren't using it yet
-//       anyway...
 #  define WBW                 __asm__ volatile("dmb [st]":::"memory")
-
-#  define cas32(p, o, n)      __sync_val_compare_and_swap(p, o, n)
-#  define cas64(p, o, n)      __sync_val_compare_and_swap(p, o, n)
-#  define casptr(p, o, n)     __sync_val_compare_and_swap(p, o, n)
-
-#  define bcas32(p, o, n)     __sync_bool_compare_and_swap(p, o, n)
-#  define bcas64(p, o, n)     __sync_bool_compare_and_swap(p, o, n)
-#  define bcasptr(p, o, n)    __sync_bool_compare_and_swap(p, o, n)
-
-#  define tas(p)              __sync_lock_test_and_set(p, 1)
-
-// NB: GCC implements test_and_set via xchg instructions, so this is safe
-//
-// [mfs] I don't believe that the above statement is true for ARM... how can
-//       we use SWP instead?
+   // NB: GCC implements test_and_set via xchg instructions, so this is safe
+   //
+   // [mfs] I don't believe that the above statement is true for ARM... how
+   //       can we use SWP instead?
 #  define atomicswap8(p, v)   __sync_lock_test_and_set(p, v)
 #  define atomicswap32(p, v)  __sync_lock_test_and_set(p, v)
 #  define atomicswap64(p, v)  __sync_lock_test_and_set(p, v)
 #  define atomicswapptr(p, v) __sync_lock_test_and_set(p, v)
-
-#  define fai32(p)            __sync_fetch_and_add(p, 1)
-#  define fai64(p)            __sync_fetch_and_add(p, 1)
-#  define faiptr(p)           __sync_fetch_and_add(p, 1)
-
-#  define faa32(p, a)         __sync_fetch_and_add(p, a)
-#  define faa64(p, a)         __sync_fetch_and_add(p, a)
-#  define faaptr(p, a)        __sync_fetch_and_add(p, a)
-
   /**
-   *  atomic 64-bit load on armv7: achieve via cast to double
-   *
-   *  [mfs] I do not believe that this is correct for ARM...
+   *  atomic 64-bit load is not available on armv7
    */
   inline void mvx(const volatile uint64_t* src, volatile uint64_t* dest)
   {
-      const volatile double* srcd = (const volatile double*)src;
-      volatile double* destd = (volatile double*)dest;
-      *destd = *srcd;
+      assert(0 && "Atomic 64-bit load not supported on ARM");
   }
-
   /**
    *  We do not have tick() support for ARM yet
    *
-   *  [mfs] Should we assert(false) instead, or is this called from critical
-   *        locations?
+   *  According to
+   *  http://forums.arm.com/index.php?/topic/11702-way-to-get-cpu-tick-counter/,
+   *  the right way to do it is probably "MRC p15, 0, r0, c15, c12, 1", but
+   *  I haven't verified this yet.
    */
   inline uint64_t tick() { return 0; }
-
   /**
-   *  [mfs] There is probably no equivalent to rdtscp on ARM...
+   *  [mfs] There is probably no equivalent to rdtscp on ARM... assert false?
    */
   inline uint64_t tickp() { return 0; }
-
 #endif // STM_CPU_ARMV7 && STM_CC_GCC
 
 // The overlap on GCC between sparc32 and sparc64 is small enough that we
 // only do 32/64-bit specialization as needed within this block
 #if defined(STM_CPU_SPARC) && defined(STM_CC_GCC)
-
+   // size of a cache line
 #  define CACHELINE_BYTES     64
-
+   // no-op
 #  define nop()               __asm__ volatile("nop")
-
+   // compiler and memory fences
 #  define CFENCE              __asm__ volatile ("":::"memory")
 #  define WBR                 __sync_synchronize()
-
-#  define cas32(p, o, n)      __sync_val_compare_and_swap(p, o, n)
-#  define cas64(p, o, n)      __sync_val_compare_and_swap(p, o, n)
-#  define casptr(p, o, n)     __sync_val_compare_and_swap(p, o, n)
-
-#  define bcas32(p, o, n)     __sync_bool_compare_and_swap(p, o, n)
-#  define bcas64(p, o, n)     __sync_bool_compare_and_swap(p, o, n)
-#  define bcasptr(p, o, n)    __sync_bool_compare_and_swap(p, o, n)
-
-#  define tas(p)              __sync_lock_test_and_set(p, 1)
-
-// NB: SPARC swap instruction only is 32/64-bit... there is no atomicswap8
+   // NB: SPARC swap instruction only is 32/64-bit... there is no atomicswap8
 #ifdef STM_BITS_32
 #define atomicswapptr(p, v)                                 \
     ({                                                      \
@@ -232,15 +193,6 @@
         tmp;                                    \
     })
 #endif
-
-#  define fai32(p)            __sync_fetch_and_add(p, 1)
-#  define fai64(p)            __sync_fetch_and_add(p, 1)
-#  define faiptr(p)           __sync_fetch_and_add(p, 1)
-
-#  define faa32(p, a)         __sync_fetch_and_add(p, a)
-#  define faa64(p, a)         __sync_fetch_and_add(p, a)
-#  define faaptr(p, a)        __sync_fetch_and_add(p, a)
-
 #if defined(STM_BITS_32)
   /**
    *  atomic 64-bit load on 32-bit sparc: use ldx/stx
@@ -261,7 +213,7 @@
       *dest = *src;
   }
 #  endif
-
+   // read the tick counter
 #  if defined(STM_CPU_SPARC) && defined(STM_BITS_32)
     /**
      *  32-bit SPARC: read the tick register into two 32-bit registers, then
@@ -287,7 +239,6 @@
         ans |= lo;
         return ans;
     }
-
 #  elif defined(STM_BITS_64)
     /**
      *  64-bit SPARC: read the tick register into a regular (64-bit) register
@@ -308,11 +259,12 @@
    *  specialized use of the function, so we'll just define tickp the same as
    *  tick
    */
-#  define tickp() tick()
-
+   inline uint64_t tickp() { return 0; }
 #endif
 
-#if 0 // [mfs] I believe the rest of this file is not currently supported
+// [mfs] I believe the rest of this file is not currently supported,
+// but might be useful one day...
+#if 0
 /**
  *  Here is the declaration of atomic operations when we're using Sun Studio
  *  12.1.  These work for x86 and SPARC, at 32-bit or 64-bit
