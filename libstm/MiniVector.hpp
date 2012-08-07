@@ -21,7 +21,7 @@
 #include <cassert>
 #include <cstdlib>
 #include <string.h>
-#include "../include/platform.hpp"
+// #include "../include/platform.hpp"
 
 namespace stm
 {
@@ -49,10 +49,10 @@ namespace stm
       ~MiniVector() { free(m_elements); }
 
       /*** Reset the vector without destroying the elements it holds */
-      TM_INLINE void reset() { m_size = 0; }
+      void reset() { m_size = 0; }
 
       /*** Insert an element into the minivector */
-      TM_INLINE void insert(T data)
+      void insert(T data)
       {
           // NB: There is a tradeoff here.  If we put the element into the list
           // first, we are going to have to copy one more object any time we
@@ -73,16 +73,16 @@ namespace stm
       }
 
       /*** Simple getter to determine the array size */
-      TM_INLINE unsigned long size() const { return m_size; }
+      unsigned long size() const { return m_size; }
 
       /*** iterator interface, just use a basic pointer */
       typedef T* iterator;
 
       /*** iterator to the start of the array */
-      TM_INLINE iterator begin() const { return m_elements; }
+      iterator begin() const { return m_elements; }
 
       /*** iterator to the end of the array */
-      TM_INLINE iterator end() const { return m_elements + m_size; }
+      iterator end() const { return m_elements + m_size; }
 
   }; // class MiniVector
 

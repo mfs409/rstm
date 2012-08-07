@@ -20,11 +20,6 @@
 #include "../algs.hpp"
 #include "../RedoRAWUtils.hpp"
 
-// define atomic operations
-#define CAS __sync_val_compare_and_swap
-#define ADD __sync_add_and_fetch
-#define SUB __sync_sub_and_fetch
-
 using stm::TxThread;
 using stm::WriteSet;
 using stm::UNRECOVERABLE;
@@ -35,9 +30,6 @@ using stm::started;
 using stm::threads;
 using stm::threadcount;
 using stm::cohorts_node_t;
-
-#define NOTDONE 0
-#define DONE    1
 
 #define TURBO   5
 #define RESET   0
@@ -83,11 +75,11 @@ namespace {
       while (q != NULL);
 
       // before tx begins, increase total number of tx
-      ADD(&started.val, 1);
+      faiptr(&started.val);
 
       // [NB] we must double check no one is ready to commit yet
       if (q != NULL) {
-          SUB(&started.val, 1);
+          faaptr(&started.val, -1);
           goto S1;
       }
 
@@ -95,7 +87,7 @@ namespace {
       tx->status = RESET;
 
       // reset local turn val
-      tx->turn.val = NOTDONE;
+      tx->turn.val = COHORTS_NOTDONE;
   }
 
   /**
@@ -106,7 +98,7 @@ namespace {
   {
       TxThread* tx = stm::Self;
       // decrease total number of tx started
-      SUB(&started.val, 1);
+      faaptr(&started.val, -1);
 
       // clean up
       tx->vlist.reset();
@@ -121,7 +113,7 @@ namespace {
   {
       TxThread* tx = stm::Self;
       // decrease total number of tx started
-      SUB(&started.val, 1);
+      faaptr(&started.val, -1);
 
       // clean up
       tx->vlist.reset();
@@ -145,7 +137,7 @@ namespace {
       }while (!bcasptr(&q, tx->turn.next, &(tx->turn)));
 
       // decrease total number of tx started
-      uint32_t temp = SUB(&started.val, 1);
+      uint32_t temp = faaptr(&started.val, -1) - 1;
 
       // If I'm the next to the last, notify the last txn to go turbo
       if (temp == 1)
@@ -154,14 +146,14 @@ namespace {
 
       // Wait for my turn
       if (tx->turn.next != NULL)
-          while (tx->turn.next->val != DONE);
+          while (tx->turn.next->val != COHORTS_DONE);
 
       // Wait until all tx are ready to commit
       while (started.val != 0);
 
       // Everyone must validate read
       if (!validate(tx)) {
-          tx->turn.val = DONE;
+          tx->turn.val = COHORTS_DONE;
           if (q == &(tx->turn)) q = NULL;
           tx->tmabort();
       }
@@ -171,7 +163,7 @@ namespace {
       CFENCE;
 
       // mark self done
-      tx->turn.val = DONE;
+      tx->turn.val = COHORTS_DONE;
 
       // last one in cohort reset q
       if (q == &(tx->turn))

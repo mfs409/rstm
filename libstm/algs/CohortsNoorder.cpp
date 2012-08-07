@@ -31,11 +31,6 @@
 #include "../algs.hpp"
 #include "../RedoRAWUtils.hpp"
 
-// define atomic operations
-#define CAS __sync_val_compare_and_swap
-#define ADD __sync_fetch_and_add
-#define SUB __sync_fetch_and_sub
-
 using stm::TxThread;
 using stm::timestamp;
 using stm::timestamp_max;
@@ -88,11 +83,11 @@ namespace {
       while (cpending.val != committed.val);
 
       //before start, increase total number of tx in one cohort
-      ADD(&started.val, 1);
+      faiptr(&started.val);
 
       // [NB] we must double check no one is ready to commit yet!
       if (cpending.val > committed.val){
-          SUB(&started.val, 1);
+          faaptr(&started.val, -1);
           goto S1;
       }
 
@@ -110,8 +105,8 @@ namespace {
   CohortsNoorder::commit_ro()
   {
       TxThread* tx = stm::Self;
-    // decrease total number of tx
-    SUB(&started.val, 1);
+      // decrease total number of tx
+      faaptr(&started.val, -1);
 
     // read-only, so just reset lists
     tx->r_orecs.reset();
@@ -126,7 +121,7 @@ namespace {
   {
       TxThread* tx = stm::Self;
       // increase # of tx waiting to commit
-      ADD(&cpending.val, 1);
+      faiptr(&cpending.val);
 
       // Wait until every tx is ready to commit
       while (cpending.val < started.val);
@@ -172,7 +167,7 @@ namespace {
       OnReadWriteCommit(tx, read_ro, write_ro, commit_ro);
 
       // increase total number of committed tx
-      ADD(&committed.val, 1);
+      faiptr(&committed.val);
   }
 
   /**
@@ -284,11 +279,11 @@ namespace {
     void
     CohortsNoorder::TxAbortWrapper(TxThread* tx)
     {
-      // Increase total number of committed tx
-      ADD(&committed.val, 1);
+        // Increase total number of committed tx
+        faiptr(&committed.val);
 
-      // abort
-      tx->tmabort();
+        // abort
+        tx->tmabort();
     }
 
   /**

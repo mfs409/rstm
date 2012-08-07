@@ -42,7 +42,7 @@
 #define API_LIBRARY_HPP__
 
 #include <setjmp.h>
-#include "platform.hpp"
+#include "abstract_compiler.hpp"
 #include "macros.hpp"
 #include "ThreadLocal.hpp"
 

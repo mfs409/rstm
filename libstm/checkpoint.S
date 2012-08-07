@@ -326,18 +326,13 @@ _ITM_beginTransaction:
     stb %g2, [%g1+4] ! volatile
 
     // Save SP, FP, PC (return address)
+    //
+    // [mfs] in this code and the 64-bit code, we currently are computing
+    //       offsets directly, and incorrectly... consider #defines instead
     st  %i7, [%g1+(4*15)]
     st  %fp, [%g1+(4*16)]
     st  %sp, [%g1+(4*17)]
-    // [mfs] This next line ***SHOULD BE*** incorrect.  We're indicating that
-    //       the continuation should return into the delay slot, instead of
-    //       returning to the instruction after the delay slot (Note: the
-    //       continuation calls retl, so it jumps to o7+8).  Yet, for some
-    //       reason, doing this works for TreeBench (and has no impact on
-    //       CounterBench), whereas skipping the sub and saving %o7 directly
-    //       leads to crashes in TreeBench.
-    sub %o7, 4, %g2
-    st  %g2, [%g1+(4*19)]
+    st  %o7, [%g1+(4*19)]
 
     // the tick stuff should go here
 
@@ -428,26 +423,25 @@ _ITM_beginTransaction:
     or    %g0, %g1, %o7 // o7 restored to original value
     ldx   [%g2+%g3], %g1, %tie_ldx(_ZN3stm4SelfE) // o1 holds address of most of Self
     add   %g7, %g1, %g1,%tie_add(_ZN3stm4SelfE) // o0 adds in the g7 magic
-    ldx   [%g1], %o0 // dereference to get the pointer to the descriptor into o0
+    ldx   [%g1], %g1 // dereference to get the pointer to the descriptor into o0
 
     // now that %o0 has the pointer to the descriptor, we can do this code:
     //  if (++tx->nesting_depth > 1) return;
-    ldx [%o0], %o4 // %o4 holds the value of the nesting depth
-    add %o4, 1, %o5 // nesting_depth++
-    cmp %o5, 1
+    ldx [%g1], %g2 // %o4 holds the value of the nesting depth
+    add %g2, 1, %g3 // nesting_depth++
+    cmp %g3, 1
     bgu,pn  %icc, .frameearlyexit_ITM_beginTransaction_
-    st  %o5, [%o0]
+    st  %g3, [%g1]
 
     // now it's time to do tx->in_tx = 1; WBR.  We can do this with a stb instruction
-    or %g0, 1, %o4
-    stb %o4, [%o0+4] ! volatile
+    or %g0, 1, %g2
+    stb %g2, [%g1+4] ! volatile
 
     // Save SP, FP, PC (return address)
-    stx %i7, [%o0+(8*15)]
-    stx %fp, [%o0+(8*16)]
-    stx %sp, [%o0+(8*17)]
-    add %o7, 8, %g1
-    stx %g1, [%o0+(8*19)]       // return address
+    stx %i7, [%g1+(8*15)]
+    stx %fp, [%g1+(8*16)]
+    stx %sp, [%g1+(8*17)]
+    stx %o7, [%g1+(8*19)]       // return address
 
     // the tick stuff should go here
 

@@ -8,7 +8,6 @@
  *          Please see the file LICENSE.RSTM for licensing information
  */
 
-#include "../include/platform.hpp"    // NORETURN, FASTCALL, etc
 #include "../include/macros.hpp"      // barrier signatures
 #include "txthread.hpp"    // TxThread stuff
 #include "policies.hpp"    // curr_policy

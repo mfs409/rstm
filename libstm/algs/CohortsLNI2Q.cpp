@@ -17,16 +17,6 @@
 #include "../algs.hpp"
 #include "../RedoRAWUtils.hpp"
 
-// define atomic operations
-#define CAS __sync_val_compare_and_swap
-#define ADD __sync_add_and_fetch
-#define SUB __sync_sub_and_fetch
-
-// define tx status
-#define COHORTS_COMMITTED 0
-#define COHORTS_STARTED   1
-#define COHORTS_CPENDING  2
-
 using stm::TxThread;
 using stm::threads;
 using stm::threadcount;
@@ -40,8 +30,6 @@ using stm::gatekeeper;
 using stm::last_order;
 using stm::cohorts_node_t;
 
-#define NOTDONE 3
-#define DONE    4
 /**
  *  Declare the functions that we're going to implement, so that we can avoid
  *  circular dependencies.
@@ -103,7 +91,7 @@ namespace
           tx->status = COHORTS_COMMITTED;
           goto S1;
       }
-      tx->turn.val = NOTDONE;
+      tx->turn.val = COHORTS_NOTDONE;
   }
 
   /**
@@ -171,7 +159,7 @@ namespace
       /*
       // Not first one? wait for your turn
       if (tx->turn.next != NULL)
-          while (tx->turn.next->val != DONE);
+          while (tx->turn.next->val != COHORTS_DONE);
       else {
           // First one in a cohort waits until all tx are ready to commit
           for (uint32_t i = 0; i < threadcount.val; ++i)
@@ -181,7 +169,7 @@ namespace
       }
       */
       if (pred != NULL)
-          while (pred->val != DONE);
+          while (pred->val != COHORTS_DONE);
       else {
           // First one in a cohort waits until all tx are ready to commit
           for (uint32_t i = 0; i < threadcount.val; ++i)
@@ -192,7 +180,7 @@ namespace
 
       // Everyone must validate read
       if (!validate(tx)) {
-          tx->turn.val = DONE;
+          tx->turn.val = COHORTS_DONE;
           if (q == &(tx->turn)) {
               counter.val = 0;
               CFENCE;
@@ -206,7 +194,7 @@ namespace
       CFENCE;
 
       // Mark self status
-      tx->turn.val = DONE;
+      tx->turn.val = COHORTS_DONE;
 
       // last one in a cohort reset q
       if (q == &(tx->turn)) {

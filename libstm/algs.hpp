@@ -26,6 +26,17 @@
 #include "txthread.hpp"
 #include "profiling.hpp" // Trigger::
 #include <algnames-autogen.hpp> // defines the ALGS enum
+#include "../include/abstract_timing.hpp"
+
+// [mfs] this isn't the right place for these defines, but they help to
+//       reduce code size and the prominence of this placement will hopefully
+//       lead to it being cleaned up properly soon...
+#define COHORTS_COMMITTED 0
+#define COHORTS_STARTED   1
+#define COHORTS_CPENDING  2
+#define COHORTS_NOTDONE   3
+#define COHORTS_DONE      4
+const uintptr_t VALIDATION_FAILED = 1;
 
 namespace stm
 {
@@ -139,7 +150,6 @@ namespace stm
   /**
    *  Map addresses to orec table entries
    */
-  TM_INLINE
   inline orec_t* get_orec(void* addr)
   {
       uintptr_t index = reinterpret_cast<uintptr_t>(addr);
@@ -149,7 +159,6 @@ namespace stm
   /**
    *  Map addresses to nanorec table entries
    */
-  TM_INLINE
   inline orec_t* get_nanorec(void* addr)
   {
       uintptr_t index = reinterpret_cast<uintptr_t>(addr);
@@ -159,7 +168,6 @@ namespace stm
   /**
    *  Map addresses to rrec table entries
    */
-  TM_INLINE
   inline rrec_t* get_rrec(void* addr)
   {
       uintptr_t index = reinterpret_cast<uintptr_t>(addr);
@@ -169,7 +177,6 @@ namespace stm
   /**
    *  Map addresses to bytelock table entries
    */
-  TM_INLINE
   inline bytelock_t* get_bytelock(void* addr)
   {
       uintptr_t index = reinterpret_cast<uintptr_t>(addr);
@@ -179,7 +186,6 @@ namespace stm
   /**
    *  Map addresses to bitlock table entries
    */
-  TM_INLINE
   inline bitlock_t* get_bitlock(void* addr)
   {
       uintptr_t index = reinterpret_cast<uintptr_t>(addr);
@@ -212,7 +218,6 @@ namespace stm
    *      of 64 nops.  However, we can't switch to tick(), because sometimes
    *      two successive tick() calls return the same value?
    */
-  TM_INLINE
   inline void exp_backoff(TxThread* tx)
   {
       // how many bits should we use to pick an amount of time to wait?

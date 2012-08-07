@@ -18,6 +18,7 @@
 #define BITFILTER_HPP__
 
 #include <stdint.h>
+#include "../include/abstract_compiler.hpp"
 
 #if defined(STM_USE_SSE)
 #include <xmmintrin.h>
@@ -53,8 +54,7 @@ namespace stm
       } TM_ALIGN(16);
 
       /*** simple hash function for now */
-      ALWAYS_INLINE
-      static uint32_t hash(const void* const key)
+      static inline uint32_t hash(const void* const key)
       {
           return (((uintptr_t)key) >> 3) % BITS;
       }
@@ -65,8 +65,7 @@ namespace stm
       BitFilter() { clear(); }
 
       /*** simple bit set function */
-      TM_INLINE
-      void add(const void* const val) volatile
+      inline void add(const void* const val) volatile
       {
           const uint32_t index  = hash(val);
           const uint32_t block  = index / WORD_SIZE;
@@ -75,8 +74,7 @@ namespace stm
       }
 
       /*** simple bit set function, with strong ordering guarantees */
-      ALWAYS_INLINE
-      void atomic_add(const void* const val) volatile
+      inline void atomic_add(const void* const val) volatile
       {
           const uint32_t index  = hash(val);
           const uint32_t block  = index / WORD_SIZE;
@@ -91,8 +89,7 @@ namespace stm
       }
 
       /*** simple lookup */
-      ALWAYS_INLINE
-      bool lookup(const void* const val) const volatile
+      inline bool lookup(const void* const val) const volatile
       {
           const uint32_t index  = hash(val);
           const uint32_t block  = index / WORD_SIZE;
@@ -102,8 +99,7 @@ namespace stm
       }
 
       /*** simple union */
-      TM_INLINE
-      void unionwith(const BitFilter<BITS>& rhs)
+      inline void unionwith(const BitFilter<BITS>& rhs)
       {
 #ifdef STM_USE_SSE
           for (uint32_t i = 0; i < VEC_BLOCKS; ++i)
@@ -115,8 +111,7 @@ namespace stm
       }
 
       /*** a fast clearing function */
-      TM_INLINE
-      void clear() volatile
+      inline void clear() volatile
       {
 #ifdef STM_USE_SSE
           // This loop gets automatically unrolled for BITS = 1024 by gcc-4.3.3
@@ -130,8 +125,7 @@ namespace stm
       }
 
       /*** a bitwise copy method */
-      TM_INLINE
-      void fastcopy(const volatile BitFilter<BITS>* rhs) volatile
+      inline void fastcopy(const volatile BitFilter<BITS>* rhs) volatile
       {
 #ifdef STM_USE_SSE
           for (uint32_t i = 0; i < VEC_BLOCKS; ++i)

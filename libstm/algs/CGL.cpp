@@ -18,7 +18,6 @@
  *        transaction is read-only or not
  */
 
-#include "../profiling.hpp"
 #include "../algs.hpp"
 #include "../UndoLog.hpp" // STM_DO_MASKED_WRITE
 

@@ -50,8 +50,7 @@ namespace stm
       // starting at addr into a set of stmread_word calls.  For now, the
       // range must be aligned on a sizeof(T) boundary, and T must be 1, 4,
       // or 8 bytes.
-      TM_INLINE
-      static T read(T* addr)
+      inline static T read(T* addr)
       {
           InvalidTypeAsSecondTemplateParameter itastp;
           T invalid = (T)itastp;
@@ -59,8 +58,7 @@ namespace stm
       }
 
       // same as read, but for writes
-      TM_INLINE
-      static void write(T* addr, T val)
+      inline static void write(T* addr, T val)
       {
           InvalidTypeAsSecondTemplateParameter itaftp;
           T invalid = (T)itaftp;
@@ -72,14 +70,12 @@ namespace stm
   template <typename T>
   struct DISPATCH<T, 4>
   {
-      TM_INLINE
-      static T read(T* addr)
+      inline static T read(T* addr)
       {
           return (T)(uintptr_t)tmread((void**)addr STM_MASK(~0x0));
       }
 
-      TM_INLINE
-      static void write(T* addr, T val)
+      inline static void write(T* addr, T val)
       {
           tmwrite((void**)addr, (void*)(uintptr_t)val STM_MASK(~0x0));
       }
@@ -89,16 +85,14 @@ namespace stm
   template <>
   struct DISPATCH<float, 4>
   {
-      TM_INLINE
-      static float read(float* addr)
+      inline static float read(float* addr)
       {
           union { float f;  void* v;  } v;
           v.v = tmread((void**)addr STM_MASK(~0x0));
           return v.f;
       }
 
-      TM_INLINE
-      static void write(float* addr, float val)
+      inline static void write(float* addr, float val)
       {
           union { float f;  void* v;  } v;
           v.f = val;
@@ -110,16 +104,14 @@ namespace stm
   template <>
   struct DISPATCH<const float, 4>
   {
-      TM_INLINE
-      static float read(const float* addr)
+      inline static float read(const float* addr)
       {
           union { float f;  void* v;  } v;
           v.v = tmread((void**)addr STM_MASK(~0x0));
           return v.f;
       }
 
-      TM_INLINE
-      static void write(const float*, float, TxThread*)
+      inline static void write(const float*, float, TxThread*)
       {
           UNRECOVERABLE("You should not be writing a const float!");
       }
@@ -129,8 +121,7 @@ namespace stm
   template <typename T>
   struct DISPATCH<T, 8>
   {
-      TM_INLINE
-      static T read(T* addr)
+      inline static T read(T* addr)
       {
           // get second word's address
           void** addr2 = (void**)((long)addr + 4);
@@ -144,8 +135,7 @@ namespace stm
           return (T)v.l;
       }
 
-      TM_INLINE
-      static void write(T* addr, T val)
+      inline static void write(T* addr, T val)
       {
           // compute the two addresses
           void** addr1 = (void**)addr;
@@ -169,8 +159,7 @@ namespace stm
   template <>
   struct DISPATCH<double, 8>
   {
-      TM_INLINE
-      static double read(double* addr)
+      inline static double read(double* addr)
       {
           // get second word's address
           void** addr2 = (void**)((long)addr + 4);
@@ -184,8 +173,7 @@ namespace stm
           return v.t;
       }
 
-      TM_INLINE
-      static void write(double* addr, double val)
+      inline static void write(double* addr, double val)
       {
           // compute the two addresses
           void** addr1 = (void**) addr;
@@ -206,8 +194,7 @@ namespace stm
   template <>
   struct DISPATCH<const double, 8>
   {
-      TM_INLINE
-      static double read(const double* addr)
+      inline static double read(const double* addr)
       {
           // get the second word's address
           void** addr2 = (void**)((long)addr + 4);
@@ -221,8 +208,7 @@ namespace stm
           return v.t;
       }
 
-      TM_INLINE
-      static void write(const double*, double, TxThread*)
+      inline static void write(const double*, double, TxThread*)
       {
           UNRECOVERABLE("You should not be writing a const double!");
       }
@@ -238,8 +224,7 @@ namespace stm
   template <typename T>
   struct DISPATCH<T, 1>
   {
-      TM_INLINE
-      static T read(T* addr)
+      inline static T read(T* addr)
       {
           // we must read the word (as a void*) that contains the byte at
           // address addr, then treat that as an array of T's from which we
@@ -252,8 +237,7 @@ namespace stm
           return (T)v.v[offset];
       }
 
-      TM_INLINE
-      static void write(T* addr, T val)
+      inline static void write(T* addr, T val)
       {
           // to protect granularity, we need to read the whole word and
           // then write a byte of it
@@ -272,14 +256,12 @@ namespace stm
   template <typename T>
   struct DISPATCH<T, 8>
   {
-      TM_INLINE
-      static T read(T* addr)
+      inline static T read(T* addr)
       {
           return (T)(uintptr_t)tmread((void**)addr STM_MASK(~0x0));
       }
 
-      TM_INLINE
-      static void write(T* addr, T val)
+      inline static void write(T* addr, T val)
       {
           tmwrite((void**)addr, (void*)(uintptr_t)val STM_MASK(~0x0));
       }
@@ -289,16 +271,14 @@ namespace stm
   template <>
   struct DISPATCH<double, 8>
   {
-      TM_INLINE
-      static double read(double* addr)
+      inline static double read(double* addr)
       {
           union { double d;  void*  v; } v;
           v.v = tmread((void**)addr STM_MASK(~0x0));
           return v.d;
       }
 
-      TM_INLINE
-      static void write(double* addr, double val)
+      inline static void write(double* addr, double val)
       {
           union { double d;  void*  v; } v;
           v.d = val;
@@ -310,16 +290,14 @@ namespace stm
   template <>
   struct DISPATCH<const double, 8>
   {
-      TM_INLINE
-      static double read(const double* addr)
+      inline static double read(const double* addr)
       {
           union { double d;  void*  v; } v;
           v.v = tmread((void**)addr STM_MASK(~0x0));
           return v.d;
       }
 
-      TM_INLINE
-      static void write(const double*, double, TxThread*)
+      inline static void write(const double*, double, TxThread*)
       {
           UNRECOVERABLE("You should not be writing a const double!");
       }
@@ -329,8 +307,7 @@ namespace stm
   template <>
   struct DISPATCH<long double, 16>
   {
-      TM_INLINE
-      static double read(double* addr)
+      inline static double read(double* addr)
       {
           // get second word's address
           void** addr2 = (void**)((long)addr + 4);
@@ -344,8 +321,7 @@ namespace stm
           return v.t;
       }
 
-      TM_INLINE
-      static void write(double* addr, double val)
+      inline static void write(double* addr, double val)
       {
           // compute the two addresses
           void** addr1 = (void**) addr;
@@ -378,8 +354,7 @@ namespace stm
   template <typename T>
   struct DISPATCH<T, 4>
   {
-      TM_INLINE
-      static T read(T* addr)
+      inline static T read(T* addr)
       {
           // we must read the word (as a void*) that contains the 4byte at
           // address addr, then treat that as an array of T's from which we
@@ -391,8 +366,7 @@ namespace stm
           return (T)v.v[offset];
       }
 
-      TM_INLINE
-      static void write(T* addr, T val)
+      inline static void write(T* addr, T val)
       {
           // to protect granularity, we need to read the whole word and
           // then write a byte of it
@@ -410,8 +384,7 @@ namespace stm
   template <>
   struct DISPATCH<float, 4>
   {
-      TM_INLINE
-      static float read(float* addr)
+      inline static float read(float* addr)
       {
           // read the word as a void*, pull out the right portion of it
           union { float v[2]; void* v2; } v;
@@ -421,8 +394,7 @@ namespace stm
           return v.v[offset];
       }
 
-      TM_INLINE
-      static void write(float* addr, float val)
+      inline static void write(float* addr, float val)
       {
           // read the whole word, then write a word of it
           union { float v[2]; void* v2; } v;
@@ -439,8 +411,7 @@ namespace stm
   template <>
   struct DISPATCH<const float, 4>
   {
-      TM_INLINE
-      static float read(const float* addr)
+      inline static float read(const float* addr)
       {
           // read the word as a void*, pull out the right portion of it
           union { float v[2]; void* v2; } v;
@@ -450,8 +421,7 @@ namespace stm
           return v.v[offset];
       }
 
-      TM_INLINE
-      static void write(const float*, float, TxThread*)
+      inline static void write(const float*, float, TxThread*)
       {
           UNRECOVERABLE("You should not be writing a const float!");
       }
@@ -460,8 +430,7 @@ namespace stm
   template <typename T>
   struct DISPATCH<T, 1>
   {
-      TM_INLINE
-      static T read(T* addr)
+      inline static T read(T* addr)
       {
           // we must read the word (as a void*) that contains the byte at
           // address addr, then treat that as an array of T's from which we
@@ -474,8 +443,7 @@ namespace stm
           return (T)v.v[offset];
       }
 
-      TM_INLINE
-      static void write(T* addr, T val)
+      inline static void write(T* addr, T val)
       {
           // to protect granularity, we need to read the whole word and
           // then write a byte of it

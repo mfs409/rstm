@@ -63,8 +63,7 @@ namespace stm
        *  long blocking at begin time (TML, CGL, Serial, MCS, Ticket), and gets
        *  called on every commit
        */
-      TM_INLINE
-      static void onCommitLock(TxThread* tx)
+      inline static void onCommitLock(TxThread* tx)
       {
           // if we don't have a function for changing algs, then we should just
           // return
@@ -86,8 +85,7 @@ namespace stm
        *  Part 3: the thing that gets inlined into stm abort, and gets called
        *  on every abort
        */
-      TM_INLINE
-      static void onAbort(TxThread* tx)
+      inline static void onAbort(TxThread* tx)
       {
           // if we don't have a function for changing algs, then we should just
           // return
