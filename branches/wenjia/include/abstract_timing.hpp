@@ -85,8 +85,8 @@
 
 #endif // STM_OS_SOLARIS
 
-// [mfs] MacOS support has been dropped... keeping this code for now, but it
-//       is untested
+// [mfs] MacOS support has been dropped... we can keep this code for now, but
+//       it is untested
 #if defined(STM_OS_MACOS)
 
 #  include <unistd.h>
