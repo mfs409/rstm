@@ -116,7 +116,7 @@ sub cpu {
         push(@LINES, "ASFLAGS += -m32 -DSTM_BITS_32");
         push(@LINES, "CFLAGS += -m32");
         push(@LINES, "LDFLAGS += -m32");
-        push(@LINES, "CXXFLAGS += -m32 -DSTM_BITS_32");
+        push(@LINES, "CXXFLAGS += -DSTM_BITS_32");
         push(@LINES, "CXXFLAGS += -DSTM_CPU_ARMV7");
         push(@LINES, "ASFLAGS += -DSTM_CPU_ARMV7");
         push(@LINES, "CXXFLAGS += -march=armv7-a");
@@ -245,7 +245,7 @@ sub query {
 compiler(&query("Choose a compiler"));
 @options = qw(linux solaris);
 os(&query("Choose an os"));
-@options = qw(ia32 amd64 sparc32 sparc64 amdv7);
+@options = qw(ia32 amd64 sparc32 sparc64 armv7);
 cpu(&query("Choose a cpu"));
 @options = qw(opt dbg);
 optimization(&query("Choose an optimization level"));

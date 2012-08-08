@@ -21,7 +21,7 @@
 #
 PLATFORM  = gcc_linux_armv7_opt
 CXX       = g++
-#CXXFLAGS += -Wall -Wextra -Werror
+CXXFLAGS += -Wall -Wextra -Werror
 CXXFLAGS += -O3 -ggdb -march=armv7-a
 LDFLAGS  += -lrt -lpthread -m32
 CFLAGS   += -m32
