@@ -54,7 +54,7 @@ void bench_init()
     // populate list with all values from 0 to LIVELOCK_ELEMENTS - 1
     TM_BEGIN_FAST_INITIALIZATION();
     for (uint32_t i = 0; i < CFG.elements; i++)
-        list->insert(i);
+        list->insert(TX_FIRST_ARG i);
     TM_END_FAST_INITIALIZATION();
 }
 
@@ -69,9 +69,9 @@ void bench_test(uintptr_t id, uint32_t*)
         // need to look at the timer, or we'll livelock!
         if (CFG.running) {
             if (id % 2)
-                list->increment_forward();
+                list->increment_forward(TX_LONE_ARG);
             else
-                list->increment_backward();
+                list->increment_backward(TX_LONE_ARG);
         }
     } TM_END;
 }

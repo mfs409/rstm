@@ -113,10 +113,10 @@ namespace stm
        * the begin, commit, read, and write methods a tx uses when it
        * starts
        */
-      void  (* begin) ();
-      void  (*TM_FASTCALL commit)();
-      void* (*TM_FASTCALL read)  (STM_READ_SIG(,));
-      void  (*TM_FASTCALL write) (STM_WRITE_SIG(,,));
+      void  (* begin) (TX_LONE_PARAMETER);
+      void  (*TM_FASTCALL commit)(TX_LONE_PARAMETER);
+      void* (*TM_FASTCALL read)  (TX_FIRST_PARAMETER STM_READ_SIG(,));
+      void  (*TM_FASTCALL write) (TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
 
       /**
        * rolls the transaction back without unwinding, returns the scope (which
@@ -235,11 +235,11 @@ namespace stm
   }
 
   // This is used as a default in txthread.cpp... just forwards to CGL::begin.
-  void begin_CGL();
+  void begin_CGL(TX_LONE_PARAMETER);
 
-  typedef TM_FASTCALL void* (*ReadBarrier)(STM_READ_SIG(,));
-  typedef TM_FASTCALL void (*WriteBarrier)(STM_WRITE_SIG(,,));
-  typedef TM_FASTCALL void (*CommitBarrier)();
+  typedef TM_FASTCALL void* (*ReadBarrier)(TX_FIRST_PARAMETER STM_READ_SIG(,));
+  typedef TM_FASTCALL void (*WriteBarrier)(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+  typedef TM_FASTCALL void (*CommitBarrier)(TX_LONE_PARAMETER );
 
   inline void OnReadWriteCommit(TxThread* tx, ReadBarrier read_ro,
                                 WriteBarrier write_ro, CommitBarrier commit_ro)

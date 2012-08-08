@@ -53,9 +53,10 @@ namespace
   /**
    *  custom commit for irrevocable transactions
    */
-  TM_FASTCALL void commit_irrevocable()
+  TM_FASTCALL void commit_irrevocable(TX_LONE_PARAMETER)
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
+
       // make self non-irrevocable, and unset local r/w/c barriers
       tx->irrevocable = false;
       unset_irrevocable_barriers(*tx);
@@ -185,9 +186,9 @@ namespace stm
    *  doubles as an irrevocability mechanism for implementations where we don't
    *  have (or can't write) an in-flight irrevocability mechanism.
    */
-  void begin_blocker()
+  void begin_blocker(TX_LONE_PARAMETER)
   {
-      TxThread* tx = Self;
+      TX_GET_TX_INTERNAL;
 
       // if the caller is trying to restart as irrevocable, let them
       if (tx->irrevocable) {
@@ -196,7 +197,7 @@ namespace stm
       }
 
       // adapt without longjmp
-      void (*beginner)();
+      void (*beginner)(TX_LONE_PARAMETER);
       while (true) {
           // first, clear the outer scope, because it's our 'tx/nontx' flag
           tx->in_tx = 0;
@@ -215,7 +216,7 @@ namespace stm
           if (beginner != begin_blocker)
               break;
       }
-      beginner();
+      beginner(TX_LONE_ARG);
   }
 }
 

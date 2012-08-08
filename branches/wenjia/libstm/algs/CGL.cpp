@@ -1,4 +1,4 @@
-  /**
+/**
  *  Copyright (C) 2011
  *  University of Rochester Department of Computer Science
  *    and
@@ -36,9 +36,9 @@ namespace
   struct CGL
   {
       // begin_CGL is external
-      static TM_FASTCALL void* read(STM_READ_SIG(,));
-      static TM_FASTCALL void write(STM_WRITE_SIG(,,  ));
-      static TM_FASTCALL void commit();
+      static TM_FASTCALL void* read(TX_FIRST_PARAMETER STM_READ_SIG(,));
+      static TM_FASTCALL void write(TX_FIRST_PARAMETER STM_WRITE_SIG(,,  ));
+      static TM_FASTCALL void commit(TX_LONE_PARAMETER);
 
       static void rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
@@ -48,10 +48,10 @@ namespace
   /**
    *  CGL commit
    */
-  void
-  CGL::commit()
+  void CGL::commit(TX_LONE_PARAMETER)
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
+
       // release the lock, finalize mm ops, and log the commit
       tatas_release(&timestamp.val);
       OnCGLCommit(tx);
@@ -60,8 +60,7 @@ namespace
   /**
    *  CGL read
    */
-  void*
-  CGL::read(STM_READ_SIG(addr,))
+  void* CGL::read(TX_FIRST_PARAMETER_ANON STM_READ_SIG(addr,))
   {
       return *addr;
   }
@@ -69,8 +68,7 @@ namespace
   /**
    *  CGL write
    */
-  void
-  CGL::write(STM_WRITE_SIG(addr,val,mask))
+  void CGL::write(TX_FIRST_PARAMETER_ANON STM_WRITE_SIG(addr,val,mask))
   {
       STM_DO_MASKED_WRITE(addr, val, mask);
   }
@@ -80,8 +78,7 @@ namespace
    *
    *    In CGL, aborts are never valid
    */
-  void
-  CGL::rollback(STM_ROLLBACK_SIG(,,))
+  void CGL::rollback(STM_ROLLBACK_SIG(,,))
   {
       UNRECOVERABLE("ATTEMPTING TO ABORT AN IRREVOCABLE CGL TRANSACTION");
   }
@@ -92,8 +89,7 @@ namespace
    *    Since we're already irrevocable, this code should never get called.
    *    Instead, the become_irrevoc() call should just return true.
    */
-  bool
-  CGL::irrevoc(TxThread*)
+  bool CGL::irrevoc(TxThread*)
   {
       UNRECOVERABLE("CGL::IRREVOC SHOULD NEVER BE CALLED");
       return false;
@@ -105,15 +101,15 @@ namespace
    *    We need a zero timestamp, so we need to save its max value to support
    *    algorithms that do not expect the timestamp to ever decrease
    */
-  void
-  CGL::onSwitchTo()
+  void CGL::onSwitchTo()
   {
       timestamp_max.val = MAXIMUM(timestamp.val, timestamp_max.val);
       timestamp.val = 0;
   }
 }
 
-namespace stm {
+namespace stm
+{
   /**
    *  CGL begin:
    *
@@ -123,9 +119,9 @@ namespace stm {
    *    This is external and declared in algs.hpp so that we can access it as a
    *    default in places.
    */
-  void begin_CGL()
+  void begin_CGL(TX_LONE_PARAMETER)
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       // get the lock and notify the allocator
       tx->begin_wait = tatas_acquire(&timestamp.val);
       tx->allocator.onTxBegin();

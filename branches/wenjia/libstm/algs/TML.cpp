@@ -39,10 +39,10 @@ using stm::UNRECOVERABLE;
  */
 namespace {
   struct TML {
-      static void begin();
-      static TM_FASTCALL void* read(STM_READ_SIG(,));
-      static TM_FASTCALL void write(STM_WRITE_SIG(,,));
-      static TM_FASTCALL void commit();
+      static void begin(TX_LONE_PARAMETER);
+      static TM_FASTCALL void* read(TX_FIRST_PARAMETER STM_READ_SIG(,));
+      static TM_FASTCALL void write(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+      static TM_FASTCALL void commit(TX_LONE_PARAMETER);
 
       static void rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
@@ -52,9 +52,9 @@ namespace {
   /**
    *  TML begin:
    */
-  void TML::begin()
+  void TML::begin(TX_LONE_PARAMETER)
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       int counter = 0;
       // Sample the sequence lock until it is even (unheld)
       while ((tx->start_time = timestamp.val) & 1) {
@@ -71,9 +71,9 @@ namespace {
    *  TML commit:
    */
   void
-  TML::commit()
+  TML::commit(TX_LONE_PARAMETER)
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       // writing context: release lock, free memory, remember commit
       if (tx->tmlHasLock) {
           ++timestamp.val;
@@ -93,9 +93,9 @@ namespace {
    *    If we have the lock, we're irrevocable so just do a read.  Otherwise,
    *    after doing the read, make sure we are still valid.
    */
-  void* TML::read(STM_READ_SIG(addr,))
+  void* TML::read(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       void* val = *addr;
       if (tx->tmlHasLock)
           return val;
@@ -110,9 +110,9 @@ namespace {
    *    If we have the lock, do an in-place write and return.  Otherwise, we
    *    need to become irrevocable first, then do the write.
    */
-  void TML::write(STM_WRITE_SIG(addr,val,mask))
+  void TML::write(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       if (tx->tmlHasLock) {
           STM_DO_MASKED_WRITE(addr, val, mask);
           return;
@@ -126,7 +126,7 @@ namespace {
    *  TML unwinder
    *
    *    NB: This should not be called from a writing context!  That means
-   *        calling restart() under TML with writes is not allowed, but we
+   *        calling restart(TX_LONE_PARAMETER) under TML with writes is not allowed, but we
    *        don't currently enforce.
    *
    *    NB: don't need to worry about exception object since anyone rolling

@@ -43,13 +43,13 @@ using stm::get_orec;
 namespace {
   struct LLT_amd64
   {
-      static void begin();
-      static TM_FASTCALL void* read_ro(STM_READ_SIG(,));
-      static TM_FASTCALL void* read_rw(STM_READ_SIG(,));
-      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,));
-      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,));
-      static TM_FASTCALL void commit_ro();
-      static TM_FASTCALL void commit_rw();
+      static void begin(TX_LONE_PARAMETER);
+      static TM_FASTCALL void* read_ro(TX_FIRST_PARAMETER STM_READ_SIG(,));
+      static TM_FASTCALL void* read_rw(TX_FIRST_PARAMETER STM_READ_SIG(,));
+      static TM_FASTCALL void write_ro(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+      static TM_FASTCALL void write_rw(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+      static TM_FASTCALL void commit_ro(TX_LONE_PARAMETER);
+      static TM_FASTCALL void commit_rw(TX_LONE_PARAMETER);
 
       static void rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
@@ -60,9 +60,9 @@ namespace {
   /**
    *  LLT_amd64 begin:
    */
-  void LLT_amd64::begin()
+  void LLT_amd64::begin(TX_LONE_PARAMETER)
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       tx->allocator.onTxBegin();
       // get a start time
       tx->start_time = tickp();
@@ -72,9 +72,9 @@ namespace {
    *  LLT_amd64 commit (read-only):
    */
   void
-  LLT_amd64::commit_ro()
+  LLT_amd64::commit_ro(TX_LONE_PARAMETER)
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       // read-only, so just reset lists
       tx->r_orecs.reset();
       OnReadOnlyCommit(tx);
@@ -87,9 +87,9 @@ namespace {
    *    validations.
    */
   void
-  LLT_amd64::commit_rw()
+  LLT_amd64::commit_rw(TX_LONE_PARAMETER)
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       // acquire locks
       foreach (WriteSet, i, tx->writes) {
           // get orec, read its version#
@@ -138,9 +138,9 @@ namespace {
    *    We use "check twice" timestamps in LLT_amd64
    */
   void*
-  LLT_amd64::read_ro(STM_READ_SIG(addr,))
+  LLT_amd64::read_ro(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       // get the orec addr
       orec_t* o = get_orec(addr);
 
@@ -165,9 +165,9 @@ namespace {
    *  LLT_amd64 read (writing transaction)
    */
   void*
-  LLT_amd64::read_rw(STM_READ_SIG(addr,mask))
+  LLT_amd64::read_rw(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       // check the log for a RAW hazard, we expect to miss
       WriteSetEntry log(STM_WRITE_SET_ENTRY(addr, NULL, mask));
       bool found = tx->writes.find(log);
@@ -200,9 +200,9 @@ namespace {
    *  LLT_amd64 write (read-only context)
    */
   void
-  LLT_amd64::write_ro(STM_WRITE_SIG(addr,val,mask))
+  LLT_amd64::write_ro(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       // add to redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
       stm::OnFirstWrite(read_rw, write_rw, commit_rw);
@@ -212,9 +212,9 @@ namespace {
    *  LLT_amd64 write (writing context)
    */
   void
-  LLT_amd64::write_rw(STM_WRITE_SIG(addr,val,mask))
+  LLT_amd64::write_rw(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       // add to redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
   }

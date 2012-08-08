@@ -41,14 +41,15 @@ namespace {
   template <class CM>
   struct NOrec_Generic
   {
-      static void begin();
+      static void begin(TX_LONE_PARAMETER);
+      // [mfs] Why do we have this function?
       static TM_FASTCALL void commit(TxThread*);
-      static TM_FASTCALL void commit_ro();
-      static TM_FASTCALL void commit_rw();
-      static TM_FASTCALL void* read_ro(STM_READ_SIG(,));
-      static TM_FASTCALL void* read_rw(STM_READ_SIG(,));
-      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,));
-      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,));
+      static TM_FASTCALL void commit_ro(TX_LONE_PARAMETER);
+      static TM_FASTCALL void commit_rw(TX_LONE_PARAMETER);
+      static TM_FASTCALL void* read_ro(TX_FIRST_PARAMETER STM_READ_SIG(,));
+      static TM_FASTCALL void* read_rw(TX_FIRST_PARAMETER STM_READ_SIG(,));
+      static TM_FASTCALL void write_ro(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+      static TM_FASTCALL void write_rw(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
       static void rollback(STM_ROLLBACK_SIG(,,));
       static void initialize(int id, const char* name);
   };
@@ -126,9 +127,9 @@ namespace {
   }
 
   template <class CM>
-  void NOrec_Generic<CM>::begin()
+  void NOrec_Generic<CM>::begin(TX_LONE_PARAMETER)
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       // Originally, NOrec required us to wait until the timestamp is odd
       // before we start.  However, we can round down if odd, in which case
       // we don't need control flow here.
@@ -176,9 +177,9 @@ namespace {
 
   template <class CM>
   void
-  NOrec_Generic<CM>::commit_ro()
+  NOrec_Generic<CM>::commit_ro(TX_LONE_PARAMETER)
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       // Since all reads were consistent, and no writes were done, the read-only
       // NOrec transaction just resets itself and is done.
       CM::onCommit(tx);
@@ -188,9 +189,9 @@ namespace {
 
   template <class CM>
   void
-  NOrec_Generic<CM>::commit_rw()
+  NOrec_Generic<CM>::commit_rw(TX_LONE_PARAMETER)
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       // From a valid state, the transaction increments the seqlock.  Then it does
       // writeback and increments the seqlock again
 
@@ -217,9 +218,9 @@ namespace {
 
   template <class CM>
   void*
-  NOrec_Generic<CM>::read_ro(STM_READ_SIG(addr,mask))
+  NOrec_Generic<CM>::read_ro(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       // A read is valid iff it occurs during a period where the seqlock does
       // not change and is even.  This code also polls for new changes that
       // might necessitate a validation.
@@ -245,9 +246,9 @@ namespace {
 
   template <class CM>
   void*
-  NOrec_Generic<CM>::read_rw(STM_READ_SIG(addr,mask))
+  NOrec_Generic<CM>::read_rw(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       // check the log for a RAW hazard, we expect to miss
       WriteSetEntry log(STM_WRITE_SET_ENTRY(addr, NULL, mask));
       bool found = tx->writes.find(log);
@@ -260,16 +261,16 @@ namespace {
       // bytes that we "actually" need, which is computed as bytes in mask but
       // not in log.mask. This is only correct because we know that a failed
       // find also reset the log.mask to 0 (that's part of the find interface).
-      void* val = read_ro(addr STM_MASK(mask & ~log.mask));
+      void* val = read_ro(TX_FIRST_ARG addr STM_MASK(mask & ~log.mask));
       REDO_RAW_CLEANUP(val, found, log, mask);
       return val;
   }
 
   template <class CM>
   void
-  NOrec_Generic<CM>::write_ro(STM_WRITE_SIG(addr,val,mask))
+  NOrec_Generic<CM>::write_ro(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       // buffer the write, and switch to a writing context
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
       stm::OnFirstWrite(read_rw, write_rw, commit_rw);
@@ -277,9 +278,9 @@ namespace {
 
   template <class CM>
   void
-  NOrec_Generic<CM>::write_rw(STM_WRITE_SIG(addr,val,mask))
+  NOrec_Generic<CM>::write_rw(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       // just buffer the write
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
   }

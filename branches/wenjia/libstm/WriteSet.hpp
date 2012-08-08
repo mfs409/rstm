@@ -19,16 +19,6 @@
 
 #include "WriteSetEntry.hpp"
 
-// #ifdef STM_CC_SUN
-// #include <string.h>
-// #include <stdlib.h>
-// #else
-// #include <cstdlib>
-// #include <cstring>
-// #endif
-// #include <cassert>
-// #include <cstdio>
-
 namespace stm
 {
   /**

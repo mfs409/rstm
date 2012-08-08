@@ -31,10 +31,10 @@ using stm::ticketlock;
 namespace {
   struct Ticket
   {
-      static void begin();
-      static TM_FASTCALL void* read(STM_READ_SIG(,));
-      static TM_FASTCALL void write(STM_WRITE_SIG(,,  ));
-      static TM_FASTCALL void commit();
+      static void begin(TX_LONE_PARAMETER);
+      static TM_FASTCALL void* read(TX_FIRST_PARAMETER STM_READ_SIG(,));
+      static TM_FASTCALL void write(TX_FIRST_PARAMETER STM_WRITE_SIG(,,  ));
+      static TM_FASTCALL void commit(TX_LONE_PARAMETER);
 
       static void rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
@@ -44,9 +44,9 @@ namespace {
   /**
    *  Ticket begin:
    */
-  void Ticket::begin()
+  void Ticket::begin(TX_LONE_PARAMETER)
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       // get the ticket lock
       tx->begin_wait = ticket_acquire(&ticketlock);
       tx->allocator.onTxBegin();
@@ -55,9 +55,9 @@ namespace {
   /**
    *  Ticket commit:
    */
-  void Ticket::commit()
+  void Ticket::commit(TX_LONE_PARAMETER)
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       // release the lock, finalize mm ops, and log the commit
       ticket_release(&ticketlock);
       OnCGLCommit(tx);
@@ -66,7 +66,7 @@ namespace {
   /**
    *  Ticket read
    */
-  void* Ticket::read(STM_READ_SIG(addr,))
+  void* Ticket::read(TX_FIRST_PARAMETER_ANON STM_READ_SIG(addr,))
   {
       return *addr;
   }
@@ -74,7 +74,7 @@ namespace {
   /**
    *  Ticket write
    */
-  void Ticket::write(STM_WRITE_SIG(addr,val,mask))
+  void Ticket::write(TX_FIRST_PARAMETER_ANON STM_WRITE_SIG(addr,val,mask))
   {
       STM_DO_MASKED_WRITE(addr, val, mask);
   }
@@ -94,7 +94,7 @@ namespace {
    *  Ticket in-flight irrevocability:
    *
    *    Since we're already irrevocable, this code should never get called.
-   *    Instead, the become_irrevoc() call should just return true.
+   *    Instead, the become_irrevoc(TX_LONE_PARAMETER) call should just return true.
    */
   bool
   Ticket::irrevoc(TxThread*)

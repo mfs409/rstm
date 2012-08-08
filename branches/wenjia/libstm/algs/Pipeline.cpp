@@ -47,13 +47,13 @@ using stm::WriteSetEntry;
  */
 namespace {
   struct Pipeline {
-      static void begin();
-      static TM_FASTCALL void* read_ro(STM_READ_SIG(,));
-      static TM_FASTCALL void* read_rw(STM_READ_SIG(,));
-      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,));
-      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,));
-      static TM_FASTCALL void commit_ro();
-      static TM_FASTCALL void commit_rw();
+      static void begin(TX_LONE_PARAMETER);
+      static TM_FASTCALL void* read_ro(TX_FIRST_PARAMETER STM_READ_SIG(,));
+      static TM_FASTCALL void* read_rw(TX_FIRST_PARAMETER STM_READ_SIG(,));
+      static TM_FASTCALL void write_ro(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+      static TM_FASTCALL void write_rw(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+      static TM_FASTCALL void commit_ro(TX_LONE_PARAMETER);
+      static TM_FASTCALL void commit_rw(TX_LONE_PARAMETER);
 
       static void rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
@@ -72,9 +72,9 @@ namespace {
    *    ts_cache and order tells how many transactions need to commit.  Whenever
    *    one does, this tx will need to validate.
    */
-  void Pipeline::begin()
+  void Pipeline::begin(TX_LONE_PARAMETER)
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       tx->allocator.onTxBegin();
 
       // only get a new start time if we didn't just abort
@@ -93,9 +93,9 @@ namespace {
    *    semantics.
    */
   void
-  Pipeline::commit_ro()
+  Pipeline::commit_ro(TX_LONE_PARAMETER)
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       // wait our turn, then validate
       while (last_complete.val != ((uintptr_t)tx->order - 1)) {
           // in this wait loop, we need to check if an adaptivity action is
@@ -134,9 +134,9 @@ namespace {
    *    commits.
    */
   void
-  Pipeline::commit_rw()
+  Pipeline::commit_rw(TX_LONE_PARAMETER)
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       // wait our turn, validate, writeback
       while (last_complete.val != ((uintptr_t)tx->order - 1)) {
           if (stm::tmbegin != begin)
@@ -183,9 +183,9 @@ namespace {
    *    Otherwise, this is a standard orec read function.
    */
   void*
-  Pipeline::read_ro(STM_READ_SIG(addr,))
+  Pipeline::read_ro(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       void* tmp = *addr;
       // oldest one just return the value
       if (tx->ts_cache == ((uintptr_t)tx->order - 1))
@@ -208,9 +208,9 @@ namespace {
    *  Pipeline read (writing transaction)
    */
   void*
-  Pipeline::read_rw(STM_READ_SIG(addr,mask))
+  Pipeline::read_rw(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       // check the log for a RAW hazard, we expect to miss
       WriteSetEntry log(STM_WRITE_SET_ENTRY(addr, NULL, mask));
       bool found = tx->writes.find(log);
@@ -239,9 +239,9 @@ namespace {
    *  Pipeline write (read-only context)
    */
   void
-  Pipeline::write_ro(STM_WRITE_SIG(addr,val,mask))
+  Pipeline::write_ro(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       // record the new value in a redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
       stm::OnFirstWrite(read_rw, write_rw, commit_rw);
@@ -251,9 +251,9 @@ namespace {
    *  Pipeline write (writing context)
    */
   void
-  Pipeline::write_rw(STM_WRITE_SIG(addr,val,mask))
+  Pipeline::write_rw(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       // record the new value in a redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
   }

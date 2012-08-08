@@ -60,13 +60,13 @@ namespace {
   {
       static void Initialize(int id, const char* name);
 
-      static void begin();
-      static TM_FASTCALL void* read_ro(STM_READ_SIG(,));
-      static TM_FASTCALL void* read_rw(STM_READ_SIG(,));
-      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,));
-      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,));
-      static TM_FASTCALL void commit_ro();
-      static TM_FASTCALL void commit_rw();
+      static void begin(TX_LONE_PARAMETER);
+      static TM_FASTCALL void* read_ro(TX_FIRST_PARAMETER STM_READ_SIG(,));
+      static TM_FASTCALL void* read_rw(TX_FIRST_PARAMETER STM_READ_SIG(,));
+      static TM_FASTCALL void write_ro(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+      static TM_FASTCALL void write_rw(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+      static TM_FASTCALL void commit_ro(TX_LONE_PARAMETER);
+      static TM_FASTCALL void commit_rw(TX_LONE_PARAMETER);
 
       static void rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
@@ -98,9 +98,9 @@ namespace {
    *  ByEAU_Generic begin:
    */
   template <class CM>
-  void ByEAU_Generic<CM>::begin()
+  void ByEAU_Generic<CM>::begin(TX_LONE_PARAMETER)
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       // mark self alive
       tx->alive = TX_ACTIVE;
       // notify the CM
@@ -114,9 +114,9 @@ namespace {
    */
   template <class CM>
   void
-  ByEAU_Generic<CM>::commit_ro()
+  ByEAU_Generic<CM>::commit_ro(TX_LONE_PARAMETER)
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       // read-only... release read locks
       foreach (ByteLockList, i, tx->r_bytelocks)
           (*i)->reader[tx->id-1] = 0;
@@ -137,9 +137,9 @@ namespace {
    */
   template <class CM>
   void
-  ByEAU_Generic<CM>::commit_rw()
+  ByEAU_Generic<CM>::commit_rw(TX_LONE_PARAMETER)
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       // release write locks, then read locks
       foreach (ByteLockList, i, tx->w_bytelocks)
           (*i)->owner = 0;
@@ -162,9 +162,9 @@ namespace {
    */
   template <class CM>
   void*
-  ByEAU_Generic<CM>::read_ro(STM_READ_SIG(addr,))
+  ByEAU_Generic<CM>::read_ro(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       bytelock_t* lock = get_bytelock(addr);
 
       // If I don't have a read lock, get one
@@ -204,9 +204,9 @@ namespace {
    */
   template <class CM>
   void*
-  ByEAU_Generic<CM>::read_rw(STM_READ_SIG(addr,))
+  ByEAU_Generic<CM>::read_rw(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       bytelock_t* lock = get_bytelock(addr);
 
       // skip instrumentation if I am the writer
@@ -247,9 +247,9 @@ namespace {
    */
   template <class CM>
   void
-  ByEAU_Generic<CM>::write_ro(STM_WRITE_SIG(addr,val,mask))
+  ByEAU_Generic<CM>::write_ro(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       bytelock_t* lock = get_bytelock(addr);
 
       // abort current owner, wait for release, then acquire
@@ -299,9 +299,9 @@ namespace {
    */
   template <class CM>
   void
-  ByEAU_Generic<CM>::write_rw(STM_WRITE_SIG(addr,val,mask))
+  ByEAU_Generic<CM>::write_rw(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       bytelock_t* lock = get_bytelock(addr);
 
       // skip all this if I have the lock
@@ -398,22 +398,5 @@ namespace {
   void
   ByEAU_Generic<CM>::onSwitchTo() { }
 }
-
-// Register ByEAU initializer functions. Do this as declaratively as
-// possible. Remember that they need to be in the stm:: namespace.
-#define FOREACH_BYEAU(MACRO)                    \
-    MACRO(ByEAU, BackoffCM)                     \
-    MACRO(ByEAUHA, HyperAggressiveCM)           \
-    MACRO(ByEAUFCM, FCM)                        \
-    MACRO(ByEAUHour, HourglassCM)
-
-#define INIT_BYEAU(ID, CM)                      \
-    template <>                                 \
-    void initTM<ID>() {                         \
-        ByEAU_Generic<CM>::Initialize(ID, #ID); \
-    }
-
-#undef FOREACH_BYEAU
-#undef INIT_BYEAU
 
 #endif // BYEAU_HPP__

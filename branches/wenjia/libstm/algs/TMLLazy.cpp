@@ -35,13 +35,13 @@ using stm::WriteSetEntry;
  */
 namespace {
   struct TMLLazy {
-      static void begin();
-      static TM_FASTCALL void* read_ro(STM_READ_SIG(,));
-      static TM_FASTCALL void* read_rw(STM_READ_SIG(,));
-      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,));
-      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,));
-      static TM_FASTCALL void commit_ro();
-      static TM_FASTCALL void commit_rw();
+      static void begin(TX_LONE_PARAMETER);
+      static TM_FASTCALL void* read_ro(TX_FIRST_PARAMETER STM_READ_SIG(,));
+      static TM_FASTCALL void* read_rw(TX_FIRST_PARAMETER STM_READ_SIG(,));
+      static TM_FASTCALL void write_ro(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+      static TM_FASTCALL void write_rw(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+      static TM_FASTCALL void commit_ro(TX_LONE_PARAMETER);
+      static TM_FASTCALL void commit_rw(TX_LONE_PARAMETER);
 
       static void rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
@@ -51,9 +51,9 @@ namespace {
   /**
    *  TMLLazy begin:
    */
-  void TMLLazy::begin()
+  void TMLLazy::begin(TX_LONE_PARAMETER)
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       // Sample the sequence lock until it is even (unheld)
       while ((tx->start_time = timestamp.val)&1)
           spin64();
@@ -66,9 +66,9 @@ namespace {
    *  TMLLazy commit (read-only context):
    */
   void
-  TMLLazy::commit_ro()
+  TMLLazy::commit_ro(TX_LONE_PARAMETER)
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       // no metadata to manage, so just be done!
       OnReadOnlyCommit(tx);
   }
@@ -77,9 +77,9 @@ namespace {
    *  TMLLazy commit (writer context):
    */
   void
-  TMLLazy::commit_rw()
+  TMLLazy::commit_rw(TX_LONE_PARAMETER)
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       // we have writes... if we can't get the lock, abort
       if (!bcasptr(&timestamp.val, tx->start_time, tx->start_time + 1))
           tx->tmabort();
@@ -97,9 +97,9 @@ namespace {
    *  TMLLazy read (read-only context)
    */
   void*
-  TMLLazy::read_ro(STM_READ_SIG(addr,))
+  TMLLazy::read_ro(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       // read the actual value, direct from memory
       void* tmp = *addr;
       CFENCE;
@@ -118,16 +118,16 @@ namespace {
    *  TMLLazy read (writing context)
    */
   void*
-  TMLLazy::read_rw(STM_READ_SIG(addr,mask))
+  TMLLazy::read_rw(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       // check the log for a RAW hazard, we expect to miss
       WriteSetEntry log(STM_WRITE_SET_ENTRY(addr, NULL, mask));
       bool found = tx->writes.find(log);
       REDO_RAW_CHECK(found, log, mask);
 
       // reuse the ReadRO barrier, which is adequate here---reduces LOC
-      void* val = read_ro(addr STM_MASK(mask));
+      void* val = read_ro(TX_FIRST_ARG addr STM_MASK(mask));
       REDO_RAW_CLEANUP(val, found, log, mask);
       return val;
   }
@@ -136,9 +136,9 @@ namespace {
    *  TMLLazy write (read-only context):
    */
   void
-  TMLLazy::write_ro(STM_WRITE_SIG(addr,val,mask))
+  TMLLazy::write_ro(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       // do a buffered write
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
       stm::OnFirstWrite(read_rw, write_rw, commit_rw);
@@ -148,9 +148,9 @@ namespace {
    *  TMLLazy write (writing context):
    */
   void
-  TMLLazy::write_rw(STM_WRITE_SIG(addr,val,mask))
+  TMLLazy::write_rw(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       // do a buffered write
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
   }

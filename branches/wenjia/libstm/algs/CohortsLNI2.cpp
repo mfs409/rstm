@@ -45,17 +45,17 @@ namespace
 
   struct CohortsLNI2
   {
-      static void begin();
-      static TM_FASTCALL void* read_ro(STM_READ_SIG(,));
-      static TM_FASTCALL void* read_rw(STM_READ_SIG(,));
-      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,));
-      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,));
-      static TM_FASTCALL void commit_ro();
-      static TM_FASTCALL void commit_rw();
+      static void begin(TX_LONE_PARAMETER);
+      static TM_FASTCALL void* read_ro(TX_FIRST_PARAMETER STM_READ_SIG(,));
+      static TM_FASTCALL void* read_rw(TX_FIRST_PARAMETER STM_READ_SIG(,));
+      static TM_FASTCALL void write_ro(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+      static TM_FASTCALL void write_rw(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+      static TM_FASTCALL void commit_ro(TX_LONE_PARAMETER);
+      static TM_FASTCALL void commit_rw(TX_LONE_PARAMETER);
 
-      static TM_FASTCALL void commit_turbo();
-      static TM_FASTCALL void* read_turbo(STM_READ_SIG(,));
-      static TM_FASTCALL void write_turbo(STM_WRITE_SIG(,,));
+      static TM_FASTCALL void commit_turbo(TX_LONE_PARAMETER);
+      static TM_FASTCALL void* read_turbo(TX_FIRST_PARAMETER STM_READ_SIG(,));
+      static TM_FASTCALL void write_turbo(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
 
       static void rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
@@ -70,9 +70,9 @@ namespace
    *  tx is allowed to start until all the transactions finishe their
    *  commits.
    */
-  void CohortsLNI2::begin()
+  void CohortsLNI2::begin(TX_LONE_PARAMETER)
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       tx->allocator.onTxBegin();
 
     S1:
@@ -102,11 +102,11 @@ namespace
   /**
    *  CohortsLNI2 commit (read-only):
    */
-  void CohortsLNI2::commit_ro()
+  void CohortsLNI2::commit_ro(TX_LONE_PARAMETER)
   {
       // [mfs] Do we need a read-write fence to ensure all reads are done
       //       before we write to tx->status?
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
 
       // mark self status
       tx->status = COHORTS_COMMITTED;
@@ -119,9 +119,9 @@ namespace
   /**
    *  CohortsLNI2 commit_turbo (for write in place tx use):
    */
-  void CohortsLNI2::commit_turbo()
+  void CohortsLNI2::commit_turbo(TX_LONE_PARAMETER)
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
 
       // [mfs] it looks like we aren't using the queue technique... should
       //       we?  IIRC, the queue replaces the gatekeeper field.
@@ -162,9 +162,9 @@ namespace
   /**
    *  CohortsLNI2 commit (writing context):
    */
-  void CohortsLNI2::commit_rw()
+  void CohortsLNI2::commit_rw(TX_LONE_PARAMETER)
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
 
       // Mark a global flag, no one is allowed to begin now
       gatekeeper = 1;
@@ -237,9 +237,9 @@ namespace
   /**
    *  CohortsLNI2 read (read-only transaction)
    */
-  void* CohortsLNI2::read_ro(STM_READ_SIG(addr,))
+  void* CohortsLNI2::read_ro(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       void* tmp = *addr;
       STM_LOG_VALUE(tx, addr, tmp, mask);
       return tmp;
@@ -248,7 +248,7 @@ namespace
   /**
    *  CohortsLNI2 read_turbo (for write in place tx use)
    */
-  void* CohortsLNI2::read_turbo(STM_READ_SIG(addr,))
+  void* CohortsLNI2::read_turbo(TX_FIRST_PARAMETER_ANON STM_READ_SIG(addr,))
   {
       return *addr;
   }
@@ -256,9 +256,9 @@ namespace
   /**
    *  CohortsLNI2 read (writing transaction)
    */
-  void* CohortsLNI2::read_rw(STM_READ_SIG(addr,mask))
+  void* CohortsLNI2::read_rw(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       // check the log for a RAW hazard, we expect to miss
       WriteSetEntry log(STM_WRITE_SET_ENTRY(addr, NULL, mask));
       bool found = tx->writes.find(log);
@@ -273,9 +273,9 @@ namespace
   /**
    *  CohortsLNI2 write (read-only context): for first write
    */
-  void CohortsLNI2::write_ro(STM_WRITE_SIG(addr,val,mask))
+  void CohortsLNI2::write_ro(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       // [mfs] this code is not in the best location.  Consider the following
       // alternative:
       //
@@ -315,7 +315,7 @@ namespace
   /**
    *  CohortsLNI2 write_turbo: for write in place tx
    */
-  void CohortsLNI2::write_turbo(STM_WRITE_SIG(addr,val,mask))
+  void CohortsLNI2::write_turbo(TX_FIRST_PARAMETER_ANON STM_WRITE_SIG(addr,val,mask))
   {
       // [mfs] ultimately this should use a macro that employs the mask
       *addr = val;
@@ -324,9 +324,9 @@ namespace
   /**
    *  CohortsLNI2 write (writing context)
    */
-  void CohortsLNI2::write_rw(STM_WRITE_SIG(addr,val,mask))
+  void CohortsLNI2::write_rw(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
 
       // check if I can go turbo
       //
@@ -338,7 +338,7 @@ namespace
           atomicswapptr(&inplace, 1);
           // write previous write set back
           //
-          // [mfs] I changed this to use the writeback() method, but it might
+          // [mfs] I changed this to use the writeback(TX_LONE_PARAMETER) method, but it might
           //       have some overhead that we should avoid, depending on how
           //       it handles stack writes.
           tx->writes.writeback();

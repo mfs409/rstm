@@ -31,13 +31,13 @@ namespace
  */
   struct ProfileTM
   {
-      static void begin();
-      static TM_FASTCALL void* read_ro(STM_READ_SIG(,));
-      static TM_FASTCALL void* read_rw(STM_READ_SIG(,));
-      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,));
-      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,));
-      static TM_FASTCALL void commit_ro();
-      static TM_FASTCALL void commit_rw();
+      static void begin(TX_LONE_PARAMETER);
+      static TM_FASTCALL void* read_ro(TX_FIRST_PARAMETER STM_READ_SIG(,));
+      static TM_FASTCALL void* read_rw(TX_FIRST_PARAMETER STM_READ_SIG(,));
+      static TM_FASTCALL void write_ro(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+      static TM_FASTCALL void write_rw(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+      static TM_FASTCALL void commit_ro(TX_LONE_PARAMETER);
+      static TM_FASTCALL void commit_rw(TX_LONE_PARAMETER);
 
       static void rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
@@ -52,9 +52,9 @@ namespace
    *    that we run.
    */
   void
-  ProfileTM::begin()
+  ProfileTM::begin(TX_LONE_PARAMETER)
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       // bump the last_init field
       uintptr_t my_order = faiptr(&last_init.val);
       // if my order can fit in a range from 0 .. profile_txns - 1, wait my
@@ -72,8 +72,8 @@ namespace
 
       // uh-oh, we can't fit this transaction into the range... act like
       // we're in begin_blocker, but don't resume until we're neither in
-      // begin_blocker nor begin().
-      void (*beginner)();
+      // begin_blocker nor begin(TX_LONE_PARAMETER).
+      void (*beginner)(TX_LONE_PARAMETER);
       while (true) {
           // first, mark self not transactional
           tx->in_tx = 0;
@@ -97,7 +97,7 @@ namespace
           if ((beginner != stm::begin_blocker) && (beginner != begin))
               break;
       }
-      beginner();
+      beginner(TX_LONE_ARG);
   }
 
   /**
@@ -108,9 +108,9 @@ namespace
    *    the final transaction of the set that were requested.
    */
   void
-  ProfileTM::commit_ro()
+  ProfileTM::commit_ro(TX_LONE_PARAMETER)
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       // figure out this transaction's running time
       unsigned long long tmp = tick();
       profiles[last_complete.val].txn_time =
@@ -131,9 +131,9 @@ namespace
    *    Same as RO case, but we must also perform the writeback.
    */
   void
-  ProfileTM::commit_rw()
+  ProfileTM::commit_rw(TX_LONE_PARAMETER)
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       // we're committed... run the redo log, remember that this is a commit
       tx->writes.writeback();
       int x = tx->writes.size();
@@ -163,7 +163,7 @@ namespace
    *    Simply read the location, and remember that we did a read
    */
   void*
-  ProfileTM::read_ro(STM_READ_SIG(addr,))
+  ProfileTM::read_ro(TX_FIRST_PARAMETER_ANON STM_READ_SIG(addr,))
   {
       ++profiles[last_complete.val].read_ro;
       return *addr;
@@ -173,9 +173,9 @@ namespace
    *  ProfileTM read (writing transaction)
    */
   void*
-  ProfileTM::read_rw(STM_READ_SIG( addr,mask))
+  ProfileTM::read_rw(TX_FIRST_PARAMETER STM_READ_SIG( addr,mask))
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       // check the log
       WriteSetEntry log(STM_WRITE_SET_ENTRY(addr, NULL, mask));
       if (tx->writes.find(log)) {
@@ -191,9 +191,9 @@ namespace
    *  ProfileTM write (read-only context)
    */
   void
-  ProfileTM::write_ro(STM_WRITE_SIG(addr,val,mask))
+  ProfileTM::write_ro(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       // do a buffered write
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
       ++profiles[last_complete.val].write_waw;
@@ -204,9 +204,9 @@ namespace
    *  ProfileTM write (writing context)
    */
   void
-  ProfileTM::write_rw(STM_WRITE_SIG(addr,val,mask))
+  ProfileTM::write_rw(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       // do a buffered write
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
       ++profiles[last_complete.val].write_waw;
@@ -254,7 +254,7 @@ namespace
       //    The most orthogonal solution, which isn't very orthogonal, is to
       //    have two different PostRollbackNoTrigger calls: one resets the
       //    pointers, the other doesn't.  The one we pick depends on whether
-      //    we call profile_oncomplete() or not.
+      //    we call profile_oncomplete(TX_LONE_PARAMETER) or not.
       if (++last_complete.val == profile_txns) {
           profile_oncomplete(tx);
           PostRollbackNoTrigger(tx);

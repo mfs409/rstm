@@ -57,7 +57,7 @@ void bench_init()
     // warm up the datastructure
     TM_BEGIN_FAST_INITIALIZATION();
     for (uint32_t i = 0; i < CFG.elements; i+=2)
-        SET->insert(i);
+        SET->insert(TX_FIRST_ARG i);
     TM_END_FAST_INITIALIZATION();
 }
 
@@ -68,17 +68,17 @@ void bench_test(uintptr_t, uint32_t* seed)
     uint32_t act = rand_r_32(seed) % 100;
     if (act < CFG.lookpct) {
         TM_BEGIN(atomic) {
-            SET->lookup(val);
+            SET->lookup(TX_FIRST_ARG val);
         } TM_END;
     }
     else if (act < CFG.inspct) {
         TM_BEGIN(atomic) {
-            SET->insert(val);
+            SET->insert(TX_FIRST_ARG val);
         } TM_END;
     }
     else {
         TM_BEGIN(atomic) {
-            SET->remove(val);
+            SET->remove(TX_FIRST_ARG val);
         } TM_END;
     }
 }

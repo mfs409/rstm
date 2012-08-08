@@ -27,7 +27,6 @@ using stm::get_bitlock;
 using stm::WriteSetEntry;
 using stm::rrec_t;
 
-
 /**
  *  Declare the functions that we're going to implement, so that we can avoid
  *  circular dependencies.
@@ -35,13 +34,13 @@ using stm::rrec_t;
 namespace {
   struct BitEagerRedo
   {
-      static void begin();
-      static TM_FASTCALL void* read_ro(STM_READ_SIG(,));
-      static TM_FASTCALL void* read_rw(STM_READ_SIG(,));
-      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,));
-      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,));
-      static TM_FASTCALL void commit_ro();
-      static TM_FASTCALL void commit_rw();
+      static void begin(TX_LONE_PARAMETER);
+      static TM_FASTCALL void* read_ro(TX_FIRST_PARAMETER STM_READ_SIG(,));
+      static TM_FASTCALL void* read_rw(TX_FIRST_PARAMETER STM_READ_SIG(,));
+      static TM_FASTCALL void write_ro(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+      static TM_FASTCALL void write_rw(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+      static TM_FASTCALL void commit_ro(TX_LONE_PARAMETER);
+      static TM_FASTCALL void commit_rw(TX_LONE_PARAMETER);
 
       static void rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
@@ -64,9 +63,9 @@ namespace {
   /**
    *  BitEagerRedo begin:
    */
-  void BitEagerRedo::begin()
+  void BitEagerRedo::begin(TX_LONE_PARAMETER)
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       tx->allocator.onTxBegin();
   }
 
@@ -74,9 +73,9 @@ namespace {
    *  BitEagerRedo commit (read-only):
    */
   void
-  BitEagerRedo::commit_ro()
+  BitEagerRedo::commit_ro(TX_LONE_PARAMETER)
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       // read-only... release read locks
       foreach (BitLockList, i, tx->r_bitlocks)
           (*i)->readers.unsetbit(tx->id-1);
@@ -88,10 +87,9 @@ namespace {
   /**
    *  BitEagerRedo commit (writing context):
    */
-  void
-  BitEagerRedo::commit_rw()
+  void BitEagerRedo::commit_rw(TX_LONE_PARAMETER)
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       // replay redo log
       tx->writes.writeback();
       CFENCE;
@@ -114,10 +112,9 @@ namespace {
    *
    *    As in BitEager, we use timeout for conflict resolution
    */
-  void*
-  BitEagerRedo::read_ro(STM_READ_SIG(addr,))
+  void* BitEagerRedo::read_ro(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       uint32_t tries = 0;
       bitlock_t* lock = get_bitlock(addr);
 
@@ -152,9 +149,9 @@ namespace {
    *    Same as RO case, but if we have the write lock, we can take a fast path
    */
   void*
-  BitEagerRedo::read_rw(STM_READ_SIG(addr,mask))
+  BitEagerRedo::read_rw(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       uint32_t tries = 0;
       bitlock_t* lock = get_bitlock(addr);
 
@@ -201,9 +198,9 @@ namespace {
    *    Lock the location, then put the value in the write log
    */
   void
-  BitEagerRedo::write_ro(STM_WRITE_SIG(addr,val,mask))
+  BitEagerRedo::write_ro(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       uint32_t tries = 0;
       bitlock_t* lock = get_bitlock(addr);
 
@@ -236,10 +233,9 @@ namespace {
    *
    *    Same as RO case, but with fastpath for repeat writes to same location
    */
-  void
-  BitEagerRedo::write_rw(STM_WRITE_SIG(addr,val,mask))
+  void BitEagerRedo::write_rw(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       uint32_t tries = 0;
       bitlock_t* lock = get_bitlock(addr);
 

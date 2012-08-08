@@ -77,7 +77,7 @@ TypeTestObject* tto;
  *  types.
  */
 static TM_CALLABLE
-void DataTypeTest()
+void DataTypeTest(TX_LONE_PARAMETER)
 {
 #if !defined(STM_API_CXXTM)
     TM_WAIVER {
@@ -172,7 +172,7 @@ void bench_init()
 void bench_test(uintptr_t, uint32_t*)
 {
     TM_BEGIN(atomic) {
-        DataTypeTest();
+        DataTypeTest(TX_LONE_ARG);
     } TM_END;
 }
 

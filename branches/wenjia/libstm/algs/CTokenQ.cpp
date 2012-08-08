@@ -42,13 +42,13 @@ namespace {
   struct cohorts_node_t* volatile q = NULL;
 
   struct CTokenQ {
-      static void begin();
-      static TM_FASTCALL void* read_ro(STM_READ_SIG(,));
-      static TM_FASTCALL void* read_rw(STM_READ_SIG(,));
-      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,));
-      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,));
-      static TM_FASTCALL void commit_ro();
-      static TM_FASTCALL void commit_rw();
+      static void begin(TX_LONE_PARAMETER);
+      static TM_FASTCALL void* read_ro(TX_FIRST_PARAMETER STM_READ_SIG(,));
+      static TM_FASTCALL void* read_rw(TX_FIRST_PARAMETER STM_READ_SIG(,));
+      static TM_FASTCALL void write_ro(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+      static TM_FASTCALL void write_rw(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+      static TM_FASTCALL void commit_ro(TX_LONE_PARAMETER);
+      static TM_FASTCALL void commit_rw(TX_LONE_PARAMETER);
 
       static void rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
@@ -59,9 +59,9 @@ namespace {
   /**
    *  CTokenQ begin:
    */
-  void CTokenQ::begin()
+  void CTokenQ::begin(TX_LONE_PARAMETER)
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       tx->allocator.onTxBegin();
 
       // get time of last finished txn, to know when to validate
@@ -75,9 +75,9 @@ namespace {
    *  CTokenQ commit (read-only):
    */
   void
-  CTokenQ::commit_ro()
+  CTokenQ::commit_ro(TX_LONE_PARAMETER)
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       // reset lists and we are done
       tx->r_orecs.reset();
       OnReadOnlyCommit(tx);
@@ -89,9 +89,9 @@ namespace {
    *  NB:  Only valid if using pointer-based adaptivity
    */
   void
-  CTokenQ::commit_rw()
+  CTokenQ::commit_rw(TX_LONE_PARAMETER)
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       // Wait for my turn
       if (tx->node[tx->nn].next != NULL)
           while (tx->node[tx->nn].next->val != DONE);
@@ -133,9 +133,9 @@ namespace {
    *  CTokenQ read (read-only transaction)
    */
   void*
-  CTokenQ::read_ro(STM_READ_SIG(addr,))
+  CTokenQ::read_ro(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       // read the location... this is safe since timestamps behave as in Wang's
       // CGO07 paper
       void* tmp = *addr;
@@ -161,16 +161,16 @@ namespace {
    *  CTokenQ read (writing transaction)
    */
   void*
-  CTokenQ::read_rw(STM_READ_SIG(addr,mask))
+  CTokenQ::read_rw(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       // check the log for a RAW hazard, we expect to miss
       WriteSetEntry log(STM_WRITE_SET_ENTRY(addr, NULL, mask));
       bool found = tx->writes.find(log);
       REDO_RAW_CHECK(found, log, mask);
 
       // reuse the ReadRO barrier, which is adequate here---reduces LOC
-      void* val = read_ro(addr STM_MASK(mask));
+      void* val = read_ro(TX_FIRST_ARG addr STM_MASK(mask));
       REDO_RAW_CLEANUP(val, found, log, mask);
       return val;
   }
@@ -179,9 +179,9 @@ namespace {
    *  CTokenQ write (read-only context)
    */
   void
-  CTokenQ::write_ro(STM_WRITE_SIG(addr,val,mask))
+  CTokenQ::write_ro(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       // we don't have any writes yet, so we need to add myself to the queue
       do {
           tx->node[tx->nn].next = q;
@@ -196,9 +196,9 @@ namespace {
    *  CTokenQ write (writing context)
    */
   void
-  CTokenQ::write_rw(STM_WRITE_SIG(addr,val,mask))
+  CTokenQ::write_rw(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       // record the new value in a redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
   }

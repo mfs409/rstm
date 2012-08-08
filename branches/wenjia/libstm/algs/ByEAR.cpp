@@ -35,13 +35,13 @@ using stm::threads;
 namespace {
   struct ByEAR
   {
-      static void begin();
-      static TM_FASTCALL void* read_ro(STM_READ_SIG(,));
-      static TM_FASTCALL void* read_rw(STM_READ_SIG(,));
-      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,));
-      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,));
-      static TM_FASTCALL void commit_ro();
-      static TM_FASTCALL void commit_rw();
+      static void begin(TX_LONE_PARAMETER);
+      static TM_FASTCALL void* read_ro(TX_FIRST_PARAMETER STM_READ_SIG(,));
+      static TM_FASTCALL void* read_rw(TX_FIRST_PARAMETER STM_READ_SIG(,));
+      static TM_FASTCALL void write_ro(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+      static TM_FASTCALL void write_rw(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+      static TM_FASTCALL void commit_ro(TX_LONE_PARAMETER);
+      static TM_FASTCALL void commit_rw(TX_LONE_PARAMETER);
 
       static void rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
@@ -58,9 +58,9 @@ namespace {
   /**
    *  ByEAR begin:
    */
-  void ByEAR::begin()
+  void ByEAR::begin(TX_LONE_PARAMETER)
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       tx->allocator.onTxBegin();
       // set self to active
       tx->alive = TX_ACTIVE;
@@ -70,9 +70,9 @@ namespace {
    *  ByEAR commit (read-only):
    */
   void
-  ByEAR::commit_ro()
+  ByEAR::commit_ro(TX_LONE_PARAMETER)
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       // read-only... release read locks
       foreach (ByteLockList, i, tx->r_bytelocks)
           (*i)->reader[tx->id-1] = 0;
@@ -85,9 +85,9 @@ namespace {
    *  ByEAR commit (writing context):
    */
   void
-  ByEAR::commit_rw()
+  ByEAR::commit_rw(TX_LONE_PARAMETER)
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       // atomically mark self committed
       if (!bcas32(&tx->alive, TX_ACTIVE, TX_COMMITTED))
           tx->tmabort();
@@ -113,9 +113,9 @@ namespace {
    *  ByEAR read (read-only transaction)
    */
   void*
-  ByEAR::read_ro(STM_READ_SIG(addr,))
+  ByEAR::read_ro(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       bytelock_t* lock = get_bytelock(addr);
 
       // do I have a read lock?
@@ -157,9 +157,9 @@ namespace {
    *  ByEAR read (writing transaction)
    */
   void*
-  ByEAR::read_rw(STM_READ_SIG(addr,mask))
+  ByEAR::read_rw(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       bytelock_t* lock = get_bytelock(addr);
 
       // skip instrumentation if I am the writer
@@ -215,9 +215,9 @@ namespace {
    *  ByEAR write (read-only context)
    */
   void
-  ByEAR::write_ro(STM_WRITE_SIG(addr,val,mask))
+  ByEAR::write_ro(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       bytelock_t* lock = get_bytelock(addr);
 
       // abort current owner, wait for release, then acquire
@@ -258,9 +258,9 @@ namespace {
    *  ByEAR write (writing context)
    */
   void
-  ByEAR::write_rw(STM_WRITE_SIG(addr,val,mask))
+  ByEAR::write_rw(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       bytelock_t* lock = get_bytelock(addr);
 
       // fastpath for repeat writes to the same location
@@ -338,9 +338,7 @@ namespace {
   /**
    *  Switch to ByEAR:
    */
-  void
-  ByEAR::onSwitchTo() {
-  }
+  void ByEAR::onSwitchTo() { }
 }
 
 namespace stm {

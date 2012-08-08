@@ -37,13 +37,13 @@ using stm::ValueListEntry;
  */
 namespace {
   struct NOrecPrio {
-      static void begin();
-      static TM_FASTCALL void* read_ro(STM_READ_SIG(,));
-      static TM_FASTCALL void* read_rw(STM_READ_SIG(,));
-      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,));
-      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,));
-      static TM_FASTCALL void commit_ro();
-      static TM_FASTCALL void commit_rw();
+      static void begin(TX_LONE_PARAMETER);
+      static TM_FASTCALL void* read_ro(TX_FIRST_PARAMETER STM_READ_SIG(,));
+      static TM_FASTCALL void* read_rw(TX_FIRST_PARAMETER STM_READ_SIG(,));
+      static TM_FASTCALL void write_ro(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+      static TM_FASTCALL void write_rw(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+      static TM_FASTCALL void commit_ro(TX_LONE_PARAMETER);
+      static TM_FASTCALL void commit_rw(TX_LONE_PARAMETER);
 
       static void rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
@@ -59,9 +59,9 @@ namespace {
    *    We're using the 'classic' NOrec begin technique here.  Also, we check if
    *    we need priority here, rather than retaining it across an abort.
    */
-  void NOrecPrio::begin()
+  void NOrecPrio::begin(TX_LONE_PARAMETER)
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       // Sample the sequence lock until it is even (unheld)
       while ((tx->start_time = timestamp.val) & 1)
           spin64();
@@ -84,9 +84,9 @@ namespace {
    *    release it.
    */
   void
-  NOrecPrio::commit_ro()
+  NOrecPrio::commit_ro(TX_LONE_PARAMETER)
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       // read-only fastpath
       tx->vlist.reset();
       // priority
@@ -105,9 +105,9 @@ namespace {
    *    to be "fair", without any guarantees.
    */
   void
-  NOrecPrio::commit_rw()
+  NOrecPrio::commit_rw(TX_LONE_PARAMETER)
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       // wait for all higher-priority transactions to complete
       //
       // NB: we assume there are priority transactions, because we wouldn't be
@@ -147,9 +147,9 @@ namespace {
    *    This is a standard NOrec read
    */
   void*
-  NOrecPrio::read_ro(STM_READ_SIG(addr,mask))
+  NOrecPrio::read_ro(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       // read the location to a temp
       void* tmp = *addr;
       CFENCE;
@@ -173,9 +173,9 @@ namespace {
    *    Standard NOrec read from writing context
    */
   void*
-  NOrecPrio::read_rw(STM_READ_SIG(addr,mask))
+  NOrecPrio::read_rw(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       // check the log for a RAW hazard, we expect to miss
       WriteSetEntry log(STM_WRITE_SET_ENTRY(addr, NULL, mask));
       bool found = tx->writes.find(log);
@@ -188,7 +188,7 @@ namespace {
       // bytes that we "actually" need, which is computed as bytes in mask but
       // not in log.mask. This is only correct because we know that a failed
       // find also reset the log.mask to 0 (that's part of the find interface).
-      void* val = read_ro(addr STM_MASK(mask & ~log.mask));
+      void* val = read_ro(TX_FIRST_ARG addr STM_MASK(mask & ~log.mask));
       REDO_RAW_CLEANUP(val, found, log, mask);
       return val;
   }
@@ -199,9 +199,9 @@ namespace {
    *    log the write and switch to a writing context
    */
   void
-  NOrecPrio::write_ro(STM_WRITE_SIG(addr,val,mask))
+  NOrecPrio::write_ro(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       // do a buffered write
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
       stm::OnFirstWrite(read_rw, write_rw, commit_rw);
@@ -213,9 +213,9 @@ namespace {
    *    log the write
    */
   void
-  NOrecPrio::write_rw(STM_WRITE_SIG(addr,val,mask))
+  NOrecPrio::write_rw(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       // do a buffered write
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
   }

@@ -180,7 +180,7 @@ namespace stm
    *  The begin function pointer.  Note that we need tmbegin to equal
    *  begin_cgl initially, since "0" is the default algorithm
    */
-  void (*volatile tmbegin)() = begin_CGL;
+  void (*volatile tmbegin)(TX_LONE_PARAMETER) = begin_CGL;
 
   /**
    *  The tmrollback and tmirrevoc pointers
@@ -416,9 +416,9 @@ namespace stm
   /**
    * The function pointers:
    */
-  THREAD_LOCAL_DECL_TYPE(TM_FASTCALL void(*tmcommit)());
-  THREAD_LOCAL_DECL_TYPE(TM_FASTCALL void*(*tmread)(STM_READ_SIG(,)));
-  THREAD_LOCAL_DECL_TYPE(TM_FASTCALL void(*tmwrite)(STM_WRITE_SIG(,,)));
+  THREAD_LOCAL_DECL_TYPE(TM_FASTCALL void(*tmcommit)(TX_LONE_PARAMETER));
+  THREAD_LOCAL_DECL_TYPE(TM_FASTCALL void*(*tmread)(TX_FIRST_PARAMETER STM_READ_SIG(,)));
+  THREAD_LOCAL_DECL_TYPE(TM_FASTCALL void(*tmwrite)(TX_FIRST_PARAMETER STM_WRITE_SIG(,,)));
 
 #ifndef STM_CHECKPOINT_ASM
   /**
@@ -432,9 +432,9 @@ namespace stm
    *    (a) avoid overhead under subsumption nesting and
    *    (b) avoid code duplication or MACRO nastiness
    */
-  void begin(scope_t* s, uint32_t /*abort_flags*/)
+  void begin(TX_FIRST_PARAMETER scope_t* s, uint32_t /*abort_flags*/)
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       if (++tx->nesting_depth > 1)
           return;
 
@@ -450,15 +450,16 @@ namespace stm
       (void)casptr(&tx->in_tx, 0, 1);
 #endif
 
+#ifndef STM_PROFILETMTRIGGER_NONE
       // some adaptivity mechanisms need to know nontransactional and
       // transactional time.  This code suffices, because it gets the time
       // between transactions.  If we need the time for a single transaction,
       // we can run ProfileTM
       if (tx->end_txn_time)
           tx->total_nontxn_time += (tick() - tx->end_txn_time);
-
+#endif
       // now call the per-algorithm begin function
-      tmbegin();
+      tmbegin(TX_LONE_ARG);
   }
 #endif
 
@@ -467,22 +468,23 @@ namespace stm
    *  inlining to save a little bit of overhead for subsumption nesting, and to
    *  prevent code duplication.
    */
-  void commit()
+  void commit(TX_LONE_PARAMETER)
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       // don't commit anything if we're nested... just exit this scope
       if (--tx->nesting_depth)
           return;
 
       // dispatch to the appropriate end function
-      tmcommit();
+      tmcommit(TX_LONE_ARG);
 
       // indicate "not in tx"
       CFENCE;
       tx->in_tx = 0;
-
+#ifndef STM_PROFILETMTRIGGER_NONE
       // record start of nontransactional time
       tx->end_txn_time = tick();
+#endif
   }
 
   /**
