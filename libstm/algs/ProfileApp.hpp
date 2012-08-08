@@ -57,13 +57,13 @@ namespace {
   struct ProfileApp
   {
       static void Initialize(int id, const char* name);
-      static void begin();
-      static TM_FASTCALL void* read_ro(STM_READ_SIG(,));
-      static TM_FASTCALL void* read_rw(STM_READ_SIG(,));
-      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,));
-      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,));
-      static TM_FASTCALL void commit_ro();
-      static TM_FASTCALL void commit_rw();
+      static void begin(TX_LONE_PARAMETER);
+      static TM_FASTCALL void* read_ro(TX_FIRST_PARAMETER STM_READ_SIG(,));
+      static TM_FASTCALL void* read_rw(TX_FIRST_PARAMETER STM_READ_SIG(,));
+      static TM_FASTCALL void write_ro(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+      static TM_FASTCALL void write_rw(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+      static TM_FASTCALL void commit_ro(TX_LONE_PARAMETER);
+      static TM_FASTCALL void commit_rw(TX_LONE_PARAMETER);
 
       static void rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
@@ -99,9 +99,9 @@ namespace {
    *    Start measuring tx runtime
    */
   template <int COUNTMODE>
-  void ProfileApp<COUNTMODE>::begin()
+  void ProfileApp<COUNTMODE>::begin(TX_LONE_PARAMETER)
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       tx->allocator.onTxBegin();
       profiles[0].txn_time = tick();
   }
@@ -113,9 +113,9 @@ namespace {
    */
   template <int COUNTMODE>
   void
-  ProfileApp<COUNTMODE>::commit_ro()
+  ProfileApp<COUNTMODE>::commit_ro(TX_LONE_PARAMETER)
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       // NB: statically optimized version of RW code for RO case
       unsigned long long runtime = tick() - profiles[0].txn_time;
 
@@ -143,9 +143,9 @@ namespace {
    */
   template <int COUNTMODE>
   void
-  ProfileApp<COUNTMODE>::commit_rw()
+  ProfileApp<COUNTMODE>::commit_rw(TX_LONE_PARAMETER)
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       // run the redo log
       tx->writes.writeback();
       // remember write set size before clearing it
@@ -189,7 +189,7 @@ namespace {
    */
   template <int COUNTMODE>
   void*
-  ProfileApp<COUNTMODE>::read_ro(STM_READ_SIG(addr,))
+  ProfileApp<COUNTMODE>::read_ro(TX_FIRST_PARAMETER_ANON STM_READ_SIG(addr,))
   {
       // count the read
       ++profiles[0].read_ro;
@@ -202,9 +202,9 @@ namespace {
    */
   template <int COUNTMODE>
   void*
-  ProfileApp<COUNTMODE>::read_rw(STM_READ_SIG( addr,mask))
+  ProfileApp<COUNTMODE>::read_rw(TX_FIRST_PARAMETER STM_READ_SIG( addr,mask))
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       // check the log for a RAW hazard, we expect to miss
       WriteSetEntry log(STM_WRITE_SET_ENTRY(addr, NULL, mask));
       bool found = tx->writes.find(log);
@@ -225,9 +225,9 @@ namespace {
    */
   template <int COUNTMODE>
   void
-  ProfileApp<COUNTMODE>::write_ro(STM_WRITE_SIG(addr,val,mask))
+  ProfileApp<COUNTMODE>::write_ro(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       // do a buffered write
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
       ++profiles[0].write_waw;
@@ -238,9 +238,9 @@ namespace {
    *  ProfileApp write (writing context)
    */
   template <int COUNTMODE>
-  void ProfileApp<COUNTMODE>::write_rw(STM_WRITE_SIG(addr,val,mask))
+  void ProfileApp<COUNTMODE>::write_rw(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       // do a buffered write
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
       ++profiles[0].write_waw;
@@ -301,7 +301,7 @@ namespace {
 
 #define INIT_PROFILEAPP(ID, MODE)                \
     template <>                                 \
-    void initTM<ID>() {                         \
+    void initTM<ID>(TX_LONE_PARAMETER) {                         \
         ProfileApp<MODE>::Initialize(ID, #ID);   \
     }
 

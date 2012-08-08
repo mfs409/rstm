@@ -32,10 +32,10 @@ using stm::UNRECOVERABLE;
 namespace {
   struct Serial
   {
-      static void begin();
-      static TM_FASTCALL void* read(STM_READ_SIG(,));
-      static TM_FASTCALL void write(STM_WRITE_SIG(,,  ));
-      static TM_FASTCALL void commit();
+      static void begin(TX_LONE_PARAMETER);
+      static TM_FASTCALL void* read(TX_FIRST_PARAMETER STM_READ_SIG(,));
+      static TM_FASTCALL void write(TX_FIRST_PARAMETER STM_WRITE_SIG(,,  ));
+      static TM_FASTCALL void commit(TX_LONE_PARAMETER);
 
       static void rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
@@ -45,9 +45,9 @@ namespace {
   /**
    *  Serial begin:
    */
-  void Serial::begin()
+  void Serial::begin(TX_LONE_PARAMETER)
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       // get the lock and notify the allocator
       tx->begin_wait = tatas_acquire(&timestamp.val);
       tx->allocator.onTxBegin();
@@ -56,9 +56,9 @@ namespace {
   /**
    *  Serial commit
    */
-  void Serial::commit()
+  void Serial::commit(TX_LONE_PARAMETER)
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       // release the lock, finalize mm ops, and log the commit
       tatas_release(&timestamp.val);
       int x = tx->undo_log.size();
@@ -73,7 +73,7 @@ namespace {
    *  Serial read
    */
   void*
-  Serial::read(STM_READ_SIG(addr,))
+  Serial::read(TX_FIRST_PARAMETER_ANON STM_READ_SIG(addr,))
   {
       return *addr;
   }
@@ -82,9 +82,9 @@ namespace {
    *  Serial write
    */
   void
-  Serial::write(STM_WRITE_SIG( addr,val,mask))
+  Serial::write(TX_FIRST_PARAMETER STM_WRITE_SIG( addr,val,mask))
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       // add to undo log, do an in-place update
       tx->undo_log.insert(UndoLogEntry(STM_UNDO_LOG_ENTRY(addr, *addr, mask)));
       STM_DO_MASKED_WRITE(addr, val, mask);

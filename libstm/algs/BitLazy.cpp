@@ -50,13 +50,13 @@ using stm::WriteSetEntry;
 namespace {
   struct BitLazy
   {
-      static void begin();
-      static TM_FASTCALL void* read_ro(STM_READ_SIG(,));
-      static TM_FASTCALL void* read_rw(STM_READ_SIG(,));
-      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,));
-      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,));
-      static TM_FASTCALL void commit_ro();
-      static TM_FASTCALL void commit_rw();
+      static void begin(TX_LONE_PARAMETER);
+      static TM_FASTCALL void* read_ro(TX_FIRST_PARAMETER STM_READ_SIG(,));
+      static TM_FASTCALL void* read_rw(TX_FIRST_PARAMETER STM_READ_SIG(,));
+      static TM_FASTCALL void write_ro(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+      static TM_FASTCALL void write_rw(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+      static TM_FASTCALL void commit_ro(TX_LONE_PARAMETER);
+      static TM_FASTCALL void commit_rw(TX_LONE_PARAMETER);
 
       static void rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
@@ -66,9 +66,9 @@ namespace {
   /**
    *  BitLazy begin:
    */
-  void BitLazy::begin()
+  void BitLazy::begin(TX_LONE_PARAMETER)
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       tx->allocator.onTxBegin();
       tx->alive = 1;
   }
@@ -76,10 +76,9 @@ namespace {
   /**
    *  BitLazy commit (read-only):
    */
-  void
-  BitLazy::commit_ro()
+  void BitLazy::commit_ro(TX_LONE_PARAMETER)
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       // were there remote aborts?
       if (!tx->alive)
           tx->tmabort();
@@ -102,10 +101,9 @@ namespace {
    *    the transaction is still alive at that point, it will redo its writes,
    *    release locks, and clean up.
    */
-  void
-  BitLazy::commit_rw()
+  void BitLazy::commit_rw(TX_LONE_PARAMETER)
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       // try to lock every location in the write set
       rrec_t accumulator = {{0}};
       // acquire locks, accumulate victim readers
@@ -176,10 +174,9 @@ namespace {
    *    Must preserve write-before-read ordering between marking self as a reader
    *    and checking for conflicting writers.
    */
-  void*
-  BitLazy::read_ro(STM_READ_SIG(addr,))
+  void* BitLazy::read_ro(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       // first test if we've got a read bit
       bitlock_t* bl = get_bitlock(addr);
       if (bl->readers.setif(tx->id-1))
@@ -200,10 +197,9 @@ namespace {
    *
    *    Same as above, but with a test if this tx has a pending write
    */
-  void*
-  BitLazy::read_rw(STM_READ_SIG(addr,mask))
+  void* BitLazy::read_rw(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       // Used by REDO_RAW_CLEANUP so they have to be scoped out here. We assume
       // that the compiler will do a good job when byte-logging isn't enabled in
       // compiling this.
@@ -234,10 +230,9 @@ namespace {
    *
    *    Log the write, and then mark the location as if reading.
    */
-  void
-  BitLazy::write_ro(STM_WRITE_SIG(addr,val,mask))
+  void BitLazy::write_ro(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       // Record the new value in a redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
 
@@ -253,10 +248,9 @@ namespace {
   /**
    *  BitLazy write (writing context)
    */
-  void
-  BitLazy::write_rw(STM_WRITE_SIG(addr,val,mask))
+  void BitLazy::write_rw(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       // Record the new value in a redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
 

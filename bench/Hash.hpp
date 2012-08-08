@@ -35,21 +35,21 @@ class HashTable
     List bucket[N_BUCKETS];
 
     TM_CALLABLE
-    void insert(int val)
+    void insert(TX_FIRST_PARAMETER int val)
     {
-        bucket[val % N_BUCKETS].insert(val);
+        bucket[val % N_BUCKETS].insert(TX_FIRST_ARG val);
     }
 
     TM_CALLABLE
-    bool lookup(int val) const
+    bool lookup(TX_FIRST_PARAMETER int val) const
     {
-        return bucket[val % N_BUCKETS].lookup(val);
+        return bucket[val % N_BUCKETS].lookup(TX_FIRST_ARG val);
     }
 
     TM_CALLABLE
-    void remove(int val)
+    void remove(TX_FIRST_PARAMETER int val)
     {
-        bucket[val % N_BUCKETS].remove(val);
+        bucket[val % N_BUCKETS].remove(TX_FIRST_ARG val);
     }
 
     bool isSane() const

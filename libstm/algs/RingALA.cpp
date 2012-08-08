@@ -38,13 +38,13 @@ using stm::WriteSetEntry;
 namespace {
   struct RingALA
   {
-      static void begin();
-      static TM_FASTCALL void* read_ro(STM_READ_SIG(,));
-      static TM_FASTCALL void* read_rw(STM_READ_SIG(,));
-      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,));
-      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,));
-      static TM_FASTCALL void commit_ro();
-      static TM_FASTCALL void commit_rw();
+      static void begin(TX_LONE_PARAMETER);
+      static TM_FASTCALL void* read_ro(TX_FIRST_PARAMETER STM_READ_SIG(,));
+      static TM_FASTCALL void* read_rw(TX_FIRST_PARAMETER STM_READ_SIG(,));
+      static TM_FASTCALL void write_ro(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+      static TM_FASTCALL void write_rw(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+      static TM_FASTCALL void commit_ro(TX_LONE_PARAMETER);
+      static TM_FASTCALL void commit_rw(TX_LONE_PARAMETER);
 
       static void rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
@@ -55,9 +55,9 @@ namespace {
   /**
    *  RingALA begin:
    */
-  void RingALA::begin()
+  void RingALA::begin(TX_LONE_PARAMETER)
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       tx->allocator.onTxBegin();
       tx->start_time = last_complete.val;
   }
@@ -66,9 +66,9 @@ namespace {
    *  RingALA commit (read-only):
    */
   void
-  RingALA::commit_ro()
+  RingALA::commit_ro(TX_LONE_PARAMETER)
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       // just clear the filters
       tx->rf->clear();
       tx->cf->clear();
@@ -81,9 +81,9 @@ namespace {
    *    The writer commit algorithm is the same as RingSW
    */
   void
-  RingALA::commit_rw()
+  RingALA::commit_rw(TX_LONE_PARAMETER)
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       // get a commit time, but only succeed in the CAS if this transaction
       // is still valid
       uintptr_t commit_time;
@@ -144,9 +144,9 @@ namespace {
    *    that our reads won't result in ALA conflicts
    */
   void*
-  RingALA::read_ro(STM_READ_SIG(addr,))
+  RingALA::read_ro(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       // abort if this read would violate ALA
       if (tx->cf->lookup(addr))
           tx->tmabort();
@@ -165,9 +165,9 @@ namespace {
    *  RingALA read (writing transaction)
    */
   void*
-  RingALA::read_rw(STM_READ_SIG(addr,mask))
+  RingALA::read_rw(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       // check the log for a RAW hazard, we expect to miss
       WriteSetEntry log(STM_WRITE_SET_ENTRY(addr, NULL, mask));
       bool found = tx->writes.find(log);
@@ -193,9 +193,9 @@ namespace {
    *  RingALA write (read-only context)
    */
   void
-  RingALA::write_ro(STM_WRITE_SIG(addr,val,mask))
+  RingALA::write_ro(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       // buffer the write and update the filter
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
       tx->wf->add(addr);
@@ -206,9 +206,9 @@ namespace {
    *  RingALA write (writing context)
    */
   void
-  RingALA::write_rw(STM_WRITE_SIG(addr,val,mask))
+  RingALA::write_rw(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
       tx->wf->add(addr);
   }

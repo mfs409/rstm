@@ -36,13 +36,13 @@ using stm::WriteSetEntry;
 namespace {
   struct TLI
   {
-      static void begin();
-      static TM_FASTCALL void* read_ro(STM_READ_SIG(,));
-      static TM_FASTCALL void* read_rw(STM_READ_SIG(,));
-      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,));
-      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,));
-      static TM_FASTCALL void commit_ro();
-      static TM_FASTCALL void commit_rw();
+      static void begin(TX_LONE_PARAMETER);
+      static TM_FASTCALL void* read_ro(TX_FIRST_PARAMETER STM_READ_SIG(,));
+      static TM_FASTCALL void* read_rw(TX_FIRST_PARAMETER STM_READ_SIG(,));
+      static TM_FASTCALL void write_ro(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+      static TM_FASTCALL void write_rw(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+      static TM_FASTCALL void commit_ro(TX_LONE_PARAMETER);
+      static TM_FASTCALL void commit_rw(TX_LONE_PARAMETER);
 
       static void rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
@@ -53,9 +53,9 @@ namespace {
   /**
    *  TLI begin:
    */
-  void TLI::begin()
+  void TLI::begin(TX_LONE_PARAMETER)
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       // mark self as alive
       tx->allocator.onTxBegin();
       tx->alive = 1;
@@ -65,9 +65,9 @@ namespace {
    *  TLI commit (read-only):
    */
   void
-  TLI::commit_ro()
+  TLI::commit_ro(TX_LONE_PARAMETER)
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       // if the transaction is invalid, abort
       if (__builtin_expect(tx->alive == 2, false))
           tx->tmabort();
@@ -82,9 +82,9 @@ namespace {
    *  TLI commit (writing context):
    */
   void
-  TLI::commit_rw()
+  TLI::commit_rw(TX_LONE_PARAMETER)
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       // if the transaction is invalid, abort
       if (__builtin_expect(tx->alive == 2, false))
           tx->tmabort();
@@ -128,9 +128,9 @@ namespace {
    *    ensure that we are still valid
    */
   void*
-  TLI::read_ro(STM_READ_SIG(addr,))
+  TLI::read_ro(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       // push address into read filter, ensure ordering w.r.t. the subsequent
       // read of data
       tx->rf->atomic_add(addr);
@@ -157,16 +157,16 @@ namespace {
    *  TLI read (writing transaction)
    */
   void*
-  TLI::read_rw(STM_READ_SIG(addr,mask))
+  TLI::read_rw(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       // check the log for a RAW hazard, we expect to miss
       WriteSetEntry log(STM_WRITE_SET_ENTRY(addr, NULL, mask));
       bool found = tx->writes.find(log);
       REDO_RAW_CHECK(found, log, mask);
 
       // reuse the ReadRO barrier, which is adequate here---reduces LOC
-      void* val = read_ro(addr STM_MASK(mask));
+      void* val = read_ro(TX_FIRST_ARG addr STM_MASK(mask));
       REDO_RAW_CLEANUP(val, found, log, mask);
       return val;
   }
@@ -175,9 +175,9 @@ namespace {
    *  TLI write (read-only context)
    */
   void
-  TLI::write_ro(STM_WRITE_SIG(addr,val,mask))
+  TLI::write_ro(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       // buffer the write, update the filter
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
       tx->wf->add(addr);
@@ -190,9 +190,9 @@ namespace {
    *    Just like the RO case
    */
   void
-  TLI::write_rw(STM_WRITE_SIG(addr,val,mask))
+  TLI::write_rw(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
       tx->wf->add(addr);
   }

@@ -38,7 +38,7 @@ namespace stm
    * (implemented in irrevocability.cpp because it uses some static functions
    * declared there)
    */
-  void begin_blocker();
+  void begin_blocker(TX_LONE_PARAMETER);
 
   /**
    *  This is the code for deciding whether to adapt or not.  It's a little bit

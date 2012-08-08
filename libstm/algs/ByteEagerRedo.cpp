@@ -34,13 +34,13 @@ using stm::WriteSetEntry;
 namespace {
   struct ByteEagerRedo
   {
-      static void begin();
-      static TM_FASTCALL void* read_ro(STM_READ_SIG(,));
-      static TM_FASTCALL void* read_rw(STM_READ_SIG(,));
-      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,));
-      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,));
-      static TM_FASTCALL void commit_ro();
-      static TM_FASTCALL void commit_rw();
+      static void begin(TX_LONE_PARAMETER);
+      static TM_FASTCALL void* read_ro(TX_FIRST_PARAMETER STM_READ_SIG(,));
+      static TM_FASTCALL void* read_rw(TX_FIRST_PARAMETER STM_READ_SIG(,));
+      static TM_FASTCALL void write_ro(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+      static TM_FASTCALL void write_rw(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+      static TM_FASTCALL void commit_ro(TX_LONE_PARAMETER);
+      static TM_FASTCALL void commit_rw(TX_LONE_PARAMETER);
 
       static void rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
@@ -63,9 +63,9 @@ namespace {
   /**
    *  ByteEagerRedo begin:
    */
-  void ByteEagerRedo::begin()
+  void ByteEagerRedo::begin(TX_LONE_PARAMETER)
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       tx->allocator.onTxBegin();
   }
 
@@ -73,9 +73,9 @@ namespace {
    *  ByteEagerRedo commit (read-only):
    */
   void
-  ByteEagerRedo::commit_ro()
+  ByteEagerRedo::commit_ro(TX_LONE_PARAMETER)
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       // read-only... release read locks
       foreach (ByteLockList, i, tx->r_bytelocks)
           (*i)->reader[tx->id-1] = 0;
@@ -88,9 +88,9 @@ namespace {
    *  ByteEagerRedo commit (writing context):
    */
   void
-  ByteEagerRedo::commit_rw()
+  ByteEagerRedo::commit_rw(TX_LONE_PARAMETER)
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       // replay redo log
       tx->writes.writeback();
       CFENCE;
@@ -112,9 +112,9 @@ namespace {
    *  ByteEagerRedo read (read-only transaction)
    */
   void*
-  ByteEagerRedo::read_ro(STM_READ_SIG(addr,))
+  ByteEagerRedo::read_ro(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       uint32_t tries = 0;
       bytelock_t* lock = get_bytelock(addr);
 
@@ -146,9 +146,9 @@ namespace {
    *  ByteEagerRedo read (writing transaction)
    */
   void*
-  ByteEagerRedo::read_rw(STM_READ_SIG(addr,mask))
+  ByteEagerRedo::read_rw(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       uint32_t tries = 0;
       bytelock_t* lock = get_bytelock(addr);
 
@@ -192,9 +192,9 @@ namespace {
    *  ByteEagerRedo write (read-only context)
    */
   void
-  ByteEagerRedo::write_ro(STM_WRITE_SIG(addr,val,mask))
+  ByteEagerRedo::write_ro(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       uint32_t tries = 0;
       bytelock_t* lock = get_bytelock(addr);
 
@@ -227,9 +227,9 @@ namespace {
    *  ByteEagerRedo write (writing context)
    */
   void
-  ByteEagerRedo::write_rw(STM_WRITE_SIG(addr,val,mask))
+  ByteEagerRedo::write_rw(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       uint32_t tries = 0;
       bytelock_t* lock = get_bytelock(addr);
 

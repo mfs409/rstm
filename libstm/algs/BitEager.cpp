@@ -35,13 +35,13 @@ using stm::UndoLogEntry;
 namespace {
   struct BitEager
   {
-      static void begin();
-      static TM_FASTCALL void* read_ro(STM_READ_SIG(,));
-      static TM_FASTCALL void* read_rw(STM_READ_SIG(,));
-      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,));
-      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,));
-      static TM_FASTCALL void commit_ro();
-      static TM_FASTCALL void commit_rw();
+      static void begin(TX_LONE_PARAMETER );
+      static TM_FASTCALL void* read_ro(TX_FIRST_PARAMETER STM_READ_SIG(,));
+      static TM_FASTCALL void* read_rw(TX_FIRST_PARAMETER STM_READ_SIG(,));
+      static TM_FASTCALL void write_ro(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+      static TM_FASTCALL void write_rw(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+      static TM_FASTCALL void commit_ro(TX_LONE_PARAMETER );
+      static TM_FASTCALL void commit_rw(TX_LONE_PARAMETER );
       static void rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
       static void onSwitchTo();
@@ -63,18 +63,18 @@ namespace {
   /**
    *  BitEager begin:
    */
-  void BitEager::begin()
+  void BitEager::begin(TX_LONE_PARAMETER)
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       tx->allocator.onTxBegin();
   }
 
   /**
    *  BitEager commit (read-only):
    */
-  void BitEager::commit_ro()
+  void BitEager::commit_ro(TX_LONE_PARAMETER)
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
 
       // read-only... release read locks
       foreach (BitLockList, i, tx->r_bitlocks)
@@ -87,10 +87,9 @@ namespace {
   /**
    *  BitEager commit (writing context):
    */
-  void
-  BitEager::commit_rw()
+  void BitEager::commit_rw(TX_LONE_PARAMETER)
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
 
       // release write locks, then read locks
       foreach (BitLockList, i, tx->w_bitlocks)
@@ -112,10 +111,10 @@ namespace {
    *    (there must not be a writer, and WBR issues apply), then read directly
    *    from memory.
    */
-  void*
-  BitEager::read_ro(STM_READ_SIG(addr,))
+  void* BitEager::read_ro(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
+
       uint32_t tries = 0;
       bitlock_t* lock = get_bitlock(addr);
 
@@ -149,10 +148,10 @@ namespace {
    *    This is almost identical to the RO case, except that if the caller has
    *    the write lock, we can return immediately.
    */
-  void*
-  BitEager::read_rw(STM_READ_SIG(addr,))
+  void* BitEager::read_rw(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
+
       uint32_t tries = 0;
       bitlock_t* lock = get_bitlock(addr);
 
@@ -191,9 +190,10 @@ namespace {
    *    out.
    */
   void
-  BitEager::write_ro(STM_WRITE_SIG(addr,val,mask))
+  BitEager::write_ro(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
+
       uint32_t tries = 0;
       bitlock_t* lock = get_bitlock(addr);
 
@@ -228,9 +228,10 @@ namespace {
    *    This is like the read-only case, except we might already hold the lock.
    */
   void
-  BitEager::write_rw(STM_WRITE_SIG(addr,val,mask))
+  BitEager::write_rw(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
+
       uint32_t tries = 0;
       bitlock_t* lock = get_bitlock(addr);
 

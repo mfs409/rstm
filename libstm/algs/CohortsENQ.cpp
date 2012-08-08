@@ -34,21 +34,23 @@ using stm::cohorts_node_t;
  */
 namespace {
   volatile uintptr_t inplace = 0;
+
   NOINLINE bool validate(TxThread* tx);
+
   // global linklist's head
   struct cohorts_node_t* volatile q = NULL;
 
   struct CohortsENQ {
-      static void begin();
-      static TM_FASTCALL void* read_ro(STM_READ_SIG(,));
-      static TM_FASTCALL void* read_rw(STM_READ_SIG(,));
-      static TM_FASTCALL void* read_turbo(STM_READ_SIG(,));
-      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,));
-      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,));
-      static TM_FASTCALL void write_turbo(STM_WRITE_SIG(,,));
-      static TM_FASTCALL void commit_ro();
-      static TM_FASTCALL void commit_rw();
-      static TM_FASTCALL void commit_turbo();
+      static void begin(TX_LONE_PARAMETER);
+      static TM_FASTCALL void* read_ro(TX_FIRST_PARAMETER STM_READ_SIG(,));
+      static TM_FASTCALL void* read_rw(TX_FIRST_PARAMETER STM_READ_SIG(,));
+      static TM_FASTCALL void* read_turbo(TX_FIRST_PARAMETER STM_READ_SIG(,));
+      static TM_FASTCALL void write_ro(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+      static TM_FASTCALL void write_rw(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+      static TM_FASTCALL void write_turbo(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+      static TM_FASTCALL void commit_ro(TX_LONE_PARAMETER);
+      static TM_FASTCALL void commit_rw(TX_LONE_PARAMETER);
+      static TM_FASTCALL void commit_turbo(TX_LONE_PARAMETER);
 
       static void rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
@@ -62,9 +64,9 @@ namespace {
    *  tx is allowed to start until all the transactions finishes their
    *  commits.
    */
-  void CohortsENQ::begin()
+  void CohortsENQ::begin(TX_LONE_PARAMETER)
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       tx->allocator.onTxBegin();
     S1:
       // wait until everyone is committed
@@ -88,9 +90,9 @@ namespace {
    *  CohortsENQ commit (read-only):
    */
   void
-  CohortsENQ::commit_ro()
+  CohortsENQ::commit_ro(TX_LONE_PARAMETER)
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       // decrease total number of tx started
       faaptr(&started.val, -1);
 
@@ -104,9 +106,9 @@ namespace {
    *  no other thread touches cpending
    */
   void
-  CohortsENQ::commit_turbo()
+  CohortsENQ::commit_turbo(TX_LONE_PARAMETER)
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       // decrease total number of tx started
       faaptr(&started.val, -1);
 
@@ -129,9 +131,9 @@ namespace {
    *  in an order which is given at the beginning of commit.
    */
   void
-  CohortsENQ::commit_rw()
+  CohortsENQ::commit_rw(TX_LONE_PARAMETER)
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       // add myself to the queue
       do {
           tx->turn.next = q;
@@ -180,7 +182,7 @@ namespace {
    *  CohortsENQ read_turbo
    */
   void*
-  CohortsENQ::read_turbo(STM_READ_SIG(addr,))
+  CohortsENQ::read_turbo(TX_FIRST_PARAMETER_ANON STM_READ_SIG(addr,))
   {
       return *addr;
   }
@@ -189,9 +191,9 @@ namespace {
    *  CohortsENQ read (read-only transaction)
    */
   void*
-  CohortsENQ::read_ro(STM_READ_SIG(addr,))
+  CohortsENQ::read_ro(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       void *tmp = *addr;
       STM_LOG_VALUE(tx, addr, tmp, mask);
       return tmp;
@@ -201,9 +203,9 @@ namespace {
    *  CohortsENQ read (writing transaction)
    */
   void*
-  CohortsENQ::read_rw(STM_READ_SIG(addr,mask))
+  CohortsENQ::read_rw(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       // check the log for a RAW hazard, we expect to miss
       WriteSetEntry log(STM_WRITE_SET_ENTRY(addr, NULL, mask));
       bool found = tx->writes.find(log);
@@ -219,9 +221,9 @@ namespace {
    *  CohortsENQ write (read-only context): for first write
    */
   void
-  CohortsENQ::write_ro(STM_WRITE_SIG(addr,val,mask))
+  CohortsENQ::write_ro(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       // If everyone else is ready to commit, do in place write
       if (started.val == 1) {
           // set up flag indicating in place write starts
@@ -245,7 +247,7 @@ namespace {
    *  CohortsENQ write (in place write)
    */
   void
-  CohortsENQ::write_turbo(STM_WRITE_SIG(addr,val,mask))
+  CohortsENQ::write_turbo(TX_FIRST_PARAMETER_ANON STM_WRITE_SIG(addr,val,mask))
   {
       *addr = val; // in place write
   }
@@ -254,9 +256,9 @@ namespace {
    *  CohortsENQ write (writing context)
    */
   void
-  CohortsENQ::write_rw(STM_WRITE_SIG(addr,val,mask))
+  CohortsENQ::write_rw(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       // record the new value in a redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
   }

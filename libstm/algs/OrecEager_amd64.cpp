@@ -74,14 +74,14 @@ namespace
   template <class CM>
   struct OrecEager_amd64_Generic
   {
-      static void begin();
-      static TM_FASTCALL void commit();
+      static void begin(TX_LONE_PARAMETER);
+      static TM_FASTCALL void commit(TX_LONE_PARAMETER);
       static void initialize(int id, const char* name);
       static void rollback(STM_ROLLBACK_SIG(,,));
   };
 
-  TM_FASTCALL void* read(STM_READ_SIG(,));
-  TM_FASTCALL void write(STM_WRITE_SIG(,,));
+  TM_FASTCALL void* read(TX_FIRST_PARAMETER STM_READ_SIG(,));
+  TM_FASTCALL void write(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
   bool irrevoc(TxThread*);
   NOINLINE void validate(TxThread*);
   void onSwitchTo();
@@ -106,9 +106,9 @@ namespace
   }
 
   template <class CM>
-  void OrecEager_amd64_Generic<CM>::begin()
+  void OrecEager_amd64_Generic<CM>::begin(TX_LONE_PARAMETER)
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       // sample the timestamp and prepare local structures
       tx->allocator.onTxBegin();
       tx->start_time = tickp();
@@ -125,9 +125,9 @@ namespace
    */
   template <class CM>
   void
-  OrecEager_amd64_Generic<CM>::commit()
+  OrecEager_amd64_Generic<CM>::commit(TX_LONE_PARAMETER)
   {
-      TxThread* tx= stm::Self;
+      TX_GET_TX_INTERNAL;
       // use the lockset size to identify if tx is read-only
       if (!tx->locks.size()) {
           CM::onCommit(tx);
@@ -169,9 +169,9 @@ namespace
    *
    *    Must check orec twice, and may need to validate
    */
-  void* read(STM_READ_SIG(addr,))
+  void* read(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       // get the orec addr, then start loop to read a consistent value
       orec_t* o = get_orec(addr);
       while (true) {
@@ -215,9 +215,9 @@ namespace
    *
    *    Lock the orec, log the old value, do the write
    */
-  void write(STM_WRITE_SIG(addr,val,mask))
+  void write(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       // get the orec addr, then enter loop to get lock from a consistent state
       orec_t* o = get_orec(addr);
       while (true) {
@@ -382,9 +382,9 @@ namespace
 #define FOREACH_OrecEager_amd64(MACRO)                \
     MACRO(OrecEager_amd64, HyperAggressiveCM)
 
-#define INIT_OrecEager_amd64(ID, CM)                          \
-    template <>                                         \
-    void initTM<ID>() {                                 \
+#define INIT_OrecEager_amd64(ID, CM)                              \
+    template <>                                                   \
+    void initTM<ID>() {                                           \
         OrecEager_amd64_Generic<stm::CM>::initialize(ID, #ID);    \
     }
 

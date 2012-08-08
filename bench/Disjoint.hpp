@@ -76,14 +76,14 @@ struct Disjoint
        *  optimized out
        */
       TM_CALLABLE
-      bool ro_transaction(uint32_t id, uint32_t startpoint)
+      bool ro_transaction(TX_FIRST_PARAMETER uint32_t id, uint32_t startpoint)
           __attribute__((noinline));
 
       /**
        *  do some reads, do some rmw's
        */
       TM_CALLABLE
-      void r_rw_transaction(uint32_t id, uint32_t startpoint)
+      void r_rw_transaction(TX_FIRST_PARAMETER uint32_t id, uint32_t startpoint)
       {
           PaddedBuffer& rBuffer =
               use_shared_read_buffer ? publicBuffer : privateBuffers[id];

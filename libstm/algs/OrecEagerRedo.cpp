@@ -40,13 +40,13 @@ using stm::id_version_t;
 namespace {
   struct OrecEagerRedo
   {
-      static void begin();
-      static TM_FASTCALL void* read_ro(STM_READ_SIG(,));
-      static TM_FASTCALL void* read_rw(STM_READ_SIG(,));
-      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,));
-      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,));
-      static TM_FASTCALL void commit_ro();
-      static TM_FASTCALL void commit_rw();
+      static void begin(TX_LONE_PARAMETER);
+      static TM_FASTCALL void* read_ro(TX_FIRST_PARAMETER STM_READ_SIG(,));
+      static TM_FASTCALL void* read_rw(TX_FIRST_PARAMETER STM_READ_SIG(,));
+      static TM_FASTCALL void write_ro(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+      static TM_FASTCALL void write_rw(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+      static TM_FASTCALL void commit_ro(TX_LONE_PARAMETER);
+      static TM_FASTCALL void commit_rw(TX_LONE_PARAMETER);
 
       static void rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
@@ -59,9 +59,9 @@ namespace {
    *
    *    Standard begin: just get a start time
    */
-  void OrecEagerRedo::begin()
+  void OrecEagerRedo::begin(TX_LONE_PARAMETER)
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       tx->allocator.onTxBegin();
       tx->start_time = timestamp.val;
   }
@@ -72,9 +72,9 @@ namespace {
    *    Standard commit: we hold no locks, and we're valid, so just clean up
    */
   void
-  OrecEagerRedo::commit_ro()
+  OrecEagerRedo::commit_ro(TX_LONE_PARAMETER)
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       tx->r_orecs.reset();
       OnReadOnlyCommit(tx);
   }
@@ -87,9 +87,9 @@ namespace {
    *    release locks.
    */
   void
-  OrecEagerRedo::commit_rw()
+  OrecEagerRedo::commit_rw(TX_LONE_PARAMETER)
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       // note: we're using timestamps in the same manner as
       // OrecLazy... without the single-thread optimization
 
@@ -127,9 +127,9 @@ namespace {
    *    necessary.
    */
   void*
-  OrecEagerRedo::read_ro(STM_READ_SIG(addr,))
+  OrecEagerRedo::read_ro(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       // get the orec addr
       orec_t* o = get_orec(addr);
       while (true) {
@@ -163,9 +163,9 @@ namespace {
    *    log if we hold the lock, but we must be prepared for that possibility.
    */
   void*
-  OrecEagerRedo::read_rw(STM_READ_SIG(addr,mask))
+  OrecEagerRedo::read_rw(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       // get the orec addr
       orec_t* o = get_orec(addr);
       while (true) {
@@ -210,9 +210,9 @@ namespace {
    *    NB: saving the value first decreases register pressure
    */
   void
-  OrecEagerRedo::write_ro(STM_WRITE_SIG(addr,val,mask))
+  OrecEagerRedo::write_ro(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       // add to redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
 
@@ -253,9 +253,9 @@ namespace {
    *    by the caller.
    */
   void
-  OrecEagerRedo::write_rw(STM_WRITE_SIG(addr,val,mask))
+  OrecEagerRedo::write_rw(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       // add to redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
 

@@ -42,16 +42,16 @@ namespace {
   NOINLINE bool validate(TxThread* tx);
 
   struct CohortsEN2 {
-      static void begin();
-      static TM_FASTCALL void* read_ro(STM_READ_SIG(,));
-      static TM_FASTCALL void* read_rw(STM_READ_SIG(,));
-      static TM_FASTCALL void* read_turbo(STM_READ_SIG(,));
-      static TM_FASTCALL void write_ro(STM_WRITE_SIG(,,));
-      static TM_FASTCALL void write_rw(STM_WRITE_SIG(,,));
-      static TM_FASTCALL void write_turbo(STM_WRITE_SIG(,,));
-      static TM_FASTCALL void commit_ro();
-      static TM_FASTCALL void commit_rw();
-      static TM_FASTCALL void commit_turbo();
+      static void begin(TX_LONE_PARAMETER);
+      static TM_FASTCALL void* read_ro(TX_FIRST_PARAMETER STM_READ_SIG(,));
+      static TM_FASTCALL void* read_rw(TX_FIRST_PARAMETER STM_READ_SIG(,));
+      static TM_FASTCALL void* read_turbo(TX_FIRST_PARAMETER STM_READ_SIG(,));
+      static TM_FASTCALL void write_ro(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+      static TM_FASTCALL void write_rw(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+      static TM_FASTCALL void write_turbo(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+      static TM_FASTCALL void commit_ro(TX_LONE_PARAMETER);
+      static TM_FASTCALL void commit_rw(TX_LONE_PARAMETER);
+      static TM_FASTCALL void commit_turbo(TX_LONE_PARAMETER);
 
       static void rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
@@ -65,9 +65,9 @@ namespace {
    *  tx is allowed to start until all the transactions finishes their
    *  commits.
    */
-  void CohortsEN2::begin()
+  void CohortsEN2::begin(TX_LONE_PARAMETER)
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       tx->allocator.onTxBegin();
     S1:
       // wait until everyone is committed
@@ -90,9 +90,9 @@ namespace {
    *  CohortsEN2 commit (read-only):
    */
   void
-  CohortsEN2::commit_ro()
+  CohortsEN2::commit_ro(TX_LONE_PARAMETER)
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       // decrease total number of tx started
       faaptr(&started.val, -1);
 
@@ -106,9 +106,9 @@ namespace {
    *  no other thread touches cpending
    */
   void
-  CohortsEN2::commit_turbo()
+  CohortsEN2::commit_turbo(TX_LONE_PARAMETER)
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       // increase # of tx waiting to commit, and use it as the order
       tx->order = ++cpending.val;
 
@@ -135,9 +135,9 @@ namespace {
    *  in an order which is given at the beginning of commit.
    */
   void
-  CohortsEN2::commit_rw()
+  CohortsEN2::commit_rw(TX_LONE_PARAMETER)
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       // increase # of tx waiting to commit, and use it as the order
       tx->order = 1+ faiptr(&cpending.val);
 
@@ -180,7 +180,7 @@ namespace {
    *  CohortsEN2 read_turbo
    */
   void*
-  CohortsEN2::read_turbo(STM_READ_SIG(addr,))
+  CohortsEN2::read_turbo(TX_FIRST_PARAMETER_ANON STM_READ_SIG(addr,))
   {
       return *addr;
   }
@@ -189,9 +189,9 @@ namespace {
    *  CohortsEN2 read (read-only transaction)
    */
   void*
-  CohortsEN2::read_ro(STM_READ_SIG(addr,))
+  CohortsEN2::read_ro(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       void *tmp = *addr;
       STM_LOG_VALUE(tx, addr, tmp, mask);
       return tmp;
@@ -201,9 +201,9 @@ namespace {
    *  CohortsEN2 read (writing transaction)
    */
   void*
-  CohortsEN2::read_rw(STM_READ_SIG(addr,mask))
+  CohortsEN2::read_rw(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       // check the log for a RAW hazard, we expect to miss
       WriteSetEntry log(STM_WRITE_SET_ENTRY(addr, NULL, mask));
       bool found = tx->writes.find(log);
@@ -219,9 +219,9 @@ namespace {
    *  CohortsEN2 write (read-only context): for first write
    */
   void
-  CohortsEN2::write_ro(STM_WRITE_SIG(addr,val,mask))
+  CohortsEN2::write_ro(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       if (tx->status == TURBO) {
           // in place write
           *addr = val;
@@ -238,7 +238,7 @@ namespace {
    *  CohortsEN2 write (in place write)
    */
   void
-  CohortsEN2::write_turbo(STM_WRITE_SIG(addr,val,mask))
+  CohortsEN2::write_turbo(TX_FIRST_PARAMETER_ANON STM_WRITE_SIG(addr,val,mask))
   {
       *addr = val; // in place write
   }
@@ -247,9 +247,9 @@ namespace {
    *  CohortsEN2 write (writing context)
    */
   void
-  CohortsEN2::write_rw(STM_WRITE_SIG(addr,val,mask))
+  CohortsEN2::write_rw(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       if (tx->status == TURBO) {
           // write previous write set back
           foreach (WriteSet, i, tx->writes)

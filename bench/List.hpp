@@ -40,15 +40,15 @@ class List
 
     // true iff val is in the data structure
     TM_CALLABLE
-    bool lookup(int val) const;
+    bool lookup(TX_FIRST_PARAMETER int val) const;
 
     // standard IntSet methods
     TM_CALLABLE
-    void insert(int val);
+    void insert(TX_FIRST_PARAMETER int val);
 
     // remove a node if its value = val
     TM_CALLABLE
-    void remove(int val);
+    void remove(TX_FIRST_PARAMETER int val);
 
     // make sure the list is in sorted order
     bool isSane() const;
@@ -59,14 +59,14 @@ class List
 
     // find max and min
     TM_CALLABLE
-    int findmax() const;
+    int findmax(TX_LONE_PARAMETER) const;
 
     TM_CALLABLE
-    int findmin() const;
+    int findmin(TX_LONE_PARAMETER) const;
 
     // overwrite all elements up to val
     TM_CALLABLE
-    void overwrite(int val);
+    void overwrite(TX_FIRST_PARAMETER int val);
 };
 
 
@@ -106,7 +106,7 @@ bool List::extendedSanityCheck(verifier v, uint32_t v_param) const
 // insert method; find the right place in the list, add val so that it is in
 // sorted order; if val is already in the list, exit without inserting
 TM_CALLABLE
-void List::insert(int val)
+void List::insert(TX_FIRST_PARAMETER int val)
 {
     // traverse the list to find the insertion point
     const Node* prev(sentinel);
@@ -133,7 +133,7 @@ void List::insert(int val)
 
 // search function
 TM_CALLABLE
-bool List::lookup(int val) const
+bool List::lookup(TX_FIRST_PARAMETER int val) const
 {
     bool found = false;
     const Node* curr(sentinel);
@@ -151,7 +151,7 @@ bool List::lookup(int val) const
 
 // findmax function
 TM_CALLABLE
-int List::findmax() const
+int List::findmax(TX_LONE_PARAMETER) const
 {
     int max = -1;
     const Node* curr(sentinel);
@@ -164,7 +164,7 @@ int List::findmax() const
 
 // findmin function
 TM_CALLABLE
-int List::findmin() const
+int List::findmin(TX_LONE_PARAMETER) const
 {
     int min = -1;
     const Node* curr(sentinel);
@@ -176,7 +176,7 @@ int List::findmin() const
 
 // remove a node if its value == val
 TM_CALLABLE
-void List::remove(int val)
+void List::remove(TX_FIRST_PARAMETER int val)
 {
     // find the node whose val matches the request
     const Node* prev(sentinel);
@@ -202,7 +202,7 @@ void List::remove(int val)
 
 // search function
 TM_CALLABLE
-void List::overwrite(int val)
+void List::overwrite(TX_FIRST_PARAMETER int val)
 {
     const Node* curr(sentinel);
     curr = TM_READ(curr->m_next);

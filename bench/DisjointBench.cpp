@@ -49,7 +49,7 @@
  *  out
  */
 
-bool Disjoint::ro_transaction(uint32_t id, uint32_t startpoint)
+bool Disjoint::ro_transaction(TX_FIRST_PARAMETER uint32_t id, uint32_t startpoint)
 {
     PaddedBuffer& rBuffer =
     use_shared_read_buffer ? publicBuffer : privateBuffers[id];
@@ -101,9 +101,9 @@ void bench_test(uintptr_t id, uint32_t* seed)
     TM_BEGIN(atomic) {
         // RO or RW transaction?
         if (act < CFG.lookpct)
-            SET->ro_transaction(id, start);
+            SET->ro_transaction(TX_FIRST_ARG id, start);
         else
-            SET->r_rw_transaction(id, start);
+            SET->r_rw_transaction(TX_FIRST_ARG id, start);
     } TM_END;
 }
 

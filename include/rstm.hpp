@@ -38,13 +38,14 @@
  *  TM_CALLABLE      : mark a function as being callable by TM
  */
 
-#ifndef API_LIBRARY_HPP__
-#define API_LIBRARY_HPP__
+#ifndef RSTM_HPP__
+#define RSTM_HPP__
 
 #include <setjmp.h>
 #include "abstract_compiler.hpp"
 #include "macros.hpp"
 #include "ThreadLocal.hpp"
+#include "tlsapi.hpp"
 
 #ifdef STM_CHECKPOINT_ASM
 #include "../libstm/libitm.h"
@@ -68,13 +69,13 @@ namespace stm
    *  Code to start a transaction.  We assume the caller already performed a
    *  setjmp, and is passing a valid setjmp buffer to this function.
    */
-  void begin(scope_t* s, uint32_t abort_flags);
+  void begin(TX_FIRST_PARAMETER scope_t* s, uint32_t abort_flags);
 #endif
 
   /**
    *  Code to commit a transaction.
    */
-  void commit();
+  void commit(TX_LONE_PARAMETER);
 
   /**
    *  The STM system provides a message that exits the program (preferable to
@@ -150,9 +151,9 @@ namespace stm
   void declare_read_only();
 
   /*** Per-thread commit, read, and write pointers */
-  extern THREAD_LOCAL_DECL_TYPE(TM_FASTCALL void(*tmcommit)());
-  extern THREAD_LOCAL_DECL_TYPE(TM_FASTCALL void*(*tmread)(STM_READ_SIG(,)));
-  extern THREAD_LOCAL_DECL_TYPE(TM_FASTCALL void(*tmwrite)(STM_WRITE_SIG(,,)));
+  extern THREAD_LOCAL_DECL_TYPE(TM_FASTCALL void(*tmcommit)(TX_LONE_PARAMETER));
+  extern THREAD_LOCAL_DECL_TYPE(TM_FASTCALL void*(*tmread)(TX_FIRST_PARAMETER STM_READ_SIG(,)));
+  extern THREAD_LOCAL_DECL_TYPE(TM_FASTCALL void(*tmwrite)(TX_FIRST_PARAMETER STM_WRITE_SIG(,,)));
 }
 
 /*** pull in the per-memory-access instrumentation framework */
@@ -165,23 +166,23 @@ namespace stm
 namespace stm
 {
   template <typename T>
-  inline T stm_read(T* addr)
+  inline T stm_read(TX_FIRST_PARAMETER T* addr)
   {
-      return DISPATCH<T, sizeof(T)>::read(addr);
+      return DISPATCH<T, sizeof(T)>::read(TX_FIRST_ARG addr);
   }
 
   template <typename T>
-  inline void stm_write(T* addr, T val)
+  inline void stm_write(TX_FIRST_PARAMETER T* addr, T val)
   {
-      DISPATCH<T, sizeof(T)>::write(addr, val);
+      DISPATCH<T, sizeof(T)>::write(TX_FIRST_ARG addr, val);
   }
 } // namespace stm
 
 /**
  * Code should only use these calls, not the template stuff declared above
  */
-#define TM_READ(var)       stm::stm_read(&var)
-#define TM_WRITE(var, val) stm::stm_write(&var, val)
+#define TM_READ(var)       stm::stm_read(TX_FIRST_ARG &var)
+#define TM_WRITE(var, val) stm::stm_write(TX_FIRST_ARG &var, val)
 
 #ifdef STM_CHECKPOINT_ASM
 
@@ -211,9 +212,10 @@ namespace stm
  */
 #define TM_BEGIN(TYPE)                                      \
     {                                                       \
+    TX_GET_TX;                                              \
     jmp_buf _jmpbuf;                                        \
     uint32_t abort_flags = setjmp(_jmpbuf);                 \
-    stm::begin(&_jmpbuf, abort_flags);                      \
+    stm::begin(TX_FIRST_ARG &_jmpbuf, abort_flags);         \
     CFENCE;                                                 \
     {
 
@@ -224,10 +226,11 @@ namespace stm
  */
 #define TM_BEGIN_READONLY(TYPE)                             \
     {                                                       \
+    TX_GET_TX;                                              \
     jmp_buf _jmpbuf;                                        \
     uint32_t abort_flags = setjmp(_jmpbuf);                 \
     stm::declare_read_only();                               \
-    stm::begin(&_jmpbuf, abort_flags);                      \
+    stm::begin(TX_FIRST_ARG &_jmpbuf, abort_flags);         \
     CFENCE;                                                 \
     {
 #endif
@@ -238,7 +241,7 @@ namespace stm
  */
 #define TM_END                                  \
     }                                           \
-    stm::commit();                              \
+    stm::commit(TX_LONE_ARG);                   \
     }
 
 #define TM_CALLABLE
@@ -276,9 +279,10 @@ namespace stm
 #else
 #  define TM_BEGIN_FAST_INITIALIZATION()                \
     const char* __config_string__ = TM_GET_ALGNAME();   \
-    TM_SET_POLICY("CGL");
+    TM_SET_POLICY("CGL");\
+    TX_GET_TX
 #  define TM_END_FAST_INITIALIZATION()          \
     TM_SET_POLICY(__config_string__)
 #endif
 
-#endif // API_LIBRARY_HPP__
+#endif // RSTM_HPP__

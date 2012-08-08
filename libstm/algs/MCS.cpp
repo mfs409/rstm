@@ -31,10 +31,10 @@ using stm::mcslock;
 namespace  {
   struct MCS
   {
-      static void begin();
-      static TM_FASTCALL void* read(STM_READ_SIG(,));
-      static TM_FASTCALL void write(STM_WRITE_SIG(,,));
-      static TM_FASTCALL void commit();
+      static void begin(TX_LONE_PARAMETER);
+      static TM_FASTCALL void* read(TX_FIRST_PARAMETER STM_READ_SIG(,));
+      static TM_FASTCALL void write(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+      static TM_FASTCALL void commit(TX_LONE_PARAMETER);
 
       static void rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
@@ -45,9 +45,9 @@ namespace  {
   /**
    *  MCS begin:
    */
-  void MCS::begin()
+  void MCS::begin(TX_LONE_PARAMETER)
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       // acquire the MCS lock
       tx->begin_wait = mcs_acquire(&mcslock, tx->my_mcslock);
       tx->allocator.onTxBegin();
@@ -57,9 +57,9 @@ namespace  {
    *  MCS commit
    */
   void
-  MCS::commit()
+  MCS::commit(TX_LONE_PARAMETER)
   {
-      TxThread* tx = stm::Self;
+      TX_GET_TX_INTERNAL;
       // release the lock, finalize mm ops, and log the commit
       mcs_release(&mcslock, tx->my_mcslock);
       OnCGLCommit(tx);
@@ -69,7 +69,7 @@ namespace  {
    *  MCS read
    */
   void*
-  MCS::read(STM_READ_SIG(addr,))
+  MCS::read(TX_FIRST_PARAMETER_ANON STM_READ_SIG(addr,))
   {
       return *addr;
   }
@@ -78,7 +78,7 @@ namespace  {
    *  MCS write
    */
   void
-  MCS::write(STM_WRITE_SIG(addr,val,mask))
+  MCS::write(TX_FIRST_PARAMETER_ANON STM_WRITE_SIG(addr,val,mask))
   {
       STM_DO_MASKED_WRITE(addr, val, mask);
   }
@@ -98,7 +98,7 @@ namespace  {
    *  MCS in-flight irrevocability:
    *
    *    Since we're already irrevocable, this code should never get called.
-   *    Instead, the become_irrevoc() call should just return true
+   *    Instead, the become_irrevoc(TX_LONE_PARAMETER) call should just return true
    */
   bool
   MCS::irrevoc(TxThread*)

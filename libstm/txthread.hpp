@@ -28,9 +28,12 @@
 #include "UndoLog.hpp"
 #include "ValueList.hpp"
 #include "WBMMPolicy.hpp"
+#include "../include/tlsapi.hpp"
+
 #ifdef STM_CHECKPOINT_ASM
 #include "checkpoint.hpp"
 #endif
+
 namespace stm
 {
   /**
@@ -127,6 +130,8 @@ namespace stm
        * to rollback the top level of nesting without actually unwinding the
        * stack. Rollback behavior changes per-implementation (some, such as
        * CGL, can't rollback) so we add it here.
+       *
+       * [mfs] Why is this still a static member?
        */
       static void (*tmrollback)(STM_ROLLBACK_SIG(,,));
 
@@ -138,20 +143,30 @@ namespace stm
        *
        * Some advanced APIs may not want a NORETURN abort function, but the stm
        * library at the moment only handles this option.
+       *
+       * [mfs] Why is this still a static member?
        */
       static NORETURN void tmabort();
 
-      /*** how to become irrevocable in-flight */
+      /**
+       * how to become irrevocable in-flight
+       *
+       * [mfs] Why is this still a static member?
+       */
       static bool(*tmirrevoc)(TxThread*);
 
       /**
        *  For shutting down threads.
+       *
+       * [mfs] Why is this still a static member?
        */
       static void thread_shutdown();
 
       /**
        * the init factory.  Construction of TxThread objects is only possible
        * through this function.  Note, too, that destruction is forbidden.
+       *
+       * [mfs] Why is this still a static member?  Could we use a friend instead?
        */
       static void thread_init();
     protected:
@@ -166,9 +181,11 @@ namespace stm
       void** my_tmcommit;
       void** my_tmread;
       void** my_tmwrite;
-      // test function
-      void* get_tls();
-  
+
+      /**
+       * test function
+       */
+      TxThread* get_tls();
   }; // class TxThread
 
   /*** GLOBAL VARIABLES RELATED TO THREAD MANAGEMENT */
@@ -177,9 +194,9 @@ namespace stm
   /*** POINTERS TO INSTRUMENTATION */
 
   /*** Per-thread commit, read, and write pointers */
-  extern THREAD_LOCAL_DECL_TYPE(TM_FASTCALL void(*tmcommit)());
-  extern THREAD_LOCAL_DECL_TYPE(TM_FASTCALL void*(*tmread)(STM_READ_SIG(,)));
-  extern THREAD_LOCAL_DECL_TYPE(TM_FASTCALL void(*tmwrite)(STM_WRITE_SIG(,,)));
+  extern THREAD_LOCAL_DECL_TYPE(TM_FASTCALL void(*tmcommit)(TX_LONE_PARAMETER));
+  extern THREAD_LOCAL_DECL_TYPE(TM_FASTCALL void*(*tmread)(TX_FIRST_PARAMETER STM_READ_SIG(,)));
+  extern THREAD_LOCAL_DECL_TYPE(TM_FASTCALL void(*tmwrite)(TX_FIRST_PARAMETER STM_WRITE_SIG(,,)));
 
   /**
    *  The read/write/commit instrumentation is reached via per-thread
@@ -202,7 +219,7 @@ namespace stm
    * use this return to execute completely uninstrumented code if it's
    * available.
    */
-  extern void(*volatile tmbegin)();
+  extern void(*volatile tmbegin)(TX_LONE_PARAMETER);
 
 } // namespace stm
 
