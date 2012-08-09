@@ -11,7 +11,7 @@
 /**
  *  This file implements the code for installing an algorithm.
  *
- *  We should actually back the function pointers here
+ *  [mfs] We should actually back the function pointers here
  */
 
 #include <sys/mman.h>

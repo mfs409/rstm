@@ -55,9 +55,9 @@ namespace stm
        * CUSTOM ASM IN CHECKPOINT.S WILL BREAK
        */
 #ifdef STM_CHECKPOINT_ASM
-      uint32_t nesting_depth;       // nesting
+      uint32_t       nesting_depth; // nesting
       volatile bool  in_tx;         // flag for if we are in a transaction
-      checkpoint_t checkpoint;
+      checkpoint_t   checkpoint;    // used to roll back
 #else
       uint32_t       nesting_depth; // nesting; 0 == not in transaction
       volatile bool  in_tx;         // flag for if we are in a transaction
@@ -185,8 +185,6 @@ namespace stm
 
   /**
    * how to become irrevocable in-flight
-   *
-   * [mfs] Why is this still a static member?
    */
   extern bool(*tmirrevoc)(TxThread*);
 
