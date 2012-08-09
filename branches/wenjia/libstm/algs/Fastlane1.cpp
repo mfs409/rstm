@@ -46,13 +46,13 @@ namespace {
       static void begin(TX_LONE_PARAMETER);
       static TM_FASTCALL void* read_ro(TX_FIRST_PARAMETER STM_READ_SIG(,));
       static TM_FASTCALL void* read_rw(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void* read_master(TX_FIRST_PARAMETER STM_READ_SIG(,));
+      static TM_FASTCALL void* read_turbo(TX_FIRST_PARAMETER STM_READ_SIG(,));
       static TM_FASTCALL void write_ro(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
       static TM_FASTCALL void write_rw(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void write_master(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+      static TM_FASTCALL void write_turbo(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
       static TM_FASTCALL void commit_ro(TX_LONE_PARAMETER);
       static TM_FASTCALL void commit_rw(TX_LONE_PARAMETER);
-      static TM_FASTCALL void commit_master(TX_LONE_PARAMETER);
+      static TM_FASTCALL void commit_turbo(TX_LONE_PARAMETER);
 
       static void rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
@@ -81,8 +81,8 @@ namespace {
           timestamp.val = (timestamp.val & ~MSB) + 1;
 
           // go master mode
-          if (!CheckMasterMode(tx, read_master))
-              stm::GoMaster(tx, read_master, write_master, commit_master);
+          if (!CheckTurboMode(tx, read_turbo))
+              stm::GoTurbo(tx, read_turbo, write_turbo, commit_turbo);
       }
 
       // helpers get even counter (discard LSD & MSB)
@@ -90,10 +90,10 @@ namespace {
   }
 
   /**
-   *  Fastline: commit_master:
+   *  Fastline: commit_turbo for master mode
    */
   void
-  Fastlane1::commit_master(TX_LONE_PARAMETER)
+  Fastlane1::commit_turbo(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       CFENCE; //wbw between write back and change of timestamp.val
@@ -174,10 +174,10 @@ namespace {
   }
 
   /**
-   *  Fastlane1 read_master
+   *  Fastlane1 read_turbo for master mode
    */
   void*
-  Fastlane1::read_master(TX_FIRST_PARAMETER_ANON STM_READ_SIG(addr,))
+  Fastlane1::read_turbo(TX_FIRST_PARAMETER_ANON STM_READ_SIG(addr,))
   {
       return *addr;
   }
@@ -223,10 +223,10 @@ namespace {
   }
 
   /**
-   *  Fastlane1 write_master (in place write)
+   *  Fastlane1 write_turbo for master mode (in place write)
    */
   void
-  Fastlane1::write_master(TX_FIRST_PARAMETER_ANON STM_WRITE_SIG(addr,val,mask))
+  Fastlane1::write_turbo(TX_FIRST_PARAMETER_ANON STM_WRITE_SIG(addr,val,mask))
   {
       orec_t* o = get_orec(addr);
       // [mfs] strictly speaking, timestamp.val is a volatile, and reading it here means
@@ -331,5 +331,5 @@ namespace stm {
 
 
 #ifdef STM_ONESHOT_ALG_Fastlane1
-DECLARE_AS_ONESHOT_MASTER(Fastlane1)
+DECLARE_AS_ONESHOT_TURBO(Fastlane1)
 #endif

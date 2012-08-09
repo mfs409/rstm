@@ -49,7 +49,6 @@ namespace stm
   const uint32_t ABORTED       = 1;        // transaction status
   const uint32_t SWISS_PHASE2  = 10;       // swisstm cm phase change thresh
 
-  const uint32_t MODE_MASTER   = 3;
   const uint32_t MODE_TURBO    = 2;
   const uint32_t MODE_WRITE    = 1;
   const uint32_t MODE_RO       = 0;
@@ -412,34 +411,15 @@ namespace stm
       return (tmread == r);
   }
 
-  inline void GoMaster(TxThread*, ReadBarrier r, WriteBarrier w, CommitBarrier c)
-  {
-      SetLocalPointers(r, w, c);
-  }
-
-  inline bool CheckMasterMode(TxThread*, ReadBarrier r)
-  {
-      return (tmread == r);
-  }
 #else
   inline void GoTurbo(TxThread* tx, ReadBarrier, WriteBarrier, CommitBarrier)
   {
       tx->mode = MODE_TURBO;
   }
 
-  inline void GoMaster(TxThread* tx, ReadBarrier, WriteBarrier, CommitBarrier)
-  {
-      tx->mode = MODE_MASTER;
-  }
-
   inline bool CheckTurboMode(TxThread* tx, ReadBarrier)
   {
       return tx->mode == MODE_TURBO;
-  }
-
-  inline bool CheckMasterMode(TxThread* tx, ReadBarrier)
-  {
-      return tx->mode == MODE_MASTER;
   }
 #endif
 
@@ -562,167 +542,93 @@ namespace stm
 } // namespace stm
 
 #ifndef STM_ONESHOT_MODE
-#define DECLARE_AS_ONESHOT_FULL(CLASS)
-#define DECLARE_AS_ONESHOT_MASTER(CLASS)
 #define DECLARE_AS_ONESHOT_TURBO(CLASS)
 #define DECLARE_AS_ONESHOT_NORMAL(CLASS)
 #define DECLARE_AS_ONESHOT_SIMPLE(CLASS)
 #else
-#define DECLARE_AS_ONESHOT_FULL(CLASS) \
-namespace stm \
-{ \
-  TM_FASTCALL void* tmread(TX_FIRST_PARAMETER STM_READ_SIG(addr,)) \
-  { \
-      TX_GET_TX_INTERNAL; \
-      if (tx->mode == stm::MODE_MASTER) \
-          return CLASS::read_master(TX_FIRST_ARG addr STM_MASK(mask)); \
-      else if (tx->mode == stm::MODE_TURBO) \
-          return CLASS::read_turbo(TX_FIRST_ARG addr STM_MASK(mask)); \
-      else if (tx->mode == stm::MODE_WRITE) \
-          return CLASS::read_rw(TX_FIRST_ARG addr STM_MASK(mask)); \
-      else \
-          return CLASS::read_ro(TX_FIRST_ARG addr STM_MASK(mask)); \
-  } \
-  TM_FASTCALL void tmwrite(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,value,mask))\
-  {\
-      TX_GET_TX_INTERNAL;\
-      if (tx->mode == stm::MODE_MASTER)\
-          CLASS::write_master(TX_FIRST_ARG addr, value STM_MASK(mask));\
-      else if (tx->mode == stm::MODE_TURBO)\
-          CLASS::write_turbo(TX_FIRST_ARG addr, value STM_MASK(mask));\
-      else if (tx->mode == stm::MODE_WRITE)\
-          CLASS::write_rw(TX_FIRST_ARG addr, value STM_MASK(mask));\
-      else\
-          CLASS::write_ro(TX_FIRST_ARG addr, value STM_MASK(mask));\
-  }\
-  TM_FASTCALL void tmcommit(TX_LONE_PARAMETER)\
-  {\
-      TX_GET_TX_INTERNAL;\
-      if (tx->mode == stm::MODE_MASTER)\
-          CLASS::commit_master(TX_LONE_ARG);\
-      else if (tx->mode == stm::MODE_TURBO)\
-          CLASS::commit_turbo(TX_LONE_ARG);\
-      else if (tx->mode == stm::MODE_WRITE)\
-          CLASS::commit_rw(TX_LONE_ARG);\
-      else\
-          CLASS::commit_ro(TX_LONE_ARG);\
-  }\
+#define DECLARE_AS_ONESHOT_TURBO(CLASS)                                 \
+namespace stm                                                           \
+{                                                                       \
+    TM_FASTCALL void* tmread(TX_FIRST_PARAMETER STM_READ_SIG(addr,))    \
+    {                                                                   \
+        TX_GET_TX_INTERNAL;                                             \
+        if (tx->mode == stm::MODE_TURBO)                                \
+            return CLASS::read_turbo(TX_FIRST_ARG addr STM_MASK(mask)); \
+        else if (tx->mode == stm::MODE_WRITE)                           \
+            return CLASS::read_rw(TX_FIRST_ARG addr STM_MASK(mask));    \
+        else                                                            \
+            return CLASS::read_ro(TX_FIRST_ARG addr STM_MASK(mask));    \
+    }                                                                   \
+    TM_FASTCALL void tmwrite(TX_FIRST_PARAMETER                         \
+                             STM_WRITE_SIG(addr,value,mask))            \
+    {                                                                   \
+        TX_GET_TX_INTERNAL;                                             \
+        if (tx->mode == stm::MODE_TURBO)                                \
+            CLASS::write_turbo(TX_FIRST_ARG addr,                       \
+                               value STM_MASK(mask));                   \
+        else if (tx->mode == stm::MODE_WRITE)                           \
+            CLASS::write_rw(TX_FIRST_ARG addr, value STM_MASK(mask));   \
+        else                                                            \
+            CLASS::write_ro(TX_FIRST_ARG addr, value STM_MASK(mask));   \
+    }                                                                   \
+    TM_FASTCALL void tmcommit(TX_LONE_PARAMETER)                        \
+    {                                                                   \
+        TX_GET_TX_INTERNAL;                                             \
+        if (tx->mode == stm::MODE_TURBO)                                \
+            CLASS::commit_turbo(TX_LONE_ARG);                           \
+        else if (tx->mode == stm::MODE_WRITE)                           \
+            CLASS::commit_rw(TX_LONE_ARG);                              \
+        else                                                            \
+            CLASS::commit_ro(TX_LONE_ARG);                              \
+    }                                                                   \
 }
 
-#define DECLARE_AS_ONESHOT_MASTER(CLASS) \
-namespace stm \
-{ \
-  TM_FASTCALL void* tmread(TX_FIRST_PARAMETER STM_READ_SIG(addr,)) \
-  { \
-      TX_GET_TX_INTERNAL; \
-      if (tx->mode == stm::MODE_MASTER) \
-          return CLASS::read_master(TX_FIRST_ARG addr STM_MASK(mask)); \
-      else if (tx->mode == stm::MODE_WRITE) \
-          return CLASS::read_rw(TX_FIRST_ARG addr STM_MASK(mask)); \
-      else \
-          return CLASS::read_ro(TX_FIRST_ARG addr STM_MASK(mask)); \
-  } \
-  TM_FASTCALL void tmwrite(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,value,mask))\
-  {\
-      TX_GET_TX_INTERNAL;\
-      if (tx->mode == stm::MODE_MASTER)\
-          CLASS::write_master(TX_FIRST_ARG addr, value STM_MASK(mask));\
-      else if (tx->mode == stm::MODE_WRITE)\
-          CLASS::write_rw(TX_FIRST_ARG addr, value STM_MASK(mask));\
-      else\
-          CLASS::write_ro(TX_FIRST_ARG addr, value STM_MASK(mask));\
-  }\
-  TM_FASTCALL void tmcommit(TX_LONE_PARAMETER)\
-  {\
-      TX_GET_TX_INTERNAL;\
-      if (tx->mode == stm::MODE_MASTER)\
-          CLASS::commit_master(TX_LONE_ARG);\
-      else if (tx->mode == stm::MODE_WRITE)\
-          CLASS::commit_rw(TX_LONE_ARG);\
-      else\
-          CLASS::commit_ro(TX_LONE_ARG);\
-  }\
+#define DECLARE_AS_ONESHOT_NORMAL(CLASS)                                \
+namespace stm                                                           \
+{                                                                       \
+    TM_FASTCALL void* tmread(TX_FIRST_PARAMETER STM_READ_SIG(addr,))    \
+    {                                                                   \
+        TX_GET_TX_INTERNAL;                                             \
+        if (tx->mode == stm::MODE_WRITE)                                \
+            return CLASS::read_rw(TX_FIRST_ARG addr STM_MASK(mask));    \
+        else                                                            \
+            return CLASS::read_ro(TX_FIRST_ARG addr STM_MASK(mask));    \
+    }                                                                   \
+    TM_FASTCALL void tmwrite(TX_FIRST_PARAMETER                         \
+                             STM_WRITE_SIG(addr,value,mask))            \
+    {                                                                   \
+        TX_GET_TX_INTERNAL;                                             \
+        if (tx->mode == stm::MODE_WRITE)                                \
+            CLASS::write_rw(TX_FIRST_ARG addr, value STM_MASK(mask));   \
+        else                                                            \
+            CLASS::write_ro(TX_FIRST_ARG addr, value STM_MASK(mask));   \
+    }                                                                   \
+    TM_FASTCALL void tmcommit(TX_LONE_PARAMETER)                        \
+    {                                                                   \
+        TX_GET_TX_INTERNAL;                                             \
+        if (tx->mode == stm::MODE_WRITE)                                \
+            CLASS::commit_rw(TX_LONE_ARG);                              \
+        else                                                            \
+            CLASS::commit_ro(TX_LONE_ARG);                              \
+    }                                                                   \
 }
 
-#define DECLARE_AS_ONESHOT_TURBO(CLASS) \
-namespace stm \
-{ \
-  TM_FASTCALL void* tmread(TX_FIRST_PARAMETER STM_READ_SIG(addr,)) \
-  { \
-      TX_GET_TX_INTERNAL; \
-      if (tx->mode == stm::MODE_TURBO)                                \
-          return CLASS::read_turbo(TX_FIRST_ARG addr STM_MASK(mask)); \
-      else if (tx->mode == stm::MODE_WRITE) \
-          return CLASS::read_rw(TX_FIRST_ARG addr STM_MASK(mask)); \
-      else \
-          return CLASS::read_ro(TX_FIRST_ARG addr STM_MASK(mask)); \
-  } \
-  TM_FASTCALL void tmwrite(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,value,mask))\
-  {\
-      TX_GET_TX_INTERNAL;\
-      if (tx->mode == stm::MODE_TURBO)                                  \
-          CLASS::write_turbo(TX_FIRST_ARG addr, value STM_MASK(mask));\
-      else if (tx->mode == stm::MODE_WRITE)\
-          CLASS::write_rw(TX_FIRST_ARG addr, value STM_MASK(mask));\
-      else\
-          CLASS::write_ro(TX_FIRST_ARG addr, value STM_MASK(mask));\
-  }\
-  TM_FASTCALL void tmcommit(TX_LONE_PARAMETER)\
-  {\
-      TX_GET_TX_INTERNAL;\
-      if (tx->mode == stm::MODE_TURBO)          \
-          CLASS::commit_turbo(TX_LONE_ARG);\
-      else if (tx->mode == stm::MODE_WRITE)\
-          CLASS::commit_rw(TX_LONE_ARG);\
-      else\
-          CLASS::commit_ro(TX_LONE_ARG);\
-  }\
-}
-
-#define DECLARE_AS_ONESHOT_NORMAL(CLASS) \
-namespace stm \
-{ \
-  TM_FASTCALL void* tmread(TX_FIRST_PARAMETER STM_READ_SIG(addr,)) \
-  { \
-      TX_GET_TX_INTERNAL; \
-      if (tx->mode == stm::MODE_WRITE)                             \
-          return CLASS::read_rw(TX_FIRST_ARG addr STM_MASK(mask)); \
-      else \
-          return CLASS::read_ro(TX_FIRST_ARG addr STM_MASK(mask)); \
-  } \
-  TM_FASTCALL void tmwrite(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,value,mask))\
-  {\
-      TX_GET_TX_INTERNAL;\
-      if (tx->mode == stm::MODE_WRITE)                              \
-          CLASS::write_rw(TX_FIRST_ARG addr, value STM_MASK(mask));\
-      else\
-          CLASS::write_ro(TX_FIRST_ARG addr, value STM_MASK(mask));\
-  }\
-  TM_FASTCALL void tmcommit(TX_LONE_PARAMETER)\
-  {\
-      TX_GET_TX_INTERNAL;\
-      if (tx->mode == stm::MODE_WRITE)          \
-          CLASS::commit_rw(TX_LONE_ARG);\
-      else\
-          CLASS::commit_ro(TX_LONE_ARG);\
-  }\
-}
-
-#define DECLARE_AS_ONESHOT_SIMPLE(CLASS) \
-namespace stm \
-{ \
-  TM_FASTCALL void* tmread(TX_FIRST_PARAMETER STM_READ_SIG(addr,)) \
-  { \
-          return CLASS::read(TX_FIRST_ARG addr STM_MASK(mask)); \
-  } \
-  TM_FASTCALL void tmwrite(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,value,mask))\
-  {\
-          CLASS::write(TX_FIRST_ARG addr, value STM_MASK(mask));\
-  }\
-  TM_FASTCALL void tmcommit(TX_LONE_PARAMETER)\
-  {\
-          CLASS::commit(TX_LONE_ARG);\
-  }\
+#define DECLARE_AS_ONESHOT_SIMPLE(CLASS)                                \
+namespace stm                                                           \
+{                                                                       \
+    TM_FASTCALL void* tmread(TX_FIRST_PARAMETER STM_READ_SIG(addr,))    \
+    {                                                                   \
+        return CLASS::read(TX_FIRST_ARG addr STM_MASK(mask));           \
+    }                                                                   \
+    TM_FASTCALL void tmwrite(TX_FIRST_PARAMETER                         \
+                             STM_WRITE_SIG(addr,value,mask))            \
+    {                                                                   \
+        CLASS::write(TX_FIRST_ARG addr, value STM_MASK(mask));          \
+    }                                                                   \
+    TM_FASTCALL void tmcommit(TX_LONE_PARAMETER)                        \
+    {                                                                   \
+        CLASS::commit(TX_LONE_ARG);                                     \
+    }                                                                   \
 }
 
 #endif
