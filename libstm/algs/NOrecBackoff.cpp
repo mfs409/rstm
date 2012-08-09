@@ -18,3 +18,7 @@ namespace stm
       NOrec_Generic<BackoffCM>::initialize(NOrec, "NOrec");
   }
 }
+
+#ifdef STM_ONESHOT_ALG_NOrecBackoff
+DECLARE_AS_ONESHOT_NORMAL(NOrec_Generic<BackoffCM>)
+#endif

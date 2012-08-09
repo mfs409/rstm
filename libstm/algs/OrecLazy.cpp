@@ -17,3 +17,7 @@ namespace stm
         OrecLazy_Generic<HyperAggressiveCM>::Initialize(OrecLazy, "OrecLazy");
     }
 }
+
+#ifdef STM_ONESHOT_ALG_OrecLazy
+DECLARE_AS_ONESHOT_NORMAL(OrecLazy_Generic<HyperAggressiveCM>)
+#endif

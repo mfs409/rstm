@@ -304,13 +304,13 @@ namespace
           // [mfs] ultimately this should use a macro that employs the mask
           *addr = val;
           // switch to turbo mode
-          stm::OnFirstWrite(read_turbo, write_turbo, commit_turbo);
+          stm::OnFirstWrite(tx, read_turbo, write_turbo, commit_turbo);
           return;
       }
 
       // record the new value in a redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
-      stm::OnFirstWrite(read_rw, write_rw, commit_rw);
+      stm::OnFirstWrite(tx, read_rw, write_rw, commit_rw);
   }
   /**
    *  CohortsLNI2 write_turbo: for write in place tx
@@ -347,7 +347,7 @@ namespace
           CFENCE;
           *addr = val;
           // go turbo
-          stm::GoTurbo(read_turbo, write_turbo, commit_turbo);
+          stm::GoTurbo(tx, read_turbo, write_turbo, commit_turbo);
           return;
       }
 
@@ -459,3 +459,7 @@ namespace stm
   }
 }
 
+
+#ifdef STM_ONESHOT_ALG_CohortsLNI2
+DECLARE_AS_ONESHOT_TURBO(CohortsLNI2)
+#endif

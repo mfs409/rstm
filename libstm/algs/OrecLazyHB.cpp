@@ -17,3 +17,7 @@ namespace stm
         OrecLazy_Generic<HourglassBackoffCM>::Initialize(OrecLazyHB, "OrecLazyHB");
     }
 }
+
+#ifdef STM_ONESHOT_ALG_OrecLazyHB
+DECLARE_AS_ONESHOT_NORMAL(OrecLazy_Generic<HourglassBackoffCM>)
+#endif

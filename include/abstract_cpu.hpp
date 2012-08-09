@@ -133,14 +133,10 @@
 #  define atomicswap64(p, v)  __sync_lock_test_and_set(p, v)
 #  define atomicswapptr(p, v) __sync_lock_test_and_set(p, v)
   /**
-   *  atomic 64-bit load is not available on armv7
+   *  [mfs] atomic 64-bit load is not available on armv7... what should we do
+   *  about it?
    */
-/*
-  inline void mvx(const volatile uint64_t* src, volatile uint64_t* dest)
-  {
-  assert(0 && "Atomic 64-bit load not supported on ARM");
-  }
-*/
+
   /**
    *  We do not have tick() support for ARM yet
    *

@@ -18,3 +18,7 @@ namespace stm
       NOrec_Generic<HourglassBackoffCM>::initialize(NOrecHB, "NOrecHB");
   }
 }
+
+#ifdef STM_ONESHOT_ALG_NOrecHB
+DECLARE_AS_ONESHOT_NORMAL(NOrec_Generic<HourglassBackoffCM>)
+#endif

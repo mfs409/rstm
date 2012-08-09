@@ -18,3 +18,7 @@ namespace stm
       NOrec_Generic<HyperAggressiveCM>::initialize(NOrec, "NOrec");
   }
 }
+
+#ifdef STM_ONESHOT_ALG_NOrec
+DECLARE_AS_ONESHOT_NORMAL(NOrec_Generic<HyperAggressiveCM>)
+#endif

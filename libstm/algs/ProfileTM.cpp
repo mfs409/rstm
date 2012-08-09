@@ -197,7 +197,7 @@ namespace
       // do a buffered write
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
       ++profiles[last_complete.val].write_waw;
-      stm::OnFirstWrite(read_rw, write_rw, commit_rw);
+      stm::OnFirstWrite(tx, read_rw, write_rw, commit_rw);
   }
 
   /**
@@ -311,3 +311,7 @@ namespace stm
       stms[ProfileTM].privatization_safe = true;
   }
 }
+
+#ifdef STM_ONESHOT_ALG_ProfileTM
+DECLARE_AS_ONESHOT_NORMAL(ProfileTM)
+#endif

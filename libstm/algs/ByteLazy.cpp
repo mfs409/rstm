@@ -250,7 +250,7 @@ namespace {
       if (bl->owner)
           tx->tmabort();
 
-      stm::OnFirstWrite(read_rw, write_rw, commit_rw);
+      stm::OnFirstWrite(tx, read_rw, write_rw, commit_rw);
   }
 
   /**
@@ -340,3 +340,7 @@ namespace stm {
       stms[ByteLazy].privatization_safe = true;
   }
 }
+
+#ifdef STM_ONESHOT_ALG_ByteLazy
+DECLARE_AS_ONESHOT_NORMAL(ByteLazy)
+#endif

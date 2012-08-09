@@ -189,7 +189,7 @@ namespace {
 
       // record the new value in a redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
-      stm::OnFirstWrite(read_rw, write_rw, commit_rw);
+      stm::OnFirstWrite(tx, read_rw, write_rw, commit_rw);
   }
 
   /**
@@ -299,3 +299,7 @@ namespace stm {
   }
 }
 
+
+#ifdef STM_ONESHOT_ALG_CTokenELA
+DECLARE_AS_ONESHOT_NORMAL(CTokenELA)
+#endif

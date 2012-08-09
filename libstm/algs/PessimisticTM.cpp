@@ -75,6 +75,9 @@ namespace {
    */
   void PessimisticTM::begin(TX_LONE_PARAMETER)
   {
+#ifdef STM_ONESHOT_ALG_PessimisticTM
+      assert(0 && "PessimisticTM not yet ported to oneshot build");
+#endif
       TX_GET_TX_INTERNAL;
       // starts
       tx->allocator.onTxBegin();
@@ -83,14 +86,8 @@ namespace {
       if (tx->read_only) {
           // Read the global version to tx_version
           MY.tx_version = global_version.val;
-
-
-          // [mfs] This should not be necessary, since the cleanup from the
-          //       last transaction should have reset these pointer.
-          //
-          // [wer210] read-onlyness may change
           // go read-only mode
-          stm::GoTurbo(read_ro, write_read_only, commit_read_only);
+          stm::GoTurbo(tx, read_ro, write_read_only, commit_read_only);
       }
       // For Read-Write transactions
       else {
@@ -116,7 +113,7 @@ namespace {
           MY.tx_version = global_version.val;
 
           // Go read-write mode
-          stm::GoTurbo(read_rw, write_rw, commit_rw);
+          stm::GoTurbo(tx, read_rw, write_rw, commit_rw);
       }
   }
 
@@ -302,7 +299,7 @@ namespace {
       TX_GET_TX_INTERNAL;
       // Add to write set
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
-      stm::OnFirstWrite(read_rw, write_rw, commit_rw);
+      stm::OnFirstWrite(tx, read_rw, write_rw, commit_rw);
   }
 
   /**
@@ -367,3 +364,7 @@ namespace stm {
   }
 }
 
+
+#ifdef STM_ONESHOT_ALG_PessimisticTM
+DECLARE_AS_ONESHOT_NORMAL(PessimisticTM)
+#endif

@@ -20,6 +20,7 @@
 namespace stm
 {
 
+#ifndef STM_ONESHOT_MODE
   void install_algorithm_local(int new_alg)
   {
       // set my read/write/commit pointers
@@ -27,6 +28,9 @@ namespace stm
       tmwrite    = stms[new_alg].write;
       tmcommit   = stms[new_alg].commit;
   }
+#else
+  void install_algorithm_local(int) { }
+#endif
 
   /**
    *  Switch all threads to use a new STM algorithm.
@@ -65,9 +69,11 @@ namespace stm
 
       // set per-thread pointers
       for (unsigned i = 0; i < threadcount.val; ++i) {
+#ifndef STM_ONESHOT_MODE
           *(threads[i]->my_tmread)     = (void*)stms[new_alg].read;
           *(threads[i]->my_tmwrite)    = (void*)stms[new_alg].write;
           *(threads[i]->my_tmcommit)   = (void*)stms[new_alg].commit;
+#endif
           threads[i]->consec_aborts  = 0;
       }
 

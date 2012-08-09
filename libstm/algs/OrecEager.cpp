@@ -18,3 +18,7 @@ namespace stm
       OrecEager_Generic<HyperAggressiveCM>::initialize(OrecEager, "OrecEager");
   }
 }
+
+#ifdef STM_ONESHOT_ALG_OrecEager
+DECLARE_AS_ONESHOT_SIMPLE(OrecEager_Generic<HyperAggressiveCM>)
+#endif

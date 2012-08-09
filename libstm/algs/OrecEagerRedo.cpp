@@ -231,7 +231,7 @@ namespace {
               // save old, log lock, write, return
               o->p = ivt.all;
               tx->locks.insert(o);
-              stm::OnFirstWrite(read_rw, write_rw, commit_rw);
+              stm::OnFirstWrite(tx, read_rw, write_rw, commit_rw);
               return;
           }
 
@@ -380,3 +380,7 @@ namespace stm {
       stms[OrecEagerRedo].privatization_safe = false;
   }
 }
+
+#ifdef STM_ONESHOT_ALG_OrecEagerRedo
+DECLARE_AS_ONESHOT_NORMAL(OrecEagerRedo)
+#endif

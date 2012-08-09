@@ -272,13 +272,13 @@ namespace
       if (counter.val == 1) {
           *addr = val;
           // switch to turbo mode
-          stm::OnFirstWrite(read_turbo, write_turbo, commit_turbo);
+          stm::OnFirstWrite(tx, read_turbo, write_turbo, commit_turbo);
           return;
       }
 
       // record the new value in a redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
-      stm::OnFirstWrite(read_rw, write_rw, commit_rw);
+      stm::OnFirstWrite(tx, read_rw, write_rw, commit_rw);
   }
   /**
    *  CohortsLNI2Q write_turbo: for write in place tx
@@ -311,7 +311,7 @@ namespace
           tx->writes.writeback();
           *addr = val;
           // go turbo
-          stm::GoTurbo(read_turbo, write_turbo, commit_turbo);
+          stm::GoTurbo(tx, read_turbo, write_turbo, commit_turbo);
       }
   }
 
@@ -390,3 +390,7 @@ namespace stm
   }
 }
 
+
+#ifdef STM_ONESHOT_ALG_CohortsLNI2Q
+DECLARE_AS_ONESHOT_TURBO(CohortsLNI2Q)
+#endif

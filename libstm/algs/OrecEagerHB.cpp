@@ -18,3 +18,7 @@ namespace stm
       OrecEager_Generic<HourglassBackoffCM>::initialize(OrecEagerHB, "OrecEagerHB");
   }
 }
+
+#ifdef STM_ONESHOT_ALG_OrecEagerHB
+DECLARE_AS_ONESHOT_SIMPLE(OrecEager_Generic<HourglassBackoffCM>)
+#endif

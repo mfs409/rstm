@@ -209,7 +209,7 @@ namespace {
       tx->undo_log.insert(UndoLogEntry(STM_UNDO_LOG_ENTRY(addr, *addr, mask)));
       STM_DO_MASKED_WRITE(addr, val, mask);
 
-      stm::OnFirstWrite(read_rw, write_rw, commit_rw);
+      stm::OnFirstWrite(tx, read_rw, write_rw, commit_rw);
   }
 
   /**
@@ -317,3 +317,7 @@ namespace stm {
       stms[ByteEager].privatization_safe = true;
   }
 }
+
+#ifdef STM_ONESHOT_ALG_ByteEager
+DECLARE_AS_ONESHOT_NORMAL(ByteEager)
+#endif

@@ -71,7 +71,7 @@ namespace {
       //
       // NB: this only applies to transactions that aborted after doing a write
       if (tx->ts_cache == ((uintptr_t)tx->order - 1))
-          stm::GoTurbo(read_turbo, write_turbo, commit_turbo);
+          stm::GoTurbo(tx, read_turbo, write_turbo, commit_turbo);
   }
 
   /**
@@ -223,7 +223,7 @@ namespace {
       // record the new value in a redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
 
-      stm::OnFirstWrite(read_rw, write_rw, commit_rw);
+      stm::OnFirstWrite(tx, read_rw, write_rw, commit_rw);
 
       // go turbo?
       //
@@ -269,7 +269,7 @@ namespace {
   {
       PreRollback(tx);
       // we cannot be in turbo mode
-      if (stm::CheckTurboMode(read_turbo))
+      if (stm::CheckTurboMode(tx, read_turbo))
           UNRECOVERABLE("Attempting to abort a turbo-mode transaction!");
 
       // Perform writes to the exception object if there were any... taking the
@@ -331,7 +331,7 @@ namespace {
                   CFENCE; // WBW
                   *i->addr = i->val;
               }
-              stm::GoTurbo(read_turbo, write_turbo, commit_turbo);
+              stm::GoTurbo(tx, read_turbo, write_turbo, commit_turbo);
           }
       }
   }
@@ -375,3 +375,7 @@ namespace stm {
       stms[CTokenTurbo].privatization_safe = true;
   }
 }
+
+#ifdef STM_ONESHOT_ALG_CTokenTurbo
+DECLARE_AS_ONESHOT_TURBO(CTokenTurbo)
+#endif

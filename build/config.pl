@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 
-# Note: this is a pretty dirty progrma.  It doesn't check input at all!
+# Note: this is a pretty dirty program.  It doesn't check input at all!
 
 use strict;
 use warnings;
@@ -97,7 +97,7 @@ sub cpu {
         push(@LINES, "CFLAGS += -m32");
         push(@LINES, "LDFLAGS += -m32");
         push(@LINES, "CXXFLAGS += -m32 -DSTM_BITS_32");
-        push(@LINES, "CXXFLAGS += -march=native -mtune=native");
+        push(@LINES, "CXXFLAGS += -mcpu=native -mtune=native");
     }
     elsif ($option =~ "sparc64") {
         push(@LINES, "# CPU = SPARC64"); # put a note in the makefile
@@ -108,7 +108,7 @@ sub cpu {
         push(@LINES, "CFLAGS += -m64");
         push(@LINES, "LDFLAGS += -m64");
         push(@LINES, "CXXFLAGS += -m64 -DSTM_BITS_64");
-        push(@LINES, "CXXFLAGS += -march=native -mtune=native");
+        push(@LINES, "CXXFLAGS += -mcpu=native -mtune=native");
     }
     elsif ($option =~ "armv7") {
         push(@LINES, "# CPU = ARMV7"); # put a note in the makefile
@@ -223,6 +223,19 @@ sub toxic {
     else { die $option . "is invalid" }
 }
 
+sub oneshot {
+    my $option = shift;
+    if ($option =~ "no") {
+        push(@LINES, "# ONESHOT = OFF"); # put a note in the makefile
+        $PLATFORM .= "fptr_";
+    }
+    else {
+        push(@LINES, "# ONESHOT = $option"); # put a note in the makefile
+        $PLATFORM .= "oneshot${option}_";
+        push(@LINES, "CXXFLAGS += -DSTM_ONESHOT_MODE");
+        push(@LINES, "CXXFLAGS += -DSTM_ONESHOT_ALG_$option");
+    }
+}
 # [mfs] I found this option somewhere, but I don't know what it is for, so I
 # didn't set it up.
 #
@@ -258,7 +271,8 @@ descriptor(&query("Choose a descriptor access mechanism"));
 @options = qw(off on);
 pmu(&query("Do you want PMU support"));
 toxic(&query("Do you want to count Toxic Transactions"));
-
+@options = ("no", "<enter the name of the algorithm to use (case sensitive)");
+oneshot(&query("Do you want to use oneshot mode instead of function pointer adaptivity?"));
 
 # get name of output file, dump output
 print "\nEnter the name of the output file :> ";

@@ -150,10 +150,17 @@ namespace stm
    */
   void declare_read_only();
 
+  // [mfs] Why is tmcommit visible?
+#ifndef STM_ONESHOT_MODE
   /*** Per-thread commit, read, and write pointers */
   extern THREAD_LOCAL_DECL_TYPE(TM_FASTCALL void(*tmcommit)(TX_LONE_PARAMETER));
   extern THREAD_LOCAL_DECL_TYPE(TM_FASTCALL void*(*tmread)(TX_FIRST_PARAMETER STM_READ_SIG(,)));
   extern THREAD_LOCAL_DECL_TYPE(TM_FASTCALL void(*tmwrite)(TX_FIRST_PARAMETER STM_WRITE_SIG(,,)));
+#else
+  TM_FASTCALL void  tmcommit(TX_LONE_PARAMETER);
+  TM_FASTCALL void* tmread(TX_FIRST_PARAMETER STM_READ_SIG(,));
+  TM_FASTCALL void  tmwrite(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+#endif
 }
 
 /*** pull in the per-memory-access instrumentation framework */

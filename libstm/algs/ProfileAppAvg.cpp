@@ -18,3 +18,7 @@ namespace stm
       ProfileApp<__AVERAGE>::Initialize(ProfileAppAvg, "ProfileAppAvg");
   }
 }
+
+#ifdef STM_ONESHOT_ALG_ProfileAppAvg
+DECLARE_AS_ONESHOT_NORMAL(ProfileApp<__AVERAGE>)
+#endif

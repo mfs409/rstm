@@ -18,3 +18,7 @@ namespace stm
       ByEAU_Generic<FCM>::Initialize(ByEAUFCM, "ByEAUFCM");
   }
 }
+
+#ifdef STM_ONESHOT_ALG_ByEAUFCM
+DECLARE_AS_ONESHOT_NORMAL(ByEAU_Generic<FCM>)
+#endif

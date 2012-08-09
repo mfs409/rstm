@@ -204,7 +204,7 @@ namespace {
       TX_GET_TX_INTERNAL;
       // add to redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
-      stm::OnFirstWrite(read_rw, write_rw, commit_rw);
+      stm::OnFirstWrite(tx, read_rw, write_rw, commit_rw);
   }
 
   /**
@@ -301,3 +301,7 @@ namespace stm {
       stms[LLT].privatization_safe = false;
   }
 }
+
+#ifdef STM_ONESHOT_ALG_LLT
+DECLARE_AS_ONESHOT_NORMAL(LLT)
+#endif

@@ -42,6 +42,11 @@ namespace stm
    *
    *  NB: the order of fields has not been rigorously studied.  It is very
    *      likely that a better order would improve performance.
+   *
+   *  [mfs] I'm pretty sure we are generating performance bugs in 64-bit code
+   *        by having 32-bit fields in this struct.  They are likely to be
+   *        causing unaligned 64-bit accesses, some of which will surely span
+   *        a cache line.
    */
   struct TxThread
   {
@@ -125,6 +130,10 @@ namespace stm
       uint64_t      total_nontxn_time; // time on non-transactional work
       pmu_t         pmu;               // for accessing the hardware PMU
 
+      /*** FOR ONESHOT-STYLE COMPILATION */
+#ifdef STM_ONESHOT_MODE
+      uint32_t      mode; // MODE_TURBO, MODE_WRITE, or MODE_RO
+#endif
       /**
        * Some APIs, in particular the itm API at the moment, want to be able
        * to rollback the top level of nesting without actually unwinding the
@@ -174,6 +183,7 @@ namespace stm
       ~TxThread() { }
 
     public:
+#ifndef STM_ONESHOT_MODE
       // a new gross hack: we need any single thread to be able to change
       // other threads' pointers.  Thus we require that each thread tuck away
       // pointers to its thread-local vars, so that they can be updated
@@ -181,7 +191,7 @@ namespace stm
       void** my_tmcommit;
       void** my_tmread;
       void** my_tmwrite;
-
+#endif
       /**
        * test function
        */
@@ -193,11 +203,16 @@ namespace stm
 
   /*** POINTERS TO INSTRUMENTATION */
 
+#ifndef STM_ONESHOT_MODE
   /*** Per-thread commit, read, and write pointers */
   extern THREAD_LOCAL_DECL_TYPE(TM_FASTCALL void(*tmcommit)(TX_LONE_PARAMETER));
   extern THREAD_LOCAL_DECL_TYPE(TM_FASTCALL void*(*tmread)(TX_FIRST_PARAMETER STM_READ_SIG(,)));
   extern THREAD_LOCAL_DECL_TYPE(TM_FASTCALL void(*tmwrite)(TX_FIRST_PARAMETER STM_WRITE_SIG(,,)));
-
+#else
+  TM_FASTCALL void  tmcommit(TX_LONE_PARAMETER);
+  TM_FASTCALL void* tmread(TX_FIRST_PARAMETER STM_READ_SIG(,));
+  TM_FASTCALL void  tmwrite(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+#endif
   /**
    *  The read/write/commit instrumentation is reached via per-thread
    *  function pointers, which can be exchanged easily during execution.

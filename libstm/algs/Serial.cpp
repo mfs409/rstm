@@ -181,3 +181,7 @@ namespace stm
       stms[Serial].privatization_safe = true;
   }
 }
+
+#ifdef STM_ONESHOT_ALG_Serial
+DECLARE_AS_ONESHOT_SIMPLE(Serial)
+#endif

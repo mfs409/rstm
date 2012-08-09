@@ -18,3 +18,7 @@ namespace stm
       OrecEager_Generic<HourglassCM>::initialize(OrecEagerHour, "OrecEagerHour");
   }
 }
+
+#ifdef STM_ONESHOT_ALG_OrecEagerHour
+DECLARE_AS_ONESHOT_SIMPLE(OrecEager_Generic<HourglassCM>)
+#endif

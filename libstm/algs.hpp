@@ -16,12 +16,6 @@
 #ifndef ALGS_HPP__
 #define ALGS_HPP__
 
-#ifdef STM_CC_SUN
-#include <stdio.h>
-#else
-#include <cstdio>
-#endif
-
 #include "metadata.hpp"
 #include "txthread.hpp"
 #include "profiling.hpp" // Trigger::
@@ -43,17 +37,22 @@ namespace stm
   /**
    *  These constants are used throughout the STM implementations
    */
-  static const uint32_t NUM_STRIPES   = 1048576;  // number of orecs
-  static const uint32_t RING_ELEMENTS = 1024;     // number of ring elements
-  static const uint32_t KARMA_FACTOR  = 16;       // aborts b4 incr karma
-  static const uint32_t BACKOFF_MIN   = 4;        // min backoff exponent
-  static const uint32_t BACKOFF_MAX   = 16;       // max backoff exponent
-  static const uint32_t RREC_COUNT    = 1048576;  // number of rrecs
-  static const uint32_t WB_CHUNK_SIZE = 16;       // lf writeback chunks
-  static const uint32_t EPOCH_MAX     = INT_MAX;  // default epoch
-  static const uint32_t ACTIVE        = 0;        // transaction status
-  static const uint32_t ABORTED       = 1;        // transaction status
-  static const uint32_t SWISS_PHASE2  = 10;       // swisstm cm phase change thresh
+  const uint32_t NUM_STRIPES   = 1048576;  // number of orecs
+  const uint32_t RING_ELEMENTS = 1024;     // number of ring elements
+  const uint32_t KARMA_FACTOR  = 16;       // aborts b4 incr karma
+  const uint32_t BACKOFF_MIN   = 4;        // min backoff exponent
+  const uint32_t BACKOFF_MAX   = 16;       // max backoff exponent
+  const uint32_t RREC_COUNT    = 1048576;  // number of rrecs
+  const uint32_t WB_CHUNK_SIZE = 16;       // lf writeback chunks
+  const uint32_t EPOCH_MAX     = INT_MAX;  // default epoch
+  const uint32_t ACTIVE        = 0;        // transaction status
+  const uint32_t ABORTED       = 1;        // transaction status
+  const uint32_t SWISS_PHASE2  = 10;       // swisstm cm phase change thresh
+
+  const uint32_t MODE_MASTER   = 3;
+  const uint32_t MODE_TURBO    = 2;
+  const uint32_t MODE_WRITE    = 1;
+  const uint32_t MODE_RO       = 0;
 
   /**
    *  These global fields are used for concurrency control and conflict
@@ -241,17 +240,33 @@ namespace stm
   typedef TM_FASTCALL void (*WriteBarrier)(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
   typedef TM_FASTCALL void (*CommitBarrier)(TX_LONE_PARAMETER );
 
+#ifndef STM_ONESHOT_MODE
+  inline void SetLocalPointers(ReadBarrier r, WriteBarrier w, CommitBarrier c)
+  {
+      tmread = r;
+      tmwrite = w;
+      tmcommit = c;
+  }
+#endif
+
+#ifndef STM_ONESHOT_MODE
   inline void OnReadWriteCommit(TxThread* tx, ReadBarrier read_ro,
                                 WriteBarrier write_ro, CommitBarrier commit_ro)
+#else
+  inline void OnReadWriteCommit(TxThread* tx, ReadBarrier, WriteBarrier,
+                                CommitBarrier)
+#endif
   {
       tx->allocator.onTxCommit();
       tx->abort_hist.onCommit(tx->consec_aborts);
       tx->consec_aborts = 0;
       tx->consec_ro = 0;
       ++tx->num_commits;
-      tmread = read_ro;
-      tmwrite = write_ro;
-      tmcommit = commit_ro;
+#ifndef STM_ONESHOT_MODE
+      SetLocalPointers(read_ro, write_ro, commit_ro);
+#else
+      tx->mode = MODE_RO;
+#endif
       Trigger::onCommitSTM(tx);
   }
 
@@ -291,13 +306,18 @@ namespace stm
       Trigger::onCommitLock(tx);
   }
 
-  inline void OnFirstWrite(ReadBarrier read_rw, WriteBarrier write_rw,
+#ifndef STM_ONESHOT_MODE
+  inline void OnFirstWrite(TxThread*, ReadBarrier read_rw, WriteBarrier write_rw,
                            CommitBarrier commit_rw)
   {
-      tmread = read_rw;
-      tmwrite = write_rw;
-      tmcommit = commit_rw;
+      SetLocalPointers(read_rw, write_rw, commit_rw);
   }
+#else
+  inline void OnFirstWrite(TxThread* tx, ReadBarrier, WriteBarrier, CommitBarrier)
+  {
+      tx->mode = MODE_WRITE;
+  }
+#endif
 
   inline void PreRollback(TxThread* tx)
   {
@@ -305,14 +325,21 @@ namespace stm
       ++tx->consec_aborts;
   }
 
+#ifndef STM_ONESHOT_MODE
   inline void PostRollback(TxThread* tx, ReadBarrier read_ro,
                            WriteBarrier write_ro, CommitBarrier commit_ro)
+#else
+  inline void PostRollback(TxThread* tx, ReadBarrier, WriteBarrier,
+                           CommitBarrier)
+#endif
   {
       tx->allocator.onTxAbort();
       tx->nesting_depth = 0;
-      tmread = read_ro;
-      tmwrite = write_ro;
-      tmcommit = commit_ro;
+#ifndef STM_ONESHOT_MODE
+      SetLocalPointers(read_ro, write_ro, commit_ro);
+#else
+      tx->mode = MODE_RO;
+#endif
       Trigger::onAbort(tx);
       tx->in_tx = false;
   }
@@ -331,14 +358,21 @@ namespace stm
    *  function, which does everything the prior PostRollback did except for
    *  calling the "Trigger::onAbort()" method.
    */
+  #ifndef STM_ONESHOT_MODE
   inline void PostRollbackNoTrigger(TxThread* tx, ReadBarrier r,
                                     WriteBarrier w, CommitBarrier c)
+#else
+  inline void PostRollbackNoTrigger(TxThread* tx, ReadBarrier,
+                                    WriteBarrier, CommitBarrier)
+#endif
   {
       tx->allocator.onTxAbort();
       tx->nesting_depth = 0;
-      tmread = r;
-      tmwrite = w;
-      tmcommit = c;
+#ifndef STM_ONESHOT_MODE
+      SetLocalPointers(r, w, c);
+#else
+      tx->mode = MODE_RO;
+#endif
       tx->in_tx = false;
   }
 
@@ -355,17 +389,47 @@ namespace stm
       tx->in_tx = false;
   }
 
-  inline void GoTurbo(ReadBarrier r, WriteBarrier w, CommitBarrier c)
+#ifndef STM_ONESHOT_MODE
+  inline void GoTurbo(TxThread*, ReadBarrier r, WriteBarrier w, CommitBarrier c)
   {
-      tmread = r;
-      tmwrite = w;
-      tmcommit = c;
+      SetLocalPointers(r, w, c);
   }
 
-  inline bool CheckTurboMode(ReadBarrier read_turbo)
+  inline bool CheckTurboMode(TxThread*, ReadBarrier r)
   {
-      return (tmread == read_turbo);
+      return (tmread == r);
   }
+
+  inline void GoMaster(TxThread*, ReadBarrier r, WriteBarrier w, CommitBarrier c)
+  {
+      SetLocalPointers(r, w, c);
+  }
+
+  inline bool CheckMasterMode(TxThread*, ReadBarrier r)
+  {
+      return (tmread == r);
+  }
+#else
+  inline void GoTurbo(TxThread* tx, ReadBarrier, WriteBarrier, CommitBarrier)
+  {
+      tx->mode = MODE_TURBO;
+  }
+
+  inline void GoMaster(TxThread* tx, ReadBarrier, WriteBarrier, CommitBarrier)
+  {
+      tx->mode = MODE_MASTER;
+  }
+
+  inline bool CheckTurboMode(TxThread* tx, ReadBarrier)
+  {
+      return tx->mode == MODE_TURBO;
+  }
+
+  inline bool CheckMasterMode(TxThread* tx, ReadBarrier)
+  {
+      return tx->mode == MODE_MASTER;
+  }
+#endif
 
   /**
    *  Stuff from metadata.hpp
@@ -479,19 +543,175 @@ namespace stm
       }
   }
 
-  /*** simple printout */
-  inline void toxic_histogram_t::dump()
-  {
-      printf("abort_histogram: ");
-      for (int i = 0; i < 18; ++i)
-          printf("%d, ", buckets[i]);
-      printf("max = %d, hgc = %d, hga = %d\n", max, hg_commits, hg_aborts);
-  }
-
   /*** on hourglass commit */
   inline void toxic_histogram_t::onHGCommit() { hg_commits++; }
   inline void toxic_histogram_t::onHGAbort() { hg_aborts++; }
 
 } // namespace stm
 
+#ifndef STM_ONESHOT_MODE
+#define DECLARE_AS_ONESHOT_FULL(CLASS)
+#define DECLARE_AS_ONESHOT_MASTER(CLASS)
+#define DECLARE_AS_ONESHOT_TURBO(CLASS)
+#define DECLARE_AS_ONESHOT_NORMAL(CLASS)
+#define DECLARE_AS_ONESHOT_SIMPLE(CLASS)
+#else
+#define DECLARE_AS_ONESHOT_FULL(CLASS) \
+namespace stm \
+{ \
+  TM_FASTCALL void* tmread(TX_FIRST_PARAMETER STM_READ_SIG(addr,)) \
+  { \
+      TX_GET_TX_INTERNAL; \
+      if (tx->mode == stm::MODE_MASTER) \
+          return CLASS::read_master(TX_FIRST_ARG addr STM_MASK(mask)); \
+      else if (tx->mode == stm::MODE_TURBO) \
+          return CLASS::read_turbo(TX_FIRST_ARG addr STM_MASK(mask)); \
+      else if (tx->mode == stm::MODE_WRITE) \
+          return CLASS::read_rw(TX_FIRST_ARG addr STM_MASK(mask)); \
+      else \
+          return CLASS::read_ro(TX_FIRST_ARG addr STM_MASK(mask)); \
+  } \
+  TM_FASTCALL void tmwrite(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,value,mask))\
+  {\
+      TX_GET_TX_INTERNAL;\
+      if (tx->mode == stm::MODE_MASTER)\
+          CLASS::write_master(TX_FIRST_ARG addr, value STM_MASK(mask));\
+      else if (tx->mode == stm::MODE_TURBO)\
+          CLASS::write_turbo(TX_FIRST_ARG addr, value STM_MASK(mask));\
+      else if (tx->mode == stm::MODE_WRITE)\
+          CLASS::write_rw(TX_FIRST_ARG addr, value STM_MASK(mask));\
+      else\
+          CLASS::write_ro(TX_FIRST_ARG addr, value STM_MASK(mask));\
+  }\
+  TM_FASTCALL void tmcommit(TX_LONE_PARAMETER)\
+  {\
+      TX_GET_TX_INTERNAL;\
+      if (tx->mode == stm::MODE_MASTER)\
+          CLASS::commit_master(TX_LONE_ARG);\
+      else if (tx->mode == stm::MODE_TURBO)\
+          CLASS::commit_turbo(TX_LONE_ARG);\
+      else if (tx->mode == stm::MODE_WRITE)\
+          CLASS::commit_rw(TX_LONE_ARG);\
+      else\
+          CLASS::commit_ro(TX_LONE_ARG);\
+  }\
+}
+
+#define DECLARE_AS_ONESHOT_MASTER(CLASS) \
+namespace stm \
+{ \
+  TM_FASTCALL void* tmread(TX_FIRST_PARAMETER STM_READ_SIG(addr,)) \
+  { \
+      TX_GET_TX_INTERNAL; \
+      if (tx->mode == stm::MODE_MASTER) \
+          return CLASS::read_master(TX_FIRST_ARG addr STM_MASK(mask)); \
+      else if (tx->mode == stm::MODE_WRITE) \
+          return CLASS::read_rw(TX_FIRST_ARG addr STM_MASK(mask)); \
+      else \
+          return CLASS::read_ro(TX_FIRST_ARG addr STM_MASK(mask)); \
+  } \
+  TM_FASTCALL void tmwrite(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,value,mask))\
+  {\
+      TX_GET_TX_INTERNAL;\
+      if (tx->mode == stm::MODE_MASTER)\
+          CLASS::write_master(TX_FIRST_ARG addr, value STM_MASK(mask));\
+      else if (tx->mode == stm::MODE_WRITE)\
+          CLASS::write_rw(TX_FIRST_ARG addr, value STM_MASK(mask));\
+      else\
+          CLASS::write_ro(TX_FIRST_ARG addr, value STM_MASK(mask));\
+  }\
+  TM_FASTCALL void tmcommit(TX_LONE_PARAMETER)\
+  {\
+      TX_GET_TX_INTERNAL;\
+      if (tx->mode == stm::MODE_MASTER)\
+          CLASS::commit_master(TX_LONE_ARG);\
+      else if (tx->mode == stm::MODE_WRITE)\
+          CLASS::commit_rw(TX_LONE_ARG);\
+      else\
+          CLASS::commit_ro(TX_LONE_ARG);\
+  }\
+}
+
+#define DECLARE_AS_ONESHOT_TURBO(CLASS) \
+namespace stm \
+{ \
+  TM_FASTCALL void* tmread(TX_FIRST_PARAMETER STM_READ_SIG(addr,)) \
+  { \
+      TX_GET_TX_INTERNAL; \
+      if (tx->mode == stm::MODE_TURBO)                                \
+          return CLASS::read_turbo(TX_FIRST_ARG addr STM_MASK(mask)); \
+      else if (tx->mode == stm::MODE_WRITE) \
+          return CLASS::read_rw(TX_FIRST_ARG addr STM_MASK(mask)); \
+      else \
+          return CLASS::read_ro(TX_FIRST_ARG addr STM_MASK(mask)); \
+  } \
+  TM_FASTCALL void tmwrite(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,value,mask))\
+  {\
+      TX_GET_TX_INTERNAL;\
+      if (tx->mode == stm::MODE_TURBO)                                  \
+          CLASS::write_turbo(TX_FIRST_ARG addr, value STM_MASK(mask));\
+      else if (tx->mode == stm::MODE_WRITE)\
+          CLASS::write_rw(TX_FIRST_ARG addr, value STM_MASK(mask));\
+      else\
+          CLASS::write_ro(TX_FIRST_ARG addr, value STM_MASK(mask));\
+  }\
+  TM_FASTCALL void tmcommit(TX_LONE_PARAMETER)\
+  {\
+      TX_GET_TX_INTERNAL;\
+      if (tx->mode == stm::MODE_TURBO)          \
+          CLASS::commit_turbo(TX_LONE_ARG);\
+      else if (tx->mode == stm::MODE_WRITE)\
+          CLASS::commit_rw(TX_LONE_ARG);\
+      else\
+          CLASS::commit_ro(TX_LONE_ARG);\
+  }\
+}
+
+#define DECLARE_AS_ONESHOT_NORMAL(CLASS) \
+namespace stm \
+{ \
+  TM_FASTCALL void* tmread(TX_FIRST_PARAMETER STM_READ_SIG(addr,)) \
+  { \
+      TX_GET_TX_INTERNAL; \
+      if (tx->mode == stm::MODE_WRITE)                             \
+          return CLASS::read_rw(TX_FIRST_ARG addr STM_MASK(mask)); \
+      else \
+          return CLASS::read_ro(TX_FIRST_ARG addr STM_MASK(mask)); \
+  } \
+  TM_FASTCALL void tmwrite(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,value,mask))\
+  {\
+      TX_GET_TX_INTERNAL;\
+      if (tx->mode == stm::MODE_WRITE)                              \
+          CLASS::write_rw(TX_FIRST_ARG addr, value STM_MASK(mask));\
+      else\
+          CLASS::write_ro(TX_FIRST_ARG addr, value STM_MASK(mask));\
+  }\
+  TM_FASTCALL void tmcommit(TX_LONE_PARAMETER)\
+  {\
+      TX_GET_TX_INTERNAL;\
+      if (tx->mode == stm::MODE_WRITE)          \
+          CLASS::commit_rw(TX_LONE_ARG);\
+      else\
+          CLASS::commit_ro(TX_LONE_ARG);\
+  }\
+}
+
+#define DECLARE_AS_ONESHOT_SIMPLE(CLASS) \
+namespace stm \
+{ \
+  TM_FASTCALL void* tmread(TX_FIRST_PARAMETER STM_READ_SIG(addr,)) \
+  { \
+          return CLASS::read(TX_FIRST_ARG addr STM_MASK(mask)); \
+  } \
+  TM_FASTCALL void tmwrite(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,value,mask))\
+  {\
+          CLASS::write(TX_FIRST_ARG addr, value STM_MASK(mask));\
+  }\
+  TM_FASTCALL void tmcommit(TX_LONE_PARAMETER)\
+  {\
+          CLASS::commit(TX_LONE_ARG);\
+  }\
+}
+
+#endif
 #endif // ALGS_HPP__
