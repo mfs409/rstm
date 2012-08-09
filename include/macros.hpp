@@ -15,6 +15,9 @@
  *  This file establishes a few helpful macros.  Some of these are obvious.
  *  Others are used to simplify some very redundant programming, particularly
  *  with regard to declaring STM functions and abort codes.
+ *
+ *  [mfs] This is much too visible to applications. Most of it can migrate to
+ *        the libstm folder.
  */
 
 /*** Helper Macros for concatenating tokens ***/

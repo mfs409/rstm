@@ -40,7 +40,10 @@ namespace
       // if we are here because of an abort, and we didn't return yet, then we
       // did a repeat selection... double the thresholds
       if (curr_policy.abort_switch) {
-          printf("Repeat Selection on Abort... backing off profile frequency\n");
+          // [mfs] We need a verbosity flag (from environment?) to toggle these
+          //       sorts of outputs...
+          printf("Repeat Selection on Abort... backing off profile "
+                 "frequency\n");
           curr_policy.waitThresh *= 2;
           curr_policy.abortThresh *= 2;
           return;
@@ -106,7 +109,12 @@ namespace
 
 namespace stm
 {
-  /*** The next CommitTrigger commit threshold */
+  /**
+   * The next CommitTrigger commit threshold
+   *
+   * [mfs] Should this be padded?  In general, I'm worried about how
+   *       distributed al of our globals are...
+   */
   unsigned CommitTrigger::next = 1;
 
   /**
@@ -133,7 +141,6 @@ namespace stm
       {
           spin64();
       }
-
 
       // Use the policy to decide what algorithm to switch to
       uint32_t new_algorithm = pols[curr_policy.POL_ID].decider();

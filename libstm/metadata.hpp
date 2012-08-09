@@ -24,28 +24,39 @@
 
 namespace stm
 {
+  // [mfs] Wrong place for this declaration
   // forward declare for avoiding a SunCC issue
   NORETURN void UNRECOVERABLE(const char*);
 
   /**
    *  Many of our data structures benefit from having a cap on the number of
    *  threads.  Here we set that cap at 256
+   *
+   *  [mfs] Wrong place for this declaration
    */
   static const unsigned MAX_THREADS = 256;
 
   /**
    *  Forward declare the TxThread type, so we can use it in some of our
    *  metadata types
+   *
+   *  [mfs] Not needed in this file, so why do we have it here?
    */
   struct TxThread;
 
   /**
    *  A scope_t is an opaque type used by an API to unwind.
+   *
+   *  [mfs] This is on the brink of deletion, since we are switching to
+   *        checkpoint.S
    */
   typedef void scope_t;
 
   /**
    * Linklist for Cohorts order handling.
+   *
+   * [mfs] what are these fields for?  Can we generalize this and move it to
+   *       its own file?
    */
   struct cohorts_node_t
   {
@@ -61,6 +72,8 @@ namespace stm
    *  id_version_t uses the msb as the lock bit.  If the msb is zero, treat
    *  the word as a version number.  Otherwise, treat it as a struct with the
    *  lower 8 bits giving the ID of the lock-holding thread.
+   *
+   *  [mfs] Move to Orec.hpp
    */
   union id_version_t
   {
@@ -82,6 +95,8 @@ namespace stm
    * When we acquire an orec, we may ultimately need to reset it to its old
    * value (if we abort).  Saving the old value with the orec is an easy way to
    * support this need without having exta logging in the descriptor.
+   *
+   * [mfs] Move to Orec.hpp
    */
   struct orec_t
   {
@@ -91,6 +106,8 @@ namespace stm
 
   /**
    *  Nano requires that we log not just the orec address, but also its value
+   *
+   *  [mfs] Where should this go?
    */
   struct nanorec_t
   {
@@ -107,6 +124,8 @@ namespace stm
    *  NB: We don't support more than 60 threads in ByteLock-based algorithms.
    *      If you have more than that many threads, you should use adaptivity
    *      to switch to a different algorithm.
+   *
+   *  [mfs] Move to ByteLock.hpp
    */
   struct bytelock_t
   {
@@ -125,6 +144,8 @@ namespace stm
 
   /**
    *  Padded word-sized value for keeping a value in its own cache line
+   *
+   *  [mfs] Where should this go?
    */
   struct pad_word_t
   {
@@ -138,6 +159,8 @@ namespace stm
    *
    *  NB: methods are implemented in algs.hpp, so that they are visible where
    *      needed, but not visible globally
+   *
+   *  [mfs] Move to rrec.hpp, and why not move methods there too?
    */
   struct rrec_t
   {
@@ -167,6 +190,10 @@ namespace stm
    *  have an owner and a bunch of readers in a single struct, instead of via
    *  separate orec and rrec tables.  Note that these data structures do not
    *  have nice alignment
+   *
+   *  [mfs] Should we align these better?
+   *
+   *  [mfs] Move to BitLock.hpp
    */
   struct bitlock_t
   {
@@ -177,6 +204,8 @@ namespace stm
   /**
    *  In order to avoid a circular dependency, we need to declare some
    *  WriteSet support here.
+   *
+   *  [mfs] I don't think this is still necessary.  Please revisit.
    */
   class WordLoggingWriteSetEntry;
   class ByteLoggingWriteSetEntry;
@@ -190,6 +219,9 @@ namespace stm
 
   /**
    *  Common TypeDefs
+   *
+   *  [mfs] Move to respective files Orec.hpp, RRec.hpp, ByteLock.hpp,
+   *        BitLock.hpp, BitFilter*.hpp, Nanorec.hpp?, and WBMMPolicy.hpp
    */
   typedef MiniVector<orec_t*>      OrecList;     // vector of orecs
   typedef MiniVector<rrec_t*>      RRecList;     // vector of rrecs
@@ -204,6 +236,8 @@ namespace stm
    *  This is for counting consecutive aborts in a histogram.  We use it for
    *  measuring toxic transactions.  Note that there is special support for
    *  counting how many times an hourglass transaction commits or aborts.
+   *
+   *  [mfs] move to Toxic.hpp
    */
   struct toxic_histogram_t
   {
@@ -261,6 +295,8 @@ namespace stm
    *  This is for providing an interface to the PMU (currently via PAPI) in
    *  order to measure low-level hardware events that occur during transaction
    *  execution.
+   *
+   *  [mfs] Move to PMU.hpp?
    */
   struct pmu_papi_t
   {

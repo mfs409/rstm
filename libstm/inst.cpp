@@ -9,7 +9,9 @@
  */
 
 /**
- *  This file implements the code for switching installing an algorithm.
+ *  This file implements the code for installing an algorithm.
+ *
+ *  We should actually back the function pointers here
  */
 
 #include <sys/mman.h>
@@ -19,7 +21,6 @@
 
 namespace stm
 {
-
 #ifndef STM_ONESHOT_MODE
   void install_algorithm_local(int new_alg)
   {

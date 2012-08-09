@@ -39,7 +39,13 @@
 #include <stdint.h>
 // #include "adaptivity.hpp"               // tm_begin_t
 
-/** Sort out how big a checkpoint we actually need, based on the arch. */
+/**
+ *  Sort out how big a checkpoint we actually need, based on the arch.
+ *
+ *  [mfs] We should also be defining the register offsets in this file, instead
+ *        of in checkpoint.S.  Some static asserts would be good too, to verify
+ *        that our offsets are correct.
+ */
 #if defined(__x86_64__) && defined(__LP64__)    /* x86_64 -m64 */
 # define CHECKPOINT_SIZE 9
 #elif defined(__x86_64__)                       /* x86 -mx32  */
@@ -55,7 +61,9 @@
 #endif
 
 namespace stm {
-  /** Like a jmp_buf, a checkpoint_t is just a "big-enough" array of words. */
+  /**
+     Like a jmp_buf, a checkpoint_t is just a "big-enough" array of words.
+  */
   typedef void* checkpoint_t[CHECKPOINT_SIZE];
   static const int CHECKPOINT_SP_OFFSET = 1;
 

@@ -29,7 +29,11 @@
 
 namespace stm
 {
-  /*** After profiles are collected, select and install a new algorithm */
+  /**
+   * After profiles are collected, select and install a new algorithm
+   *
+   * [mfs] Who calls this?  Why is it here?
+   */
   void profile_oncomplete(TxThread* tx);
 
   /**
@@ -37,6 +41,9 @@ namespace stm
    * rendezvous correct during mode switching and GRL irrevocability
    * (implemented in irrevocability.cpp because it uses some static functions
    * declared there)
+   *
+   * [mfs] Why is this where we define bb?  I think it should be
+   *       elsewhere... in fact, perhaps it should be alg0?
    */
   void begin_blocker(TX_LONE_PARAMETER);
 
@@ -48,9 +55,15 @@ namespace stm
   /**
    *  part 1: the thing that never gets inlined, and only gets called if we are
    *  definitely going to adapt
+   *
+   *  [mfs] bad name?
    */
-
   void trigger_common(TxThread* tx) TM_FASTCALL NOINLINE;
+
+  /**
+   * [mfs] Move this stuff to a triggers file?  We might want each STM_XYZ
+   *       define to correspond directly to a single file of the same name...
+   */
 
   /**
    *  A simple trigger: request collection of profiles after 16 consecutive
