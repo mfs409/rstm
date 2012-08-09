@@ -18,10 +18,9 @@
 #endif
 
 #include <inttypes.h>
-//#include "../include/platform.hpp"
-#include "metadata.hpp"
-#include "txthread.hpp"
-#include "lib_globals.hpp"
+#include "../include/abstract_compiler.hpp"
+#include "MiniVector.hpp"
+#include "txthread.hpp" // [mfs] we should be able to drop this dependency...
 
 namespace stm
 {
@@ -137,6 +136,8 @@ namespace stm
 
       /**
        *  Print a dynprof_t
+       *
+       *  [mfs] Move to a cpp... we don't want to pull in cstdio!
        */
       void dump()
       {

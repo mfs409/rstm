@@ -17,40 +17,17 @@
 #ifndef METADATA_HPP__
 #define METADATA_HPP__
 
+#include "../include/abstract_compiler.hpp"
+#include "Constants.hpp"
 #include "MiniVector.hpp"
 #include "BitFilter64.hpp"
 #include "BitFilter.hpp"
-#include "../include/abstract_compiler.hpp"
 
 namespace stm
 {
   // [mfs] Wrong place for this declaration
   // forward declare for avoiding a SunCC issue
   NORETURN void UNRECOVERABLE(const char*);
-
-  /**
-   *  Many of our data structures benefit from having a cap on the number of
-   *  threads.  Here we set that cap at 256
-   *
-   *  [mfs] Wrong place for this declaration
-   */
-  static const unsigned MAX_THREADS = 256;
-
-  /**
-   *  Forward declare the TxThread type, so we can use it in some of our
-   *  metadata types
-   *
-   *  [mfs] Not needed in this file, so why do we have it here?
-   */
-  struct TxThread;
-
-  /**
-   *  A scope_t is an opaque type used by an API to unwind.
-   *
-   *  [mfs] This is on the brink of deletion, since we are switching to
-   *        checkpoint.S
-   */
-  typedef void scope_t;
 
   /**
    * Linklist for Cohorts order handling.
@@ -142,16 +119,6 @@ namespace stm
       void set_read_byte(uint32_t id);
   };
 
-  /**
-   *  Padded word-sized value for keeping a value in its own cache line
-   *
-   *  [mfs] Where should this go?
-   */
-  struct pad_word_t
-  {
-      volatile uintptr_t val;
-      char pad[CACHELINE_BYTES-sizeof(uintptr_t)];
-  };
 
   /**
    * a reader record (rrec) holds bits representing up to MAX_THREADS reader
@@ -202,22 +169,6 @@ namespace stm
   };
 
   /**
-   *  In order to avoid a circular dependency, we need to declare some
-   *  WriteSet support here.
-   *
-   *  [mfs] I don't think this is still necessary.  Please revisit.
-   */
-  class WordLoggingWriteSetEntry;
-  class ByteLoggingWriteSetEntry;
-#if defined(STM_WS_WORDLOG)
-  typedef WordLoggingWriteSetEntry WriteSetEntry;
-#elif defined(STM_WS_BYTELOG)
-  typedef ByteLoggingWriteSetEntry WriteSetEntry;
-#else
-#   error WriteSet logging granularity configuration error.
-#endif
-
-  /**
    *  Common TypeDefs
    *
    *  [mfs] Move to respective files Orec.hpp, RRec.hpp, ByteLock.hpp,
@@ -230,7 +181,6 @@ namespace stm
   typedef BitFilter<128>           filter_t;     // flat 1024-bit Bloom filter
   typedef BitFilter64              filter64_t;   // flat 64-bit Bloom filter
   typedef MiniVector<nanorec_t>    NanorecList;  // <orec,val> pairs
-  typedef MiniVector<void*>        AddressList;  // for the mmpolicy
 
   /**
    *  This is for counting consecutive aborts in a histogram.  We use it for

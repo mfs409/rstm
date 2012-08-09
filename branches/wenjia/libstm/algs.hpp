@@ -19,6 +19,7 @@
 #include "metadata.hpp"
 #include "txthread.hpp"
 #include "profiling.hpp" // Trigger::
+#include "inst.hpp"
 #include <algnames-autogen.hpp> // defines the ALGS enum
 #include "../include/abstract_timing.hpp"
 

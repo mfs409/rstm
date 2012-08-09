@@ -256,14 +256,14 @@ namespace stm
   template <typename T>
   struct DISPATCH<T, 8>
   {
-      inline static T read(T* addr)
+      inline static T read(TX_FIRST_PARAMETER T* addr)
       {
-          return (T)(uintptr_t)tmread((void**)addr STM_MASK(~0x0));
+          return (T)(uintptr_t)tmread(TX_FIRST_ARG (void**)addr STM_MASK(~0x0));
       }
 
-      inline static void write(T* addr, T val)
+      inline static void write(TX_FIRST_PARAMETER T* addr, T val)
       {
-          tmwrite((void**)addr, (void*)(uintptr_t)val STM_MASK(~0x0));
+          tmwrite(TX_FIRST_ARG (void**)addr, (void*)(uintptr_t)val STM_MASK(~0x0));
       }
   };
 
@@ -271,18 +271,18 @@ namespace stm
   template <>
   struct DISPATCH<double, 8>
   {
-      inline static double read(double* addr)
+      inline static double read(TX_FIRST_PARAMETER double* addr)
       {
           union { double d;  void*  v; } v;
-          v.v = tmread((void**)addr STM_MASK(~0x0));
+          v.v = tmread(TX_FIRST_ARG (void**)addr STM_MASK(~0x0));
           return v.d;
       }
 
-      inline static void write(double* addr, double val)
+      inline static void write(TX_FIRST_PARAMETER double* addr, double val)
       {
           union { double d;  void*  v; } v;
           v.d = val;
-          tmwrite((void**)addr, v.v STM_MASK(~0x0));
+          tmwrite(TX_FIRST_ARG (void**)addr, v.v STM_MASK(~0x0));
       }
   };
 
@@ -290,14 +290,14 @@ namespace stm
   template <>
   struct DISPATCH<const double, 8>
   {
-      inline static double read(const double* addr)
+      inline static double read(TX_FIRST_PARAMETER const double* addr)
       {
           union { double d;  void*  v; } v;
-          v.v = tmread((void**)addr STM_MASK(~0x0));
+          v.v = tmread(TX_FIRST_ARG (void**)addr STM_MASK(~0x0));
           return v.d;
       }
 
-      inline static void write(const double*, double)
+      inline static void write(TX_FIRST_PARAMETER_ANON const double*, double)
       {
           UNRECOVERABLE("You should not be writing a const double!");
       }
@@ -307,7 +307,7 @@ namespace stm
   template <>
   struct DISPATCH<long double, 16>
   {
-      inline static double read(double* addr)
+      inline static double read(TX_FIRST_PARAMETER double* addr)
       {
           // get second word's address
           void** addr2 = (void**)((long)addr + 4);
@@ -316,12 +316,12 @@ namespace stm
               struct { void* v1; void* v2; } v;
           } v;
           // read the two words
-          v.v.v1 = tmread((void**)addr STM_MASK(~0x0));
-          v.v.v2 = tmread(addr2 STM_MASK(~0x0));
+          v.v.v1 = tmread(TX_FIRST_ARG (void**)addr STM_MASK(~0x0));
+          v.v.v2 = tmread(TX_FIRST_ARG addr2 STM_MASK(~0x0));
           return v.t;
       }
 
-      inline static void write(double* addr, double val)
+      inline static void write(TX_FIRST_PARAMETER double* addr, double val)
       {
           // compute the two addresses
           void** addr1 = (void**) addr;
@@ -333,8 +333,8 @@ namespace stm
           } v;
           v.t = val;
           // write the two words
-          tmwrite(addr1, v.v.v1 STM_MASK(~0x0));
-          tmwrite(addr2, v.v.v2 STM_MASK(~0x0));
+          tmwrite(TX_FIRST_ARG addr1, v.v.v1 STM_MASK(~0x0));
+          tmwrite(TX_FIRST_ARG addr2, v.v.v2 STM_MASK(~0x0));
       }
   };
 
@@ -354,7 +354,7 @@ namespace stm
   template <typename T>
   struct DISPATCH<T, 4>
   {
-      inline static T read(T* addr)
+      inline static T read(TX_FIRST_PARAMETER T* addr)
       {
           // we must read the word (as a void*) that contains the 4byte at
           // address addr, then treat that as an array of T's from which we
@@ -362,11 +362,11 @@ namespace stm
           union { int v[2]; void* v2; } v;
           void** a = (void**)(((intptr_t)addr) & ~7ul);
           long offset = (((intptr_t)addr)>>2)&1;
-          v.v2 = tmread(a STM_MASK(0xffffffff << (32 * offset)));
+          v.v2 = tmread(TX_FIRST_ARG a STM_MASK(0xffffffff << (32 * offset)));
           return (T)v.v[offset];
       }
 
-      inline static void write(T* addr, T val)
+      inline static void write(TX_FIRST_PARAMETER T* addr, T val)
       {
           // to protect granularity, we need to read the whole word and
           // then write a byte of it
@@ -374,9 +374,9 @@ namespace stm
           void** a = (void**)(((intptr_t)addr) & ~7ul);
           int offset = (((intptr_t)addr)>>2) & 1;
           // read the enclosing word
-          v.v2 = tmread(a STM_MASK(0xffffffff << (32 * offset)));
+          v.v2 = tmread(TX_FIRST_ARG a STM_MASK(0xffffffff << (32 * offset)));
           v.v[offset] = val;
-          tmwrite(a, v.v2 STM_MASK(0xffffffff << (32 * offset)));
+          tmwrite(TX_FIRST_ARG a, v.v2 STM_MASK(0xffffffff << (32 * offset)));
       }
   };
 
@@ -384,26 +384,26 @@ namespace stm
   template <>
   struct DISPATCH<float, 4>
   {
-      inline static float read(float* addr)
+      inline static float read(TX_FIRST_PARAMETER float* addr)
       {
           // read the word as a void*, pull out the right portion of it
           union { float v[2]; void* v2; } v;
           void** a = (void**)(((intptr_t)addr)&~7ul);
           long offset = (((intptr_t)addr)>>2)&1;
-          v.v2 = tmread(a STM_MASK(0xffffffff << (32 * offset)));
+          v.v2 = tmread(TX_FIRST_ARG a STM_MASK(0xffffffff << (32 * offset)));
           return v.v[offset];
       }
 
-      inline static void write(float* addr, float val)
+      inline static void write(TX_FIRST_PARAMETER float* addr, float val)
       {
           // read the whole word, then write a word of it
           union { float v[2]; void* v2; } v;
           void**a = (void**)(((intptr_t)addr) & ~7ul);
           int offset = (((intptr_t)addr)>>2) & 1;
           // read enclosing word
-          v.v2 = tmread(a STM_MASK(0xffffffff << (32 * offset)));
+          v.v2 = tmread(TX_FIRST_ARG a STM_MASK(0xffffffff << (32 * offset)));
           v.v[offset] = val;
-          tmwrite(a, v.v2 STM_MASK(0xffffffff << (32 * offset)));
+          tmwrite(TX_FIRST_ARG a, v.v2 STM_MASK(0xffffffff << (32 * offset)));
       }
   };
 
@@ -411,17 +411,17 @@ namespace stm
   template <>
   struct DISPATCH<const float, 4>
   {
-      inline static float read(const float* addr)
+      inline static float read(TX_FIRST_PARAMETER const float* addr)
       {
           // read the word as a void*, pull out the right portion of it
           union { float v[2]; void* v2; } v;
           void** a = (void**)(((intptr_t)addr)&~7ul);
           long offset = (((intptr_t)addr)>>2)&1;
-          v.v2 = tmread(a STM_MASK(0xffffffff << (32 * offset)));
+          v.v2 = tmread(TX_FIRST_ARG a STM_MASK(0xffffffff << (32 * offset)));
           return v.v[offset];
       }
 
-      inline static void write(const float*, float)
+      inline static void write(TX_FIRST_PARAMETER_ANON const float*, float)
       {
           UNRECOVERABLE("You should not be writing a const float!");
       }
@@ -430,7 +430,7 @@ namespace stm
   template <typename T>
   struct DISPATCH<T, 1>
   {
-      inline static T read(T* addr)
+      inline static T read(TX_FIRST_PARAMETER T* addr)
       {
           // we must read the word (as a void*) that contains the byte at
           // address addr, then treat that as an array of T's from which we
@@ -439,11 +439,11 @@ namespace stm
           union { char v[8]; void* v2; } v;
           void** a = (void**)(((long)addr) & ~7);
           long offset = ((long)addr) & 7;
-          v.v2 = tmread(a STM_MASK(0xffffffff << (8 * offset)));
+          v.v2 = tmread(TX_FIRST_ARG a STM_MASK(0xffffffff << (8 * offset)));
           return (T)v.v[offset];
       }
 
-      inline static void write(T* addr, T val)
+      inline static void write(TX_FIRST_PARAMETER T* addr, T val)
       {
           // to protect granularity, we need to read the whole word and
           // then write a byte of it
@@ -451,9 +451,9 @@ namespace stm
           void** a = (void**)(((long)addr) & ~7);
           long offset = ((long)addr) & 7;
           // read the enclosing word
-          v.v2 = tmread(a STM_MASK(0xffffffff << (8 * offset)));
+          v.v2 = tmread(TX_FIRST_ARG a STM_MASK(0xffffffff << (8 * offset)));
           v.v[offset] = val;
-          tmwrite(a, v.v2 STM_MASK(0xffffffff << (8 * offset)));
+          tmwrite(TX_FIRST_ARG a, v.v2 STM_MASK(0xffffffff << (8 * offset)));
       }
   };
 
