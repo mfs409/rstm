@@ -41,7 +41,7 @@ namespace stm
 #endif
         allocator(),
         num_commits(0), num_aborts(0), num_restarts(0),
-        num_ro(0),
+        num_ro(0),num_temp(0),
 #ifdef STM_STACK_PROTECT
         stack_high(NULL),
         stack_low(~0x0),
@@ -193,6 +193,7 @@ namespace stm
                     << "; RO Commits: " << threads[i]->num_ro
                     << "; Aborts: "     << threads[i]->num_aborts
                     << "; Restarts: "   << threads[i]->num_restarts
+                    << "; Temp: "       << threads[i]->num_temp
                     << std::endl;
           threads[i]->abort_hist.dump();
           rw_txns += threads[i]->num_commits;
