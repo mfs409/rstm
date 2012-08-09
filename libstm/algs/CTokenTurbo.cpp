@@ -107,7 +107,7 @@ namespace {
               uintptr_t ivt = (*i)->v.all;
               // if it has a timestamp of ts_cache or greater, abort
               if (ivt > tx->ts_cache)
-                  tx->tmabort();
+                  stm::tmabort();
           }
 
       // writeback
@@ -161,7 +161,7 @@ namespace {
       uintptr_t ivt = o->v.all;
       // abort if this changed since the last time I saw someone finish
       if (ivt > tx->ts_cache)
-          tx->tmabort();
+          stm::tmabort();
 
       // log orec
       tx->r_orecs.insert(o);
@@ -190,7 +190,7 @@ namespace {
       uintptr_t ivt = o->v.all;
       // abort if this changed since the last time I saw someone finish
       if (ivt > tx->ts_cache)
-          tx->tmabort();
+          stm::tmabort();
 
       // log orec
       tx->r_orecs.insert(o);
@@ -312,7 +312,7 @@ namespace {
               uintptr_t ivt = (*i)->v.all;
               // if it has a timestamp of ts_cache or greater, abort
               if (ivt > tx->ts_cache)
-                  tx->tmabort();
+                  stm::tmabort();
           }
 
       // now update the finish_cache to remember that at this time, we were

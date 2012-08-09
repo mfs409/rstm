@@ -270,7 +270,7 @@ namespace {
               global_filter->clear();
               gatekeeper = 0;
           }
-          tx->tmabort();
+          stm::tmabort();
       }
   }
 

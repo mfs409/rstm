@@ -13,8 +13,6 @@
 #ifndef INST_HPP__
 #define INST_HPP__
 
-//#include "../include/platform.hpp"
-
 namespace stm
 {
   /*** forward declare to avoid extra dependencies */

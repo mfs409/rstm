@@ -36,13 +36,13 @@ namespace stm
    *
    *  This is ugly because rollback has a configuration-dependent signature.
    */
-  NORETURN void TxThread::tmabort()
+  NORETURN void tmabort()
   {
       stm::TxThread* tx = stm::Self;
 #if defined(STM_ABORT_ON_THROW)
       TxThread::tmrollback(tx, NULL, 0);
 #else
-      TxThread::tmrollback(tx);
+      tmrollback(tx);
 #endif
       jmp_buf* scope = (jmp_buf*)tx->checkpoint;
       longjmp(*scope, 1);
@@ -189,8 +189,8 @@ namespace stm
   /**
    *  The tmrollback and tmirrevoc pointers
    */
-  void (*TxThread::tmrollback)(STM_ROLLBACK_SIG(,,));
-  bool (*TxThread::tmirrevoc)(TxThread*) = NULL;
+  void (*tmrollback)(STM_ROLLBACK_SIG(,,));
+  bool (*tmirrevoc)(TxThread*) = NULL;
 
   /*** the init factory */
   void TxThread::thread_init()
@@ -219,7 +219,7 @@ namespace stm
       // register this restart
       ++tx->num_restarts;
       // call the abort code
-      tx->tmabort();
+      stm::tmabort();
   }
 
 

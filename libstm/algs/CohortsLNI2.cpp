@@ -418,7 +418,7 @@ namespace
                   gatekeeper = 0;
                   counter = 0;
               }
-              tx->tmabort();
+              stm::tmabort();
           }
       }
   }

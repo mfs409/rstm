@@ -334,7 +334,7 @@ namespace {
               // set self as completed
               last_complete.val = tx->order;
               // abort
-              tx->tmabort();
+              stm::tmabort();
           }
       }
   }

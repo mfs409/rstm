@@ -181,11 +181,11 @@ namespace {
           if (CM::mayKill(tx, owner - 1))
               threads[owner-1]->alive = TX_ABORTED;
           else
-              tx->tmabort();
+              stm::tmabort();
           // NB: must have liveness check in the spin, since we may have read
           //     locks
           if (tx->alive == TX_ABORTED)
-              tx->tmabort();
+              stm::tmabort();
       }
 
       // do the read
@@ -195,7 +195,7 @@ namespace {
 
       // check for remote abort
       if (tx->alive == TX_ABORTED)
-          tx->tmabort();
+          stm::tmabort();
       return result;
   }
 
@@ -224,10 +224,10 @@ namespace {
               if (CM::mayKill(tx, owner - 1))
                   threads[owner-1]->alive = TX_ABORTED;
               else
-                  tx->tmabort();
+                  stm::tmabort();
               // NB: again, need liveness check
               if (tx->alive == TX_ABORTED)
-                  tx->tmabort();
+                  stm::tmabort();
           }
       }
 
@@ -238,7 +238,7 @@ namespace {
 
       // check for remote abort
       if (tx->alive == TX_ABORTED)
-          tx->tmabort();
+          stm::tmabort();
       return result;
   }
 
@@ -260,13 +260,13 @@ namespace {
               if (CM::mayKill(tx, owner - 1))
                   threads[owner-1]->alive = TX_ABORTED;
               else
-                  tx->tmabort();
+                  stm::tmabort();
           // try to get ownership
           else if (bcas32(&(lock->owner), 0u, tx->id))
               break;
           // liveness check
           if (tx->alive == TX_ABORTED)
-              tx->tmabort();
+              stm::tmabort();
       }
 
       // log the lock, drop any read locks I have
@@ -280,7 +280,7 @@ namespace {
               if (CM::mayKill(tx, i))
                   threads[i]->alive = TX_ABORTED;
               else
-                  tx->tmabort();
+                  stm::tmabort();
           }
 
       // add to undo log, do in-place write
@@ -289,7 +289,7 @@ namespace {
 
       // check for remote abort
       if (tx->alive == TX_ABORTED)
-          tx->tmabort();
+          stm::tmabort();
 
       stm::OnFirstWrite(tx, read_rw, write_rw, commit_rw);
   }
@@ -314,13 +314,13 @@ namespace {
                   if (CM::mayKill(tx, owner-1))
                       threads[owner-1]->alive = TX_ABORTED;
                   else
-                      tx->tmabort();
+                      stm::tmabort();
               // try to get ownership
               else if (bcas32(&(lock->owner), 0u, tx->id))
                   break;
               // liveness check
               if (tx->alive == TX_ABORTED)
-                  tx->tmabort();
+                  stm::tmabort();
           }
           // log the lock, drop any read locks I have
           tx->w_bytelocks.insert(lock);
@@ -333,7 +333,7 @@ namespace {
                   if (CM::mayKill(tx, i))
                       threads[i]->alive = TX_ABORTED;
                   else
-                      tx->tmabort();
+                      stm::tmabort();
               }
       }
 
@@ -343,7 +343,7 @@ namespace {
 
       // check for remote abort
       if (tx->alive == TX_ABORTED)
-          tx->tmabort();
+          stm::tmabort();
   }
 
   /**

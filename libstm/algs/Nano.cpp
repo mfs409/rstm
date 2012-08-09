@@ -99,13 +99,13 @@ namespace {
           if (ivt.all != tx->my_lock.all) {
               if (!ivt.fields.lock) {
                   if (!bcasptr(&o->v.all, ivt.all, tx->my_lock.all))
-                      tx->tmabort();
+                      stm::tmabort();
                   // save old version to o->p, remember that we hold the lock
                   o->p = ivt.all;
                   tx->locks.insert(o);
               }
               else {
-                  tx->tmabort();
+                  stm::tmabort();
               }
           }
       }
@@ -116,7 +116,7 @@ namespace {
           // if orec does not match val, then it must be locked by me, with its
           // old val equalling my expected val
           if ((ivt != i->v) && ((ivt != tx->my_lock.all) || (i->v != i->o->p)))
-              tx->tmabort();
+              stm::tmabort();
       }
 
       // run the redo log
@@ -164,7 +164,7 @@ namespace {
       if (stm::curr_policy.POL_ID != stm::Single) {
           if (tx->nanorecs.size() > 8) {
               tx->consec_aborts = 1024;
-              tx->tmabort();
+              stm::tmabort();
           }
       }
 
@@ -191,7 +191,7 @@ namespace {
               // validate the whole read set, then return the value we just read
               foreach (NanorecList, i, tx->nanorecs)
                   if (i->o->v.all != i->v)
-                      tx->tmabort();
+                      stm::tmabort();
               return tmp;
           }
 

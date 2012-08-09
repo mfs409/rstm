@@ -69,7 +69,7 @@ namespace {
       TX_GET_TX_INTERNAL;
       // were there remote aborts?
       if (!tx->alive)
-          tx->tmabort();
+          stm::tmabort();
       CFENCE;
 
       // release read locks
@@ -104,7 +104,7 @@ namespace {
           // abort if cannot acquire and haven't locked yet
           if (bl->owner == 0) {
               if (!bcas32(&bl->owner, (uintptr_t)0, tx->my_lock.all))
-                  tx->tmabort();
+                  stm::tmabort();
 
               // log lock
               tx->w_bytelocks.insert(bl);
@@ -117,7 +117,7 @@ namespace {
                   p1[j] |= p2[j];
           }
           else if (bl->owner != tx->my_lock.all) {
-              tx->tmabort();
+              stm::tmabort();
           }
       }
 
@@ -132,7 +132,7 @@ namespace {
       // were there remote aborts?
       CFENCE;
       if (!tx->alive)
-          tx->tmabort();
+          stm::tmabort();
       CFENCE;
 
       // we committed... replay redo log
@@ -171,14 +171,14 @@ namespace {
 
       // if there's a writer, it can't be me since I'm in-flight
       if (bl->owner != 0)
-          tx->tmabort();
+          stm::tmabort();
 
       // order the read before checking for remote aborts
       void* val = *addr;
       CFENCE;
 
       if (!tx->alive)
-          tx->tmabort();
+          stm::tmabort();
 
       return val;
   }
@@ -213,7 +213,7 @@ namespace {
 
       // if there's a writer, it can't be me since I'm in-flight
       if (bl->owner != 0)
-          tx->tmabort();
+          stm::tmabort();
 
       // order the read before checking for remote aborts
       void* val = *addr;
@@ -221,7 +221,7 @@ namespace {
       CFENCE;
 
       if (!tx->alive)
-          tx->tmabort();
+          stm::tmabort();
 
       return val;
   }
@@ -248,7 +248,7 @@ namespace {
       }
 
       if (bl->owner)
-          tx->tmabort();
+          stm::tmabort();
 
       stm::OnFirstWrite(tx, read_rw, write_rw, commit_rw);
   }
@@ -272,7 +272,7 @@ namespace {
       }
 
       if (bl->owner)
-          tx->tmabort();
+          stm::tmabort();
   }
 
   /**

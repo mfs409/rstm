@@ -155,7 +155,7 @@ namespace {
       if (!validate(tx)) {
           tx->turn.val = COHORTS_DONE;
           if (q == &(tx->turn)) q = NULL;
-          tx->tmabort();
+          stm::tmabort();
       }
 
       // do write back

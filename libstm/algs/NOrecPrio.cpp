@@ -123,7 +123,7 @@ namespace {
       // get the lock and validate (use RingSTM obstruction-free technique)
       while (!bcasptr(&timestamp.val, tx->start_time, tx->start_time + 1))
           if ((tx->start_time = validate(tx)) == VALIDATION_FAILED)
-              tx->tmabort();
+              stm::tmabort();
 
       // redo writes
       tx->writes.writeback();
@@ -156,7 +156,7 @@ namespace {
 
       while (tx->start_time != timestamp.val) {
           if ((tx->start_time = validate(tx)) == VALIDATION_FAILED)
-              tx->tmabort();
+              stm::tmabort();
           tmp = *addr;
           CFENCE;
       }
