@@ -9,25 +9,20 @@
  */
 
 #include "WBMMPolicy.hpp"
-using namespace stm;
 
-namespace
+/*** figure out if one timestamp is strictly dominated by another */
+bool is_strictly_older(uint32_t* newer, uint32_t* older, uint32_t old_len)
 {
-  /*** figure out if one timestamp is strictly dominated by another */
-  inline bool
-  is_strictly_older(uint32_t* newer, uint32_t* older, uint32_t old_len)
-  {
-      for (uint32_t i = 0; i < old_len; ++i)
-          if ((newer[i] <= older[i]) && (newer[i] & 1))
-              return false;
-      return true;
-  }
+    for (uint32_t i = 0; i < old_len; ++i)
+        if ((newer[i] <= older[i]) && (newer[i] & 1))
+            return false;
+    return true;
 }
 
-pad_word_t stm::trans_nums[MAX_THREADS] = {{0, {0}}};
+/*** provide backing for the WBMMPolicy set of transaction numbers */
+stm::pad_word_t stm::WBMMPolicy::trans_nums[MAX_THREADS] = {{0, {0}}};
 
-
-void WBMMPolicy::handle_full_prelimbo()
+void stm::WBMMPolicy::handle_full_prelimbo()
 {
     // get the current timestamp from the epoch
     prelimbo->length = threadcount.val;

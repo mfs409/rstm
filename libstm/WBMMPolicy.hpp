@@ -25,16 +25,16 @@
 #define WBMMPOLICY_HPP__
 
 #include <stdlib.h>
+#include "../include/abstract_compiler.hpp"
+#include "Constants.hpp"
+#include "BasicTypes.hpp"
+#include "Globals.hpp"
 #include "MiniVector.hpp"
-#include "metadata.hpp"
 
 namespace stm
 {
-  /*** forward declare the threadcount used by TxThread */
-  extern pad_word_t threadcount;
-
-  /*** store every thread's counter */
-  extern pad_word_t trans_nums[MAX_THREADS];
+  /*** simple definition for a list of pointers */
+  typedef MiniVector<void*> AddressList;
 
   /*** Node type for a list of timestamped void*s */
   struct limbo_t
@@ -68,6 +68,9 @@ namespace stm
    */
   class WBMMPolicy
   {
+      /*** store every thread's counter */
+      static pad_word_t trans_nums[MAX_THREADS];
+
       /*** location of my timestamp value */
       volatile uintptr_t* my_ts;
 

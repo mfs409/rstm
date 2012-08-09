@@ -24,6 +24,7 @@
  */
 
 #include <cstdlib>
+#include "../include/tlsapi.hpp"
 #include "txthread.hpp"
 #include "policies.hpp"
 

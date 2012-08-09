@@ -16,7 +16,6 @@
 
 using stm::UNRECOVERABLE;
 using stm::TxThread;
-using stm::AbortHandler;
 using stm::stms;
 using stm::curr_policy;
 using stm::CGL;
