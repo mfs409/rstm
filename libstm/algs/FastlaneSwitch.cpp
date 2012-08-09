@@ -56,13 +56,13 @@ namespace {
       static void begin(TX_LONE_PARAMETER);
       static TM_FASTCALL void* read_ro(TX_FIRST_PARAMETER STM_READ_SIG(,));
       static TM_FASTCALL void* read_rw(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void* read_master(TX_FIRST_PARAMETER STM_READ_SIG(,));
+      static TM_FASTCALL void* read_turbo(TX_FIRST_PARAMETER STM_READ_SIG(,));
       static TM_FASTCALL void write_ro(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
       static TM_FASTCALL void write_rw(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void write_master(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+      static TM_FASTCALL void write_turbo(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
       static TM_FASTCALL void commit_ro(TX_LONE_PARAMETER);
       static TM_FASTCALL void commit_rw(TX_LONE_PARAMETER);
-      static TM_FASTCALL void commit_master(TX_LONE_PARAMETER);
+      static TM_FASTCALL void commit_turbo(TX_LONE_PARAMETER);
 
       static void rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
@@ -110,8 +110,8 @@ namespace {
           cntr = (cntr & ~MSB) + 1;
           WBR;
 
-          // go master mode
-          stm::GoTurbo(tx, read_master, write_master, commit_master);
+          // master uses turbo mode
+          stm::GoTurbo(tx, read_turbo, write_turbo, commit_turbo);
       }
 
       // helpers get even counter (discard LSD & MSB)
@@ -125,10 +125,10 @@ namespace {
   }
 
   /**
-   *  Fastline: commit_master:
+   *  Fastline: commit_turbo (for master mode):
    */
   void
-  FastlaneSwitch::commit_master(TX_LONE_PARAMETER)
+  FastlaneSwitch::commit_turbo(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
 
@@ -231,10 +231,10 @@ namespace {
   }
 
   /**
-   *  FastlaneSwitch read_master
+   *  FastlaneSwitch read_turbo, for master mode
    */
   void*
-  FastlaneSwitch::read_master(TX_FIRST_PARAMETER_ANON STM_READ_SIG(addr,))
+  FastlaneSwitch::read_turbo(TX_FIRST_PARAMETER_ANON STM_READ_SIG(addr,))
   {
       return *addr;
   }
@@ -289,10 +289,10 @@ namespace {
   }
 
   /**
-   *  FastlaneSwitch write_master (in place write)
+   *  FastlaneSwitch write_turbo (in place write for master mode)
    */
   void
-  FastlaneSwitch::write_master(TX_FIRST_PARAMETER_ANON STM_WRITE_SIG(addr,val,mask))
+  FastlaneSwitch::write_turbo(TX_FIRST_PARAMETER_ANON STM_WRITE_SIG(addr,val,mask))
   {
       orec_t* o = get_orec(addr);
       o->v.all = cntr; // mark orec
@@ -456,5 +456,5 @@ namespace stm {
 
 
 #ifdef STM_ONESHOT_ALG_FastlaneSwitch
-DECLARE_AS_ONESHOT_MASTER(FastlaneSwitch)
+DECLARE_AS_ONESHOT_TURBO(FastlaneSwitch)
 #endif
