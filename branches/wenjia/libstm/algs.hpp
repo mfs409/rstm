@@ -68,28 +68,35 @@ namespace stm
   extern bytelock_t    bytelocks[NUM_STRIPES];         // set of bytelocks
   extern bitlock_t     bitlocks[NUM_STRIPES];          // set of bitlocks
   extern pad_word_t    timestamp_max;                  // max value of timestamp
+  // [mfs] Is this padded well enough?
   extern mcs_qnode_t*  mcslock;                        // for MCS
   extern pad_word_t    epochs[MAX_THREADS];            // for coarse-grained CM
+  // [mfs] Is this padded well enough?
   extern ticket_lock_t ticketlock;                     // for ticket lock STM
   extern orec_t        nanorecs[RING_ELEMENTS];        // for Nano
   extern pad_word_t    greedy_ts;                      // for swiss cm
   extern pad_word_t    fcm_timestamp;                  // for FCM
+  // [mfs] Is this padded well enough?
   extern dynprof_t*    app_profiles;                   // for ProfileApp*
 
   // ProfileTM can't function without these
+  // [mfs] Are they padded well enough?
   extern dynprof_t*    profiles;          // a list of ProfileTM measurements
   extern uint32_t      profile_txns;      // how many txns per profile
 
   // Global variables for Cohorts
+  // [mfs] Do we want padding on this or not?
   extern volatile uint32_t locks[9];  // a big lock at locks[0], and
                                       // small locks from locks[1] to locks[8]
   extern  pad_word_t started;         // number of tx started
   extern  pad_word_t cpending;        // number of tx waiting to commit
   extern  pad_word_t committed;       // number of tx committed
+  // [mfs] Do these need padding?  What algs use them?
   extern volatile int32_t last_order; // order of last tx in a cohort + 1
   extern volatile uint32_t gatekeeper;// indicating whether tx can start
   extern filter_t* global_filter;     // global filter
   extern filter_t* temp_filter;       // temp filter
+  // [mfs] What is this for?
   extern AddressList addrs;           // temp address list
 
   // Global variables for Fastlane
@@ -144,6 +151,8 @@ namespace stm
   /**
    *  These simple functions are used for common operations on the global
    *  metadata arrays
+   *
+   *  [mfs] Should these be in some other file?  Should this be 'globals.hpp'?
    */
 
   /**
@@ -217,6 +226,9 @@ namespace stm
    *      of 64 nops.  However, we can't switch to tick(), because sometimes
    *      two successive tick() calls return the same value and tickp isn't
    *      universal.
+   *
+   *  [mfs] why do we inline this?  If we're backing off, we shouldn't care
+   *        about inline overhead...
    */
   inline void exp_backoff(TxThread* tx)
   {

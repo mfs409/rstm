@@ -32,14 +32,24 @@
 #define MAX_TATAS_BACKOFF 524288
 #endif
 
-/***  Issue 64 nops to provide a little busy waiting */
+/**
+ *  Issue 64 nops to provide a little busy waiting
+ *
+ *  [mfs] We use this *a lot*.  We should explore whether it should be inlined
+ *        or not...
+ */
 inline void spin64()
 {
     for (int i = 0; i < 64; i++)
         nop();
 }
 
-/***  exponential backoff for TATAS locks */
+/**
+ *  exponential backoff for TATAS locks
+ *
+ *  [mfs] Should we use tick() instead, so that we can tolerate preemption
+ *        better?
+ */
 inline void backoff(int *b)
 {
     for (int i = *b; i; i--)
@@ -48,10 +58,19 @@ inline void backoff(int *b)
         *b <<= 1;
 }
 
-/***  TATAS lock: test-and-test-and-set with exponential backoff */
+/**
+ *  TATAS lock: test-and-test-and-set with exponential backoff
+ *
+ *  [mfs] This isn't padded... is that good?
+ */
 typedef volatile uintptr_t tatas_lock_t;
 
-/***  Slowpath TATAS acquire.  This performs exponential backoff */
+/**
+ *  Slowpath TATAS acquire.  This performs exponential backoff
+ *
+ *  [mfs] The return value is for adaptivity... perhaps we could use a single
+ *        call to tick() instead?
+ */
 inline int tatas_acquire_slowpath(tatas_lock_t* lock)
 {
     int b = 64;
@@ -71,7 +90,9 @@ inline int tatas_acquire(tatas_lock_t* lock)
     return tatas_acquire_slowpath(lock);
 }
 
-/***  TATAS release: ordering is safe for SPARC, x86 */
+/**
+ *  TATAS release: ordering is safe for SPARC, x86
+ */
 inline void tatas_release(tatas_lock_t* lock)
 {
     CFENCE;
@@ -81,6 +102,9 @@ inline void tatas_release(tatas_lock_t* lock)
 /**
  *  Ticket lock: this is the easiest implementation possible, but might not be
  *  the most optimal w.r.t. cache misses
+ *
+ *  [mfs] Consider padded versions, either with both fields in one line, or
+ *        with each field in its own line
  */
 struct ticket_lock_t
 {
@@ -92,6 +116,9 @@ struct ticket_lock_t
  *  Acquisition of a ticket lock entails an increment, then a spin.  We use a
  *  counter to measure how long we spend spinning, in case that information
  *  is useful to adaptive STM mechanisms.
+ *
+ *  [mfs] The return value is for adaptivity... perhaps we could use a single
+ *        call to tick() instead?
  */
 inline int ticket_acquire(ticket_lock_t* lock)
 {
@@ -108,7 +135,11 @@ inline void ticket_release(ticket_lock_t* lock)
     lock->now_serving += 1;
 }
 
-/***  Simple MCS lock implementation */
+/**
+ *  Simple MCS lock implementation
+ *
+ *  [mfs] Do we want a mcs_lock_t that has a pointer and is padded?
+ */
 struct mcs_qnode_t
 {
     volatile bool flag;
@@ -118,6 +149,9 @@ struct mcs_qnode_t
 /**
  *  MCS acquire.  We count how long we spin, in order to detect very long
  *  delays
+ *
+ *  [mfs] The return value is for adaptivity... perhaps we could use a single
+ *        call to tick() instead?
  */
 inline int mcs_acquire(mcs_qnode_t** lock, mcs_qnode_t* mine)
 {

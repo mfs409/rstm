@@ -22,6 +22,9 @@ using namespace stm;
  *  This file implements a few classifiers for trying to pick which algorithm
  *  to switch to, based on some existing information from a profile and a
  *  table of previous experiments.
+ *
+ *  [mfs] We could probably have far fewer matrics and still have good
+ *        performance...
  */
 namespace
 {
@@ -118,8 +121,8 @@ namespace
   };
 
   /**
-   *  Metric for comparing the average writes of a qtable entry with the profile's
-   *  write count
+   *  Metric for comparing the average writes of a qtable entry with the
+   *  profile's write count
    */
   struct Write
   {
@@ -134,8 +137,8 @@ namespace
   };
 
   /**
-   *  Metric for comparing average time of a qtable entry with the profile's run
-   *  time
+   *  Metric for comparing average time of a qtable entry with the profile's
+   *  run time
    */
   struct Time
   {
@@ -148,15 +151,16 @@ namespace
   };
 
   /**
-   *  Metric for comparing the read only txn ratio of a qtable entry with the profile's
-   *  run time
+   *  Metric for comparing the read only txn ratio of a qtable entry with the
+   *  profile's run time
    *
    */
   struct RO
   {
       inline static bool uses_RO() { return true; }
       inline static bool uses_TxnRatio() { return false; }
-      inline static int32_t compare(dynprof_t&, qtable_t* i, uint32_t ropct, int)
+      inline static int32_t compare(dynprof_t&, qtable_t* i, uint32_t ropct,
+                                    int)
       {
           return abs((int)(ropct - i->pct_ro));
       }
@@ -242,7 +246,8 @@ namespace
       inline static bool uses_TxnRatio() { return false; }
       inline static int32_t compare(dynprof_t& p, qtable_t* i, uint32_t, int)
       {
-          int write_dist = norm_dist(p.write_nonwaw, i->p.write_nonwaw - i->p.write_waw)
+          int write_dist = norm_dist(p.write_nonwaw,
+                                     i->p.write_nonwaw - i->p.write_waw)
               + norm_dist(p.write_waw, i->p.write_waw);
           int avgtime_dist = norm_dist(i->p.txn_time, p.txn_time);
           return write_dist+ avgtime_dist*2;
@@ -676,7 +681,8 @@ namespace
           // thread count
 
           int32_t metric_val = 0xFFFFFFFF;
-          metric_val = C::compare(profile.p, i, profile.pct_ro, profile.txn_ratio);
+          metric_val = C::compare(profile.p, i, profile.pct_ro,
+                                  profile.txn_ratio);
 
           // if distance smaller or distance same && throughput larger,
           // pick this alg
@@ -755,8 +761,8 @@ namespace stm
                  cbr_nn<pol>, name)
   void init_pol_cbr()
   {
-      // CBR policies that use profiles... all of these are handled by using the
-      // cbr_nn template, instantiated with the above structs
+      // CBR policies that use profiles... all of these are handled by using
+      // the cbr_nn template, instantiated with the above structs
       LOCAL_HELPER(Read, "CBR_Read");
       LOCAL_HELPER(Write, "CBR_Write");
       LOCAL_HELPER(Time, "CBR_Time");
