@@ -256,7 +256,7 @@ namespace
       TX_GET_TX_INTERNAL;
       // add to redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
-      stm::OnFirstWrite(read_rw, write_rw, commit_rw);
+      stm::OnFirstWrite(tx, read_rw, write_rw, commit_rw);
   }
 
   /**
@@ -339,3 +339,7 @@ namespace stm
       stms[NanoELA_amd64].privatization_safe = true;
   }
 }
+
+#ifdef STM_ONESHOT_ALG_NanoELA_amd64
+DECLARE_AS_ONESHOT_NORMAL(NanoELA_amd64)
+#endif

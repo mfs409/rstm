@@ -94,9 +94,13 @@ namespace stm
       }
 
       // set my pointers
+#ifdef STM_ONESHOT_MODE
+      mode = MODE_RO;
+#else
       my_tmread = (void**)&tmread;
       my_tmwrite = (void**)&tmwrite;
       my_tmcommit = (void**)&tmcommit;
+#endif
 
       // We need to be very careful here.  Some algorithms (at least TLI and
       // NOrecPrio) like to let a thread look at another thread's TxThread
@@ -413,12 +417,14 @@ namespace stm
       return init_lib_name;
   }
 
+#ifndef STM_ONESHOT_MODE
   /**
    * The function pointers:
    */
   THREAD_LOCAL_DECL_TYPE(TM_FASTCALL void(*tmcommit)(TX_LONE_PARAMETER));
   THREAD_LOCAL_DECL_TYPE(TM_FASTCALL void*(*tmread)(TX_FIRST_PARAMETER STM_READ_SIG(,)));
   THREAD_LOCAL_DECL_TYPE(TM_FASTCALL void(*tmwrite)(TX_FIRST_PARAMETER STM_WRITE_SIG(,,)));
+#endif
 
 #ifndef STM_CHECKPOINT_ASM
   /**
@@ -438,6 +444,15 @@ namespace stm
       if (++tx->nesting_depth > 1)
           return;
 
+// if we're in oneshot mode, we don't ever change algs, so we don't need a
+// WBR on TM begin.  While it's tempting to try to tie this to ProfileTM
+// (e.g., !STM_PROFILETMTRIGGER_NONE), that's insufficient since we have TOL
+// and NOL algorithms that switch between TML/Nano and OrecLazy, without
+// using Profiles.  They could break without the WBR.
+#ifdef STM_ONESHOT_MODE
+      tx->checkpoint = s;
+      tx->in_tx = 1;
+#else
       // we must ensure that the write of the transaction's scope occurs
       // *before* the read of the begin function pointer.  On modern x86, a
       // CAS is faster than using WBR or xchg to achieve the ordering.  On
@@ -447,7 +462,9 @@ namespace stm
       tx->in_tx = 1;
       WBR;
 #else
+      // [mfs] faiptr might be better...
       (void)casptr(&tx->in_tx, 0, 1);
+#endif
 #endif
 
 #ifndef STM_PROFILETMTRIGGER_NONE

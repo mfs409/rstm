@@ -139,3 +139,7 @@ namespace stm {
       stms[MCS].privatization_safe = true;
   }
 }
+
+#ifdef STM_ONESHOT_ALG_MCS
+DECLARE_AS_ONESHOT_SIMPLE(MCS)
+#endif

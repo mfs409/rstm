@@ -18,3 +18,7 @@ namespace stm
       ProfileApp<__MAXIMUM>::Initialize(ProfileAppMax, "ProfileAppMax");
   }
 }
+
+#ifdef STM_ONESHOT_ALG_ProfileAppMax
+DECLARE_AS_ONESHOT_NORMAL(ProfileApp<__MAXIMUM>)
+#endif

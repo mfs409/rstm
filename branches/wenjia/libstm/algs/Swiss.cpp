@@ -378,3 +378,7 @@ namespace stm {
       stms[Swiss].privatization_safe = false;
   }
 }
+
+#ifdef STM_ONESHOT_ALG_Swiss
+DECLARE_AS_ONESHOT_SIMPLE(Swiss)
+#endif

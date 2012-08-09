@@ -228,7 +228,7 @@ namespace {
       TX_GET_TX_INTERNAL;
       // add to redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
-      stm::OnFirstWrite(read_rw, write_rw, commit_rw);
+      stm::OnFirstWrite(tx, read_rw, write_rw, commit_rw);
   }
 
   /**
@@ -308,3 +308,7 @@ namespace stm {
       stms[Nano].privatization_safe = false;
   }
 }
+
+#ifdef STM_ONESHOT_ALG_Nano
+DECLARE_AS_ONESHOT_NORMAL(Nano)
+#endif

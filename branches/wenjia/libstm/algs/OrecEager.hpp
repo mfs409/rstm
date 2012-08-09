@@ -73,13 +73,12 @@ namespace {
       static TM_FASTCALL void commit(TX_LONE_PARAMETER);
       static void initialize(int id, const char* name);
       static void rollback(STM_ROLLBACK_SIG(,,));
+      static TM_FASTCALL void* read(TX_FIRST_PARAMETER STM_READ_SIG(,));
+      static TM_FASTCALL void write(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+      static bool irrevoc(TxThread*);
+      static NOINLINE void validate(TxThread*);
+      static void onSwitchTo();
   };
-
-  TM_FASTCALL void* read(TX_FIRST_PARAMETER STM_READ_SIG(,));
-  TM_FASTCALL void write(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-  bool irrevoc(TxThread*);
-  NOINLINE void validate(TxThread*);
-  void onSwitchTo();
 
   // -----------------------------------------------------------------------------
   // OrecEager implementation
@@ -167,8 +166,9 @@ namespace {
    *
    *    Must check orec twice, and may need to validate
    */
+  template <class CM>
   void*
-  read(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
+  OrecEager_Generic<CM>::read(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
   {
       TX_GET_TX_INTERNAL;
       // get the orec addr, then start loop to read a consistent value
@@ -212,7 +212,9 @@ namespace {
    *
    *    Lock the orec, log the old value, do the write
    */
-  void write(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  template <class CM>
+  void
+  OrecEager_Generic<CM>::write(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // get the orec addr, then enter loop to get lock from a consistent state
@@ -306,8 +308,9 @@ namespace {
    *    NB: This doesn't Undo anything, so there's no need to protect the
    *        stack.
    */
+  template <class CM>
   bool
-  irrevoc(TxThread* tx)
+  OrecEager_Generic<CM>::irrevoc(TxThread* tx)
   {
       // NB: This code is probably more expensive than it needs to be...
 
@@ -344,8 +347,9 @@ namespace {
    *    did so when the time was smaller than our start time, so we're sure to
    *    be OK.
    */
+  template <class CM>
   void
-  validate(TxThread* tx)
+  OrecEager_Generic<CM>::validate(TxThread* tx)
   {
       foreach (OrecList, i, tx->r_orecs) {
           // read this orec
@@ -363,8 +367,9 @@ namespace {
    *    timestamp as a zero-one mutex.  If they do, then they back up the
    *    timestamp first, in timestamp_max.
    */
+  template <class CM>
   void
-  onSwitchTo()
+  OrecEager_Generic<CM>::onSwitchTo()
   {
       timestamp.val = MAXIMUM(timestamp.val, stm::timestamp_max.val);
   }

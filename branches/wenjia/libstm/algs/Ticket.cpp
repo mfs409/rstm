@@ -135,3 +135,7 @@ namespace stm {
       stms[Ticket].privatization_safe = true;
   }
 }
+
+#ifdef STM_ONESHOT_ALG_Ticket
+DECLARE_AS_ONESHOT_SIMPLE(Ticket)
+#endif

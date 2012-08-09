@@ -18,3 +18,7 @@ namespace stm
       OrEAU_Generic<HyperAggressiveCM>::initialize(OrEAUHA, "OrEAUHA");
   }
 }
+
+#ifdef STM_ONESHOT_ALG_OrEAUHA
+DECLARE_AS_ONESHOT_NORMAL(OrEAU_Generic<HyperAggressiveCM>)
+#endif

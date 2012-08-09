@@ -195,7 +195,7 @@ namespace {
       STM_LOG_VALUE(tx, addr, tmp, mask);
       // test if I can go turbo
       if (tx->status == TURBO)
-          stm::GoTurbo(read_turbo, write_turbo, commit_turbo);
+          stm::GoTurbo(tx, read_turbo, write_turbo, commit_turbo);
       return tmp;
   }
 
@@ -217,7 +217,7 @@ namespace {
       // test if I can go turbo
       if (tx->status == TURBO) {
           tx->writes.writeback();
-          stm::GoTurbo(read_turbo, write_turbo, commit_turbo);
+          stm::GoTurbo(tx, read_turbo, write_turbo, commit_turbo);
       }
       return tmp;
   }
@@ -233,11 +233,11 @@ namespace {
           // in place write
           *addr = val;
           // go turbo mode
-          stm::OnFirstWrite(read_turbo, write_turbo, commit_turbo);
+          stm::OnFirstWrite(tx, read_turbo, write_turbo, commit_turbo);
           return;
       }
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
-      stm::OnFirstWrite(read_rw, write_rw, commit_rw);
+      stm::OnFirstWrite(tx, read_rw, write_rw, commit_rw);
   }
 
   /**
@@ -264,7 +264,7 @@ namespace {
           // in place write
           *addr = val;
           // go turbo mode
-          stm::OnFirstWrite(read_turbo, write_turbo, commit_turbo);
+          stm::OnFirstWrite(tx, read_turbo, write_turbo, commit_turbo);
           return;
       }
       // record the new value in a redo log
@@ -345,3 +345,7 @@ namespace stm {
   }
 }
 
+
+#ifdef STM_ONESHOT_ALG_CohortsEN2Q
+DECLARE_AS_ONESHOT_TURBO(CohortsEN2Q)
+#endif

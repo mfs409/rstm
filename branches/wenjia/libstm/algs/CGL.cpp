@@ -154,3 +154,7 @@ namespace stm
       stms[CGL].privatization_safe = true;
   }
 }
+
+#ifdef STM_ONESHOT_ALG_CGL
+DECLARE_AS_ONESHOT_SIMPLE(CGL)
+#endif

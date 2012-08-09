@@ -8,6 +8,12 @@
  *          Please see the file LICENSE.RSTM for licensing information
  */
 
+#ifdef STM_CC_SUN
+#include <stdio.h>
+#else
+#include <cstdio>
+#endif
+
 #include "algs.hpp"
 #include "cm.hpp"
 
@@ -102,6 +108,15 @@ namespace stm
           if (0 == strcmp(phasename, stms[i].name))
               return i;
       return -1;
+  }
+
+  /*** simple printout */
+  void toxic_histogram_t::dump()
+  {
+      printf("abort_histogram: ");
+      for (int i = 0; i < 18; ++i)
+          printf("%d, ", buckets[i]);
+      printf("max = %d, hgc = %d, hga = %d\n", max, hg_commits, hg_aborts);
   }
 
 } // namespace stm

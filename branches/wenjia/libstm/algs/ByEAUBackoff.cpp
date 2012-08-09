@@ -18,3 +18,7 @@ namespace stm
       ByEAU_Generic<BackoffCM>::Initialize(ByEAUBackoff, "ByEAUBackoff");
   }
 }
+
+#ifdef STM_ONESHOT_ALG_ByEAUBackoff
+DECLARE_AS_ONESHOT_NORMAL(ByEAU_Generic<BackoffCM>)
+#endif

@@ -181,7 +181,7 @@ namespace {
       // buffer the write, update the filter
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
       tx->wf->add(addr);
-      stm::OnFirstWrite(read_rw, write_rw, commit_rw);
+      stm::OnFirstWrite(tx, read_rw, write_rw, commit_rw);
   }
 
   /**
@@ -257,3 +257,7 @@ namespace stm {
       stms[TLI].privatization_safe = true;
   }
 }
+
+#ifdef STM_ONESHOT_ALG_TLI
+DECLARE_AS_ONESHOT_NORMAL(TLI)
+#endif

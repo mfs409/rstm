@@ -242,7 +242,7 @@ namespace {
           tx->r_bitlocks.insert(bl);
       if (bl->owner)
           tx->tmabort();
-      stm::OnFirstWrite(read_rw, write_rw, commit_rw);
+      stm::OnFirstWrite(tx, read_rw, write_rw, commit_rw);
   }
 
   /**
@@ -326,3 +326,7 @@ namespace stm {
       stms[BitLazy].privatization_safe = true;
   }
 }
+
+#ifdef STM_ONESHOT_ALG_BitLazy
+DECLARE_AS_ONESHOT_NORMAL(BitLazy)
+#endif

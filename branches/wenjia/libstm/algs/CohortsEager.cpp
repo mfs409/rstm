@@ -253,14 +253,14 @@ namespace {
               // in place write
               *addr = val;
               // go turbo mode
-              stm::OnFirstWrite(read_turbo, write_turbo, commit_turbo);
+              stm::OnFirstWrite(tx, read_turbo, write_turbo, commit_turbo);
               return;
           }
           // reset flag
           inplace = 0;
       }
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
-      stm::OnFirstWrite(read_rw, write_rw, commit_rw);
+      stm::OnFirstWrite(tx, read_rw, write_rw, commit_rw);
   }
 
   /**
@@ -376,3 +376,7 @@ namespace stm {
   }
 }
 
+
+#ifdef STM_ONESHOT_ALG_CohortsEager
+DECLARE_AS_ONESHOT_TURBO(CohortsEager)
+#endif

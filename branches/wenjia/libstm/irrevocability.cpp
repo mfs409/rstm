@@ -43,9 +43,13 @@ namespace
    */
   inline void unset_irrevocable_barriers(TxThread& tx)
   {
+#ifndef STM_ONESHOT_MODE
       stm::tmread         = stms[curr_policy.ALG_ID].read;
       stm::tmwrite        = stms[curr_policy.ALG_ID].write;
       stm::tmcommit       = stms[curr_policy.ALG_ID].commit;
+#else
+      UNRECOVERABLE("Irrevocability does not work with ONESHOT mode");
+#endif
       tx.tmrollback       = stms[curr_policy.ALG_ID].rollback;
       TxThread::tmirrevoc = stms[curr_policy.ALG_ID].irrevoc;
   }
@@ -72,9 +76,13 @@ namespace
    */
   inline void set_irrevocable_barriers(TxThread& tx)
   {
+#ifndef STM_ONESHOT_MODE
       stm::tmread         = stms[CGL].read;
       stm::tmwrite        = stms[CGL].write;
       stm::tmcommit       = commit_irrevocable;
+#else
+      UNRECOVERABLE("Irrevocability does not work with ONESHOT mode");
+#endif
       tx.tmrollback       = rollback_irrevocable;
       TxThread::tmirrevoc = stms[CGL].irrevoc;
   }

@@ -19,3 +19,7 @@ namespace stm
   }
 
 }
+
+#ifdef STM_ONESHOT_ALG_OrEAU
+DECLARE_AS_ONESHOT_NORMAL(OrEAU_Generic<BackoffCM>)
+#endif

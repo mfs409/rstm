@@ -17,3 +17,7 @@ namespace stm
         OrecLazy_Generic<BackoffCM>::Initialize(OrecLazyBackoff, "OrecLazyBackoff");
     }
 }
+
+#ifdef STM_ONESHOT_ALG_OrecLazyBackoff
+DECLARE_AS_ONESHOT_NORMAL(OrecLazy_Generic<BackoffCM>)
+#endif

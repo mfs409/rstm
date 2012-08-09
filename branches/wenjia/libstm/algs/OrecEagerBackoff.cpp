@@ -18,3 +18,7 @@ namespace stm
       OrecEager_Generic<BackoffCM>::initialize(OrecEagerBackoff, "OrecEagerBackoff");
   }
 }
+
+#ifdef STM_ONESHOT_ALG_OrecEagerBackoff
+DECLARE_AS_ONESHOT_SIMPLE(OrecEager_Generic<BackoffCM>)
+#endif

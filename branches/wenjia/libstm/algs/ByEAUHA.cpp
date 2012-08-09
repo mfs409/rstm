@@ -18,3 +18,7 @@ namespace stm
       ByEAU_Generic<HyperAggressiveCM>::Initialize(ByEAUHA, "ByEAUHA");
   }
 }
+
+#ifdef STM_ONESHOT_ALG_ByEAUHA
+DECLARE_AS_ONESHOT_NORMAL(ByEAU_Generic<HyperAggressiveCM>)
+#endif

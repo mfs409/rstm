@@ -17,3 +17,7 @@ namespace stm
         OrecLazy_Generic<HourglassCM>::Initialize(OrecLazyHour, "OrecLazyHour");
     }
 }
+
+#ifdef STM_ONESHOT_ALG_OrecLazyHour
+DECLARE_AS_ONESHOT_NORMAL(OrecLazy_Generic<HourglassCM>)
+#endif

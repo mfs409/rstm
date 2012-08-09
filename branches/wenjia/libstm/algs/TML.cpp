@@ -186,3 +186,7 @@ namespace stm {
       stms[TML].privatization_safe = true;
   }
 }
+
+#ifdef STM_ONESHOT_ALG_TML
+DECLARE_AS_ONESHOT_SIMPLE(TML)
+#endif

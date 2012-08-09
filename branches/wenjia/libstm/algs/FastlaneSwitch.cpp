@@ -46,8 +46,9 @@ using stm::get_orec;
  *  circular dependencies.
  */
 namespace {
+  // [mfs] These need to be padded
   static const uint32_t MSB = 0x80000000; // Most Important Bit of 32bit interger
-  volatile uint32_t cntr = 0;             // Global counter
+  volatile uint32_t cntr = 0;             // Global counter... use timestamp?
   volatile uint32_t helper = 0;           // Helper lock
   volatile uint32_t master = 0;           // Master lock
 
@@ -110,7 +111,7 @@ namespace {
           WBR;
 
           // go master mode
-          stm::GoTurbo(read_master, write_master, commit_master);
+          stm::GoTurbo(tx, read_master, write_master, commit_master);
       }
 
       // helpers get even counter (discard LSD & MSB)
@@ -120,7 +121,7 @@ namespace {
       //
       // [mfs] I don't think this is needed... the prior commit should have
       // reset these to the _ro variants already.
-      stm::GoTurbo(read_ro, write_ro, commit_ro);
+      stm::GoTurbo(tx, read_ro, write_ro, commit_ro);
   }
 
   /**
@@ -314,7 +315,7 @@ namespace {
 
       // Add to write set
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
-      stm::OnFirstWrite(read_rw, write_rw, commit_rw);
+      stm::OnFirstWrite(tx, read_rw, write_rw, commit_rw);
   }
 
   /**
@@ -453,3 +454,7 @@ namespace stm {
   }
 }
 
+
+#ifdef STM_ONESHOT_ALG_FastlaneSwitch
+DECLARE_AS_ONESHOT_MASTER(FastlaneSwitch)
+#endif

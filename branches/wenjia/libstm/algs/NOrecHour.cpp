@@ -18,3 +18,7 @@ namespace stm
       NOrec_Generic<HourglassCM>::initialize(NOrecHour, "NOrecHour");
   }
 }
+
+#ifdef STM_ONESHOT_ALG_NOrecHour
+DECLARE_AS_ONESHOT_NORMAL(NOrec_Generic<HourglassCM>)
+#endif

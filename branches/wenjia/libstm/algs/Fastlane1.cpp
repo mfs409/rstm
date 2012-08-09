@@ -81,8 +81,8 @@ namespace {
           timestamp.val = (timestamp.val & ~MSB) + 1;
 
           // go master mode
-          if (stm::tmread != read_master)
-              stm::GoTurbo(read_master, write_master, commit_master);
+          if (!CheckMasterMode(tx, read_master))
+              stm::GoMaster(tx, read_master, write_master, commit_master);
       }
 
       // helpers get even counter (discard LSD & MSB)
@@ -99,7 +99,7 @@ namespace {
       CFENCE; //wbw between write back and change of timestamp.val
       // Only master can write odd timestamp.val, now timestamp.val is even again
       timestamp.val++;
-      OnReadWriteCommit(tx, read_master, write_master, commit_master);
+      OnReadWriteCommit(tx);
   }
 
   /**
@@ -254,7 +254,7 @@ namespace {
       TX_GET_TX_INTERNAL;
       // Add to write set
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
-      stm::OnFirstWrite(read_rw, write_rw, commit_rw);
+      stm::OnFirstWrite(tx, read_rw, write_rw, commit_rw);
   }
 
   /**
@@ -329,3 +329,7 @@ namespace stm {
   }
 }
 
+
+#ifdef STM_ONESHOT_ALG_Fastlane1
+DECLARE_AS_ONESHOT_MASTER(Fastlane1)
+#endif

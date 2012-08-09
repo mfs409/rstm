@@ -18,3 +18,7 @@ namespace stm
       ByEAU_Generic<HourglassCM>::Initialize(ByEAUHour, "ByEAUHour");
   }
 }
+
+#ifdef STM_ONESHOT_ALG_ByEAUHour
+DECLARE_AS_ONESHOT_NORMAL(ByEAU_Generic<HourglassCM>)
+#endif

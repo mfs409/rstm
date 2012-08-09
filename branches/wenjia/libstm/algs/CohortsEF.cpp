@@ -243,7 +243,7 @@ namespace {
               // add entry to the global filter
               global_filter->add(addr);
               // go turbo mode
-              stm::OnFirstWrite(read_turbo, write_turbo, commit_turbo);
+              stm::OnFirstWrite(tx, read_turbo, write_turbo, commit_turbo);
               return;
           }
           // reset flag
@@ -251,7 +251,7 @@ namespace {
       }
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
       tx->wf->add(addr);
-      stm::OnFirstWrite(read_rw, write_rw, commit_rw);
+      stm::OnFirstWrite(tx, read_rw, write_rw, commit_rw);
   }
 
   /**
@@ -360,3 +360,7 @@ namespace stm {
   }
 }
 
+
+#ifdef STM_ONESHOT_ALG_CohortsEF
+DECLARE_AS_ONESHOT_TURBO(CohortsEF)
+#endif
