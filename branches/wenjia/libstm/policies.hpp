@@ -20,7 +20,8 @@
 #include <inttypes.h>
 #include "../include/abstract_compiler.hpp"
 #include "MiniVector.hpp"
-#include "txthread.hpp" // [mfs] we should be able to drop this dependency...
+#include "Constants.hpp"
+//#include "txthread.hpp" // [mfs] we should be able to drop this dependency...
 
 namespace stm
 {
@@ -283,25 +284,6 @@ namespace stm
   extern pol_t                 pols[POL_MAX];       // describe all policies
   extern MiniVector<qtable_t>* qtbl[MAX_THREADS+1]; // hold the CBR data
   extern behavior_t            curr_policy;         // the current STM alg
-
-  /**
-   *  Helper function.  This is a terrible thing, and one we must get rid of,
-   *  especially since we are calling it far more often than we should!
-   */
-  inline unsigned long long get_nontxtime()
-  {
-      // extimate the global nontx time per transaction
-      uint32_t commits = 1;
-      unsigned long long nontxn_time = 0;
-      for (unsigned z = 0; z < threadcount.val; z++){
-          nontxn_time += threads[z]->total_nontxn_time;
-          commits += threads[z]->num_commits;
-          commits += threads[z]->num_ro;
-      }
-      commits += !commits; // if commits is 0, make it 1, without control flow
-      unsigned long long ans = 1 + (nontxn_time / commits);
-      return ans;
-  }
 
   /*** used in the policies impementations to register policies */
   void init_adapt_pol(uint32_t PolicyID,   int32_t startmode,

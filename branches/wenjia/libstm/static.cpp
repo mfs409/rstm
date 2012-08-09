@@ -8,6 +8,10 @@
  *          Please see the file LICENSE.RSTM for licensing information
  */
 
+/**
+ *  This file needs to be renamed
+ */
+
 #include <signal.h>
 #include "initializers.hpp"
 #include "policies.hpp"

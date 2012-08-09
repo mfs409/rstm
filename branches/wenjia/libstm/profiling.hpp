@@ -25,8 +25,8 @@
 
 #include <cstdlib>
 #include "../include/tlsapi.hpp"
-#include "txthread.hpp"
 #include "policies.hpp"
+#include "txthread.hpp"
 
 namespace stm
 {
