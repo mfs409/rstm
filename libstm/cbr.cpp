@@ -13,10 +13,31 @@
 #include <limits.h>
 #include "initializers.hpp" // init_pol_cbr
 #include "policies.hpp"     // init_adapt_pol
+#include "Globals.hpp"
+#include "txthread.hpp"
 #include "profiling.hpp"
 #include "algs.hpp"
 
 using namespace stm;
+
+  /**
+   *  Helper function.  This is a terrible thing, and one we must get rid of,
+   *  especially since we are calling it far more often than we should!
+   */
+  inline unsigned long long get_nontxtime()
+  {
+      // extimate the global nontx time per transaction
+      uint32_t commits = 1;
+      unsigned long long nontxn_time = 0;
+      for (unsigned z = 0; z < threadcount.val; z++){
+          nontxn_time += threads[z]->total_nontxn_time;
+          commits += threads[z]->num_commits;
+          commits += threads[z]->num_ro;
+      }
+      commits += !commits; // if commits is 0, make it 1, without control flow
+      unsigned long long ans = 1 + (nontxn_time / commits);
+      return ans;
+  }
 
 /**
  *  This file implements a few classifiers for trying to pick which algorithm

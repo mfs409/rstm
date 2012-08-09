@@ -44,7 +44,7 @@ CXXNAMES = algs cbr inst irrevocability policies profiling static txthread \
            types WBMMPolicy $(ALGNAMES)
 
 ifeq ($(CHECKPOINT),asm)
-CXXNAMES += checkpoint gcc
+CXXNAMES += checkpoint
 endif
 
 #
