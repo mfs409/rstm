@@ -126,7 +126,7 @@ namespace
               committed.val++;
               CFENCE;
               last_complete.val = tx->order;
-              tx->tmabort();
+              stm::tmabort();
           }
 
       // Last one in cohort can pass the orec marking process

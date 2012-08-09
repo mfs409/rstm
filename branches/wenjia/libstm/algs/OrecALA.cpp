@@ -115,13 +115,13 @@ namespace {
           if (ivt <= tx->start_time) {
               // abort if cannot acquire
               if (!bcasptr(&o->v.all, ivt, tx->my_lock.all))
-                  tx->tmabort();
+                  stm::tmabort();
               // save old version to o->p, remember that we hold the lock
               o->p = ivt;
               tx->locks.insert(o);
           }
           else if (ivt != tx->my_lock.all) {
-              tx->tmabort();
+              stm::tmabort();
           }
       }
 
@@ -134,7 +134,7 @@ namespace {
               // read this orec
               uintptr_t ivt = (*i)->v.all;
               if ((ivt > tx->start_time) && (ivt != tx->my_lock.all))
-                  tx->tmabort();
+                  stm::tmabort();
           }
       }
 
@@ -178,7 +178,7 @@ namespace {
 
       // make sure this location isn't locked or too new
       if (o->v.all > tx->start_time)
-          tx->tmabort();
+          stm::tmabort();
 
       // privatization safety: poll the timestamp, maybe validate
       uintptr_t ts = timestamp.val;
@@ -296,7 +296,7 @@ namespace {
           // if orec unlocked and newer than start time, it changed, so abort.
           // if locked, it's not locked by me so abort
           if ((*i)->v.all > tx->start_time)
-              tx->tmabort();
+              stm::tmabort();
       }
 
       // remember that we validated at this time

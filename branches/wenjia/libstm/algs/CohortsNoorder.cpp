@@ -276,15 +276,15 @@ namespace {
   /**
    *   Cohorts Tx Abort Wrapper
    */
-    void
-    CohortsNoorder::TxAbortWrapper(TxThread* tx)
-    {
-        // Increase total number of committed tx
-        faiptr(&committed.val);
+  void
+  CohortsNoorder::TxAbortWrapper(TxThread*)
+  {
+      // Increase total number of committed tx
+      faiptr(&committed.val);
 
-        // abort
-        tx->tmabort();
-    }
+      // abort
+      stm::tmabort();
+  }
 
   /**
    *  Switch to CohortsNoorder:

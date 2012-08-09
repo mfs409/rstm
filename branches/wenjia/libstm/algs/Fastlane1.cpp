@@ -147,7 +147,7 @@ namespace {
           // If orec changed , abort
           if ((*i)->v.all > tx->start_time) {
               SUB(&timestamp.val, 1);
-              tx->tmabort();
+              stm::tmabort();
           }
 
       // Write updates to memory, mark orec as c + 1
@@ -196,7 +196,7 @@ namespace {
 
       // validate read value
       if (o->v.all > tx->start_time)
-          tx->tmabort();
+          stm::tmabort();
 
       // log orec
       tx->r_orecs.insert(o);

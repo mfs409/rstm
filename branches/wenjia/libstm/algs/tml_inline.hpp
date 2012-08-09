@@ -28,7 +28,7 @@ namespace stm
   {
       CFENCE;
       if (__builtin_expect(timestamp.val != tx->start_time, false))
-          tx->tmabort();
+          tmabort();
   }
 
   /**
@@ -37,7 +37,7 @@ namespace stm
   inline void beforewrite_TML(TxThread* tx) {
       // acquire the lock, abort on failure
       if (!bcasptr(&timestamp.val, tx->start_time, tx->start_time + 1))
-          tx->tmabort();
+          tmabort();
       ++tx->start_time;
       tx->tmlHasLock = true;
   }

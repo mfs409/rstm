@@ -186,7 +186,7 @@ namespace
               CFENCE;
               q = NULL;
           }
-          tx->tmabort();
+          stm::tmabort();
       }
 
       // Do write back

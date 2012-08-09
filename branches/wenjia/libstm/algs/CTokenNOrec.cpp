@@ -93,7 +93,7 @@ namespace {
       while (last_complete.val != (uintptr_t)(tx->order - 1)) {
           // Check if we need to abort due to an adaptivity event
           if (stm::tmbegin != begin)
-              tx->tmabort();
+              stm::tmabort();
       }
 
       // since we have the token, we can validate before getting locks
@@ -233,7 +233,7 @@ namespace {
       foreach (ValueList, i, tx->vlist) {
           bool valid = STM_LOG_VALUE_IS_VALID(i, tx);
           if (!valid)
-              tx->tmabort();
+              stm::tmabort();
       }
 
       // now update the finish_cache to remember that at this time, we were

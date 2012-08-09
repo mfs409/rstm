@@ -99,7 +99,7 @@ namespace {
           uintptr_t ivt = (*i)->v.all;
           // if unlocked and newer than start time, abort
           if ((ivt > tx->start_time) && (ivt != tx->my_lock.all))
-              tx->tmabort();
+              stm::tmabort();
       }
 
       // run the redo log
@@ -147,7 +147,7 @@ namespace {
 
           // abort if locked by other
           if (ivt.fields.lock)
-              tx->tmabort();
+              stm::tmabort();
 
           // scale timestamp if ivt is too new
           uintptr_t newts = timestamp.val;
@@ -193,7 +193,7 @@ namespace {
 
           // abort if locked by other
           if (ivt.fields.lock)
-              tx->tmabort();
+              stm::tmabort();
 
           // scale timestamp if ivt is too new
           uintptr_t newts = timestamp.val;
@@ -226,7 +226,7 @@ namespace {
           // common case: uncontended location... lock it
           if (ivt.all <= tx->start_time) {
               if (!bcasptr(&o->v.all, ivt.all, tx->my_lock.all))
-                  tx->tmabort();
+                  stm::tmabort();
 
               // save old, log lock, write, return
               o->p = ivt.all;
@@ -237,7 +237,7 @@ namespace {
 
           // fail if lock held
           if (ivt.fields.lock)
-              tx->tmabort();
+              stm::tmabort();
 
           // unlocked but too new... scale forward and try again
           uintptr_t newts = timestamp.val;
@@ -269,7 +269,7 @@ namespace {
           // common case: uncontended location... lock it
           if (ivt.all <= tx->start_time) {
               if (!bcasptr(&o->v.all, ivt.all, tx->my_lock.all))
-                  tx->tmabort();
+                  stm::tmabort();
 
               // save old, log lock, write, return
               o->p = ivt.all;
@@ -283,7 +283,7 @@ namespace {
 
           // fail if lock held
           if (ivt.fields.lock)
-              tx->tmabort();
+              stm::tmabort();
 
           // unlocked but too new... scale forward and try again
           uintptr_t newts = timestamp.val;
@@ -341,7 +341,7 @@ namespace {
           uintptr_t ivt = (*i)->v.all;
           // if unlocked and newer than start time, abort
           if ((ivt > tx->start_time) && (ivt != tx->my_lock.all))
-              tx->tmabort();
+              stm::tmabort();
       }
   }
 

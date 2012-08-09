@@ -87,7 +87,7 @@ namespace {
 
           // check if an adaptivity action is underway
           if (stm::tmbegin != begin){
-              tx->tmabort();
+              stm::tmabort();
           }
       }
 
@@ -365,13 +365,13 @@ namespace {
    *   decrease total # in one cohort, and abort
    */
   void
-  CohortsOld::TxAbortWrapper(TxThread* tx)
+  CohortsOld::TxAbortWrapper(TxThread*)
   {
       // decrease total number of tx in one cohort
       faaptr(&started.val, -2);
 
       // abort
-      tx->tmabort();
+      stm::tmabort();
   }
 
   /**
@@ -389,7 +389,7 @@ namespace {
       last_complete.val = tx->order;
 
       // abort
-      tx->tmabort();
+      stm::tmabort();
   }
 
   /**

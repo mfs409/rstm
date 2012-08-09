@@ -134,35 +134,6 @@ namespace stm
 #ifdef STM_ONESHOT_MODE
       uint32_t      mode; // MODE_TURBO, MODE_WRITE, or MODE_RO
 #endif
-      /**
-       * Some APIs, in particular the itm API at the moment, want to be able
-       * to rollback the top level of nesting without actually unwinding the
-       * stack. Rollback behavior changes per-implementation (some, such as
-       * CGL, can't rollback) so we add it here.
-       *
-       * [mfs] Why is this still a static member?
-       */
-      static void (*tmrollback)(STM_ROLLBACK_SIG(,,));
-
-      /**
-       * The function for aborting a transaction. The "tmabort" function is
-       * designed as a configurable function pointer so that an API environment
-       * like the itm shim can override the conflict abort behavior of the
-       * system. tmabort is configured using sys_init.
-       *
-       * Some advanced APIs may not want a NORETURN abort function, but the stm
-       * library at the moment only handles this option.
-       *
-       * [mfs] Why is this still a static member?
-       */
-      static NORETURN void tmabort();
-
-      /**
-       * how to become irrevocable in-flight
-       *
-       * [mfs] Why is this still a static member?
-       */
-      static bool(*tmirrevoc)(TxThread*);
 
       /**
        *  For shutting down threads.
@@ -175,7 +146,9 @@ namespace stm
        * the init factory.  Construction of TxThread objects is only possible
        * through this function.  Note, too, that destruction is forbidden.
        *
-       * [mfs] Why is this still a static member?  Could we use a friend instead?
+       * [mfs] Why is this still a static member?  TxThread is not externally
+       *       visible anymore, so we could just make its constructor
+       *       public, and then have a regular function for thread_init.
        */
       static void thread_init();
     protected:
@@ -192,10 +165,6 @@ namespace stm
       void** my_tmread;
       void** my_tmwrite;
 #endif
-      /**
-       * test function
-       */
-      TxThread* get_tls();
   }; // class TxThread
 
   /*** GLOBAL VARIABLES RELATED TO THREAD MANAGEMENT */
@@ -213,6 +182,33 @@ namespace stm
   TM_FASTCALL void* tmread(TX_FIRST_PARAMETER STM_READ_SIG(,));
   TM_FASTCALL void  tmwrite(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
 #endif
+
+  /**
+   * how to become irrevocable in-flight
+   *
+   * [mfs] Why is this still a static member?
+   */
+  extern bool(*tmirrevoc)(TxThread*);
+
+  /**
+   * Some APIs, in particular the itm API at the moment, want to be able
+   * to rollback the top level of nesting without actually unwinding the
+   * stack. Rollback behavior changes per-implementation (some, such as
+   * CGL, can't rollback) so we add it here.
+   */
+  extern void (*tmrollback)(STM_ROLLBACK_SIG(,,));
+
+  /**
+   * The function for aborting a transaction. The "tmabort" function is
+   * designed as a configurable function pointer so that an API environment
+   * like the itm shim can override the conflict abort behavior of the
+   * system. tmabort is configured using sys_init.
+   *
+   * Some advanced APIs may not want a NORETURN abort function, but the stm
+   * library at the moment only handles this option.
+   */
+  NORETURN void tmabort();
+
   /**
    *  The read/write/commit instrumentation is reached via per-thread
    *  function pointers, which can be exchanged easily during execution.

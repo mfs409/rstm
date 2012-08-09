@@ -123,7 +123,7 @@ namespace {
               // reset q if last one
               if (q == &(tx->turn)) q = NULL;
               // abort
-              tx->tmabort();
+              stm::tmabort();
           }
       }
 

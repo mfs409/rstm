@@ -201,7 +201,7 @@ namespace {
           CFENCE;
           // Release lock upon failed validation
           helper = 0;
-          tx->tmabort();
+          stm::tmabort();
       }
       // Remember validation time
       uint32_t t = c + 1;
@@ -215,7 +215,7 @@ namespace {
           // Release locks upon failed validation
           SUB(&cntr, 1);
           helper = 0;
-          tx->tmabort();
+          stm::tmabort();
       }
 
       // Write updates to memory
@@ -254,7 +254,7 @@ namespace {
 
       // validate read value
       if (o->v.all > tx->start_time)
-          tx->tmabort();
+          stm::tmabort();
 
       // log orec
       tx->r_orecs.insert(o);
@@ -264,7 +264,7 @@ namespace {
       foreach(OrecList, i, tx->r_orecs) {
           uintptr_t ivt_inner = (*i)->v.all;
           if (ivt_inner > tx->start_time)
-              tx->tmabort();
+              stm::tmabort();
       }
       return val;
   }
@@ -311,7 +311,7 @@ namespace {
       orec_t *o = get_orec(addr);
       // validate
       if (o->v.all > tx->start_time)
-          tx->tmabort();
+          stm::tmabort();
 
       // Add to write set
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
@@ -329,7 +329,7 @@ namespace {
       orec_t *o = get_orec(addr);
       // validate
       if (o->v.all > tx->start_time)
-          tx->tmabort();
+          stm::tmabort();
 
       // record the new value in a redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));

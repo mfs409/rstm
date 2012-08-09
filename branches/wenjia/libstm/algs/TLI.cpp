@@ -70,7 +70,7 @@ namespace {
       TX_GET_TX_INTERNAL;
       // if the transaction is invalid, abort
       if (__builtin_expect(tx->alive == 2, false))
-          tx->tmabort();
+          stm::tmabort();
 
       // ok, all is good
       tx->alive = 0;
@@ -87,7 +87,7 @@ namespace {
       TX_GET_TX_INTERNAL;
       // if the transaction is invalid, abort
       if (__builtin_expect(tx->alive == 2, false))
-          tx->tmabort();
+          stm::tmabort();
 
       // grab the lock to stop the world
       uintptr_t tmp = timestamp.val;
@@ -99,7 +99,7 @@ namespace {
       // double check that we're valid
       if (__builtin_expect(tx->alive == 2,false)) {
           timestamp.val = tmp + 2; // release the lock
-          tx->tmabort();
+          stm::tmabort();
       }
 
       // kill conflicting transactions
@@ -149,7 +149,7 @@ namespace {
               return val;
           // abort if we're killed
           if (tx->alive == 2)
-              tx->tmabort();
+              stm::tmabort();
       }
   }
 

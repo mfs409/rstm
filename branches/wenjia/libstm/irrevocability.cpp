@@ -41,7 +41,7 @@ namespace
    *  tmabort which reverts to the one we saved, and tmbegin which should be
    *  done manually in the caller.
    */
-  inline void unset_irrevocable_barriers(TxThread& tx)
+  inline void unset_irrevocable_barriers()
   {
 #ifndef STM_ONESHOT_MODE
       stm::tmread         = stms[curr_policy.ALG_ID].read;
@@ -50,8 +50,8 @@ namespace
 #else
       UNRECOVERABLE("Irrevocability does not work with ONESHOT mode");
 #endif
-      tx.tmrollback       = stms[curr_policy.ALG_ID].rollback;
-      TxThread::tmirrevoc = stms[curr_policy.ALG_ID].irrevoc;
+      stm::tmrollback       = stms[curr_policy.ALG_ID].rollback;
+      stm::tmirrevoc = stms[curr_policy.ALG_ID].irrevoc;
   }
 
   /**
@@ -63,7 +63,7 @@ namespace
 
       // make self non-irrevocable, and unset local r/w/c barriers
       tx->irrevocable = false;
-      unset_irrevocable_barriers(*tx);
+      unset_irrevocable_barriers();
       // now allow other transactions to run
       CFENCE;
       stm::tmbegin = stms[curr_policy.ALG_ID].begin;
@@ -74,7 +74,7 @@ namespace
   /**
    *  Sets all of the barriers to be irrevocable, except tmbegin.
    */
-  inline void set_irrevocable_barriers(TxThread& tx)
+  inline void set_irrevocable_barriers()
   {
 #ifndef STM_ONESHOT_MODE
       stm::tmread         = stms[CGL].read;
@@ -83,8 +83,8 @@ namespace
 #else
       UNRECOVERABLE("Irrevocability does not work with ONESHOT mode");
 #endif
-      tx.tmrollback       = rollback_irrevocable;
-      TxThread::tmirrevoc = stms[CGL].irrevoc;
+      stm::tmrollback       = rollback_irrevocable;
+      stm::tmirrevoc = stms[CGL].irrevoc;
   }
 }
 
@@ -113,7 +113,7 @@ namespace stm
       //
       // NB: stm::is_irrevoc relies on how this works, so if it changes then
       //     please update that code as well.
-      if (TxThread::tmirrevoc == stms[CGL].irrevoc)
+      if (tmirrevoc == stms[CGL].irrevoc)
           return;
 
       if ((curr_policy.ALG_ID == MCS) || (curr_policy.ALG_ID == Ticket))
@@ -143,7 +143,7 @@ namespace stm
       //  we'll just abort all the time.  The impact should be minimal.
       if (!bcasptr(&stm::tmbegin, stms[curr_policy.ALG_ID].begin,
                    &begin_blocker))
-          tx->tmabort();
+          tmabort();
 
       // wait for everyone to be out of a transaction (scope == NULL)
       for (unsigned i = 0; i < threadcount.val; ++i)
@@ -151,11 +151,11 @@ namespace stm
               spin64();
 
       // try to become irrevocable inflight
-      tx->irrevocable = TxThread::tmirrevoc(tx);
+      tx->irrevocable = tmirrevoc(tx);
 
       // If inflight succeeded, switch our barriers and return true.
       if (tx->irrevocable) {
-          set_irrevocable_barriers(*tx);
+          set_irrevocable_barriers();
           return;
       }
 
@@ -169,7 +169,7 @@ namespace stm
       // begin_blocker sets our barriers to be irrevocable if we have our
       // irrevocable flag set.
       tx->irrevocable = true;
-      tx->tmabort();
+      stm::tmabort();
   }
 
   /**
@@ -177,7 +177,7 @@ namespace stm
    */
   bool is_irrevoc(const TxThread& tx)
   {
-      if (tx.irrevocable || TxThread::tmirrevoc == stms[CGL].irrevoc)
+      if (tx.irrevocable || tmirrevoc == stms[CGL].irrevoc)
           return true;
       if ((curr_policy.ALG_ID == MCS) || (curr_policy.ALG_ID  == Ticket))
           return true;
@@ -200,7 +200,7 @@ namespace stm
 
       // if the caller is trying to restart as irrevocable, let them
       if (tx->irrevocable) {
-          set_irrevocable_barriers(*tx);
+          set_irrevocable_barriers();
           return;
       }
 

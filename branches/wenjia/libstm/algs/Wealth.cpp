@@ -92,7 +92,7 @@ namespace {
       // writeback
       while (last_complete.val != (uintptr_t)(tx->order - 1)) {
           if (stm::tmbegin != begin)
-              tx->tmabort();
+              stm::tmabort();
       }
 
       // since we have the token, we can validate before getting locks
@@ -146,7 +146,7 @@ namespace {
       // NB: this is a pretty serious tradeoff... it admits false aborts for
       //     the sake of preventing a 'check if locked' test
       if (ivt > tx->ts_cache)
-          tx->tmabort();
+          stm::tmabort();
 
       // log orec
       tx->r_orecs.insert(o);
@@ -246,7 +246,7 @@ namespace {
           uintptr_t ivt = (*i)->v.all;
           // if it has a timestamp of ts_cache or greater, abort
           if (ivt > tx->ts_cache)
-              tx->tmabort();
+              stm::tmabort();
       }
       // now update the finish_cache to remember that at this time, we were
       // still valid

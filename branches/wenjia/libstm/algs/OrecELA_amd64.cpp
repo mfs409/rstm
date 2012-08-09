@@ -132,14 +132,14 @@ namespace
           if (ivt <= tx->start_time) {
               // abort if cannot acquire
               if (!bcasptr(&o->v.all, ivt, tx->my_lock.all))
-                  tx->tmabort();
+                  stm::tmabort();
               // save old version to o->p, remember that we hold the lock
               o->p = ivt;
               tx->locks.insert(o);
           }
           // else if we don't hold the lock abort
           else if (ivt != tx->my_lock.all) {
-              tx->tmabort();
+              stm::tmabort();
           }
       }
 
@@ -148,7 +148,7 @@ namespace
           uintptr_t ivt = (*i)->v.all;
           // if unlocked and newer than start time, abort
           if ((ivt > tx->start_time) && (ivt != tx->my_lock.all))
-              tx->tmabort();
+              stm::tmabort();
       }
 
       // run the redo log
@@ -340,7 +340,7 @@ namespace
       foreach (OrecList, i, tx->r_orecs)
           // abort if orec locked, or if unlocked but timestamp too new
           if ((*i)->v.all > tx->start_time)
-              tx->tmabort();
+              stm::tmabort();
   }
 
   /**

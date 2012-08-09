@@ -77,8 +77,8 @@ namespace stm
           threads[i]->consec_aborts  = 0;
       }
 
-      TxThread::tmrollback = stms[new_alg].rollback;
-      TxThread::tmirrevoc  = stms[new_alg].irrevoc;
+      tmrollback = stms[new_alg].rollback;
+      tmirrevoc  = stms[new_alg].irrevoc;
       curr_policy.ALG_ID   = new_alg;
       CFENCE;
       tmbegin    = stms[new_alg].begin;

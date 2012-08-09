@@ -147,7 +147,7 @@ namespace {
               if (lastone)
                   gatekeeper = 0;
 
-              tx->tmabort();
+              stm::tmabort();
           }
 
       // do write back

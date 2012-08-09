@@ -116,7 +116,7 @@ namespace {
               committed.val++;
               CFENCE;
               last_complete.val = tx->order;
-              tx->tmabort();
+              stm::tmabort();
           }
 
       // Wait until all tx are ready to commit
