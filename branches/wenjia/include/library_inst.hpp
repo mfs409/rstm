@@ -111,7 +111,7 @@ namespace stm
           return v.f;
       }
 
-      inline static void write(TX_FIRST_PARAMETER_ANON const float*, float, TxThread*)
+      inline static void write(TX_FIRST_PARAMETER_ANON const float*, float)
       {
           UNRECOVERABLE("You should not be writing a const float!");
       }
@@ -208,7 +208,7 @@ namespace stm
           return v.t;
       }
 
-      inline static void write(TX_FIRST_PARAMETER_ANON const double*, double, TxThread*)
+      inline static void write(TX_FIRST_PARAMETER_ANON const double*, double)
       {
           UNRECOVERABLE("You should not be writing a const double!");
       }
@@ -297,7 +297,7 @@ namespace stm
           return v.d;
       }
 
-      inline static void write(const double*, double, TxThread*)
+      inline static void write(const double*, double)
       {
           UNRECOVERABLE("You should not be writing a const double!");
       }
@@ -421,7 +421,7 @@ namespace stm
           return v.v[offset];
       }
 
-      inline static void write(const float*, float, TxThread*)
+      inline static void write(const float*, float)
       {
           UNRECOVERABLE("You should not be writing a const float!");
       }

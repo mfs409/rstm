@@ -58,13 +58,14 @@ extern uint32_t _ITM_beginTransaction(uint32_t)
 
 namespace stm
 {
+#ifndef STM_CHECKPOINT_ASM
+
   /**
-   * The API still exposes these, so we need to declare them :(
+   *  To ensure a proper signature on begin, we need to have something called
+   *  "stm::scope_t"
    */
-  class TxThread;
   typedef void scope_t;
 
-#ifndef STM_CHECKPOINT_ASM
   /**
    *  Code to start a transaction.  We assume the caller already performed a
    *  setjmp, and is passing a valid setjmp buffer to this function.
@@ -150,14 +151,11 @@ namespace stm
    */
   void declare_read_only();
 
-  // [mfs] Why is tmcommit visible?
 #ifndef STM_ONESHOT_MODE
   /*** Per-thread commit, read, and write pointers */
-  extern THREAD_LOCAL_DECL_TYPE(TM_FASTCALL void(*tmcommit)(TX_LONE_PARAMETER));
   extern THREAD_LOCAL_DECL_TYPE(TM_FASTCALL void*(*tmread)(TX_FIRST_PARAMETER STM_READ_SIG(,)));
   extern THREAD_LOCAL_DECL_TYPE(TM_FASTCALL void(*tmwrite)(TX_FIRST_PARAMETER STM_WRITE_SIG(,,)));
 #else
-  TM_FASTCALL void  tmcommit(TX_LONE_PARAMETER);
   TM_FASTCALL void* tmread(TX_FIRST_PARAMETER STM_READ_SIG(,));
   TM_FASTCALL void  tmwrite(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
 #endif
