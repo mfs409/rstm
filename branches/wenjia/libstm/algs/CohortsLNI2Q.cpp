@@ -30,21 +30,29 @@ using stm::gatekeeper;
 using stm::last_order;
 using stm::cohorts_node_t;
 
+#define WRITE_EARLYSEAL 3
+#define READ_EARLYSEAL  -1
+#define ABORT_EARLYSEAL 3
+
 /**
  *  Declare the functions that we're going to implement, so that we can avoid
  *  circular dependencies.
  */
 namespace
 {
-  NOINLINE bool validate(TxThread* tx);
-  struct pad_counter
-  {
+  struct pad_word {
       volatile uint32_t val;
       char _padding_[128-sizeof(uint32_t)];
   };
-  struct pad_counter counter = {0,{0}};
+
+  struct pad_word counter = {0,{0}};
   struct cohorts_node_t* volatile q = NULL;
 
+  // gatekeeper for early seal
+  struct pad_word sealed = {0,{0}};
+
+
+  NOINLINE bool validate(TxThread* tx);
   struct CohortsLNI2Q
   {
       static void begin(TX_LONE_PARAMETER);
@@ -77,21 +85,28 @@ namespace
       tx->allocator.onTxBegin();
     S1:
       // wait if I'm blocked
-      while (q != NULL);
+      while (q != NULL || sealed.val == 1);
 
       // set started
       tx->status = COHORTS_STARTED;
       WBR;
 
       // double check no one is ready to commit
-      if (q != NULL) {
+      if (q != NULL || sealed.val == 1) {
           // [mfs] verify that no fences are needed here
           // [wer210] I don't think we need fence here...
           //          although verified by only testing benches
           tx->status = COHORTS_COMMITTED;
           goto S1;
       }
+      // reset threadlocal variables
       tx->turn.val = COHORTS_NOTDONE;
+      tx->cohort_writes = 0;
+      // test if we need to do a early seal based on abort number
+      if (tx->cohort_aborts == ABORT_EARLYSEAL) {
+          atomicswap32(&sealed.val, 1);
+          tx->cohort_aborts = 0;
+      }
   }
 
   /**
@@ -180,10 +195,14 @@ namespace
 
       // Everyone must validate read
       if (!validate(tx)) {
+          // count the number of aborts
+          tx->cohort_aborts ++;
+          // mark self done
           tx->turn.val = COHORTS_DONE;
           if (q == &(tx->turn)) {
               counter.val = 0;
               CFENCE;
+              sealed.val = 0;
               q = NULL;
           }
           stm::tmabort();
@@ -200,6 +219,7 @@ namespace
       if (q == &(tx->turn)) {
           counter.val = 0;
           CFENCE;
+          sealed.val = 0;
           q = NULL;
       }
 
@@ -300,6 +320,11 @@ namespace
       // [mfs] we might get better instruction scheduling if we put this code
       //       first, and then did the check.
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
+
+      tx->cohort_writes++;
+      // test if we need to do a early seal based on write number
+      if (tx->cohort_writes == WRITE_EARLYSEAL)
+          atomicswap32(&sealed.val, 1);
 
       // check if I can go turbo
       //
