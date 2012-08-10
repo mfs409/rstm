@@ -181,8 +181,6 @@ namespace
 
       // Everyone must validate read
       if (!validate(tx)) {
-          // count the number of aborts
-          tx->cohort_aborts ++;
           // mark self done
           tx->turn.val = COHORTS_DONE;
           if (q == &(tx->turn)) {
