@@ -58,6 +58,7 @@ namespace stm
         cf((filter_t*)FILTER_ALLOC(sizeof(filter_t))),
         nanorecs(64), begin_wait(0), strong_HG(),
         irrevocable(false), status(0), r_addrs(64), turn(),
+        cohort_reads(0), cohort_writes(0), cohort_aborts(0),
         node(),nn(0),read_only(false),progress_is_seen(false),
         last_val_time((uint64_t)-1),
         pmu()

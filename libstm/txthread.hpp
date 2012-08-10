@@ -70,7 +70,7 @@ namespace stm
       uint32_t       num_aborts;    // stats counter: aborts
       uint32_t       num_restarts;  // stats counter: restart()s
       uint32_t       num_ro;        // stats counter: read-only commits
-    uint32_t       num_temp;        // [wer210]stats counter: temp use
+      uint32_t       num_temp;      // [wer210]stats counter: temp use
 #ifdef STM_PROTECT_STACK
       void**         stack_high;    // the stack pointer at begin_tx time
       void**         stack_low;     // norec stack low-water mark
@@ -109,16 +109,21 @@ namespace stm
       bool           strong_HG;     // for strong hourglass
       bool           irrevocable;   // tells begin_blocker that I'm THE ONE
 
-      /*** FOR COHORTS USE */
+      /*** FOR COHORTS */
       volatile uintptr_t status;    // tx status
       AddressList r_addrs;          // tx read addresses
       cohorts_node_t turn;          // tx turn node
 
-      /*** FOR CTOKENQ USE */
+      /*** FOR COHORTS WITH EARLY SEAL */
+      uint32_t cohort_reads;
+      uint32_t cohort_writes;
+      uint32_t cohort_aborts;
+
+      /*** FOR CTOKENQ */
       cohorts_node_t node[2];         // tx turn node[2]
       uint32_t nn;                    // tx node number
 
-      /*** FOR PESSIMISTIC USE */
+      /*** FOR PESSIMISTIC */
       bool read_only;               // mark a transaction to be read-only txn
       bool progress_is_seen;        // for recording waiting progress
 
