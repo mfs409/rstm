@@ -115,9 +115,9 @@ namespace stm
       cohorts_node_t turn;          // tx turn node
 
       /*** FOR COHORTS WITH EARLY SEAL */
-      uint32_t cohort_reads;
-      uint32_t cohort_writes;
-      uint32_t cohort_aborts;
+      int32_t cohort_reads;
+      int32_t cohort_writes;
+      int32_t cohort_aborts;
 
       /*** FOR CTOKENQ */
       cohorts_node_t node[2];         // tx turn node[2]

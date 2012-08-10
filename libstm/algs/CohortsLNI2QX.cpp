@@ -9,9 +9,10 @@
  */
 
 /**
- *  CohortsLNI2 Implementation
+ *  CohortsLNI2QX Implementation
  *
  *  CohortsLazy with inplace write when tx is the last one in a cohort.
+ *  Early Seal CohortsLNI2Q
  */
 #include "../profiling.hpp"
 #include "../algs.hpp"
@@ -30,6 +31,11 @@ using stm::gatekeeper;
 using stm::last_order;
 using stm::cohorts_node_t;
 
+// # of reads/writes/aborts before seal a cohort
+#define WRITE_EARLYSEAL  2
+#define READ_EARLYSEAL  -1
+#define ABORT_EARLYSEAL -1
+
 /**
  *  Declare the functions that we're going to implement, so that we can avoid
  *  circular dependencies.
@@ -44,8 +50,12 @@ namespace
   struct pad_word counter = {0,{0}};
   struct cohorts_node_t* volatile q = NULL;
 
+  // gatekeeper for early seal
+  struct pad_word sealed = {0,{0}};
+
+
   NOINLINE bool validate(TxThread* tx);
-  struct CohortsLNI2Q
+  struct CohortsLNI2QX
   {
       static void begin(TX_LONE_PARAMETER);
       static TM_FASTCALL void* read_ro(TX_FIRST_PARAMETER STM_READ_SIG(,));
@@ -65,26 +75,26 @@ namespace
   };
 
   /**
-   *  CohortsLNI2Q begin:
-   *  CohortsLNI2Q has a strict policy for transactions to begin. At first,
+   *  CohortsLNI2QX begin:
+   *  CohortsLNI2QX has a strict policy for transactions to begin. At first,
    *  every tx can start, until one of the tx is ready to commit. Then no
    *  tx is allowed to start until all the transactions finishe their
    *  commits.
    */
-  void CohortsLNI2Q::begin(TX_LONE_PARAMETER)
+  void CohortsLNI2QX::begin(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       tx->allocator.onTxBegin();
     S1:
       // wait if I'm blocked
-      while (q != NULL);
+      while (q != NULL || sealed.val == 1);
 
       // set started
       tx->status = COHORTS_STARTED;
       WBR;
 
       // double check no one is ready to commit
-      if (q != NULL) {
+      if (q != NULL || sealed.val == 1) {
           // [mfs] verify that no fences are needed here
           // [wer210] I don't think we need fence here...
           //          although verified by only testing benches
@@ -93,12 +103,18 @@ namespace
       }
       // reset threadlocal variables
       tx->turn.val = COHORTS_NOTDONE;
+      tx->cohort_writes = 0;
+      // test if we need to do a early seal based on abort number
+      if (tx->cohort_aborts == ABORT_EARLYSEAL) {
+          atomicswap32(&sealed.val, 1);
+          tx->cohort_aborts = 0;
+      }
   }
 
   /**
-   *  CohortsLNI2Q commit (read-only):
+   *  CohortsLNI2QX commit (read-only):
    */
-  void CohortsLNI2Q::commit_ro(TX_LONE_PARAMETER)
+  void CohortsLNI2QX::commit_ro(TX_LONE_PARAMETER)
   {
       // [mfs] Do we need a read-write fence to ensure all reads are done
       //       before we write to tx->status?
@@ -112,9 +128,9 @@ namespace
   }
 
   /**
-   *  CohortsLNI2Q commit_turbo (for write inplace tx use):
+   *  CohortsLNI2QX commit_turbo (for write inplace tx use):
    */
-  void CohortsLNI2Q::commit_turbo(TX_LONE_PARAMETER)
+  void CohortsLNI2QX::commit_turbo(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // Mark self committed
@@ -127,9 +143,9 @@ namespace
   }
 
   /**
-   *  CohortsLNI2Q commit (writing context):
+   *  CohortsLNI2QX commit (writing context):
    */
-  void CohortsLNI2Q::commit_rw(TX_LONE_PARAMETER)
+  void CohortsLNI2QX::commit_rw(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // pointer to the predecessor node in the queue
@@ -165,8 +181,6 @@ namespace
           // First one in a cohort waits until all tx are ready to commit
           for (uint32_t i = 0; i < threadcount.val; ++i)
               while (threads[i]->status == COHORTS_STARTED);
-
-          // do a quick filter comparison here?!?
       }
       */
       if (pred != NULL)
@@ -175,8 +189,6 @@ namespace
           // First one in a cohort waits until all tx are ready to commit
           for (uint32_t i = 0; i < threadcount.val; ++i)
               while (threads[i]->status == COHORTS_STARTED);
-
-          // do a quick filter comparison here?!?
       }
 
       // Everyone must validate read
@@ -188,6 +200,7 @@ namespace
           if (q == &(tx->turn)) {
               counter.val = 0;
               CFENCE;
+              sealed.val = 0;
               q = NULL;
           }
           stm::tmabort();
@@ -204,6 +217,7 @@ namespace
       if (q == &(tx->turn)) {
           counter.val = 0;
           CFENCE;
+          sealed.val = 0;
           q = NULL;
       }
 
@@ -214,9 +228,9 @@ namespace
   }
 
   /**
-   *  CohortsLNI2Q read (read-only transaction)
+   *  CohortsLNI2QX read (read-only transaction)
    */
-  void* CohortsLNI2Q::read_ro(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
+  void* CohortsLNI2QX::read_ro(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
   {
       TX_GET_TX_INTERNAL;
       void* tmp = *addr;
@@ -225,17 +239,17 @@ namespace
   }
 
   /**
-   *  CohortsLNI2Q read_turbo (for write in place tx use)
+   *  CohortsLNI2QX read_turbo (for write in place tx use)
    */
-  void* CohortsLNI2Q::read_turbo(TX_FIRST_PARAMETER_ANON STM_READ_SIG(addr,))
+  void* CohortsLNI2QX::read_turbo(TX_FIRST_PARAMETER_ANON STM_READ_SIG(addr,))
   {
       return *addr;
   }
 
   /**
-   *  CohortsLNI2Q read (writing transaction)
+   *  CohortsLNI2QX read (writing transaction)
    */
-  void* CohortsLNI2Q::read_rw(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
+  void* CohortsLNI2QX::read_rw(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
   {
       TX_GET_TX_INTERNAL;
       // check the log for a RAW hazard, we expect to miss
@@ -250,9 +264,9 @@ namespace
   }
 
   /**
-   *  CohortsLNI2Q write (read-only context): for first write
+   *  CohortsLNI2QX write (read-only context): for first write
    */
-  void CohortsLNI2Q::write_ro(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  void CohortsLNI2QX::write_ro(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // [mfs] this code is not in the best location.  Consider the following
@@ -285,18 +299,18 @@ namespace
       stm::OnFirstWrite(tx, read_rw, write_rw, commit_rw);
   }
   /**
-   *  CohortsLNI2Q write_turbo: for write in place tx
+   *  CohortsLNI2QX write_turbo: for write in place tx
    */
-  void CohortsLNI2Q::write_turbo(TX_FIRST_PARAMETER_ANON STM_WRITE_SIG(addr,val,mask))
+  void CohortsLNI2QX::write_turbo(TX_FIRST_PARAMETER_ANON STM_WRITE_SIG(addr,val,mask))
   {
       // [mfs] ultimately this should use a macro that employs the mask
       *addr = val;
   }
 
   /**
-   *  CohortsLNI2Q write (writing context)
+   *  CohortsLNI2QX write (writing context)
    */
-  void CohortsLNI2Q::write_rw(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  void CohortsLNI2QX::write_rw(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // record the new value in a redo log
@@ -304,6 +318,11 @@ namespace
       // [mfs] we might get better instruction scheduling if we put this code
       //       first, and then did the check.
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
+
+      tx->cohort_writes++;
+      // test if we need to do a early seal based on write number
+      if (tx->cohort_writes >= WRITE_EARLYSEAL)
+          atomicswap32(&sealed.val, 1);
 
       // check if I can go turbo
       //
@@ -320,9 +339,9 @@ namespace
   }
 
   /**
-   *  CohortsLNI2Q unwinder:
+   *  CohortsLNI2QX unwinder:
    */
-  void CohortsLNI2Q::rollback(STM_ROLLBACK_SIG(tx, except, len))
+  void CohortsLNI2QX::rollback(STM_ROLLBACK_SIG(tx, except, len))
   {
       PreRollback(tx);
 
@@ -339,16 +358,16 @@ namespace
   }
 
   /**
-   *  CohortsLNI2Q in-flight irrevocability:
+   *  CohortsLNI2QX in-flight irrevocability:
    */
-  bool CohortsLNI2Q::irrevoc(TxThread*)
+  bool CohortsLNI2QX::irrevoc(TxThread*)
   {
-      UNRECOVERABLE("CohortsLNI2Q Irrevocability not yet supported");
+      UNRECOVERABLE("CohortsLNI2QX Irrevocability not yet supported");
       return false;
   }
 
   /**
-   *  CohortsLNI2Q validation for commit: check that all reads are valid
+   *  CohortsLNI2QX validation for commit: check that all reads are valid
    */
   bool
   validate(TxThread* tx)
@@ -361,9 +380,9 @@ namespace
   }
 
   /**
-   *  Switch to CohortsLNI2Q:
+   *  Switch to CohortsLNI2QX:
    */
-  void CohortsLNI2Q::onSwitchTo()
+  void CohortsLNI2QX::onSwitchTo()
   {
       // when switching algs, mark all tx committed status
       for (uint32_t i = 0; i < threadcount.val; ++i) {
@@ -375,26 +394,26 @@ namespace
 namespace stm
 {
   /**
-   *  CohortsLNI2Q initialization
+   *  CohortsLNI2QX initialization
    */
   template<>
-  void initTM<CohortsLNI2Q>()
+  void initTM<CohortsLNI2QX>()
   {
       // set the name
-      stms[CohortsLNI2Q].name      = "CohortsLNI2Q";
+      stms[CohortsLNI2QX].name      = "CohortsLNI2QX";
       // set the pointers
-      stms[CohortsLNI2Q].begin     = ::CohortsLNI2Q::begin;
-      stms[CohortsLNI2Q].commit    = ::CohortsLNI2Q::commit_ro;
-      stms[CohortsLNI2Q].read      = ::CohortsLNI2Q::read_ro;
-      stms[CohortsLNI2Q].write     = ::CohortsLNI2Q::write_ro;
-      stms[CohortsLNI2Q].rollback  = ::CohortsLNI2Q::rollback;
-      stms[CohortsLNI2Q].irrevoc   = ::CohortsLNI2Q::irrevoc;
-      stms[CohortsLNI2Q].switcher  = ::CohortsLNI2Q::onSwitchTo;
-      stms[CohortsLNI2Q].privatization_safe = true;
+      stms[CohortsLNI2QX].begin     = ::CohortsLNI2QX::begin;
+      stms[CohortsLNI2QX].commit    = ::CohortsLNI2QX::commit_ro;
+      stms[CohortsLNI2QX].read      = ::CohortsLNI2QX::read_ro;
+      stms[CohortsLNI2QX].write     = ::CohortsLNI2QX::write_ro;
+      stms[CohortsLNI2QX].rollback  = ::CohortsLNI2QX::rollback;
+      stms[CohortsLNI2QX].irrevoc   = ::CohortsLNI2QX::irrevoc;
+      stms[CohortsLNI2QX].switcher  = ::CohortsLNI2QX::onSwitchTo;
+      stms[CohortsLNI2QX].privatization_safe = true;
   }
 }
 
 
-#ifdef STM_ONESHOT_ALG_CohortsLNI2Q
-DECLARE_AS_ONESHOT_TURBO(CohortsLNI2Q)
+#ifdef STM_ONESHOT_ALG_CohortsLNI2QX
+DECLARE_AS_ONESHOT_TURBO(CohortsLNI2QX)
 #endif
