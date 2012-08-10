@@ -34,7 +34,7 @@ using stm::cohorts_node_t;
 // # of reads/writes/aborts before seal a cohort
 #define WRITE_EARLYSEAL  2
 #define READ_EARLYSEAL  -1
-#define ABORT_EARLYSEAL -1
+#define ABORT_EARLYSEAL  -1
 
 /**
  *  Declare the functions that we're going to implement, so that we can avoid
@@ -321,7 +321,7 @@ namespace
 
       tx->cohort_writes++;
       // test if we need to do a early seal based on write number
-      if (tx->cohort_writes >= WRITE_EARLYSEAL)
+      if (tx->cohort_writes == WRITE_EARLYSEAL)
           atomicswap32(&sealed.val, 1);
 
       // check if I can go turbo
