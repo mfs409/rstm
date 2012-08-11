@@ -20,12 +20,12 @@
 #include "../algs.hpp"
 #include "../RedoRAWUtils.hpp"
 #include "../UndoLog.hpp" // STM_DO_MASKED_WRITE
+#include "../Diagnostics.hpp"
 
 using stm::TxThread;
 using stm::last_complete;
 using stm::OrecList;
 using stm::WriteSet;
-using stm::UNRECOVERABLE;
 using stm::orec_t;
 using stm::get_orec;
 using stm::WriteSetEntry;
@@ -95,7 +95,7 @@ namespace {
   {
       TX_GET_TX_INTERNAL;
       tx->r_orecs.reset();
-      OnReadOnlyCommit(tx);
+      OnROCommit(tx);
   }
 
   /**
@@ -149,7 +149,8 @@ namespace {
       tx->r_orecs.reset();
       tx->writes.reset();
       tx->status = RESET;
-      OnReadWriteCommit(tx, read_ro, write_ro, commit_ro);
+      OnRWCommit(tx);
+      ResetToRO(tx, read_ro, write_ro, commit_ro);
   }
 
   /**
@@ -171,7 +172,8 @@ namespace {
       tx->r_orecs.reset();
       tx->writes.reset();
       tx->status = RESET;
-      OnReadWriteCommit(tx, read_ro, write_ro, commit_ro);
+      OnRWCommit(tx);
+      ResetToRO(tx, read_ro, write_ro, commit_ro);
   }
 
   /**
@@ -303,7 +305,7 @@ namespace {
       PreRollback(tx);
       // we cannot be in turbo mode
       if (stm::CheckTurboMode(tx, read_turbo))
-          UNRECOVERABLE("Attempting to abort a turbo-mode transaction!");
+          stm::UNRECOVERABLE("Attempting to abort a turbo-mode transaction!");
 
       // Perform writes to the exception object if there were any... taking the
       // branch overhead without concern because we're not worried about
@@ -324,7 +326,7 @@ namespace {
    */
   bool CTokenTurboQ::irrevoc(TxThread*)
   {
-      UNRECOVERABLE("CTokenTurboQ Irrevocability not yet supported");
+      stm::UNRECOVERABLE("CTokenTurboQ Irrevocability not yet supported");
       return false;
   }
 

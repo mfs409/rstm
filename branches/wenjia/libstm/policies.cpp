@@ -157,4 +157,17 @@ namespace stm
           load_qtable(qstr);
   }
 
+  /**
+   *  Print a dynprof_t
+   *
+   *  [mfs] Move to a cpp... we don't want to pull in cstdio!
+   */
+  void dynprof_t::dump()
+  {
+      printf("Profile: read_ro=%d, read_rw_nonraw=%d, read_rw_raw=%d, "
+             "write_nonwaw=%d, write_waw=%d, txn_time=%llu\n",
+             read_ro, read_rw_nonraw, read_rw_raw, write_nonwaw,
+             write_waw, (unsigned long long)txn_time);
+  }
+
 } // namespace stm

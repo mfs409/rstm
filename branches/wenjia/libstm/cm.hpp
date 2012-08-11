@@ -15,7 +15,7 @@
 #include "../include/abstract_cpu.hpp"
 #include "txthread.hpp"
 #include "algs.hpp"     // for exp_backoff
-#include "locks.hpp"
+#include "SpinLocks.hpp"
 
 /**
  *  Timeouts, thresholds, and states

@@ -8,13 +8,13 @@
  *          Please see the file LICENSE.RSTM for licensing information
  */
 
-#include "../include/macros.hpp"      // barrier signatures
-#include "txthread.hpp"    // TxThread stuff
-#include "policies.hpp"    // curr_policy
-#include "algs.hpp"        // stms
+#include "../include/macros.hpp"  // barrier signatures
+#include "txthread.hpp"           // TxThread stuff
+#include "policies.hpp"           // curr_policy
+#include "Diagnostics.hpp"
+#include "inst.hpp"
 #include "algs/tml_inline.hpp"
 
-using stm::UNRECOVERABLE;
 using stm::TxThread;
 using stm::stms;
 using stm::curr_policy;
@@ -25,32 +25,30 @@ namespace
   /**
    *  Handler for rollback attempts while irrevocable. Useful for trapping
    *  problems early.
-   *
-   *  NB: For whatever reason a 'using stm::scope_t' triggers an ICE in Mac OS
-   *      X's default gcc-4.2.1. It's fine if we use the fully qualified
-   *      namespace here.
    */
   void rollback_irrevocable(STM_ROLLBACK_SIG(,,))
   {
-      UNRECOVERABLE("Irrevocable thread attempted to rollback.");
+      stm::UNRECOVERABLE("Irrevocable thread attempted to rollback.");
   }
 
   /**
    *  Resets all of the barriers to be the curr_policy bariers, except for
    *  tmabort which reverts to the one we saved, and tmbegin which should be
    *  done manually in the caller.
+   *
+   *  [mfs] We should call out to inst.cpp/hpp here...
    */
   inline void unset_irrevocable_barriers()
   {
 #ifndef STM_ONESHOT_MODE
-      stm::tmread         = stms[curr_policy.ALG_ID].read;
-      stm::tmwrite        = stms[curr_policy.ALG_ID].write;
-      stm::tmcommit       = stms[curr_policy.ALG_ID].commit;
+      stm::tmread     = stms[curr_policy.ALG_ID].read;
+      stm::tmwrite    = stms[curr_policy.ALG_ID].write;
+      stm::tmcommit   = stms[curr_policy.ALG_ID].commit;
+      stm::tmirrevoc  = stms[curr_policy.ALG_ID].irrevoc;
+      stm::tmrollback = stms[curr_policy.ALG_ID].rollback;
 #else
-      UNRECOVERABLE("Irrevocability does not work with ONESHOT mode");
+      stm::UNRECOVERABLE("Irrevocability does not work with ONESHOT mode");
 #endif
-      stm::tmrollback       = stms[curr_policy.ALG_ID].rollback;
-      stm::tmirrevoc = stms[curr_policy.ALG_ID].irrevoc;
   }
 
   /**
@@ -67,11 +65,13 @@ namespace
       CFENCE;
       stm::tmbegin = stms[curr_policy.ALG_ID].begin;
       // finally, call the standard commit cleanup routine
-      OnReadOnlyCommit(tx);
+      OnROCommit(tx);
   }
 
   /**
    *  Sets all of the barriers to be irrevocable, except tmbegin.
+   *
+   *  [mfs] We should call inst.cpp/hpp here...
    */
   inline void set_irrevocable_barriers()
   {
@@ -79,11 +79,11 @@ namespace
       stm::tmread         = stms[CGL].read;
       stm::tmwrite        = stms[CGL].write;
       stm::tmcommit       = commit_irrevocable;
-#else
-      UNRECOVERABLE("Irrevocability does not work with ONESHOT mode");
-#endif
-      stm::tmrollback       = rollback_irrevocable;
       stm::tmirrevoc = stms[CGL].irrevoc;
+      stm::tmrollback       = rollback_irrevocable;
+#else
+      stm::UNRECOVERABLE("Irrevocability does not work with ONESHOT mode");
+#endif
   }
 }
 
@@ -112,9 +112,10 @@ namespace stm
       //
       // NB: stm::is_irrevoc relies on how this works, so if it changes then
       //     please update that code as well.
+#ifndef STM_ONESHOT_MODE
       if (tmirrevoc == stms[CGL].irrevoc)
           return;
-
+#endif
       if ((curr_policy.ALG_ID == MCS) || (curr_policy.ALG_ID == Ticket))
           return;
 
@@ -176,8 +177,13 @@ namespace stm
    */
   bool is_irrevoc(const TxThread& tx)
   {
+#ifndef STM_ONESHOT_MODE
       if (tx.irrevocable || tmirrevoc == stms[CGL].irrevoc)
           return true;
+#else
+      if (tx.irrevocable)
+          return true;
+#endif
       if ((curr_policy.ALG_ID == MCS) || (curr_policy.ALG_ID  == Ticket))
           return true;
       if ((curr_policy.ALG_ID == TML) && (tx.tmlHasLock))

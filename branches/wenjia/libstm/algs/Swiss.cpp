@@ -12,7 +12,6 @@
 #include "../algs.hpp"
 #include "../RedoRAWUtils.hpp"
 
-using stm::UNRECOVERABLE;
 using stm::TxThread;
 using stm::ABORTED;
 using stm::ACTIVE;
@@ -23,7 +22,6 @@ using stm::timestamp_max;
 using stm::threads;
 using stm::threadcount;
 using stm::greedy_ts;
-using stm::SWISS_PHASE2;
 using stm::orec_t;
 using stm::get_orec;
 using stm::id_version_t;
@@ -66,6 +64,7 @@ using stm::OrecList;
 
 namespace
 {
+
   struct Swiss
   {
       static void begin(TX_LONE_PARAMETER);
@@ -216,7 +215,7 @@ namespace
       // read-only case
       if (!tx->writes.size()) {
           tx->r_orecs.reset();
-          OnReadOnlyCommit(tx);
+          OnROCommit(tx);
           return;
       }
 
@@ -246,7 +245,7 @@ namespace
       tx->writes.reset();
       tx->r_orecs.reset();
       tx->nanorecs.reset();
-      OnReadWriteCommit(tx);
+      OnRWCommit(tx);
   }
 
   // rollback a transaction
@@ -318,7 +317,7 @@ namespace
 
   void Swiss::cm_on_write(TxThread* tx)
   {
-      if ((tx->cm_ts == UINT_MAX) && (tx->writes.size() == SWISS_PHASE2))
+      if ((tx->cm_ts == UINT_MAX) && (tx->writes.size() == stm::SWISS_PHASE2))
           tx->cm_ts = 1 + faiptr(&greedy_ts.val);
   }
 

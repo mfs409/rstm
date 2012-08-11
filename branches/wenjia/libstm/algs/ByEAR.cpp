@@ -19,7 +19,6 @@
 #include "../algs.hpp"
 #include "../RedoRAWUtils.hpp"
 
-using stm::UNRECOVERABLE;
 using stm::TxThread;
 using stm::ByteLockList;
 using stm::bytelock_t;
@@ -78,7 +77,7 @@ namespace {
           (*i)->reader[tx->id-1] = 0;
 
       tx->r_bytelocks.reset();
-      OnReadOnlyCommit(tx);
+      OnROCommit(tx);
   }
 
   /**
@@ -106,7 +105,8 @@ namespace {
       tx->r_bytelocks.reset();
       tx->w_bytelocks.reset();
       tx->writes.reset();
-      OnReadWriteCommit(tx, read_ro, write_ro, commit_ro);
+      OnRWCommit(tx);
+      ResetToRO(tx, read_ro, write_ro, commit_ro);
   }
 
   /**
@@ -323,7 +323,8 @@ namespace {
       // randomized exponential backoff
       exp_backoff(tx);
 
-      PostRollback(tx, read_ro, write_ro, commit_ro);
+      PostRollback(tx);
+      ResetToRO(tx, read_ro, write_ro, commit_ro);
   }
 
   /**

@@ -21,7 +21,6 @@
 #include "../algs.hpp"
 #include "../RedoRAWUtils.hpp"
 
-using stm::UNRECOVERABLE;
 using stm::TxThread;
 using stm::last_complete;
 using stm::timestamp;
@@ -72,7 +71,7 @@ namespace {
       // just clear the filters
       tx->rf->clear();
       tx->cf->clear();
-      OnReadOnlyCommit(tx);
+      OnROCommit(tx);
   }
 
   /**
@@ -134,7 +133,8 @@ namespace {
       tx->rf->clear();
       tx->cf->clear();
       tx->wf->clear();
-      OnReadWriteCommit(tx, read_ro, write_ro, commit_ro);
+      OnRWCommit(tx);
+      ResetToRO(tx, read_ro, write_ro, commit_ro);
   }
 
   /**
@@ -233,7 +233,8 @@ namespace {
           tx->writes.reset();
           tx->wf->clear();
       }
-      PostRollback(tx, read_ro, write_ro, commit_ro);
+      PostRollback(tx);
+      ResetToRO(tx, read_ro, write_ro, commit_ro);
   }
 
   /**

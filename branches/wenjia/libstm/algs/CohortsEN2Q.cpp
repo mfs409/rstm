@@ -19,10 +19,10 @@
 #include "../profiling.hpp"
 #include "../algs.hpp"
 #include "../RedoRAWUtils.hpp"
+#include "../Diagnostics.hpp"
 
 using stm::TxThread;
 using stm::WriteSet;
-using stm::UNRECOVERABLE;
 using stm::WriteSetEntry;
 using stm::ValueList;
 using stm::ValueListEntry;
@@ -102,7 +102,7 @@ namespace {
 
       // clean up
       tx->vlist.reset();
-      OnReadOnlyCommit(tx);
+      OnROCommit(tx);
   }
 
   /**
@@ -118,7 +118,8 @@ namespace {
       // clean up
       tx->vlist.reset();
       tx->writes.reset();
-      OnReadWriteCommit(tx, read_ro, write_ro, commit_ro);
+      OnRWCommit(tx);
+      ResetToRO(tx, read_ro, write_ro, commit_ro);
   }
 
   /**
@@ -172,7 +173,8 @@ namespace {
       // commit all frees, reset all lists
       tx->vlist.reset();
       tx->writes.reset();
-      OnReadWriteCommit(tx, read_ro, write_ro, commit_ro);
+      OnRWCommit(tx);
+      ResetToRO(tx, read_ro, write_ro, commit_ro);
   }
 
   /**
@@ -297,7 +299,7 @@ namespace {
   bool
   CohortsEN2Q::irrevoc(TxThread*)
   {
-      UNRECOVERABLE("CohortsEN2Q Irrevocability not yet supported");
+      stm::UNRECOVERABLE("CohortsEN2Q Irrevocability not yet supported");
       return false;
   }
 

@@ -18,13 +18,13 @@
 #include "../profiling.hpp"
 #include "../algs.hpp"
 #include "../RedoRAWUtils.hpp"
+#include "../Diagnostics.hpp"
 
 using stm::TxThread;
 using stm::last_complete;
 using stm::timestamp;
 using stm::timestamp_max;
 using stm::WriteSet;
-using stm::UNRECOVERABLE;
 using stm::WriteSetEntry;
 
 using stm::ValueList;
@@ -97,7 +97,7 @@ namespace {
 
       // clean up
       tx->vlist.reset();
-      OnReadOnlyCommit(tx);
+      OnROCommit(tx);
   }
 
   /**
@@ -114,7 +114,8 @@ namespace {
       // clean up
       tx->vlist.reset();
       tx->writes.reset();
-      OnReadWriteCommit(tx, read_ro, write_ro, commit_ro);
+      OnRWCommit(tx);
+      ResetToRO(tx, read_ro, write_ro, commit_ro);
 
       // wait for my turn
       while (last_complete.val != (uintptr_t)(tx->order - 1));
@@ -176,7 +177,8 @@ namespace {
       // commit all frees, reset all lists
       tx->vlist.reset();
       tx->writes.reset();
-      OnReadWriteCommit(tx, read_ro, write_ro, commit_ro);
+      OnRWCommit(tx);
+      ResetToRO(tx, read_ro, write_ro, commit_ro);
   }
 
   /**
@@ -311,7 +313,7 @@ namespace {
   bool
   CohortsEN::irrevoc(TxThread*)
   {
-      UNRECOVERABLE("CohortsEN Irrevocability not yet supported");
+      stm::UNRECOVERABLE("CohortsEN Irrevocability not yet supported");
       return false;
   }
 

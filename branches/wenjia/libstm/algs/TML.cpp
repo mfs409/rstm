@@ -22,12 +22,12 @@
 #include "../profiling.hpp"
 #include "../algs.hpp"
 #include "../UndoLog.hpp" // STM_DO_MASKED_WRITE
+#include "../Diagnostics.hpp"
 #include "tml_inline.hpp"
 
 using stm::TxThread;
 using stm::timestamp;
 using stm::Trigger;
-using stm::UNRECOVERABLE;
 
 
 /**
@@ -78,11 +78,11 @@ namespace {
       if (tx->tmlHasLock) {
           ++timestamp.val;
           tx->tmlHasLock = false;
-          OnReadWriteCommit(tx);
+          OnRWCommit(tx);
       }
       // reading context: just remember the commit
       else {
-          OnReadOnlyCommit(tx);
+          OnROCommit(tx);
       }
       Trigger::onCommitLock(tx);
   }
@@ -149,7 +149,7 @@ namespace {
   bool
   TML::irrevoc(TxThread*)
   {
-      UNRECOVERABLE("IRREVOC_TML SHOULD NEVER BE CALLED");
+      stm::UNRECOVERABLE("IRREVOC_TML SHOULD NEVER BE CALLED");
       return false;
   }
 

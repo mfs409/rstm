@@ -70,7 +70,7 @@ namespace {
   {
       TX_GET_TX_INTERNAL;
       // no metadata to manage, so just be done!
-      OnReadOnlyCommit(tx);
+      OnROCommit(tx);
   }
 
   /**
@@ -90,7 +90,8 @@ namespace {
       // release the sequence lock and clean up
       timestamp.val++;
       tx->writes.reset();
-      OnReadWriteCommit(tx, read_ro, write_ro, commit_ro);
+      OnRWCommit(tx);
+      ResetToRO(tx, read_ro, write_ro, commit_ro);
   }
 
   /**
@@ -168,7 +169,8 @@ namespace {
       STM_ROLLBACK(tx->writes, except, len);
 
       tx->writes.reset();
-      PostRollback(tx, read_ro, write_ro, commit_ro);
+      PostRollback(tx);
+      ResetToRO(tx, read_ro, write_ro, commit_ro);
   }
 
   /**

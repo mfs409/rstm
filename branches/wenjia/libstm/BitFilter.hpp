@@ -166,6 +166,7 @@ namespace stm
       }
   }; // class stm::BitFilter
 
+  typedef BitFilter<128>           filter_t;     // flat 1024-bit Bloom filter
 }  // namespace stm
 
 #endif // BITFILTER_HPP__

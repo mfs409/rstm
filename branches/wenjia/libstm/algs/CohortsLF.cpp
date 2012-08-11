@@ -17,6 +17,7 @@
 #include "../profiling.hpp"
 #include "../algs.hpp"
 #include "../RedoRAWUtils.hpp"
+#include "../Diagnostics.hpp"
 
 using stm::TxThread;
 using stm::threads;
@@ -24,7 +25,6 @@ using stm::threadcount;
 using stm::last_complete;
 using stm::timestamp;
 using stm::timestamp_max;
-using stm::UNRECOVERABLE;
 using stm::WriteSetEntry;
 using stm::gatekeeper;
 using stm::last_order;
@@ -91,7 +91,7 @@ namespace {
 
       // clean up
       tx->rf->clear();
-      OnReadOnlyCommit(tx);
+      OnROCommit(tx);
   }
 
   /**
@@ -154,7 +154,8 @@ namespace {
       tx->rf->clear();
       tx->wf->clear();
       tx->writes.reset();
-      OnReadWriteCommit(tx, read_ro, write_ro, commit_ro);
+      OnRWCommit(tx);
+      ResetToRO(tx, read_ro, write_ro, commit_ro);
   }
 
   /**
@@ -241,7 +242,7 @@ namespace {
   bool
   CohortsLF::irrevoc(TxThread*)
   {
-      UNRECOVERABLE("CohortsLF Irrevocability not yet supported");
+      stm::UNRECOVERABLE("CohortsLF Irrevocability not yet supported");
       return false;
   }
 

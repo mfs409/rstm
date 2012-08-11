@@ -14,8 +14,8 @@
  *  based STMs.
  */
 
-#ifndef LOCKS_HPP__
-#define LOCKS_HPP__
+#ifndef SPINLOCKS_HPP__
+#define SPINLOCKS_HPP__
 
 #include "../include/abstract_cpu.hpp"
 
@@ -185,4 +185,4 @@ inline void mcs_release(mcs_qnode_t** lock, mcs_qnode_t* mine)
     mine->next->flag = false;
 }
 
-#endif // LOCKS_HPP__
+#endif // SPINLOCKS_HPP__

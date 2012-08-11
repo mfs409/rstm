@@ -29,8 +29,8 @@
 #include "../profiling.hpp"
 #include "../algs.hpp"
 #include "../RedoRAWUtils.hpp"
+#include "../Diagnostics.hpp"
 
-using stm::UNRECOVERABLE;
 using stm::TxThread;
 using stm::dynprof_t;
 using stm::profiles;
@@ -133,7 +133,7 @@ namespace {
 
       // clear the profile, clean up the transaction
       profiles[0].read_ro = 0;
-      OnReadOnlyCommit(tx);
+      OnROCommit(tx);
   }
 
   /**
@@ -181,7 +181,8 @@ namespace {
       profiles[0].clear();
 
       // finish cleaning up
-      OnReadWriteCommit(tx, read_ro, write_ro, commit_ro);
+      OnRWCommit(tx);
+      ResetToRO(tx, read_ro, write_ro, commit_ro);
   }
 
   /**
@@ -256,7 +257,7 @@ namespace {
   void
   ProfileApp<COUNTMODE>::rollback(STM_ROLLBACK_SIG(,,))
   {
-      UNRECOVERABLE("ProfileApp should never incur an abort");
+      stm::UNRECOVERABLE("ProfileApp should never incur an abort");
   }
 
   /**
@@ -267,7 +268,7 @@ namespace {
   ProfileApp<COUNTMODE>::irrevoc(TxThread*)
   {
       // NB: there is no reason why we can't support this, we just don't yet.
-      UNRECOVERABLE("ProfileApp does not support irrevocability");
+      stm::UNRECOVERABLE("ProfileApp does not support irrevocability");
       return false;
   }
 

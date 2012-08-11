@@ -21,6 +21,7 @@
 #include "../profiling.hpp"
 #include "../algs.hpp"
 #include "../RedoRAWUtils.hpp"
+#include "../Diagnostics.hpp"
 
 using stm::TxThread;
 using stm::threads;
@@ -29,7 +30,6 @@ using stm::last_complete;
 using stm::timestamp;
 using stm::timestamp_max;
 using stm::WriteSet;
-using stm::UNRECOVERABLE;
 using stm::WriteSetEntry;
 
 using stm::ValueList;
@@ -76,7 +76,7 @@ namespace {
       TX_GET_TX_INTERNAL;
       // reset lists and we are done
       tx->vlist.reset();
-      OnReadOnlyCommit(tx);
+      OnROCommit(tx);
   }
 
   /**
@@ -124,7 +124,8 @@ namespace {
       // commit all frees, reset all lists
       tx->vlist.reset();
       tx->writes.reset();
-      OnReadWriteCommit(tx, read_ro, write_ro, commit_ro);
+      OnRWCommit(tx);
+      ResetToRO(tx, read_ro, write_ro, commit_ro);
   }
 
   /**
@@ -219,7 +220,7 @@ namespace {
   bool
   CTokenNOrec::irrevoc(TxThread*)
   {
-      UNRECOVERABLE("CTokenNOrec Irrevocability not yet supported");
+      stm::UNRECOVERABLE("CTokenNOrec Irrevocability not yet supported");
       return false;
   }
 

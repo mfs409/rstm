@@ -25,7 +25,6 @@
 #include "../algs.hpp"
 #include "../RedoRAWUtils.hpp"
 
-using stm::UNRECOVERABLE;
 using stm::TxThread;
 using stm::WriteSet;
 using stm::WriteSetEntry;
@@ -35,7 +34,6 @@ using stm::NanorecList;
 using stm::nanorec_t;
 using stm::get_nanorec;
 using stm::id_version_t;
-
 
 /**
  *  Declare the functions that we're going to implement, so that we can avoid
@@ -75,7 +73,7 @@ namespace {
       TX_GET_TX_INTERNAL;
       // read-only, so reset the orec list and we are done
       tx->nanorecs.reset();
-      OnReadOnlyCommit(tx);
+      OnROCommit(tx);
   }
 
   /**
@@ -130,7 +128,8 @@ namespace {
       tx->nanorecs.reset();
       tx->writes.reset();
       tx->locks.reset();
-      OnReadWriteCommit(tx, read_ro, write_ro, commit_ro);
+      OnRWCommit(tx);
+      ResetToRO(tx, read_ro, write_ro, commit_ro);
   }
 
   /**
@@ -266,7 +265,8 @@ namespace {
       tx->nanorecs.reset();
       tx->writes.reset();
       tx->locks.reset();
-      PostRollback(tx, read_ro, write_ro, commit_ro);
+      PostRollback(tx);
+      ResetToRO(tx, read_ro, write_ro, commit_ro);
   }
 
   /**

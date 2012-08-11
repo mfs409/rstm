@@ -19,37 +19,10 @@
 #include "../algs.hpp"
 #include "../RedoRAWUtils.hpp"
 
-using stm::UNRECOVERABLE;
-using stm::TxThread;
-using stm::BitLockList;
-using stm::bitlock_t;
-using stm::get_bitlock;
-using stm::WriteSetEntry;
-using stm::rrec_t;
-
 /**
- *  Declare the functions that we're going to implement, so that we can avoid
- *  circular dependencies.
+ *  [mfs] These defines are for tuning backoff behavior... should they be
+ *        part of BitLocks.hpp instead?
  */
-namespace {
-  struct BitEagerRedo
-  {
-      static void begin(TX_LONE_PARAMETER);
-      static TM_FASTCALL void* read_ro(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void* read_rw(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void write_ro(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void write_rw(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void commit_ro(TX_LONE_PARAMETER);
-      static TM_FASTCALL void commit_rw(TX_LONE_PARAMETER);
-
-      static void rollback(STM_ROLLBACK_SIG(,,));
-      static bool irrevoc(TxThread*);
-      static void onSwitchTo();
-  };
-
-  /**
-   *  These defines are for tuning backoff behavior
-   */
 #if defined(STM_CPU_SPARC)
 #  define READ_TIMEOUT        32
 #  define ACQUIRE_TIMEOUT     128
@@ -60,10 +33,19 @@ namespace {
 #  define DRAIN_TIMEOUT       256
 #endif
 
+namespace stm
+{
+  TM_FASTCALL
+  void BitEagerRedoWriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+  TM_FASTCALL
+  void BitEagerRedoWriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+  TM_FASTCALL
+  void* BitEagerRedoReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
+
   /**
    *  BitEagerRedo begin:
    */
-  void BitEagerRedo::begin(TX_LONE_PARAMETER)
+  void BitEagerRedoBegin(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       tx->allocator.onTxBegin();
@@ -72,8 +54,8 @@ namespace {
   /**
    *  BitEagerRedo commit (read-only):
    */
-  void
-  BitEagerRedo::commit_ro(TX_LONE_PARAMETER)
+  TM_FASTCALL
+  void BitEagerRedoCommitRO(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // read-only... release read locks
@@ -81,13 +63,14 @@ namespace {
           (*i)->readers.unsetbit(tx->id-1);
 
       tx->r_bitlocks.reset();
-      OnReadOnlyCommit(tx);
+      OnROCommit(tx);
   }
 
   /**
    *  BitEagerRedo commit (writing context):
    */
-  void BitEagerRedo::commit_rw(TX_LONE_PARAMETER)
+  TM_FASTCALL
+  void BitEagerRedoCommitRW(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // replay redo log
@@ -104,7 +87,9 @@ namespace {
       tx->r_bitlocks.reset();
       tx->w_bitlocks.reset();
       tx->writes.reset();
-      OnReadWriteCommit(tx, read_ro, write_ro, commit_ro);
+      OnRWCommit(tx);
+      ResetToRO(tx, BitEagerRedoReadRO, BitEagerRedoWriteRO,
+                BitEagerRedoCommitRO);
   }
 
   /**
@@ -112,7 +97,8 @@ namespace {
    *
    *    As in BitEager, we use timeout for conflict resolution
    */
-  void* BitEagerRedo::read_ro(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
+  TM_FASTCALL
+  void* BitEagerRedoReadRO(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
   {
       TX_GET_TX_INTERNAL;
       uint32_t tries = 0;
@@ -138,7 +124,7 @@ namespace {
           lock->readers.unsetbit(tx->id-1);
           while (lock->owner != 0) {
               if (++tries > READ_TIMEOUT)
-                  stm::tmabort();
+                  tmabort();
           }
       }
   }
@@ -148,8 +134,8 @@ namespace {
    *
    *    Same as RO case, but if we have the write lock, we can take a fast path
    */
-  void*
-  BitEagerRedo::read_rw(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
+  TM_FASTCALL
+  void* BitEagerRedoReadRW(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
   {
       TX_GET_TX_INTERNAL;
       uint32_t tries = 0;
@@ -187,7 +173,7 @@ namespace {
           lock->readers.unsetbit(tx->id-1);
           while (lock->owner != 0) {
               if (++tries > READ_TIMEOUT)
-                  stm::tmabort();
+                  tmabort();
           }
       }
   }
@@ -197,8 +183,8 @@ namespace {
    *
    *    Lock the location, then put the value in the write log
    */
-  void
-  BitEagerRedo::write_ro(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  TM_FASTCALL
+  void BitEagerRedoWriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       uint32_t tries = 0;
@@ -207,7 +193,7 @@ namespace {
       // get the write lock, with timeout
       while (!bcasptr(&(lock->owner), 0u, tx->id))
           if (++tries > ACQUIRE_TIMEOUT)
-              stm::tmabort();
+              tmabort();
 
       // log the lock, drop any read locks I have
       tx->w_bitlocks.insert(lock);
@@ -219,13 +205,15 @@ namespace {
           tries = 0;
           while (lock->readers.bits[b])
               if (++tries > DRAIN_TIMEOUT)
-                  stm::tmabort();
+                  tmabort();
       }
 
       // record in redo log
-      tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
+      tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val,
+                                                          mask)));
 
-      stm::OnFirstWrite(tx, read_rw, write_rw, commit_rw);
+      OnFirstWrite(tx, BitEagerRedoReadRW, BitEagerRedoWriteRW,
+                   BitEagerRedoCommitRW);
   }
 
   /**
@@ -233,7 +221,8 @@ namespace {
    *
    *    Same as RO case, but with fastpath for repeat writes to same location
    */
-  void BitEagerRedo::write_rw(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  TM_FASTCALL
+  void BitEagerRedoWriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       uint32_t tries = 0;
@@ -241,14 +230,15 @@ namespace {
 
       // If I have the write lock, record in redo log, return
       if (lock->owner == tx->id) {
-          tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
+          tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val,
+                                                              mask)));
           return;
       }
 
       // get the write lock, with timeout
       while (!bcasptr(&(lock->owner), 0u, tx->id))
           if (++tries > ACQUIRE_TIMEOUT)
-              stm::tmabort();
+              tmabort();
 
       // log the lock, drop any read locks I have
       tx->w_bitlocks.insert(lock);
@@ -260,7 +250,7 @@ namespace {
           tries = 0;
           while (lock->readers.bits[b])
               if (++tries > DRAIN_TIMEOUT)
-                  stm::tmabort();
+                  tmabort();
       }
 
       // record in redo log
@@ -271,12 +261,12 @@ namespace {
    *  BitEagerRedo unwinder:
    */
   void
-  BitEagerRedo::rollback(STM_ROLLBACK_SIG(tx, except, len))
+  BitEagerRedoRollback(STM_ROLLBACK_SIG(tx, except, len))
   {
       PreRollback(tx);
 
-      // Perform writes to the exception object if there were any... taking the
-      // branch overhead without concern because we're not worried about
+      // Perform writes to the exception object if there were any... taking
+      // the branch overhead without concern because we're not worried about
       // rollback overheads.
       STM_ROLLBACK(tx->writes, except, len);
 
@@ -294,13 +284,15 @@ namespace {
       // randomized exponential backoff
       exp_backoff(tx);
 
-      PostRollback(tx, read_ro, write_ro, commit_ro);
+      PostRollback(tx);
+      ResetToRO(tx, BitEagerRedoReadRO, BitEagerRedoWriteRO,
+                   BitEagerRedoCommitRO);
   }
 
   /**
    *  BitEagerRedo in-flight irrevocability:
    */
-  bool BitEagerRedo::irrevoc(TxThread*)
+  bool BitEagerRedoIrrevoc(TxThread*)
   {
       return false;
   }
@@ -311,11 +303,8 @@ namespace {
    *    The only global metadata used by BitEagerRedo is the bitlocks array,
    *    which should be all zeros.
    */
-  void BitEagerRedo::onSwitchTo() {
-  }
-}
+  void BitEagerRedoOnSwitchTo() { }
 
-namespace stm {
   /**
    *  BitEagerRedo initialization
    */
@@ -326,13 +315,13 @@ namespace stm {
       stms[BitEagerRedo].name      = "BitEagerRedo";
 
       // set the pointers
-      stms[BitEagerRedo].begin     = ::BitEagerRedo::begin;
-      stms[BitEagerRedo].commit    = ::BitEagerRedo::commit_ro;
-      stms[BitEagerRedo].read      = ::BitEagerRedo::read_ro;
-      stms[BitEagerRedo].write     = ::BitEagerRedo::write_ro;
-      stms[BitEagerRedo].rollback  = ::BitEagerRedo::rollback;
-      stms[BitEagerRedo].irrevoc   = ::BitEagerRedo::irrevoc;
-      stms[BitEagerRedo].switcher  = ::BitEagerRedo::onSwitchTo;
+      stms[BitEagerRedo].begin     = BitEagerRedoBegin;
+      stms[BitEagerRedo].commit    = BitEagerRedoCommitRO;
+      stms[BitEagerRedo].read      = BitEagerRedoReadRO;
+      stms[BitEagerRedo].write     = BitEagerRedoWriteRO;
+      stms[BitEagerRedo].rollback  = BitEagerRedoRollback;
+      stms[BitEagerRedo].irrevoc   = BitEagerRedoIrrevoc;
+      stms[BitEagerRedo].switcher  = BitEagerRedoOnSwitchTo;
       stms[BitEagerRedo].privatization_safe = true;
   }
 }

@@ -35,7 +35,6 @@
 #include "../cm.hpp"
 #include "../algs.hpp"
 
-using stm::UNRECOVERABLE;
 using stm::TxThread;
 using stm::ByteLockList;
 using stm::bytelock_t;
@@ -126,7 +125,7 @@ namespace {
 
       // reset lists
       tx->r_bytelocks.reset();
-      OnReadOnlyCommit(tx);
+      OnROCommit(tx);
   }
 
   /**
@@ -154,7 +153,8 @@ namespace {
       tx->w_bytelocks.reset();
       tx->undo_log.reset();
 
-      OnReadWriteCommit(tx, read_ro, write_ro, commit_ro);
+      OnRWCommit(tx);
+      ResetToRO(tx, read_ro, write_ro, commit_ro);
   }
 
   /**
@@ -375,7 +375,8 @@ namespace {
 
       CM::onAbort(tx);
 
-      PostRollback(tx, read_ro, write_ro, commit_ro);
+      PostRollback(tx);
+      ResetToRO(tx, read_ro, write_ro, commit_ro);
   }
 
   /**

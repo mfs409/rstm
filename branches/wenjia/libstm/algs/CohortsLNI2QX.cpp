@@ -17,12 +17,12 @@
 #include "../profiling.hpp"
 #include "../algs.hpp"
 #include "../RedoRAWUtils.hpp"
+#include "../Diagnostics.hpp"
 
 using stm::TxThread;
 using stm::threads;
 using stm::threadcount;
 using stm::WriteSet;
-using stm::UNRECOVERABLE;
 using stm::WriteSetEntry;
 
 using stm::ValueList;
@@ -124,7 +124,7 @@ namespace
 
       // clean up
       tx->vlist.reset();
-      OnReadOnlyCommit(tx);
+      OnROCommit(tx);
   }
 
   /**
@@ -139,7 +139,8 @@ namespace
       // clean up
       tx->vlist.reset();
       tx->writes.reset();
-      OnReadWriteCommit(tx, read_ro, write_ro, commit_ro);
+      OnRWCommit(tx);
+      ResetToRO(tx, read_ro, write_ro, commit_ro);
   }
 
   /**
@@ -224,7 +225,8 @@ namespace
       // commit all frees, reset all lists
       tx->vlist.reset();
       tx->writes.reset();
-      OnReadWriteCommit(tx, read_ro, write_ro, commit_ro);
+      OnRWCommit(tx);
+      ResetToRO(tx, read_ro, write_ro, commit_ro);
   }
 
   /**
@@ -362,7 +364,7 @@ namespace
    */
   bool CohortsLNI2QX::irrevoc(TxThread*)
   {
-      UNRECOVERABLE("CohortsLNI2QX Irrevocability not yet supported");
+      stm::UNRECOVERABLE("CohortsLNI2QX Irrevocability not yet supported");
       return false;
   }
 

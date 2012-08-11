@@ -27,12 +27,12 @@
 #include "../profiling.hpp"
 #include "../algs.hpp"
 #include "../RedoRAWUtils.hpp"
+#include "../Diagnostics.hpp"
 
 using stm::TxThread;
 using stm::threads;
 using stm::threadcount;
 using stm::last_complete;
-using stm::UNRECOVERABLE;
 using stm::WriteSetEntry;
 using stm::global_filter;
 using stm::started;
@@ -100,7 +100,7 @@ namespace {
 
       // clean up
       tx->rf->clear();
-      OnReadOnlyCommit(tx);
+      OnROCommit(tx);
   }
 
   /**
@@ -162,7 +162,8 @@ namespace {
       tx->rf->clear();
       tx->wf->clear();
       tx->writes.reset();
-      OnReadWriteCommit(tx, read_ro, write_ro, commit_ro);
+      OnRWCommit(tx);
+      ResetToRO(tx, read_ro, write_ro, commit_ro);
   }
 
   /**
@@ -250,7 +251,7 @@ namespace {
   bool
   CohortsFilter::irrevoc(TxThread*)
   {
-      UNRECOVERABLE("CohortsFilter Irrevocability not yet supported");
+      stm::UNRECOVERABLE("CohortsFilter Irrevocability not yet supported");
       return false;
   }
 

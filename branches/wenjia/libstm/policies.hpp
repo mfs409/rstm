@@ -21,7 +21,6 @@
 #include "../include/abstract_compiler.hpp"
 #include "MiniVector.hpp"
 #include "Constants.hpp"
-//#include "txthread.hpp" // [mfs] we should be able to drop this dependency...
 
 namespace stm
 {
@@ -137,16 +136,8 @@ namespace stm
 
       /**
        *  Print a dynprof_t
-       *
-       *  [mfs] Move to a cpp... we don't want to pull in cstdio!
        */
-      void dump()
-      {
-          printf("Profile: read_ro=%d, read_rw_nonraw=%d, read_rw_raw=%d, "
-                 "write_nonwaw=%d, write_waw=%d, txn_time=%llu\n",
-                 read_ro, read_rw_nonraw, read_rw_raw, write_nonwaw,
-                 write_waw, (unsigned long long)txn_time);
-      }
+      void dump();
 
       /**
        *  Clear a dynprof_t

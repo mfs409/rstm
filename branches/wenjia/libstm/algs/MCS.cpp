@@ -18,8 +18,8 @@
 #include "../profiling.hpp"
 #include "../algs.hpp"
 #include "../UndoLog.hpp" // STM_DO_MASKED_WRITE
+#include "../Diagnostics.hpp"
 
-using stm::UNRECOVERABLE;
 using stm::TxThread;
 using stm::mcslock;
 
@@ -91,7 +91,7 @@ namespace  {
   void
   MCS::rollback(STM_ROLLBACK_SIG(,,))
   {
-      UNRECOVERABLE("ATTEMPTING TO ABORT AN IRREVOCABLE MCS TRANSACTION");
+      stm::UNRECOVERABLE("ATTEMPTING TO ABORT AN IRREVOCABLE MCS TRANSACTION");
   }
 
   /**
@@ -103,7 +103,7 @@ namespace  {
   bool
   MCS::irrevoc(TxThread*)
   {
-      UNRECOVERABLE("MCS::IRREVOC SHOULD NEVER BE CALLED");
+      stm::UNRECOVERABLE("MCS::IRREVOC SHOULD NEVER BE CALLED");
       return false;
   }
 

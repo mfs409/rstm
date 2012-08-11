@@ -18,12 +18,14 @@
 #include "../include/tlsapi.hpp"
 #include "../include/macros.hpp"
 #include "txthread.hpp"
-#include "profiling.hpp"
 
 namespace stm
 {
-  /*** forward declare to avoid extra dependencies */
-  class TxThread;
+#ifdef STM_ONESHOT_MODE
+  const uint32_t MODE_TURBO    = 2;
+  const uint32_t MODE_WRITE    = 1;
+  const uint32_t MODE_RO       = 0;
+#endif
 
   /*** POINTERS TO INSTRUMENTATION */
 
@@ -32,11 +34,6 @@ namespace stm
   extern THREAD_LOCAL_DECL_TYPE(TM_FASTCALL void(*tmcommit)(TX_LONE_PARAMETER));
   extern THREAD_LOCAL_DECL_TYPE(TM_FASTCALL void*(*tmread)(TX_FIRST_PARAMETER STM_READ_SIG(,)));
   extern THREAD_LOCAL_DECL_TYPE(TM_FASTCALL void(*tmwrite)(TX_FIRST_PARAMETER STM_WRITE_SIG(,,)));
-#else
-  TM_FASTCALL void  tmcommit(TX_LONE_PARAMETER);
-  TM_FASTCALL void* tmread(TX_FIRST_PARAMETER STM_READ_SIG(,));
-  TM_FASTCALL void  tmwrite(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-#endif
 
   /**
    * how to become irrevocable in-flight
@@ -50,6 +47,15 @@ namespace stm
    * CGL, can't rollback) so we add it here.
    */
   extern void (*tmrollback)(STM_ROLLBACK_SIG(,,));
+
+#else
+
+  TM_FASTCALL void  tmcommit(TX_LONE_PARAMETER);
+  TM_FASTCALL void* tmread(TX_FIRST_PARAMETER STM_READ_SIG(,));
+  TM_FASTCALL void  tmwrite(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+  bool tmirrevoc(TxThread*);
+  void tmrollback(STM_ROLLBACK_SIG(,,));
+#endif
 
   /**
    * The function for aborting a transaction. The "tmabort" function is
@@ -105,165 +111,40 @@ namespace stm
       tmwrite = w;
       tmcommit = c;
   }
-#endif
 
-#ifndef STM_ONESHOT_MODE
-  inline void OnReadWriteCommit(TxThread* tx, ReadBarrier read_ro,
-                                WriteBarrier write_ro, CommitBarrier commit_ro)
-#else
-  inline void OnReadWriteCommit(TxThread* tx, ReadBarrier, WriteBarrier,
-                                CommitBarrier)
-#endif
+  inline
+  void ResetToRO(TxThread*, ReadBarrier r, WriteBarrier w, CommitBarrier c)
   {
-      tx->allocator.onTxCommit();
-      tx->abort_hist.onCommit(tx->consec_aborts);
-      tx->consec_aborts = 0;
-      tx->consec_ro = 0;
-      ++tx->num_commits;
-#ifndef STM_ONESHOT_MODE
-      SetLocalPointers(read_ro, write_ro, commit_ro);
-#else
-      tx->mode = MODE_RO;
-#endif
-      Trigger::onCommitSTM(tx);
-  }
-
-  inline void OnReadWriteCommit(TxThread* tx)
-  {
-      tx->allocator.onTxCommit();
-      tx->abort_hist.onCommit(tx->consec_aborts);
-      tx->consec_aborts = 0;
-      tx->consec_ro = 0;
-      ++tx->num_commits;
-      Trigger::onCommitSTM(tx);
-  }
-
-  inline void OnReadOnlyCommit(TxThread* tx)
-  {
-      tx->allocator.onTxCommit();
-      tx->abort_hist.onCommit(tx->consec_aborts);
-      tx->consec_aborts = 0;
-      ++tx->consec_ro;
-      ++tx->num_ro;
-      Trigger::onCommitSTM(tx);
-  }
-
-  inline void OnCGLCommit(TxThread* tx)
-  {
-      tx->allocator.onTxCommitImmediate();
-      tx->consec_ro = 0;
-      ++tx->num_commits;
-      Trigger::onCommitLock(tx);
-  }
-
-  inline void OnReadOnlyCGLCommit(TxThread* tx)
-  {
-      tx->allocator.onTxCommit();
-      ++tx->consec_ro;
-      ++tx->num_ro;
-      Trigger::onCommitLock(tx);
-  }
-
-#ifndef STM_ONESHOT_MODE
-  inline void OnFirstWrite(TxThread*, ReadBarrier read_rw, WriteBarrier write_rw,
-                           CommitBarrier commit_rw)
-  {
-      SetLocalPointers(read_rw, write_rw, commit_rw);
-  }
-#else
-  inline void OnFirstWrite(TxThread* tx, ReadBarrier, WriteBarrier, CommitBarrier)
-  {
-      tx->mode = MODE_WRITE;
-  }
-#endif
-
-  inline void PreRollback(TxThread* tx)
-  {
-      ++tx->num_aborts;
-      ++tx->consec_aborts;
-  }
-
-#ifndef STM_ONESHOT_MODE
-  inline void PostRollback(TxThread* tx, ReadBarrier read_ro,
-                           WriteBarrier write_ro, CommitBarrier commit_ro)
-#else
-  inline void PostRollback(TxThread* tx, ReadBarrier, WriteBarrier,
-                           CommitBarrier)
-#endif
-  {
-      tx->allocator.onTxAbort();
-      tx->nesting_depth = 0;
-#ifndef STM_ONESHOT_MODE
-      SetLocalPointers(read_ro, write_ro, commit_ro);
-#else
-      tx->mode = MODE_RO;
-#endif
-      Trigger::onAbort(tx);
-      tx->in_tx = false;
-  }
-
-  inline void PostRollback(TxThread* tx)
-  {
-      tx->allocator.onTxAbort();
-      tx->nesting_depth = 0;
-      Trigger::onAbort(tx);
-      tx->in_tx = false;
-  }
-
-  /**
-   *  Custom PostRollback code for ProfileTM.  If a transaction other than
-   *  the last in the profile set aborts, we roll it back using this
-   *  function, which does everything the prior PostRollback did except for
-   *  calling the "Trigger::onAbort()" method.
-   */
-  #ifndef STM_ONESHOT_MODE
-  inline void PostRollbackNoTrigger(TxThread* tx, ReadBarrier r,
-                                    WriteBarrier w, CommitBarrier c)
-#else
-  inline void PostRollbackNoTrigger(TxThread* tx, ReadBarrier,
-                                    WriteBarrier, CommitBarrier)
-#endif
-  {
-      tx->allocator.onTxAbort();
-      tx->nesting_depth = 0;
-#ifndef STM_ONESHOT_MODE
       SetLocalPointers(r, w, c);
-#else
-      tx->mode = MODE_RO;
-#endif
-      tx->in_tx = false;
   }
-
-  /**
-  *  Custom PostRollback code for ProfileTM.  If the last transaction in the
-  *  profile set aborts, it will call profile_oncomplete before calling this.
-  *  That means that it will adapt /out of/ ProfileTM, which in turn means
-  *  that we cannot reset the pointers on abort.
-  */
-  inline void PostRollbackNoTrigger(TxThread* tx)
+  inline
+  void OnFirstWrite(TxThread*, ReadBarrier r, WriteBarrier w, CommitBarrier c)
   {
-      tx->allocator.onTxAbort();
-      tx->nesting_depth = 0;
-      tx->in_tx = false;
+      SetLocalPointers(r, w, c);
   }
-
-#ifndef STM_ONESHOT_MODE
   inline void GoTurbo(TxThread*, ReadBarrier r, WriteBarrier w, CommitBarrier c)
   {
       SetLocalPointers(r, w, c);
   }
-
   inline bool CheckTurboMode(TxThread*, ReadBarrier r)
   {
       return (tmread == r);
   }
-
 #else
+  inline
+  void ResetToRO(TxThread* tx, ReadBarrier, WriteBarrier, CommitBarrier)
+  {
+      tx->mode = MODE_RO;
+  }
+  inline
+  void OnFirstWrite(TxThread* tx, ReadBarrier, WriteBarrier, CommitBarrier)
+  {
+      tx->mode = MODE_WRITE;
+  }
   inline void GoTurbo(TxThread* tx, ReadBarrier, WriteBarrier, CommitBarrier)
   {
       tx->mode = MODE_TURBO;
   }
-
   inline bool CheckTurboMode(TxThread* tx, ReadBarrier)
   {
       return tx->mode == MODE_TURBO;
@@ -312,6 +193,14 @@ namespace stm                                                           \
         else                                                            \
             CLASS::commit_ro(TX_LONE_ARG);                              \
     }                                                                   \
+    bool tmirrevoc(TxThread* tx)                                        \
+    {                                                                   \
+        return CLASS::irrevoc(tx);                                      \
+    }                                                                   \
+    void tmrollback(STM_ROLLBACK_SIG(tx,,))                             \
+    {                                                                   \
+        CLASS::rollback(tx);                                            \
+    }                                                                   \
 }
 
 #define DECLARE_AS_ONESHOT_NORMAL(CLASS)                                \
@@ -342,6 +231,14 @@ namespace stm                                                           \
         else                                                            \
             CLASS::commit_ro(TX_LONE_ARG);                              \
     }                                                                   \
+    bool tmirrevoc(TxThread* tx)                                        \
+    {                                                                   \
+        return CLASS::irrevoc(tx);                                      \
+    }                                                                   \
+    void tmrollback(STM_ROLLBACK_SIG(tx,,))                             \
+    {                                                                   \
+        CLASS::rollback(tx);                                            \
+    }                                                                   \
 }
 
 #define DECLARE_AS_ONESHOT_SIMPLE(CLASS)                                \
@@ -360,7 +257,16 @@ namespace stm                                                           \
     {                                                                   \
         CLASS::commit(TX_LONE_ARG);                                     \
     }                                                                   \
+    bool tmirrevoc(TxThread* tx)                                        \
+    {                                                                   \
+        return CLASS::irrevoc(tx);                                      \
+    }                                                                   \
+    void tmrollback(STM_ROLLBACK_SIG(tx,,))                             \
+    {                                                                   \
+        CLASS::rollback(tx);                                            \
+    }                                                                   \
 }
+
 
 #endif
 

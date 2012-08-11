@@ -16,6 +16,7 @@
 #include "../profiling.hpp"
 #include "../algs.hpp"
 #include "../RedoRAWUtils.hpp"
+#include "../Diagnostics.hpp"
 
 using stm::TxThread;
 using stm::threads;
@@ -24,7 +25,6 @@ using stm::last_complete;
 using stm::timestamp;
 using stm::timestamp_max;
 using stm::WriteSet;
-using stm::UNRECOVERABLE;
 using stm::WriteSetEntry;
 
 using stm::ValueList;
@@ -113,7 +113,7 @@ namespace
 
       // clean up
       tx->vlist.reset();
-      OnReadOnlyCommit(tx);
+      OnROCommit(tx);
   }
 
   /**
@@ -137,7 +137,8 @@ namespace
       // Turbo tx can clean up first
       tx->vlist.reset();
       tx->writes.reset();
-      OnReadWriteCommit(tx, read_ro, write_ro, commit_ro);
+      OnRWCommit(tx);
+      ResetToRO(tx, read_ro, write_ro, commit_ro);
 
       // Wait for my turn
       //
@@ -231,7 +232,8 @@ namespace
       // commit all frees, reset all lists
       tx->vlist.reset();
       tx->writes.reset();
-      OnReadWriteCommit(tx, read_ro, write_ro, commit_ro);
+      OnRWCommit(tx);
+      ResetToRO(tx, read_ro, write_ro, commit_ro);
   }
 
   /**
@@ -382,7 +384,7 @@ namespace
    */
   bool CohortsLNI2::irrevoc(TxThread*)
   {
-      UNRECOVERABLE("CohortsLNI2 Irrevocability not yet supported");
+      stm::UNRECOVERABLE("CohortsLNI2 Irrevocability not yet supported");
       return false;
   }
 

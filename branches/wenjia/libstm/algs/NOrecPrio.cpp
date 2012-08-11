@@ -94,7 +94,7 @@ namespace {
           faaptr(&prioTxCount.val, -1);
           tx->prio = 0;
       }
-      OnReadOnlyCommit(tx);
+      OnROCommit(tx);
   }
 
   /**
@@ -138,7 +138,8 @@ namespace {
           faaptr(&prioTxCount.val, -1);
           tx->prio = 0;
       }
-      OnReadWriteCommit(tx, read_ro, write_ro, commit_ro);
+      OnRWCommit(tx);
+      ResetToRO(tx, read_ro, write_ro, commit_ro);
   }
 
   /**
@@ -242,7 +243,8 @@ namespace {
           faaptr(&prioTxCount.val, -1);
           tx->prio = 0;
       }
-      PostRollback(tx, read_ro, write_ro, commit_ro);
+      PostRollback(tx);
+      ResetToRO(tx, read_ro, write_ro, commit_ro);
   }
 
   /**

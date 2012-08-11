@@ -29,6 +29,8 @@ namespace stm
   class WriteSet
   {
 #if 0
+      // [mfs] TODO: we should make a variant of the WriteSet that uses this
+      //       instead of the magic constant "3"
       static const int SPILL_FACTOR = 8; // 8 probes and we resize the list...
 #endif
 

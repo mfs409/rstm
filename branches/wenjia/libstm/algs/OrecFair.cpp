@@ -33,7 +33,6 @@ using stm::timestamp_max;
 using stm::KARMA_FACTOR;
 using stm::orec_t;
 using stm::get_orec;
-using stm::RREC_COUNT;
 using stm::rrecs;
 using stm::rrec_t;
 using stm::get_rrec;
@@ -112,7 +111,7 @@ namespace
           tx->myRRecs.reset();
       }
       tx->r_orecs.reset();
-      OnReadOnlyCommit(tx);
+      OnROCommit(tx);
   }
 
   /**
@@ -172,7 +171,7 @@ namespace
           // write set
           rrec_t accumulator = {{0}};
           foreach (WriteSet, j, tx->writes) {
-              int index = (((uintptr_t)j->addr) >> 3) % RREC_COUNT;
+              int index = (((uintptr_t)j->addr) >> 3) % stm::NUM_RRECS;
               accumulator |= rrecs[index];
           }
 
@@ -223,7 +222,8 @@ namespace
       tx->r_orecs.reset();
       tx->writes.reset();
       tx->locks.reset();
-      OnReadWriteCommit(tx, read_ro, write_ro, commit_ro);
+      OnRWCommit(tx);
+      ResetToRO(tx, read_ro, write_ro, commit_ro);
   }
 
   /**
@@ -477,7 +477,8 @@ namespace
       // randomized exponential backoff
       exp_backoff(tx);
 
-      PostRollback(tx, read_ro, write_ro, commit_ro);
+      PostRollback(tx);
+      ResetToRO(tx, read_ro, write_ro, commit_ro);
   }
 
   /**
