@@ -18,10 +18,10 @@
 #include "../profiling.hpp"
 #include "../algs.hpp"
 #include "../RedoRAWUtils.hpp"
+#include "../Diagnostics.hpp"
 
 using stm::TxThread;
 using stm::last_complete;
-using stm::UNRECOVERABLE;
 using stm::WriteSetEntry;
 using stm::global_filter;
 using stm::started;
@@ -94,7 +94,7 @@ namespace {
 
       // clean up
       tx->rf->clear();
-      OnReadOnlyCommit(tx);
+      OnROCommit(tx);
   }
 
   /**
@@ -110,7 +110,8 @@ namespace {
 
       // clean up
       tx->rf->clear();
-      OnReadWriteCommit(tx, read_ro, write_ro, commit_ro);
+      OnRWCommit(tx);
+      ResetToRO(tx, read_ro, write_ro, commit_ro);
 
       // wait for my turn, in this case, cpending is my order
       while (last_complete.val != (uintptr_t)(tx->order - 1));
@@ -183,7 +184,8 @@ namespace {
       tx->rf->clear();
       tx->wf->clear();
       tx->writes.reset();
-      OnReadWriteCommit(tx, read_ro, write_ro, commit_ro);
+      OnRWCommit(tx);
+      ResetToRO(tx, read_ro, write_ro, commit_ro);
   }
 
   /**
@@ -305,7 +307,7 @@ namespace {
   bool
   CohortsEF::irrevoc(TxThread*)
   {
-      UNRECOVERABLE("CohortsEF Irrevocability not yet supported");
+      stm::UNRECOVERABLE("CohortsEF Irrevocability not yet supported");
       return false;
   }
 

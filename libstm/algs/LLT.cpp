@@ -28,7 +28,6 @@ using stm::timestamp;
 using stm::timestamp_max;
 using stm::WriteSet;
 using stm::OrecList;
-using stm::UNRECOVERABLE;
 using stm::WriteSetEntry;
 using stm::orec_t;
 using stm::get_orec;
@@ -75,7 +74,7 @@ namespace {
       TX_GET_TX_INTERNAL;
       // read-only, so just reset lists
       tx->r_orecs.reset();
-      OnReadOnlyCommit(tx);
+      OnROCommit(tx);
   }
 
   /**
@@ -128,7 +127,8 @@ namespace {
       tx->r_orecs.reset();
       tx->writes.reset();
       tx->locks.reset();
-      OnReadWriteCommit(tx, read_ro, write_ro, commit_ro);
+      OnRWCommit(tx);
+      ResetToRO(tx, read_ro, write_ro, commit_ro);
   }
 
   /**
@@ -239,7 +239,8 @@ namespace {
       tx->r_orecs.reset();
       tx->writes.reset();
       tx->locks.reset();
-      PostRollback(tx, read_ro, write_ro, commit_ro);
+      PostRollback(tx);
+      ResetToRO(tx, read_ro, write_ro, commit_ro);
   }
 
   /**

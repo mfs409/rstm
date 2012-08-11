@@ -35,7 +35,6 @@
 using stm::TxThread;
 using stm::BitLockList;
 using stm::WriteSet;
-using stm::UNRECOVERABLE;
 using stm::rrec_t;
 using stm::bitlock_t;
 using stm::get_bitlock;
@@ -89,7 +88,7 @@ namespace {
           (*i)->readers.unsetbit(tx->id-1);
 
       tx->r_bitlocks.reset();
-      OnReadOnlyCommit(tx);
+      OnROCommit(tx);
   }
 
   /**
@@ -165,7 +164,8 @@ namespace {
       tx->r_bitlocks.reset();
       tx->writes.reset();
       tx->w_bitlocks.reset();
-      OnReadWriteCommit(tx, read_ro, write_ro, commit_ro);
+      OnRWCommit(tx);
+      ResetToRO(tx, read_ro, write_ro, commit_ro);
   }
 
   /**
@@ -285,7 +285,8 @@ namespace {
       tx->writes.reset();
       tx->w_bitlocks.reset();
 
-      PostRollback(tx, read_ro, write_ro, commit_ro);
+      PostRollback(tx);
+      ResetToRO(tx, read_ro, write_ro, commit_ro);
   }
 
   /**

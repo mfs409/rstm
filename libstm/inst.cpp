@@ -79,8 +79,10 @@ namespace stm
           threads[i]->consec_aborts  = 0;
       }
 
-      tmrollback = stms[new_alg].rollback;
+#ifndef STM_ONESHOT_MODE
       tmirrevoc  = stms[new_alg].irrevoc;
+      tmrollback = stms[new_alg].rollback;
+#endif
       curr_policy.ALG_ID   = new_alg;
       CFENCE;
       tmbegin    = stms[new_alg].begin;
@@ -98,7 +100,7 @@ namespace stm
   {
       stm::TxThread* tx = stm::Self;
 #if defined(STM_ABORT_ON_THROW)
-      TxThread::tmrollback(tx, NULL, 0);
+      tmrollback(tx, NULL, 0);
 #else
       tmrollback(tx);
 #endif
@@ -110,27 +112,39 @@ namespace stm
   void tmabort()
   {
       stm::TxThread* tx = stm::Self;
+#if defined(STM_ABORT_ON_THROW)
+      tmrollback(tx, NULL, 0);
+#else
       tmrollback(tx);
+#endif
       tx->nesting_depth = 1;          // no closed nesting yet.
       restore_checkpoint(stm::tmbegin);
   }
 #endif
 
+#ifndef STM_ONESHOT_MODEQQQ // [mfs] Need to take this out, but it's going to
+                            // hurt...
   /**
    *  The begin function pointer.  Note that we need tmbegin to equal
    *  begin_cgl initially, since "0" is the default algorithm
    */
   void (*volatile tmbegin)(TX_LONE_PARAMETER) = begin_CGL;
+#endif
 
   /**
    *  The tmrollback and tmirrevoc pointers
    */
+
+#ifndef STM_ONESHOT_MODE
   void (*tmrollback)(STM_ROLLBACK_SIG(,,));
   bool (*tmirrevoc)(TxThread*) = NULL;
-
+#endif
 
   /**
    *  Simplified support for self-abort
+   *
+   *  [mfs] This is not in the API, and cancel *is*, so should we drop this?
+   *        Note that STAMP still needs it until Labyrinth is fixed...
    */
   void restart()
   {

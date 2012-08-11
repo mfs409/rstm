@@ -26,6 +26,7 @@
 #include "../algs.hpp"
 #include "../RedoRAWUtils.hpp"
 #include "../UndoLog.hpp" // STM_DO_MASKED_WRITE
+#include "../Diagnostics.hpp"
 
 using stm::TxThread;
 using stm::threads;
@@ -37,7 +38,6 @@ using stm::orec_t;
 using stm::get_orec;
 using stm::OrecList;
 using stm::WriteSet;
-using stm::UNRECOVERABLE;
 using stm::WriteSetEntry;
 
 
@@ -122,7 +122,7 @@ namespace {
 
       // commit all frees, reset all lists
       tx->r_orecs.reset();
-      OnReadOnlyCommit(tx);
+      OnROCommit(tx);
   }
 
   /**
@@ -172,7 +172,8 @@ namespace {
       // commit all frees, reset all lists
       tx->r_orecs.reset();
       tx->writes.reset();
-      OnReadWriteCommit(tx, read_ro, write_ro, commit_ro);
+      OnRWCommit(tx);
+      ResetToRO(tx, read_ro, write_ro, commit_ro);
   }
 
   /**
@@ -290,7 +291,7 @@ namespace {
    */
   bool Pipeline::irrevoc(TxThread*)
   {
-      UNRECOVERABLE("Pipeline Irrevocability not yet supported");
+      stm::UNRECOVERABLE("Pipeline Irrevocability not yet supported");
       return false;
   }
 

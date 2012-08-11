@@ -17,6 +17,9 @@
 #ifndef WRITESETENTRY_HPP__
 #define WRITESETENTRY_HPP__
 
+#include <cassert>
+#include <stdint.h>
+
 namespace stm
 {
   /**

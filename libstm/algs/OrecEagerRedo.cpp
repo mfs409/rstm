@@ -22,7 +22,6 @@
 #include "../algs.hpp"
 #include "../RedoRAWUtils.hpp"
 
-using stm::UNRECOVERABLE;
 using stm::TxThread;
 using stm::OrecList;
 using stm::orec_t;
@@ -76,7 +75,7 @@ namespace {
   {
       TX_GET_TX_INTERNAL;
       tx->r_orecs.reset();
-      OnReadOnlyCommit(tx);
+      OnROCommit(tx);
   }
 
   /**
@@ -116,7 +115,8 @@ namespace {
       tx->r_orecs.reset();
       tx->writes.reset();
       tx->locks.reset();
-      OnReadWriteCommit(tx, read_ro, write_ro, commit_ro);
+      OnRWCommit(tx);
+      ResetToRO(tx, read_ro, write_ro, commit_ro);
   }
 
   /**
@@ -315,7 +315,8 @@ namespace {
       tx->r_orecs.reset();
       tx->writes.reset();
       tx->locks.reset();
-      PostRollback(tx, read_ro, write_ro, commit_ro);
+      PostRollback(tx);
+      ResetToRO(tx, read_ro, write_ro, commit_ro);
   }
 
   /**

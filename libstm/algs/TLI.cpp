@@ -21,7 +21,6 @@
 #include "../algs.hpp"
 #include "../RedoRAWUtils.hpp"
 
-using stm::UNRECOVERABLE;
 using stm::TxThread;
 using stm::timestamp;
 using stm::threads;
@@ -75,7 +74,7 @@ namespace {
       // ok, all is good
       tx->alive = 0;
       tx->rf->clear();
-      OnReadOnlyCommit(tx);
+      OnROCommit(tx);
   }
 
   /**
@@ -116,7 +115,8 @@ namespace {
       tx->writes.reset();
       tx->rf->clear();
       tx->wf->clear();
-      OnReadWriteCommit(tx, read_ro, write_ro, commit_ro);
+      OnRWCommit(tx);
+      ResetToRO(tx, read_ro, write_ro, commit_ro);
   }
 
   /**
@@ -216,7 +216,8 @@ namespace {
           tx->writes.reset();
           tx->wf->clear();
       }
-      PostRollback(tx, read_ro, write_ro, commit_ro);
+      PostRollback(tx);
+      ResetToRO(tx, read_ro, write_ro, commit_ro);
   }
 
   /**

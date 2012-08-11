@@ -18,8 +18,8 @@
 #include "../profiling.hpp"
 #include "../algs.hpp"
 #include "../UndoLog.hpp" // STM_DO_MASKED_WRITE
+#include "../Diagnostics.hpp"
 
-using stm::UNRECOVERABLE;
 using stm::TxThread;
 using stm::ticketlock;
 
@@ -87,7 +87,7 @@ namespace {
   void
   Ticket::rollback(STM_ROLLBACK_SIG(,,))
   {
-      UNRECOVERABLE("ATTEMPTING TO ABORT AN IRREVOCABLE TICKET TRANSACTION");
+      stm::UNRECOVERABLE("ATTEMPTING TO ABORT AN IRREVOCABLE TICKET TRANSACTION");
   }
 
   /**
@@ -99,7 +99,7 @@ namespace {
   bool
   Ticket::irrevoc(TxThread*)
   {
-      UNRECOVERABLE("IRREVOC_TICKET SHOULD NEVER BE CALLED");
+      stm::UNRECOVERABLE("IRREVOC_TICKET SHOULD NEVER BE CALLED");
       return false;
   }
 

@@ -37,11 +37,9 @@ namespace stm
    */
   pad_word_t timestamp_max = {0, {0}};
 
-  /*** the set of orecs (locks) */
-  orec_t orecs[NUM_STRIPES] = {{{{0, 0}}, 0}};
+  const uint32_t BACKOFF_MIN   = 4;        // min backoff exponent
+  const uint32_t BACKOFF_MAX   = 16;       // max backoff exponent
 
-  /*** the set of nanorecs */
-  orec_t nanorecs[RING_ELEMENTS] = {{{{0, 0}}, 0}};
 
   /*** the ring */
   pad_word_t last_complete = {0, {0}};
@@ -50,13 +48,6 @@ namespace stm
 
   /*** priority stuff */
   pad_word_t prioTxCount       = {0, {0}};
-  rrec_t     rrecs[RREC_COUNT] = {{{0}}};
-
-  /*** the table of bytelocks */
-  bytelock_t bytelocks[NUM_STRIPES] = {{0, {0}}};
-
-  /*** the table of bitlocks */
-  bitlock_t bitlocks[NUM_STRIPES] = {{0, {{0}}}};
 
   /*** the array of epochs */
   pad_word_t epochs[MAX_THREADS] = {{0, {0}}};
@@ -110,13 +101,27 @@ namespace stm
       return -1;
   }
 
-  /*** simple printout */
-  void toxic_histogram_t::dump()
+  /**
+   *  A simple implementation of randomized exponential backoff.
+   *
+   *  NB: This uses getElapsedTime, which is slow compared to a granularity
+   *      of 64 nops.  However, we can't switch to tick(), because sometimes
+   *      two successive tick() calls return the same value and tickp isn't
+   *      universal.
+   */
+  void exp_backoff(TxThread* tx)
   {
-      printf("abort_histogram: ");
-      for (int i = 0; i < 18; ++i)
-          printf("%d, ", buckets[i]);
-      printf("max = %d, hgc = %d, hga = %d\n", max, hg_commits, hg_aborts);
+      // how many bits should we use to pick an amount of time to wait?
+      uint32_t bits = tx->consec_aborts + BACKOFF_MIN - 1;
+      bits = (bits > BACKOFF_MAX) ? BACKOFF_MAX : bits;
+      // get a random amount of time to wait, bounded by an exponentially
+      // increasing limit
+      int32_t delay = rand_r_32(&tx->seed);
+      delay &= ((1 << bits)-1);
+      // wait until at least that many ns have passed
+      unsigned long long start = getElapsedTime();
+      unsigned long long stop_at = start + delay;
+      while (getElapsedTime() < stop_at) { spin64(); }
   }
 
 } // namespace stm

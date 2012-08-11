@@ -20,6 +20,7 @@
 #include "../profiling.hpp"
 #include "../algs.hpp"
 #include "../RedoRAWUtils.hpp"
+#include "../Diagnostics.hpp"
 
 // define atomic operations
 #define ADD __sync_add_and_fetch
@@ -29,7 +30,6 @@
 using stm::TxThread;
 using stm::WriteSet;
 using stm::OrecList;
-using stm::UNRECOVERABLE;
 using stm::WriteSetEntry;
 using stm::orec_t;
 using stm::get_orec;
@@ -100,7 +100,7 @@ namespace {
       CFENCE; //wbw between write back and change of timestamp.val
       // Only master can write odd timestamp.val, now timestamp.val is even again
       timestamp.val++;
-      OnReadWriteCommit(tx);
+      OnRWCommit(tx);
   }
 
   /**
@@ -113,7 +113,7 @@ namespace {
       TX_GET_TX_INTERNAL;
       // clean up
       tx->r_orecs.reset();
-      OnReadOnlyCommit(tx);
+      OnROCommit(tx);
   }
 
   /**
@@ -184,7 +184,8 @@ namespace {
       // commit all frees, reset all lists
       tx->r_orecs.reset();
       tx->writes.reset();
-      OnReadWriteCommit(tx, read_ro, write_ro, commit_ro);
+      OnRWCommit(tx);
+      ResetToRO(tx, read_ro, write_ro, commit_ro);
   }
 
   /**
@@ -308,7 +309,7 @@ namespace {
   bool
   Fastlane2::irrevoc(TxThread*)
   {
-      UNRECOVERABLE("Fastlane2 Irrevocability not yet supported");
+      stm::UNRECOVERABLE("Fastlane2 Irrevocability not yet supported");
       return false;
   }
 

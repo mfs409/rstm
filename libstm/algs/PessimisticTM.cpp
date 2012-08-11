@@ -18,6 +18,7 @@
 #include "../profiling.hpp"
 #include "../algs.hpp"
 #include "../RedoRAWUtils.hpp"
+#include "../Diagnostics.hpp"
 
 // ThreadID associated with activity_array
 #define th_id tx->id - 1
@@ -29,7 +30,6 @@
 
 using stm::TxThread;
 using stm::WriteSet;
-using stm::UNRECOVERABLE;
 using stm::WriteSetEntry;
 using stm::orec_t;
 using stm::get_orec;
@@ -131,7 +131,7 @@ namespace {
       // clean up
       tx->progress_is_seen = false;
       tx->read_only = false;
-      OnReadOnlyCommit(tx);
+      OnROCommit(tx);
   }
 
   /**
@@ -151,7 +151,7 @@ namespace {
       // clean up
       tx->progress_is_seen = false;
       tx->read_only = false;
-      OnReadOnlyCommit(tx);
+      OnROCommit(tx);
 
   }
 
@@ -235,7 +235,8 @@ namespace {
       // commit all frees, reset all lists
       tx->writes.reset();
       tx->progress_is_seen = false;
-      OnReadWriteCommit(tx, read_ro, write_ro, commit_ro);
+      OnRWCommit(tx);
+      ResetToRO(tx, read_ro, write_ro, commit_ro);
   }
 
   /**
@@ -318,7 +319,7 @@ namespace {
    */
   void PessimisticTM::rollback(STM_ROLLBACK_SIG(,,))
   {
-      UNRECOVERABLE("PessimisticTM should never call rollback");
+      stm::UNRECOVERABLE("PessimisticTM should never call rollback");
   }
 
   /**
@@ -327,7 +328,7 @@ namespace {
   bool
   PessimisticTM::irrevoc(TxThread*)
   {
-      UNRECOVERABLE("PessimisticTM Irrevocability not yet supported");
+      stm::UNRECOVERABLE("PessimisticTM Irrevocability not yet supported");
       return false;
   }
 

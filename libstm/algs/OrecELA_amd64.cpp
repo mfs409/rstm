@@ -27,6 +27,7 @@
 #include "../cm.hpp"
 #include "../algs.hpp"
 #include "../RedoRAWUtils.hpp"
+#include "../Diagnostics.hpp"
 
 using stm::TxThread;
 using stm::get_orec;
@@ -103,7 +104,7 @@ namespace
       CM::onCommit(tx);
       // read-only
       tx->r_orecs.reset();
-      OnReadOnlyCommit(tx);
+      OnROCommit(tx);
 #ifdef STM_BITS_32
       stm::UNRECOVERABLE("Error: trying to run in 32-bit mode!");
 #else
@@ -180,7 +181,8 @@ namespace
       tx->r_orecs.reset();
       tx->writes.reset();
       tx->locks.reset();
-      OnReadWriteCommit(tx, read_ro, write_ro, commit_ro);
+      OnRWCommit(tx);
+      ResetToRO(tx, read_ro, write_ro, commit_ro);
 
       // quiesce
       CFENCE;
@@ -310,7 +312,8 @@ namespace
       tx->r_orecs.reset();
       tx->writes.reset();
       tx->locks.reset();
-      PostRollback(tx, read_ro, write_ro, commit_ro);
+      PostRollback(tx);
+      ResetToRO(tx, read_ro, write_ro, commit_ro);
   }
 
   /**

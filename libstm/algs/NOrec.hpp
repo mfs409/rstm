@@ -155,7 +155,7 @@ namespace {
       if (!tx->writes.size()) {
           CM::onCommit(tx);
           tx->vlist.reset();
-          OnReadOnlyCommit(tx);
+          OnROCommit(tx);
           return;
       }
 
@@ -172,7 +172,7 @@ namespace {
       CM::onCommit(tx);
       tx->vlist.reset();
       tx->writes.reset();
-      OnReadWriteCommit(tx);
+      OnRWCommit(tx);
   }
 
   template <class CM>
@@ -184,7 +184,7 @@ namespace {
       // NOrec transaction just resets itself and is done.
       CM::onCommit(tx);
       tx->vlist.reset();
-      OnReadOnlyCommit(tx);
+      OnROCommit(tx);
   }
 
   template <class CM>
@@ -213,7 +213,8 @@ namespace {
       tx->writes.reset();
 
       // This switches the thread back to RO mode.
-      OnReadWriteCommit(tx, read_ro, write_ro, commit_ro);
+      OnRWCommit(tx);
+      ResetToRO(tx, read_ro, write_ro, commit_ro);
   }
 
   template <class CM>
@@ -301,7 +302,8 @@ namespace {
 
       tx->vlist.reset();
       tx->writes.reset();
-      stm::PostRollback(tx, read_ro, write_ro, commit_ro);
+      PostRollback(tx);
+      ResetToRO(tx, read_ro, write_ro, commit_ro);
   }
 } // (anonymous namespace)
 

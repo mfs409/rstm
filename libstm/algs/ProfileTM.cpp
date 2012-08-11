@@ -20,6 +20,7 @@
 
 #include "../profiling.hpp"
 #include "../algs.hpp"
+#include "../Diagnostics.hpp"
 
 using namespace stm;
 
@@ -117,7 +118,7 @@ namespace
           tmp - profiles[last_complete.val].txn_time;
 
       // do all the standard RO cleanup stuff
-      OnReadOnlyCommit(tx);
+      OnROCommit(tx);
 
       // now adapt based on the fact that we just successfully collected a
       // profile
@@ -149,7 +150,8 @@ namespace
       profiles[last_complete.val].write_waw -= x;
 
       // do all the standard RW cleanup stuff
-      OnReadWriteCommit(tx, read_ro, write_ro, commit_ro);
+      OnRWCommit(tx);
+      ResetToRO(tx, read_ro, write_ro, commit_ro);
 
       // now adapt based on the fact that we just successfully collected a
       // profile
@@ -259,7 +261,8 @@ namespace
           profile_oncomplete(tx);
           PostRollbackNoTrigger(tx);
       }
-      PostRollbackNoTrigger(tx, read_ro, write_ro, commit_ro);
+      PostRollbackNoTrigger(tx);
+      ResetToRO(tx, read_ro, write_ro, commit_ro);
   }
 
   /**

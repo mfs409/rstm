@@ -27,6 +27,8 @@ namespace
 namespace stm
 {
   /*** BACKING FOR GLOBAL VARS DECLARED IN TXTHREAD.HPP */
+  // [mfs] On second thought, these should be members of TxThread (well,
+  //       maybe not Self, but the rest)
   pad_word_t threadcount          = {0, {0}}; // thread count
   TxThread*  threads[MAX_THREADS] = {0}; // all TxThreads
   THREAD_LOCAL_DECL_TYPE(TxThread*) Self; // this thread's TxThread
@@ -150,6 +152,7 @@ namespace stm
   }
 
   /*** print a message and die */
+  // [mfs] Wrong location for this function
   void UNRECOVERABLE(const char* msg)
   {
       std::cerr << msg << std::endl;
@@ -180,6 +183,8 @@ namespace stm
    */
   void sys_shutdown()
   {
+      // [mfs] Why do we need the mutex?  Should this have at-most-once
+      //       semantics?
       static volatile unsigned int mtx = 0;
       while (!bcas32(&mtx, 0u, 1u)) { }
 

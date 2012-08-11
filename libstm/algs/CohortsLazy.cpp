@@ -20,6 +20,7 @@
 #include "../profiling.hpp"
 #include "../algs.hpp"
 #include "../RedoRAWUtils.hpp"
+#include "../Diagnostics.hpp"
 
 using stm::TxThread;
 using stm::threads;
@@ -29,7 +30,6 @@ using stm::timestamp;
 using stm::timestamp_max;
 using stm::WriteSet;
 using stm::OrecList;
-using stm::UNRECOVERABLE;
 using stm::WriteSetEntry;
 using stm::orec_t;
 using stm::get_orec;
@@ -99,7 +99,7 @@ namespace {
 
       // clean up
       tx->r_orecs.reset();
-      OnReadOnlyCommit(tx);
+      OnROCommit(tx);
   }
 
   /**
@@ -169,7 +169,8 @@ namespace {
       // commit all frees, reset all lists
       tx->r_orecs.reset();
       tx->writes.reset();
-      OnReadWriteCommit(tx, read_ro, write_ro, commit_ro);
+      OnRWCommit(tx);
+      ResetToRO(tx, read_ro, write_ro, commit_ro);
   }
 
   /**
@@ -253,7 +254,7 @@ namespace {
   bool
   CohortsLazy::irrevoc(TxThread*)
   {
-      UNRECOVERABLE("CohortsLazy Irrevocability not yet supported");
+      stm::UNRECOVERABLE("CohortsLazy Irrevocability not yet supported");
       return false;
   }
 

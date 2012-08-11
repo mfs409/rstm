@@ -21,6 +21,7 @@
 #include "../profiling.hpp"
 #include "../algs.hpp"
 #include "../RedoRAWUtils.hpp"
+#include "../Diagnostics.hpp"
 
 using stm::TxThread;
 using stm::threads;
@@ -30,7 +31,6 @@ using stm::timestamp;
 using stm::timestamp_max;
 using stm::WriteSet;
 using stm::OrecList;
-using stm::UNRECOVERABLE;
 using stm::WriteSetEntry;
 using stm::orec_t;
 using stm::get_orec;
@@ -78,7 +78,7 @@ namespace
       TX_GET_TX_INTERNAL;
       // reset lists and we are done
       tx->r_orecs.reset();
-      OnReadOnlyCommit(tx);
+      OnROCommit(tx);
   }
 
   /**
@@ -125,7 +125,8 @@ namespace
       // commit all frees, reset all lists
       tx->r_orecs.reset();
       tx->writes.reset();
-      OnReadWriteCommit(tx, read_ro, write_ro, commit_ro);
+      OnRWCommit(tx);
+      ResetToRO(tx, read_ro, write_ro, commit_ro);
   }
 
   /**
@@ -229,7 +230,7 @@ namespace
   bool
   CToken::irrevoc(TxThread*)
   {
-      UNRECOVERABLE("CToken Irrevocability not yet supported");
+      stm::UNRECOVERABLE("CToken Irrevocability not yet supported");
       return false;
   }
 

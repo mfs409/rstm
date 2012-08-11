@@ -17,10 +17,10 @@
 #include "../profiling.hpp"
 #include "../algs.hpp"
 #include "../RedoRAWUtils.hpp"
+#include "../Diagnostics.hpp"
 
 using stm::TxThread;
 using stm::WriteSet;
-using stm::UNRECOVERABLE;
 using stm::WriteSetEntry;
 using stm::ValueList;
 using stm::ValueListEntry;
@@ -91,7 +91,7 @@ namespace {
 
       // clean up
       tx->vlist.reset();
-      OnReadOnlyCommit(tx);
+      OnROCommit(tx);
   }
 
   /**
@@ -144,7 +144,8 @@ namespace {
       // commit all frees, reset all lists
       tx->vlist.reset();
       tx->writes.reset();
-      OnReadWriteCommit(tx, read_ro, write_ro, commit_ro);
+      OnRWCommit(tx);
+      ResetToRO(tx, read_ro, write_ro, commit_ro);
   }
 
   /**
@@ -226,7 +227,7 @@ namespace {
   bool
   Cohorts3::irrevoc(TxThread*)
   {
-      UNRECOVERABLE("Cohorts3 Irrevocability not yet supported");
+      stm::UNRECOVERABLE("Cohorts3 Irrevocability not yet supported");
       return false;
   }
 

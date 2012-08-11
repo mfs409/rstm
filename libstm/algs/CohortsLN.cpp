@@ -21,6 +21,7 @@
 #include "../profiling.hpp"
 #include "../algs.hpp"
 #include "../RedoRAWUtils.hpp"
+#include "../Diagnostics.hpp"
 
 using stm::TxThread;
 using stm::threads;
@@ -29,7 +30,6 @@ using stm::last_complete;
 using stm::ValueList;
 using stm::ValueListEntry;
 using stm::timestamp;
-using stm::UNRECOVERABLE;
 using stm::WriteSetEntry;
 using stm::gatekeeper;
 using stm::last_order;
@@ -99,7 +99,7 @@ namespace {
 
       // clean up
       tx->vlist.reset();
-      OnReadOnlyCommit(tx);
+      OnROCommit(tx);
   }
 
   /**
@@ -176,7 +176,8 @@ namespace {
       // clean up
       tx->vlist.reset();
       tx->writes.reset();
-      OnReadWriteCommit(tx, read_ro, write_ro, commit_ro);
+      OnRWCommit(tx);
+      ResetToRO(tx, read_ro, write_ro, commit_ro);
   }
 
   /**
@@ -258,7 +259,7 @@ namespace {
   bool
   CohortsLN::irrevoc(TxThread*)
   {
-      UNRECOVERABLE("CohortsLN Irrevocability not yet supported");
+      stm::UNRECOVERABLE("CohortsLN Irrevocability not yet supported");
       return false;
   }
 

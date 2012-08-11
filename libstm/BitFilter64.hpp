@@ -114,6 +114,8 @@ namespace stm
       }
   }; // class stm::BitFilter64
 
+  typedef BitFilter64              filter64_t;   // flat 64-bit Bloom filter
+
 }  // namespace stm
 
 #endif // BITFILTER64_HPP__

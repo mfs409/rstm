@@ -132,7 +132,7 @@ namespace
       if (!tx->locks.size()) {
           CM::onCommit(tx);
           tx->r_orecs.reset();
-          OnReadOnlyCommit(tx);
+          OnROCommit(tx);
           return;
       }
 
@@ -161,7 +161,7 @@ namespace
       tx->undo_log.reset();
       // reset read list, do common cleanup
       tx->r_orecs.reset();
-      OnReadWriteCommit(tx);
+      OnRWCommit(tx);
   }
 
   /**

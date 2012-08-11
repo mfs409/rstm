@@ -18,12 +18,12 @@
 
 #include "../profiling.hpp"
 #include "../algs.hpp"
+#include "../Diagnostics.hpp"
 
 using stm::TxThread;
 using stm::timestamp;
 using stm::timestamp_max;
 using stm::UndoLogEntry;
-using stm::UNRECOVERABLE;
 
 /**
  *  Declare the functions that we're going to implement, so that we can avoid
@@ -66,7 +66,7 @@ namespace {
       if (x)
           OnCGLCommit(tx);
       else
-          OnReadOnlyCGLCommit(tx);
+          OnROCGLCommit(tx);
   }
 
   /**
@@ -132,7 +132,7 @@ namespace {
   bool
   Serial::irrevoc(TxThread*)
   {
-      UNRECOVERABLE("Serial::irrevoc should not be called!");
+      stm::UNRECOVERABLE("Serial::irrevoc should not be called!");
       return false;
   }
 

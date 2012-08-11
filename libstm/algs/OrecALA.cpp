@@ -31,7 +31,6 @@ using stm::OrecList;
 using stm::orec_t;
 using stm::get_orec;
 using stm::WriteSetEntry;
-using stm::UNRECOVERABLE;
 
 
 /**
@@ -87,7 +86,7 @@ namespace {
   {
       TX_GET_TX_INTERNAL;
       tx->r_orecs.reset();
-      OnReadOnlyCommit(tx);
+      OnROCommit(tx);
   }
 
   /**
@@ -157,7 +156,8 @@ namespace {
       tx->r_orecs.reset();
       tx->writes.reset();
       tx->locks.reset();
-      OnReadWriteCommit(tx, read_ro, write_ro, commit_ro);
+      OnRWCommit(tx);
+      ResetToRO(tx, read_ro, write_ro, commit_ro);
   }
 
   /**
@@ -267,7 +267,8 @@ namespace {
               spin64();
           last_complete.val = tx->end_time;
       }
-      PostRollback(tx, read_ro, write_ro, commit_ro);
+      PostRollback(tx);
+      ResetToRO(tx, read_ro, write_ro, commit_ro);
   }
 
   /**

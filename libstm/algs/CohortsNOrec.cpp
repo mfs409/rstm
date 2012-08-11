@@ -17,9 +17,9 @@
 #include "../profiling.hpp"
 #include "../algs.hpp"
 #include "../RedoRAWUtils.hpp"
+#include "../Diagnostics.hpp"
 
 using stm::TxThread;
-using stm::UNRECOVERABLE;
 using stm::WriteSetEntry;
 using stm::ValueList;
 using stm::ValueListEntry;
@@ -88,7 +88,7 @@ namespace {
 
       // clean up
       tx->vlist.reset();
-      OnReadOnlyCommit(tx);
+      OnROCommit(tx);
   }
 
   /**
@@ -135,7 +135,8 @@ namespace {
       // commit all frees, reset all lists
       tx->vlist.reset();
       tx->writes.reset();
-      OnReadWriteCommit(tx, read_ro, write_ro, commit_ro);
+      OnRWCommit(tx);
+      ResetToRO(tx, read_ro, write_ro, commit_ro);
   }
 
   /**
@@ -215,7 +216,7 @@ namespace {
   bool
   CohortsNOrec::irrevoc(TxThread*)
   {
-      UNRECOVERABLE("CohortsNOrec Irrevocability not yet supported");
+      stm::UNRECOVERABLE("CohortsNOrec Irrevocability not yet supported");
       return false;
   }
 

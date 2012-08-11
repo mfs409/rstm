@@ -74,7 +74,7 @@ namespace {
       TX_GET_TX_INTERNAL;
       // clear the filter and we are done
       tx->rf->clear();
-      OnReadOnlyCommit(tx);
+      OnROCommit(tx);
   }
 
   /**
@@ -133,7 +133,8 @@ namespace {
       tx->writes.reset();
       tx->rf->clear();
       tx->wf->clear();
-      OnReadWriteCommit(tx, read_ro, write_ro, commit_ro);
+      OnRWCommit(tx);
+      ResetToRO(tx, read_ro, write_ro, commit_ro);
   }
 
   /**
@@ -215,7 +216,8 @@ namespace {
           tx->writes.reset();
           tx->wf->clear();
       }
-      PostRollback(tx, read_ro, write_ro, commit_ro);
+      PostRollback(tx);
+      ResetToRO(tx, read_ro, write_ro, commit_ro);
   }
 
   /**

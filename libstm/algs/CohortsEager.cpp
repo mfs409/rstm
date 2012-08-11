@@ -18,6 +18,7 @@
 #include "../profiling.hpp"
 #include "../algs.hpp"
 #include "../RedoRAWUtils.hpp"
+#include "../Diagnostics.hpp"
 
 using stm::TxThread;
 using stm::last_complete;
@@ -25,7 +26,6 @@ using stm::timestamp;
 using stm::timestamp_max;
 using stm::WriteSet;
 using stm::OrecList;
-using stm::UNRECOVERABLE;
 using stm::WriteSetEntry;
 using stm::orec_t;
 using stm::get_orec;
@@ -104,7 +104,7 @@ namespace {
 
       // clean up
       tx->r_orecs.reset();
-      OnReadOnlyCommit(tx);
+      OnROCommit(tx);
   }
 
   /**
@@ -121,7 +121,8 @@ namespace {
       // clean up
       tx->r_orecs.reset();
       tx->writes.reset();
-      OnReadWriteCommit(tx, read_ro, write_ro, commit_ro);
+      OnRWCommit(tx);
+      ResetToRO(tx, read_ro, write_ro, commit_ro);
 
       // wait for my turn, in this case, cpending is my order
       while (last_complete.val != (uintptr_t)(tx->order - 1));
@@ -186,7 +187,8 @@ namespace {
       // commit all frees, reset all lists
       tx->r_orecs.reset();
       tx->writes.reset();
-      OnReadWriteCommit(tx, read_ro, write_ro, commit_ro);
+      OnRWCommit(tx);
+      ResetToRO(tx, read_ro, write_ro, commit_ro);
   }
 
   /**
@@ -312,7 +314,7 @@ namespace {
   bool
   CohortsEager::irrevoc(TxThread*)
   {
-      UNRECOVERABLE("CohortsEager Irrevocability not yet supported");
+      stm::UNRECOVERABLE("CohortsEager Irrevocability not yet supported");
       return false;
   }
 

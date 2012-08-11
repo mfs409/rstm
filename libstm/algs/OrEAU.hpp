@@ -105,7 +105,7 @@ namespace {
       TX_GET_TX_INTERNAL;
       CM::onCommit(tx);
       tx->r_orecs.reset();
-      OnReadOnlyCommit(tx);
+      OnROCommit(tx);
   }
 
   /**
@@ -141,7 +141,8 @@ namespace {
       tx->r_orecs.reset();
       tx->undo_log.reset();
       tx->locks.reset();
-      OnReadWriteCommit(tx, read_ro, write_ro, commit_ro);
+      OnRWCommit(tx);
+      ResetToRO(tx, read_ro, write_ro, commit_ro);
   }
 
   /**
@@ -381,7 +382,8 @@ namespace {
       tx->undo_log.reset();
       tx->locks.reset();
 
-      PostRollback(tx, read_ro, write_ro, commit_ro);
+      PostRollback(tx);
+      ResetToRO(tx, read_ro, write_ro, commit_ro);
   }
 
   /**

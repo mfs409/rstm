@@ -23,6 +23,7 @@
 #include "../profiling.hpp"
 #include "../algs.hpp"
 #include "../RedoRAWUtils.hpp"
+#include "../Diagnostics.hpp"
 
 using stm::TxThread;
 using stm::threads;
@@ -32,7 +33,6 @@ using stm::timestamp;
 using stm::timestamp_max;
 using stm::WriteSet;
 using stm::OrecList;
-using stm::UNRECOVERABLE;
 using stm::WriteSetEntry;
 using stm::orec_t;
 using stm::get_orec;
@@ -113,7 +113,7 @@ namespace {
 
       // commit all frees, reset all lists
       tx->r_orecs.reset();
-      OnReadOnlyCommit(tx);
+      OnROCommit(tx);
 
   }
 
@@ -176,7 +176,8 @@ namespace {
       // commit all frees, reset all lists
       tx->r_orecs.reset();
       tx->writes.reset();
-      OnReadWriteCommit(tx, read_ro, write_ro, commit_ro);
+      OnRWCommit(tx);
+      ResetToRO(tx, read_ro, write_ro, commit_ro);
 
       // decrease total number of committing tx
       faaptr(&started.val, -2);
@@ -318,7 +319,7 @@ namespace {
   bool
   CohortsOld::irrevoc(TxThread*)
   {
-      UNRECOVERABLE("CohortsOld Irrevocability not yet supported");
+      stm::UNRECOVERABLE("CohortsOld Irrevocability not yet supported");
       return false;
   }
 

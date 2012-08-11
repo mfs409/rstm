@@ -41,7 +41,7 @@ CXXFLAGS += -MMD -I$(ODIR)
 # All the cpp files are listed here
 #
 CXXNAMES = algs cbr inst irrevocability policies profiling static txthread \
-           types WBMMPolicy $(ALGNAMES)
+           types Toxic PMU WBMMPolicy BitLocks ByteLocks Orecs RRecs $(ALGNAMES)
 
 ifeq ($(CHECKPOINT),asm)
 CXXNAMES += checkpoint
