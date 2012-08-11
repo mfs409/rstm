@@ -23,7 +23,7 @@
 
 #include "../profiling.hpp"
 #include "../cm.hpp"
-#include "../algs.hpp"
+#include "algs.hpp"
 #include "../RedoRAWUtils.hpp"
 
 using stm::TxThread;
@@ -336,33 +336,17 @@ namespace {
   {
       printf("Warning: this TM implementation is not correct, and will "
              "probably crash\n");
-      // timestamp.val = MAXIMUM(timestamp.val, timestamp_max.val);
   }
 }
 
-// -----------------------------------------------------------------------------
-// Register initialization as declaratively as possible.
-// -----------------------------------------------------------------------------
-/*
-#define FOREACH_ORECLAZY(MACRO)               \
-    MACRO(OrecLazy_amd64, HyperAggressiveCM)          \
-    MACRO(OrecLazy_amd64Hour, HourglassCM)            \
-    MACRO(OrecLazy_amd64Backoff, BackoffCM)           \
-    MACRO(OrecLazy_amd64HB, HourglassBackoffCM)
-*/
-#define FOREACH_ORECLAZY(MACRO)                 \
-    MACRO(OrecLazy_amd64, HyperAggressiveCM)
-
-#define INIT_ORECLAZY(ID, CM)                       \
-    template <>                                     \
-    void initTM<ID>() {                             \
-        OrecLazy_amd64_Generic<stm::CM>::Initialize(ID, #ID); \
-    }
-
-namespace stm {
-  FOREACH_ORECLAZY(INIT_ORECLAZY)
+namespace stm
+{
+  template <>
+  void initTM<OrecLazy_amd64>()
+  {
+      OrecLazy_amd64_Generic<HyperAggressiveCM>::Initialize(OrecLazy_amd64, "OrecLazy_amd64");
+  }
 }
-
 
 #ifdef STM_ONESHOT_ALG_OrecLazy_amd64
 DECLARE_AS_ONESHOT_NORMAL(OrecLazy_amd64_Generic<stm::HyperAggressiveCM>)

@@ -35,9 +35,6 @@ namespace stm
       /**
        *  Setting the read byte is platform-specific, so we make it a method
        *  of the bytelock_t
-       *
-       *  NB: implemented in algs.hpp, so that it is visible where needed,
-       *      but not visible globally
        */
       void set_read_byte(uint32_t id);
   };

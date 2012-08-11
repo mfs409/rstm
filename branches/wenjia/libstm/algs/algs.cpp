@@ -15,7 +15,7 @@
 #endif
 
 #include "algs.hpp"
-#include "cm.hpp"
+#include "../../include/abstract_timing.hpp"
 
 namespace stm
 {
@@ -82,24 +82,13 @@ namespace stm
   pad_word_t global_version = {1, {0}};
   pad_word_t writer_lock = {0, {0}};
 
-  /*** Store descriptions of the STM algorithms */
-  alg_t stms[ALG_MAX];
-
   /*** for ProfileApp* */
-  dynprof_t*   app_profiles       = NULL;
+  profile_t*   app_profiles       = NULL;
 
   /***  These are the adaptivity-related fields */
   uint32_t   profile_txns = 1;          // number of txns per profile
-  dynprof_t* profiles     = NULL;       // where to store profiles
+  profile_t* profiles     = NULL;       // where to store profiles
 
-  /*** Use the stms array to map a string name to an algorithm ID */
-  int stm_name_map(const char* phasename)
-  {
-      for (int i = 0; i < ALG_MAX; ++i)
-          if (0 == strcmp(phasename, stms[i].name))
-              return i;
-      return -1;
-  }
 
   /**
    *  A simple implementation of randomized exponential backoff.

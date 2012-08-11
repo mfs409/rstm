@@ -25,7 +25,7 @@
 
 #include "../profiling.hpp"
 #include "../cm.hpp"
-#include "../algs.hpp"
+#include "algs.hpp"
 #include "../RedoRAWUtils.hpp"
 #include "../Diagnostics.hpp"
 
@@ -358,28 +358,12 @@ namespace
   }
 }
 
-// -----------------------------------------------------------------------------
-// Register initialization as declaratively as possible.
-// -----------------------------------------------------------------------------
-/*
-#define FOREACH_ORECLAZY(MACRO)               \
-    MACRO(OrecELA_amd64, HyperAggressiveCM)          \
-    MACRO(OrecELA_amd64Hour, HourglassCM)            \
-    MACRO(OrecELA_amd64Backoff, BackoffCM)           \
-    MACRO(OrecELA_amd64HB, HourglassBackoffCM)
-*/
-#define FOREACH_ORECLAZY(MACRO)                 \
-    MACRO(OrecELA_amd64, HyperAggressiveCM)
-
-#define INIT_ORECLAZY(ID, CM)                           \
-    template <>                                         \
-    void initTM<ID>()                                   \
-    {                                                   \
-        OrecELA_amd64_Generic<CM>::Initialize(ID, #ID); \
-    }
-
 namespace stm {
-  FOREACH_ORECLAZY(INIT_ORECLAZY)
+    template <>
+    void initTM<OrecELA_amd64>()
+    {
+        OrecELA_amd64_Generic<HyperAggressiveCM>::Initialize(OrecELA_amd64, "OrecELA_amd64");
+    }
 }
 
 

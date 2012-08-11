@@ -16,8 +16,9 @@
  */
 
 #include "../profiling.hpp"
-#include "../algs.hpp"
 #include "../RedoRAWUtils.hpp"
+#include "../cm.hpp"
+#include "algs.hpp"
 
 using stm::TxThread;
 using stm::ByteLockList;
@@ -46,13 +47,6 @@ namespace {
       static bool irrevoc(TxThread*);
       static void onSwitchTo();
   };
-
-  /**
-   *  Define the states for a transaction
-   */
-#define TX_ACTIVE     0u
-#define TX_ABORTED    1u
-#define TX_COMMITTED  2u
 
   /**
    *  ByEAR begin:

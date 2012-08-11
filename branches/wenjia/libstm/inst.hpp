@@ -21,6 +21,14 @@
 
 namespace stm
 {
+  /**
+   * custom begin method that blocks the starting thread, in order to get
+   * rendezvous correct during mode switching and GRL irrevocability
+   * (implemented in irrevocability.cpp because it uses some static functions
+   * declared there)
+   */
+  void begin_blocker(TX_LONE_PARAMETER);
+
 #ifdef STM_ONESHOT_MODE
   const uint32_t MODE_TURBO    = 2;
   const uint32_t MODE_WRITE    = 1;

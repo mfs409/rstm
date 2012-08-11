@@ -20,11 +20,6 @@ namespace stm
   /**
    * a reader record (rrec) holds bits representing up to MAX_THREADS reader
    * transactions
-   *
-   *  NB: methods are implemented in algs.hpp, so that they are visible where
-   *      needed, but not visible globally
-   *
-   *  [mfs] Move to rrec.hpp, and why not move methods there too?
    */
   struct rrec_t
   {

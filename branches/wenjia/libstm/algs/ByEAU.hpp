@@ -33,7 +33,7 @@
 
 #include "../profiling.hpp"
 #include "../cm.hpp"
-#include "../algs.hpp"
+#include "algs.hpp"
 
 using stm::TxThread;
 using stm::ByteLockList;
@@ -41,13 +41,6 @@ using stm::bytelock_t;
 using stm::get_bytelock;
 using stm::threads;
 using stm::UndoLogEntry;
-
-
-/**
- *  Supporting #defines for tracking thread liveness/deadness
- */
-#define TX_ACTIVE     0
-#define TX_ABORTED    1
 
 /**
  *  Declare the functions that we're going to implement, so that we can avoid

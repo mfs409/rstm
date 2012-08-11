@@ -11,8 +11,9 @@
 #include <iostream>
 #include "txthread.hpp"
 #include "policies.hpp"
-#include "algs.hpp"
+#include "Registration.hpp"
 #include "inst.hpp"
+#include "cm.hpp"
 
 namespace
 {
@@ -350,7 +351,7 @@ namespace stm
           char* spc = getenv("STM_NUMPROFILES");
           if (spc != NULL)
               profile_txns = strtol(spc, 0, 10);
-          profiles = (dynprof_t*)malloc(profile_txns * sizeof(dynprof_t));
+          profiles = (profile_t*)malloc(profile_txns * sizeof(profile_t));
           for (unsigned i = 0; i < profile_txns; i++)
               profiles[i].clear();
 
@@ -376,15 +377,15 @@ namespace stm
   }
 
   /**
-   *  get a chunk of memory that will be automatically reclaimed if the caller
-   *  is a transaction that ultimately aborts
+   *  get a chunk of memory that will be automatically reclaimed if the
+   *  caller is a transaction that ultimately aborts
    */
   void* tx_alloc(size_t size) { return Self->allocator.txAlloc(size); }
 
   /**
-   *  Free some memory.  If the caller is a transaction that ultimately aborts,
-   *  the free will not happen.  If the caller is a transaction that commits,
-   *  the free will happen at commit time.
+   *  Free some memory.  If the caller is a transaction that ultimately
+   *  aborts, the free will not happen.  If the caller is a transaction that
+   *  commits, the free will happen at commit time.
    */
   void tx_free(void* p) { Self->allocator.txFree(p); }
 

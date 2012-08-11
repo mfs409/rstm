@@ -51,7 +51,7 @@
 
 #include "../profiling.hpp"
 #include "../cm.hpp"
-#include "../algs.hpp"
+#include "algs.hpp"
 
 using stm::TxThread;
 using stm::OrecList;
@@ -120,12 +120,11 @@ namespace
    *
    *    read-only transactions do no work
    *
-   *    writers must increment the timestamp, maybe validate, and then release
-   *    locks
+   *    writers must increment the timestamp, maybe validate, and then
+   *    release locks
    */
   template <class CM>
-  void
-  OrecEager_amd64_Generic<CM>::commit(TX_LONE_PARAMETER)
+  void OrecEager_amd64_Generic<CM>::commit(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // use the lockset size to identify if tx is read-only
@@ -302,8 +301,8 @@ namespace
   /**
    *  OrecEager_amd64 in-flight irrevocability:
    *
-   *    Either commit the transaction or return false.  Note that we're already
-   *    serial by the time this code runs.
+   *    Either commit the transaction or return false.  Note that we're
+   *    already serial by the time this code runs.
    *
    *    NB: This doesn't Undo anything, so there's no need to protect the
    *        stack.
@@ -350,8 +349,7 @@ namespace
    *    be OK.
    */
   template <class CM>
-  void
-  OrecEager_amd64_Generic<CM>::validate(TxThread* tx)
+  void OrecEager_amd64_Generic<CM>::validate(TxThread* tx)
   {
       foreach (OrecList, i, tx->r_orecs) {
           // read this orec
@@ -365,43 +363,22 @@ namespace
   /**
    *  Switch to OrecEager_amd64:
    *
-   *    The timestamp must be >= the maximum value of any orec.  Some algs use
-   *    timestamp as a zero-one mutex.  If they do, then they back up the
-   *    timestamp first, in timestamp_max.
+   *    Switching to/from OrecEager_amd64 is extremely dangerous... we won't
+   *    be able to re-use the Orec table.
+   *
+   *    [mfs] Can we do anything about this?
    */
   template <class CM>
-  void
-  OrecEager_amd64_Generic<CM>::onSwitchTo()
-  {
-      // timestamp.val = MAXIMUM(timestamp.val, stm::timestamp_max.val);
-  }
-} // (anonymous namespace)
-
-// -----------------------------------------------------------------------------
-// Register initialization as declaratively as possible.
-// -----------------------------------------------------------------------------
-/*
-#define FOREACH_OrecEager_amd64(MACRO)                \
-    MACRO(OrecEager_amd64, HyperAggressiveCM)         \
-    MACRO(OrecEager_amd64Hour, HourglassCM)           \
-    MACRO(OrecEager_amd64Backoff, BackoffCM)          \
-    MACRO(OrecEager_amd64HB, HourglassBackoffCM)
-*/
-#define FOREACH_OrecEager_amd64(MACRO)                \
-    MACRO(OrecEager_amd64, HyperAggressiveCM)
-
-#define INIT_OrecEager_amd64(ID, CM)                              \
-    template <>                                                   \
-    void initTM<ID>() {                                           \
-        OrecEager_amd64_Generic<stm::CM>::initialize(ID, #ID);    \
-    }
-
-namespace stm {
-  FOREACH_OrecEager_amd64(INIT_OrecEager_amd64)
+  void OrecEager_amd64_Generic<CM>::onSwitchTo() { }
 }
 
-#undef FOREACH_OrecEager_amd64
-#undef INIT_OrecEager_amd64
+namespace stm {
+  template <>
+  void initTM<OrecEager_amd64>() {
+      OrecEager_amd64_Generic<stm::HyperAggressiveCM>::
+          initialize(OrecEager_amd64, "OrecEager_amd64");
+  }
+}
 
 #ifdef STM_ONESHOT_ALG_OrecEager_amd64
 DECLARE_AS_ONESHOT_SIMPLE(OrecEager_amd64_Generic<stm::HyperAggressiveCM>)

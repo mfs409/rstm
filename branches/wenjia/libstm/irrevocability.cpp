@@ -14,6 +14,7 @@
 #include "Diagnostics.hpp"
 #include "inst.hpp"
 #include "algs/tml_inline.hpp"
+#include "Registration.hpp"
 
 using stm::TxThread;
 using stm::stms;

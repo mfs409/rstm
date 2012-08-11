@@ -14,7 +14,7 @@
  *  CohortsLazy with inplace write when tx is the last one in a cohort.
  */
 #include "../profiling.hpp"
-#include "../algs.hpp"
+#include "algs.hpp"
 #include "../RedoRAWUtils.hpp"
 #include "../Diagnostics.hpp"
 

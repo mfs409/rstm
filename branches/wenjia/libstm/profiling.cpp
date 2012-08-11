@@ -16,8 +16,10 @@
 #include <signal.h>
 #include <sys/mman.h>
 #include "profiling.hpp"
-#include "algs.hpp"
+#include "Registration.hpp"
+#include "policies.hpp"
 #include "inst.hpp"
+#include "Triggers.hpp"
 
 using namespace stm;
 
@@ -113,7 +115,7 @@ namespace stm
    * The next CommitTrigger commit threshold
    *
    * [mfs] Should this be padded?  In general, I'm worried about how
-   *       distributed al of our globals are...
+   *       distributed all of our globals are...
    */
   unsigned CommitTrigger::next = 1;
 

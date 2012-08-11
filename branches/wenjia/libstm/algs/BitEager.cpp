@@ -17,7 +17,8 @@
  */
 
 #include "../profiling.hpp"
-#include "../algs.hpp"
+#include "../cm.hpp"
+#include "algs.hpp"
 
 using stm::TxThread;
 using stm::BitLockList;

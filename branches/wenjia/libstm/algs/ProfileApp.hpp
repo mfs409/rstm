@@ -27,12 +27,12 @@
 #define PROFILEAPP_HPP__
 
 #include "../profiling.hpp"
-#include "../algs.hpp"
+#include "algs.hpp"
 #include "../RedoRAWUtils.hpp"
 #include "../Diagnostics.hpp"
 
 using stm::TxThread;
-using stm::dynprof_t;
+using stm::profile_t;
 using stm::profiles;
 using stm::app_profiles;
 using stm::WriteSetEntry;
@@ -286,31 +286,11 @@ namespace {
           return;
 
       // allocate and configure the counters
-      app_profiles = new dynprof_t();
+      app_profiles = new profile_t();
 
       // set all to zero, since both counting and maxing begin with zero
       app_profiles->clear();
   }
 }
-
-// Register ProfileApp initializer functions. Do this as declaratively as
-// possible. Remember that they need to be in the stm:: namespace.
-#define FOREACH_PROFILEAPP(MACRO)        \
-    MACRO(ProfileAppAvg, __AVERAGE)      \
-    MACRO(ProfileAppMax, __MAXIMUM)      \
-    MACRO(ProfileAppAll, __AVERAGE)
-
-#define INIT_PROFILEAPP(ID, MODE)                \
-    template <>                                 \
-    void initTM<ID>(TX_LONE_PARAMETER) {                         \
-        ProfileApp<MODE>::Initialize(ID, #ID);   \
-    }
-
-// namespace stm {
-//   FOREACH_PROFILEAPP(INIT_PROFILEAPP)
-// }
-
-#undef FOREACH_PROFILEAPP
-#undef INIT_PROFILEAPP
 
 #endif // PROFILEAPP_HPP__

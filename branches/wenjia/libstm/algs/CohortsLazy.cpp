@@ -18,7 +18,7 @@
  * Cohorts with a distributed mechanism for tracking the state of the cohort.
  */
 #include "../profiling.hpp"
-#include "../algs.hpp"
+#include "algs.hpp"
 #include "../RedoRAWUtils.hpp"
 #include "../Diagnostics.hpp"
 

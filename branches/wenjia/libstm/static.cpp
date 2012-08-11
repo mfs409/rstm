@@ -13,10 +13,10 @@
  */
 
 #include <signal.h>
+#include <algnames-autogen.hpp>
 #include "initializers.hpp"
 #include "policies.hpp"
 #include "profiling.hpp"
-#include "algs.hpp"
 
 using namespace stm;
 
