@@ -146,6 +146,14 @@ namespace stm
       /*** FOR ONESHOT-STYLE COMPILATION */
 #ifdef STM_ONESHOT_MODE
       uint32_t      mode; // MODE_TURBO, MODE_WRITE, or MODE_RO
+#else
+      // a new gross hack: we need any single thread to be able to change
+      // other threads' pointers.  Thus we require that each thread tuck away
+      // pointers to its thread-local vars, so that they can be updated
+      // remotely... and unfortunately right now we need this to be pubic :(
+      void** my_tmcommit;
+      void** my_tmread;
+      void** my_tmwrite;
 #endif
 
       /**
@@ -167,17 +175,6 @@ namespace stm
     protected:
       TxThread();
       ~TxThread() { }
-
-    public:
-#ifndef STM_ONESHOT_MODE
-      // a new gross hack: we need any single thread to be able to change
-      // other threads' pointers.  Thus we require that each thread tuck away
-      // pointers to its thread-local vars, so that they can be updated
-      // remotely... and unfortunately right now we need this to be pubic :(
-      void** my_tmcommit;
-      void** my_tmread;
-      void** my_tmwrite;
-#endif
   }; // class TxThread
 
 } // namespace stm

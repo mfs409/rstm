@@ -21,7 +21,7 @@
  */
 
 #include "../cm.hpp"
-#include "../algs.hpp"
+#include "algs.hpp"
 #include "../RedoRAWUtils.hpp"
 
 // Don't just import everything from stm. This helps us find bugs.

@@ -17,7 +17,7 @@
  *  below:
  */
 
-#include "../algs.hpp"
+#include "algs.hpp"
 
 namespace stm
 {

@@ -11,12 +11,16 @@
 #include <utility>
 #include <cmath>
 #include <limits.h>
+#include <iostream>
+#include <fstream>
+#include <algnames-autogen.hpp> // defines the ALGS enum
 #include "initializers.hpp" // init_pol_cbr
 #include "policies.hpp"     // init_adapt_pol
 #include "Globals.hpp"
 #include "txthread.hpp"
 #include "profiling.hpp"
-#include "algs.hpp"
+#include "cbr.hpp"
+#include "Registration.hpp"
 
 using namespace stm;
 
@@ -102,10 +106,10 @@ namespace
       ropct = (100*rotxns)/(txns + rotxns);
 
       // we have some profiles sitting around: use them with the NN code
-      dynprof_t summary_profile;
+      profile_t summary_profile;
 
       // average the set of profiles, in case we have more than one
-      dynprof_t::doavg(summary_profile, profiles, profile_txns);
+      profile_t::doavg(summary_profile, profiles, profile_txns);
       summary_profile.dump();
 
       // compute the TxnRatio
@@ -132,7 +136,7 @@ namespace
       inline static bool uses_RO() { return false; }
       inline static bool uses_TxnRatio(){return false; }
 
-      inline static int32_t compare(dynprof_t& p, qtable_t* i, uint32_t, int)
+      inline static int32_t compare(profile_t& p, qtable_t* i, uint32_t, int)
       {
           unsigned long a = norm_dist(p.read_ro, i->p.read_ro);
           int b = norm_dist(p.read_rw_nonraw, i->p.read_rw_nonraw);
@@ -149,7 +153,7 @@ namespace
   {
       inline static bool uses_RO() { return false; }
       inline static bool uses_TxnRatio() { return false; }
-      inline static int32_t compare(dynprof_t& p, qtable_t* i, uint32_t, int)
+      inline static int32_t compare(profile_t& p, qtable_t* i, uint32_t, int)
       {
           int a = norm_dist(p.write_nonwaw, i->p.write_nonwaw);
           int b = norm_dist(p.write_waw, i->p.write_waw);
@@ -165,7 +169,7 @@ namespace
   {
       inline static bool uses_RO() { return false; }
       inline static bool uses_TxnRatio() { return false; }
-      inline static int32_t compare(dynprof_t& p, qtable_t* i, uint32_t, int)
+      inline static int32_t compare(profile_t& p, qtable_t* i, uint32_t, int)
       {
           return abs((int)(i->p.txn_time - p.txn_time));
       }
@@ -180,7 +184,7 @@ namespace
   {
       inline static bool uses_RO() { return true; }
       inline static bool uses_TxnRatio() { return false; }
-      inline static int32_t compare(dynprof_t&, qtable_t* i, uint32_t ropct,
+      inline static int32_t compare(profile_t&, qtable_t* i, uint32_t ropct,
                                     int)
       {
           return abs((int)(ropct - i->pct_ro));
@@ -195,7 +199,7 @@ namespace
   {
       inline static bool uses_RO() { return false; }
       inline static bool uses_TxnRatio() { return false; }
-      inline static int32_t compare(dynprof_t& p, qtable_t* i, uint32_t, int)
+      inline static int32_t compare(profile_t& p, qtable_t* i, uint32_t, int)
       {
           int read_dist =  norm_dist(p.read_ro, i->p.read_ro)
               + norm_dist(p.read_rw_nonraw, i->p.read_rw_nonraw)
@@ -213,7 +217,7 @@ namespace
   {
       inline static bool uses_RO() { return true; }
       inline static bool uses_TxnRatio() { return false; }
-      inline static int32_t compare(dynprof_t& p, qtable_t* i, uint32_t ropct,
+      inline static int32_t compare(profile_t& p, qtable_t* i, uint32_t ropct,
                                     int)
       {
           int read_dist = norm_dist(p.read_ro, i->p.read_ro)
@@ -231,7 +235,7 @@ namespace
   {
       inline static bool uses_RO() { return false; }
       inline static bool uses_TxnRatio() { return false; }
-      inline static int32_t compare(dynprof_t& p, qtable_t* i, uint32_t, int)
+      inline static int32_t compare(profile_t& p, qtable_t* i, uint32_t, int)
       {
           int read_dist = norm_dist(p.read_ro, i->p.read_ro)
               + norm_dist(p.read_rw_nonraw, i->p.read_rw_nonraw)
@@ -248,7 +252,7 @@ namespace
   {
       inline static bool uses_RO() { return true; }
       inline static bool uses_TxnRatio() { return false; }
-      inline static int32_t compare(dynprof_t& p, qtable_t* i, uint32_t ropct,
+      inline static int32_t compare(profile_t& p, qtable_t* i, uint32_t ropct,
                                     int)
       {
           int write_dist = norm_dist(p.write_nonwaw, i->p.write_nonwaw)
@@ -265,7 +269,7 @@ namespace
   {
       inline static bool uses_RO() { return false; }
       inline static bool uses_TxnRatio() { return false; }
-      inline static int32_t compare(dynprof_t& p, qtable_t* i, uint32_t, int)
+      inline static int32_t compare(profile_t& p, qtable_t* i, uint32_t, int)
       {
           int write_dist = norm_dist(p.write_nonwaw,
                                      i->p.write_nonwaw - i->p.write_waw)
@@ -282,7 +286,7 @@ namespace
   {
       inline static bool uses_RO() { return true; }
       inline static bool uses_TxnRatio() { return false; }
-      inline static int32_t compare(dynprof_t& p, qtable_t* i, uint32_t ropct,
+      inline static int32_t compare(profile_t& p, qtable_t* i, uint32_t ropct,
                                     int)
       {
           int ropct_dist = norm_dist(ropct, i->pct_ro);
@@ -299,7 +303,7 @@ namespace
   {
       inline static bool uses_RO() { return true; }
       inline static bool uses_TxnRatio() { return false; }
-      inline static int32_t compare(dynprof_t& p, qtable_t* i, uint32_t ropct,
+      inline static int32_t compare(profile_t& p, qtable_t* i, uint32_t ropct,
                                     int)
       {
           int read_dist =  norm_dist(p.read_ro, i->p.read_ro)
@@ -319,7 +323,7 @@ namespace
   {
       inline static bool uses_RO() { return false; }
       inline static bool uses_TxnRatio() { return false; }
-      inline static int32_t compare(dynprof_t& p, qtable_t* i, uint32_t, int)
+      inline static int32_t compare(profile_t& p, qtable_t* i, uint32_t, int)
       {
           int read_dist =  norm_dist(p.read_ro, i->p.read_ro)
               + norm_dist(p.read_rw_nonraw, i->p.read_rw_nonraw)
@@ -338,7 +342,7 @@ namespace
   {
       inline static bool uses_RO() { return true; }
       inline static bool uses_TxnRatio() { return false; }
-      inline static int32_t compare(dynprof_t& p, qtable_t* i, uint32_t ropct,
+      inline static int32_t compare(profile_t& p, qtable_t* i, uint32_t ropct,
                                     int)
       {
           int read_dist =  norm_dist(p.read_ro, i->p.read_ro)
@@ -358,7 +362,7 @@ namespace
   {
       inline static bool uses_RO() { return true; }
       inline static bool uses_TxnRatio() { return false; }
-      inline static int32_t compare(dynprof_t& p, qtable_t* i, uint32_t ropct,
+      inline static int32_t compare(profile_t& p, qtable_t* i, uint32_t ropct,
                                     int)
       {
           int write_dist = norm_dist(p.write_nonwaw, i->p.write_nonwaw)
@@ -376,7 +380,7 @@ namespace
   {
       inline static bool uses_RO() { return true; }
       inline static bool uses_TxnRatio() { return false; }
-      inline static int32_t compare(dynprof_t& p, qtable_t* i, uint32_t ropct,
+      inline static int32_t compare(profile_t& p, qtable_t* i, uint32_t ropct,
                                     int)
       {
           int read_dist =  norm_dist(p.read_ro, i->p.read_ro)
@@ -398,7 +402,7 @@ namespace
   {
       inline static bool uses_RO() { return false; }
       inline static bool uses_TxnRatio() { return true; }
-      inline static int32_t compare(dynprof_t&, qtable_t* i, uint32_t,
+      inline static int32_t compare(profile_t&, qtable_t* i, uint32_t,
                                     int txn_ratio)
       {
           return norm_dist(txn_ratio, i->txn_ratio);
@@ -412,7 +416,7 @@ namespace
   {
       inline static bool uses_RO() { return false; }
       inline static bool uses_TxnRatio() { return true; }
-      inline static int32_t compare(dynprof_t& p, qtable_t* i, uint32_t,
+      inline static int32_t compare(profile_t& p, qtable_t* i, uint32_t,
                                     int txn_ratio)
       {
           int txnratio_dist = norm_dist(txn_ratio, i->txn_ratio);
@@ -430,7 +434,7 @@ namespace
   {
       inline static bool uses_RO(){ return false;}
       inline static bool uses_TxnRatio() { return true; }
-      inline static int32_t compare(dynprof_t& p, qtable_t* i, uint32_t,
+      inline static int32_t compare(profile_t& p, qtable_t* i, uint32_t,
                                     int txn_ratio)
       {
           int txnratio_dist = norm_dist(txn_ratio, i->txn_ratio);
@@ -447,7 +451,7 @@ namespace
   {
       inline static bool uses_RO(){ return true;}
       inline static bool uses_TxnRatio() { return true; }
-      inline static int32_t compare(dynprof_t&, qtable_t* i, uint32_t ropct,
+      inline static int32_t compare(profile_t&, qtable_t* i, uint32_t ropct,
                                     int txn_ratio)
       {
           int txnratio_dist = norm_dist(txn_ratio, i->txn_ratio);
@@ -463,7 +467,7 @@ namespace
   {
       inline static bool uses_RO() {return false;}
       inline static bool uses_TxnRatio() { return true; }
-      inline static int32_t compare(dynprof_t& p, qtable_t* i, uint32_t,
+      inline static int32_t compare(profile_t& p, qtable_t* i, uint32_t,
                                     int txn_ratio)
       {
           int txnratio_dist = norm_dist(txn_ratio, i->txn_ratio);
@@ -479,7 +483,7 @@ namespace
   {
       inline static bool uses_RO(){return false;}
       inline static bool uses_TxnRatio() { return true; }
-      inline static int32_t compare(dynprof_t& p, qtable_t* i, uint32_t,
+      inline static int32_t compare(profile_t& p, qtable_t* i, uint32_t,
                                     int txn_ratio)
       {
           int txnratio_dist = norm_dist(txn_ratio, i->txn_ratio);
@@ -499,7 +503,7 @@ namespace
   {
       inline static bool uses_RO() { return true;}
       inline static bool uses_TxnRatio() { return true; }
-      inline static int32_t compare(dynprof_t& p, qtable_t *i,
+      inline static int32_t compare(profile_t& p, qtable_t *i,
                                     uint32_t ropct, int txn_ratio)
       {
           int txnratio_dist = norm_dist(txn_ratio, i->txn_ratio);
@@ -518,7 +522,7 @@ namespace
   {
       inline static bool uses_RO() {return false;}
       inline static bool uses_TxnRatio() { return true; }
-      inline static int32_t compare(dynprof_t& p, qtable_t* i, uint32_t,
+      inline static int32_t compare(profile_t& p, qtable_t* i, uint32_t,
                                     int txn_ratio)
       {
           int txnratio_dist = norm_dist(txn_ratio, i->txn_ratio);
@@ -537,7 +541,7 @@ namespace
   {
       inline static bool uses_RO() { return true; }
       inline static bool uses_TxnRatio() { return true; }
-      inline static int32_t compare(dynprof_t& p, qtable_t *i,
+      inline static int32_t compare(profile_t& p, qtable_t *i,
                                     uint32_t ropct, int txn_ratio)
       {
           int txnratio_dist = norm_dist(txn_ratio, i->txn_ratio);
@@ -556,7 +560,7 @@ namespace
   {
       inline static bool uses_RO() {return false;}
       inline static bool uses_TxnRatio() { return true; }
-      inline static int32_t compare(dynprof_t& p, qtable_t* i, uint32_t,
+      inline static int32_t compare(profile_t& p, qtable_t* i, uint32_t,
                                     int txn_ratio)
       {
           int txnratio_dist = norm_dist(txn_ratio, i->txn_ratio);
@@ -574,7 +578,7 @@ namespace
   {
       inline static bool uses_RO() {return false;}
       inline static bool uses_TxnRatio() { return true; }
-      inline static int32_t compare(dynprof_t& p, qtable_t* i,
+      inline static int32_t compare(profile_t& p, qtable_t* i,
                                     uint32_t ropct, int txn_ratio)
       {
           int txnratio_dist = norm_dist(txn_ratio, i->txn_ratio);
@@ -591,7 +595,7 @@ namespace
   {
       inline static bool uses_RO(){ return true; }
       inline static bool uses_TxnRatio() { return true; }
-      inline static uint32_t compare(dynprof_t& p, qtable_t *i,
+      inline static uint32_t compare(profile_t& p, qtable_t *i,
                                      uint32_t ropct, int txn_ratio)
       {
           int txnratio_dist = norm_dist(txn_ratio, i->txn_ratio);
@@ -612,7 +616,7 @@ namespace
   {
       inline static bool uses_RO(){ return true; }
       inline static bool uses_TxnRatio() { return true; }
-      inline static uint32_t compare(dynprof_t& p, qtable_t *i, uint32_t,
+      inline static uint32_t compare(profile_t& p, qtable_t *i, uint32_t,
                                      int txn_ratio)
       {
           int txnratio_dist = norm_dist(txn_ratio, i->txn_ratio);
@@ -633,7 +637,7 @@ namespace
   {
       inline static bool uses_RO(){ return true; }
       inline static bool uses_TxnRatio() { return true; }
-      inline static uint32_t compare(dynprof_t& p, qtable_t *i,
+      inline static uint32_t compare(profile_t& p, qtable_t *i,
                                      uint32_t ropct, int txn_ratio)
       {
           int txnratio_dist = norm_dist(txn_ratio, i->txn_ratio);
@@ -652,7 +656,7 @@ namespace
   {
       inline static bool uses_RO(){ return true; }
       inline static bool uses_TxnRatio() { return true; }
-      inline static uint32_t compare(dynprof_t& p, qtable_t *i,
+      inline static uint32_t compare(profile_t& p, qtable_t *i,
                                      uint32_t ropct, int txn_ratio)
       {
           int txnratio_dist = norm_dist(txn_ratio, i->txn_ratio);
@@ -669,7 +673,7 @@ namespace
   {
       inline static bool uses_RO(){ return true; }
       inline static bool uses_TxnRatio() { return true; }
-      inline static uint32_t compare(dynprof_t& p, qtable_t *i,
+      inline static uint32_t compare(profile_t& p, qtable_t *i,
                                      uint32_t ropct, int txn_ratio)
       {
           int txnratio_dist = norm_dist(txn_ratio, i->txn_ratio);
@@ -757,7 +761,7 @@ namespace
       }
 
       // Average all the profiles we've collected
-      dynprof_t::doavg(q.p, profiles, profile_txns);
+      profile_t::doavg(q.p, profiles, profile_txns);
       q.p.dump();
 
       // compute the TxnRatio
@@ -773,6 +777,85 @@ namespace
 
 namespace stm
 {
+  /**
+   *  Load in a qtable
+   *
+   *  At the risk of considerable bit-rot in the comments, we will describe the
+   *  format of a .q file here:
+   *
+   *    Format: comma-separated value *WITH NO SPACES*
+   *
+   *    Fields:
+   *      1 - BM             - benchmark that produced this line [ignored]
+   *      2 - ALG            - algorithm name that produced the best output
+   *      3 - threads        - thread count
+   *      4 - read_ro        - read_ro count
+   *      5 - read_rw_nonraw - read_rw_nonraw count
+   *      6 - read_raw       - read_raw count
+   *      7 - write_nonwaw   - write_nonwaw count
+   *      8 - write_waw      - write_waw count
+   *      9 - txn_time       - txn_time count
+   *     10 - pct_txtime     - pct_txtime value
+   *     11 - roratio        - roratio value
+   */
+  void load_qtable(char*& qstr)
+  {
+      qtable_t q;
+      char bm[1024];
+      char alg[1024];
+      char tmp[1024];
+      int count = 0;
+      // read from file... skip first line, as it should be a header
+      std::ifstream myf(qstr);
+      if (!myf.eof())
+          myf.getline(tmp, 1024);
+      while (!myf.eof()) {
+          // get the benchmark and ignore it.  If it is NULL, exit the loop
+          myf.getline(bm, 1024, ',');
+          if (!bm[0])
+              break;
+          count++;
+          // alg name
+          myf.getline(alg, 1024, ',');
+          q.alg_name = stm_name_map(alg);
+          // thread count
+          myf.getline(tmp, 1024, ',');
+          q.thr = strtol(tmp, 0, 10);
+          // read_ro
+          myf.getline(tmp, 1024, ',');
+          q.p.read_ro = strtol(tmp, 0, 10);
+          // read_rw_nonraw
+          myf.getline(tmp, 1024, ',');
+          q.p.read_rw_nonraw = strtol(tmp, 0, 10);
+          // read_rw_raw
+          myf.getline(tmp, 1024, ',');
+          q.p.read_rw_raw = strtol(tmp, 0, 10);
+          // write_nonwaw
+          myf.getline(tmp, 1024, ',');
+          q.p.write_nonwaw = strtol(tmp, 0, 10);
+          // write_waw
+          myf.getline(tmp, 1024, ',');
+          q.p.write_waw = strtol(tmp, 0, 10);
+          // txn_time
+          myf.getline(tmp, 1024, ',');
+          q.p.txn_time = strtol(tmp,0,10);
+          // pct_txtime
+          myf.getline(tmp, 1024, ',');
+          q.txn_ratio = strtol(tmp,0,10);
+          // roratio
+          myf.getline(tmp, 1024);
+          q.pct_ro = strtol(tmp,0,10);
+          // if the qtable for this thread count doesn't exist, make a new one
+          if (qtbl[q.thr] == NULL)
+              qtbl[q.thr] = new MiniVector<qtable_t>(64);
+          // put it in the qtable
+          qtbl[q.thr]->insert(q);
+      }
+
+      std::cout << "Qtable Initialization:  loaded " << count << " lines from "
+                << qstr << std::endl;
+  }
+
   /**
    *  This rather ugly bit of code initializes all of our CBR policies, so that
    *  we don't need them to be visible outside of this file

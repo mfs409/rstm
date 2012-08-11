@@ -9,8 +9,9 @@
  */
 
 #include "../profiling.hpp"
-#include "../algs.hpp"
+#include "algs.hpp"
 #include "../RedoRAWUtils.hpp"
+#include "../cm.hpp"
 
 using stm::TxThread;
 using stm::ABORTED;

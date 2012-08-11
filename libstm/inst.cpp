@@ -18,7 +18,7 @@
 #include <sys/mman.h>
 #include "inst.hpp"
 #include "policies.hpp"
-#include "algs.hpp"
+#include "Registration.hpp"
 
 namespace stm
 {

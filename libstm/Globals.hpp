@@ -10,6 +10,8 @@
 
 /**
  *  Define global variables that we use throughout RSTM
+ *
+ *  [mfs] We could just weave all of this into txthread.hpp...
  */
 
 #ifndef GLOBALS_HPP__

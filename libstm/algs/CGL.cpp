@@ -18,7 +18,7 @@
  *        transaction is read-only or not
  */
 
-#include "../algs.hpp"
+#include "algs.hpp"
 #include "../UndoLog.hpp" // STM_DO_MASKED_WRITE
 #include "../Diagnostics.hpp"
 

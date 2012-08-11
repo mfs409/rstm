@@ -17,7 +17,7 @@ include $(MKFOLDER)/info.mk
 #
 # Pull in the algorithm names
 #
-include ./algs.mk
+include ./algs/algs.mk
 
 #
 # Output folder: we build in-tree, unless this is overridden.  Note that the
@@ -41,7 +41,8 @@ CXXFLAGS += -MMD -I$(ODIR)
 # All the cpp files are listed here
 #
 CXXNAMES = algs cbr inst irrevocability policies profiling static txthread \
-           types Toxic PMU WBMMPolicy BitLocks ByteLocks Orecs RRecs $(ALGNAMES)
+           types Toxic PMU WBMMPolicy BitLocks ByteLocks Orecs RRecs	   \
+           Registration $(ALGNAMES)
 
 ifeq ($(CHECKPOINT),asm)
 CXXNAMES += checkpoint
@@ -55,8 +56,11 @@ LIBNAME = $(ODIR)/librstm.a
 #
 # Build algnames-autogen.hpp in the ODIR folder
 #
-$(ODIR)/algnames-autogen.hpp: ./algs.mk
-	@echo $(ALGNAMES) ALG_MAX | sed 's/ /, /g' | sed 's/^/namespace stm{enum ALGS {/'| sed 's/ALG_MAX/ALG_MAX};}/' > $@
+$(ODIR)/algnames-autogen.hpp: ./algs/algs.mk
+	@echo "#ifndef ALGNAMES_AUTOGEN_HPP__" > $@
+	@echo "#define ALGNAMES_AUTOGEN_HPP__" >> $@
+	@echo $(ALGNAMES) ALG_MAX | sed 's/ /, /g' | sed 's/^/namespace stm{enum ALGS {/'| sed 's/ALG_MAX/ALG_MAX};}/' >> $@
+	@echo "#endif // ALGNAMES_AUTOGEN_HPP__" >> $@
 
 #
 # Transform all source names to .o files in the output directory

@@ -16,6 +16,7 @@
 #define CONSTANTS_HPP__
 
 #include <stdint.h>
+#include <limits.h>
 
 namespace stm
 {
@@ -40,6 +41,9 @@ namespace stm
 
   const uint32_t SWISS_PHASE2  = 10;       // swisstm cm phase change thresh
 
+  const uint32_t KARMA_FACTOR  = 16;       // aborts b4 incr karma
+
+  const uint32_t EPOCH_MAX     = INT_MAX;  // default epoch
 }
 
 #endif // CONSTANTS_HPP__

@@ -24,8 +24,10 @@
 
 #include "../../alt-license/rand_r_32.h"
 #include "../profiling.hpp"
-#include "../algs.hpp"
+#include "algs.hpp"
 #include "../RedoRAWUtils.hpp"
+#include "../../include/abstract_timing.hpp"
+#include "../cm.hpp"
 
 using stm::TxThread;
 using stm::timestamp;

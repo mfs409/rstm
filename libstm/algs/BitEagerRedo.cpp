@@ -16,8 +16,9 @@
  */
 
 #include "../profiling.hpp"
-#include "../algs.hpp"
+#include "../cm.hpp"
 #include "../RedoRAWUtils.hpp"
+#include "algs.hpp"
 
 /**
  *  [mfs] These defines are for tuning backoff behavior... should they be

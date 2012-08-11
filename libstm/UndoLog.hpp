@@ -16,6 +16,7 @@
 #ifndef UNDO_LOG_HPP__
 #define UNDO_LOG_HPP__
 
+#include <stdint.h>
 #include "MiniVector.hpp"
 #include "../include/macros.hpp"
 

@@ -24,7 +24,7 @@
 
 #include "../profiling.hpp"
 #include "../cm.hpp"
-#include "../algs.hpp"
+#include "algs.hpp"
 
 using stm::TxThread;
 using stm::timestamp;

@@ -21,6 +21,7 @@
 #include "../include/abstract_compiler.hpp"
 #include "MiniVector.hpp"
 #include "Constants.hpp"
+#include "profiling.hpp"
 
 namespace stm
 {
@@ -86,151 +87,6 @@ namespace stm
       int waitThresh;
   };
 
-  /**
-   *  Data type for holding the dynamic transaction profiles that we collect.
-   *  This is pretty sloppy for now, and the 'dump' command is really not
-   *  going to be important once we get out of the debug phase.  We may also
-   *  determine that we need more information than we currently have.
-   */
-  struct dynprof_t
-  {
-      int      read_ro;           // calls to read_ro
-      int      read_rw_nonraw;    // read_rw calls that are not raw
-      int      read_rw_raw;       // read_rw calls that are raw
-      int      write_nonwaw;      // write calls that are not waw
-      int      write_waw;         // write calls that are waw
-      int      pad;               // to put the 64-bit val on a 2-byte boundary
-      uint64_t txn_time;          // txn time
-      uint64_t timecounter;       // total time in transactions
-
-      // to be clear: txn_time is either the average time for all
-      // transactions, or the max time of any transaction.  timecounter is
-      // the sum of all time in transactions.  timecounter only is useful for
-      // profileapp, but it is very important if we want to compute nontx/tx
-      // ratio when txn_time is a max value
-
-      /**
-       *  simple ctor to prevent compiler warnings
-       */
-      dynprof_t()
-          : read_ro(0), read_rw_nonraw(0), read_rw_raw(0), write_nonwaw(0),
-            write_waw(0), pad(0), txn_time(0), timecounter(0)
-      {
-      }
-
-      /**
-       *  Operator for copying profiles
-       */
-      dynprof_t& operator=(const dynprof_t* profile)
-      {
-          if (this != profile) {
-              read_ro        = profile->read_ro;
-              read_rw_nonraw = profile->read_rw_nonraw;
-              read_rw_raw    = profile->read_rw_raw;
-              write_nonwaw   = profile->write_nonwaw;
-              write_waw      = profile->write_waw;
-              txn_time       = profile->txn_time;
-          }
-          return *this;
-      }
-
-      /**
-       *  Print a dynprof_t
-       */
-      void dump();
-
-      /**
-       *  Clear a dynprof_t
-       */
-      void clear()
-      {
-          read_ro = read_rw_nonraw = read_rw_raw = 0;
-          write_nonwaw = write_waw = 0;
-          txn_time = timecounter = 0;
-      }
-
-      /**
-       *  If we have lots of profiles, compute their average value for each
-       *  field
-       */
-      static void doavg(dynprof_t& dest, dynprof_t* list, int num)
-      {
-          // zero the important fields
-          dest.clear();
-
-          // accumulate sums into dest
-          for (int i = 0; i < num; ++i) {
-              dest.read_ro        += list[i].read_ro;
-              dest.read_rw_nonraw += list[i].read_rw_nonraw;
-              dest.read_rw_raw    += list[i].read_rw_raw;
-              dest.write_nonwaw   += list[i].write_nonwaw;
-              dest.write_waw      += list[i].write_waw;
-              dest.txn_time       += list[i].txn_time;
-          }
-
-          // compute averages
-          dest.read_ro        /= num;
-          dest.read_rw_nonraw /= num;
-          dest.read_rw_raw    /= num;
-          dest.write_nonwaw   /= num;
-          dest.write_waw      /= num;
-          dest.txn_time       /= num;
-      }
-  };
-
-  /**
-   *  This is for storing our CBR-style qtable
-   *
-   *    The qtable tells us for a particular workload characteristic, what
-   *    algorithm did best at each thread count.
-   */
-  struct qtable_t
-  {
-      /**
-       *  Selection Fields
-       *
-       *    NB: These fields are for choosing the output: For a given behavior,
-       *        choose the algorithm that maximizes throughput.
-       */
-
-      /*** The name of the STM algorithm that produced this result */
-      int alg_name;
-
-      /**
-       *  Transaction Behavior Summary
-       *
-       *    NB: The profile holds a characterization of the transactions of the
-       *        workload, with regard to reads and writes, and the time spent
-       *        on a transaction.  Depending on which variant of ProfileApp was
-       *        used to create this profile, it will either hold average values,
-       *        or max values.
-       *
-       *    NB: We assume that a summary of transactions in the single-thread
-       *        execution is appropriate for the behavior of transactions in a
-       *        multithreaded execution.
-       */
-      dynprof_t p;
-
-      /**
-       *  Workload Behavior Summary
-       */
-
-      /**
-       *  The ratio of transactional work to nontransactional work
-       */
-      int txn_ratio;
-
-      /**
-       *  The percentage of transactions that are Read-Only
-       */
-      int pct_ro;
-
-      /*** The thread count at which this result was measured */
-      int thr;
-
-      /*** really simple ctor */
-      qtable_t() : pct_ro(0) { }
-  };
 
   /*** Used in txthread to initialize the policy subsystem */
   void pol_init();
@@ -273,7 +129,6 @@ namespace stm
    *  These globals are used by our adaptivity policies
    */
   extern pol_t                 pols[POL_MAX];       // describe all policies
-  extern MiniVector<qtable_t>* qtbl[MAX_THREADS+1]; // hold the CBR data
   extern behavior_t            curr_policy;         // the current STM alg
 
   /*** used in the policies impementations to register policies */

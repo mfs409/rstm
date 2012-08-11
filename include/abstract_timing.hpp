@@ -31,6 +31,7 @@
 #  include <cstring>
 #  include <pthread.h>
 #  include <time.h>
+#  include <stdint.h>
 
   /**
    *  sleep_ms simply wraps the POSIX usleep call.  Note that usleep expects a
@@ -63,6 +64,7 @@
 
 #  include <unistd.h>
 #  include <sys/time.h>
+#  include <stdint.h>
 
   /**
    *  sleep_ms simply wraps the POSIX usleep call.  Note that usleep expects a
@@ -92,6 +94,7 @@
 #  include <unistd.h>
 #  include <mach/mach_time.h>
 #  include <sched.h>
+#  include <stdint.h>
 
   /**
    *  sleep_ms simply wraps the POSIX usleep call.  Note that usleep expects a

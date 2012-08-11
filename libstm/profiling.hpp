@@ -25,11 +25,110 @@
 
 #include <cstdlib>
 #include "../include/tlsapi.hpp"
-#include "policies.hpp"
 #include "txthread.hpp"
 
 namespace stm
 {
+  /**
+   *  Data type for holding the dynamic transaction profiles that we collect.
+   *  This is pretty sloppy for now, and the 'dump' command is really not
+   *  going to be important once we get out of the debug phase.  We may also
+   *  determine that we need more information than we currently have.
+   */
+  struct profile_t
+  {
+      int      read_ro;        // calls to read_ro
+      int      read_rw_nonraw; // read_rw calls that are not raw
+      int      read_rw_raw;    // read_rw calls that are raw
+      int      write_nonwaw;   // write calls that are not waw
+      int      write_waw;      // write calls that are waw
+      int      pad;            // to put the 64-bit val on a 2-byte boundary
+      uint64_t txn_time;       // txn time
+      uint64_t timecounter;    // total time in transactions
+
+      // to be clear: txn_time is either the average time for all
+      // transactions, or the max time of any transaction.  timecounter is
+      // the sum of all time in transactions.  timecounter only is useful for
+      // profileapp, but it is very important if we want to compute nontx/tx
+      // ratio when txn_time is a max value
+
+      /**
+       *  simple ctor to prevent compiler warnings
+       */
+      profile_t()
+          : read_ro(0), read_rw_nonraw(0), read_rw_raw(0), write_nonwaw(0),
+            write_waw(0), pad(0), txn_time(0), timecounter(0)
+      {
+      }
+
+      /**
+       *  Operator for copying profiles
+       */
+      profile_t& operator=(const profile_t* profile)
+      {
+          if (this != profile) {
+              read_ro        = profile->read_ro;
+              read_rw_nonraw = profile->read_rw_nonraw;
+              read_rw_raw    = profile->read_rw_raw;
+              write_nonwaw   = profile->write_nonwaw;
+              write_waw      = profile->write_waw;
+              txn_time       = profile->txn_time;
+          }
+          return *this;
+      }
+
+      /**
+       *  Print a dynprof_t
+       */
+      void dump();
+
+      /**
+       *  Clear a dynprof_t
+       */
+      void clear()
+      {
+          read_ro = read_rw_nonraw = read_rw_raw = 0;
+          write_nonwaw = write_waw = 0;
+          txn_time = timecounter = 0;
+      }
+
+      /**
+       *  If we have lots of profiles, compute their average value for each
+       *  field
+       */
+      static void doavg(profile_t& dest, profile_t* list, int num)
+      {
+          // zero the important fields
+          dest.clear();
+
+          // accumulate sums into dest
+          for (int i = 0; i < num; ++i) {
+              dest.read_ro        += list[i].read_ro;
+              dest.read_rw_nonraw += list[i].read_rw_nonraw;
+              dest.read_rw_raw    += list[i].read_rw_raw;
+              dest.write_nonwaw   += list[i].write_nonwaw;
+              dest.write_waw      += list[i].write_waw;
+              dest.txn_time       += list[i].txn_time;
+          }
+
+          // compute averages
+          dest.read_ro        /= num;
+          dest.read_rw_nonraw /= num;
+          dest.read_rw_raw    /= num;
+          dest.write_nonwaw   /= num;
+          dest.write_waw      /= num;
+          dest.txn_time       /= num;
+      }
+  };
+
+  // [mfs] Is this padded well enough?
+  extern profile_t*    app_profiles;                   // for ProfileApp*
+
+  // ProfileTM can't function without these
+  // [mfs] Are they padded well enough?
+  extern profile_t*    profiles;          // a list of ProfileTM measurements
+  extern uint32_t      profile_txns;      // how many txns per profile
+
   /**
    * After profiles are collected, select and install a new algorithm
    *
@@ -37,184 +136,6 @@ namespace stm
    */
   void profile_oncomplete(TxThread* tx);
 
-  /**
-   * custom begin method that blocks the starting thread, in order to get
-   * rendezvous correct during mode switching and GRL irrevocability
-   * (implemented in irrevocability.cpp because it uses some static functions
-   * declared there)
-   *
-   * [mfs] Why is this where we define bb?  I think it should be
-   *       elsewhere... in fact, perhaps it should be alg0?
-   */
-  void begin_blocker(TX_LONE_PARAMETER);
-
-  /**
-   *  This is the code for deciding whether to adapt or not.  It's a little bit
-   *  messy because we want to limit what gets inlined.
-   */
-
-  /**
-   *  part 1: the thing that never gets inlined, and only gets called if we are
-   *  definitely going to adapt
-   *
-   *  [mfs] bad name?
-   */
-  void trigger_common(TxThread* tx) TM_FASTCALL NOINLINE;
-
-  /**
-   * [mfs] Move this stuff to a triggers file?  We might want each STM_XYZ
-   *       define to correspond directly to a single file of the same name...
-   */
-
-  /**
-   *  A simple trigger: request collection of profiles after 16 consecutive
-   *  aborts, or on a begin-time wait of >=2048
-   */
-  struct AbortWaitTrigger
-  {
-      /**
-       *  Part 2: the thing that gets inlined into commit for STMs that have
-       *  long blocking at begin time (TML, CGL, Serial, MCS, Ticket), and gets
-       *  called on every commit
-       */
-      inline static void onCommitLock(TxThread* tx)
-      {
-          // if we don't have a function for changing algs, then we should just
-          // return
-          if (!pols[curr_policy.POL_ID].decider)
-              return;
-          // return if we didn't wait long enough
-          if (tx->begin_wait <= (unsigned)curr_policy.waitThresh)
-              return;
-          // ok, we're going to adapt.  Call the common adapt code
-          trigger_common(tx);
-      }
-
-      /**
-       *  This trigger does nothing when an STM transaction commits
-       */
-      static void onCommitSTM(TxThread*) { }
-
-      /**
-       *  Part 3: the thing that gets inlined into stm abort, and gets called
-       *  on every abort
-       */
-      inline static void onAbort(TxThread* tx)
-      {
-          // if we don't have a function for changing algs, then we should just
-          // return
-          if (!pols[curr_policy.POL_ID].decider)
-              return;
-          // return if we didn't abort enough
-          if (tx->consec_aborts <= (unsigned)curr_policy.abortThresh)
-              return;
-          // ok, we're going to adapt.  Call the common adapt code
-          curr_policy.abort_switch = true;
-          trigger_common(tx);
-      }
-  };
-
-  /**
-   *  This trigger does nothing, and is only around as a baseline
-   */
-  struct EmptyTrigger
-  {
-      static void onCommitLock(TxThread*) { }
-      static void onCommitSTM(TxThread*) { }
-      static void onAbort(TxThread*) { }
-  };
-
-  /**
-   *  This is the trigger we are currently favoring: request collection of
-   *  profiles on 16 consecutive aborts, or when thread 2's commit count
-   *  matches an exponentially decaying pattern.
-   */
-  struct CommitTrigger
-  {
-      /**
-       *  Track the next time to run a trigger.  "time" means the next number
-       *  of commits in thread2 that necessitates a trigger.
-       */
-      static unsigned next;
-
-      /***  Instead of looking at delays, we just count commits */
-      static void onCommitLock(TxThread* tx) { onCommitSTM(tx); }
-
-      /*** Count commits to decide if we should request a new profile */
-      static void onCommitSTM(TxThread* tx)
-      {
-          // if we don't have a function for changing algs, then we should just
-          // return
-          if (!pols[curr_policy.POL_ID].decider)
-              return;
-          // figure out if this policy likes to move into TML on consec RO
-          if (tx->consec_ro > pols[curr_policy.POL_ID].roThresh) {
-              curr_policy.abort_switch = false;
-              curr_policy.requested_switch = true;
-              trigger_common(tx);
-              return;
-          }
-          // return if this policy doesn't allow commit-time probing
-          if (!pols[curr_policy.POL_ID].isCommitProfile)
-              return;
-          // return if not thread#2
-          if (tx->id != 2)
-              return;
-          // return if not a trigger commit number
-          unsigned c = tx->num_ro + tx->num_commits;
-          if (c != next)
-              return;
-          // update the trigger commit number
-          if (next < 65536)
-              next = next * 16;
-          else if (next < 524288)
-              next += 65536;
-          else
-              next += 524288;
-
-          // record that this is a non-abort trigger, and call the adapt code
-          //
-          // NB: this write could be racy if another thread is aborting at the
-          //     same time.  In that case, both threads are trying to request
-          //     collection of profiles, so it really doesn't matter.
-          curr_policy.abort_switch = false;
-          // ok, we're going to adapt.  Call the common adapt code
-          trigger_common(tx);
-      }
-
-      /**
-       *  Part 3: the thing that gets inlined into stm abort, and gets called
-       *  on every abort.  It's no longer the same as AbortWaitTrigger,
-       *  because we need to have extra code to detect when the change is due
-       *  to an explicit requested switch.  In other words, if an algorithm
-       *  self-detects itself as bad, we want to set a flag in this code.
-       */
-      static void onAbort(TxThread* tx)
-      {
-          // if we don't have a function for changing algs, then we should just
-          // return
-          if (!pols[curr_policy.POL_ID].decider)
-              return;
-          // return if we didn't abort enough
-          if (tx->consec_aborts <= (unsigned)curr_policy.abortThresh)
-              return;
-          // if the thread's current abort count is HUGE, it means this was a
-          // requested abort
-          if (tx->consec_aborts > 1024)
-              curr_policy.requested_switch = true;
-          // ok, we're going to adapt.  Call the common adapt code
-          curr_policy.abort_switch = true;
-          trigger_common(tx);
-      }
-  };
-
-#ifdef STM_PROFILETMTRIGGER_ALL
-  typedef CommitTrigger Trigger;
-#elif defined(STM_PROFILETMTRIGGER_PATHOLOGY)
-  typedef AbortWaitTrigger Trigger;
-#elif defined(STM_PROFILETMTRIGGER_NONE)
-  typedef EmptyTrigger Trigger;
-#endif
 
 } // namespace stm
 

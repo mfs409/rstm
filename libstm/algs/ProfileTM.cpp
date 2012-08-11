@@ -19,7 +19,7 @@
  */
 
 #include "../profiling.hpp"
-#include "../algs.hpp"
+#include "algs.hpp"
 #include "../Diagnostics.hpp"
 
 using namespace stm;

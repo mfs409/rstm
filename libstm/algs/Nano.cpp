@@ -22,7 +22,7 @@
  */
 
 #include "../profiling.hpp"
-#include "../algs.hpp"
+#include "algs.hpp"
 #include "../RedoRAWUtils.hpp"
 
 using stm::TxThread;

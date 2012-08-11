@@ -14,14 +14,17 @@
 #include <limits.h>
 #include "../include/abstract_cpu.hpp"
 #include "txthread.hpp"
-#include "algs.hpp"     // for exp_backoff
 #include "SpinLocks.hpp"
+#include "inst.hpp"
 
-/**
- *  Timeouts, thresholds, and states
- */
-#define TX_ACTIVE     0
-#define TX_ABORTED    1
+  /**
+   *  Define the states for a transaction
+   *
+   * [mfs] Probably not the right place for these..
+   */
+#define TX_ACTIVE     0u
+#define TX_ABORTED    1u
+#define TX_COMMITTED  2u
 
 /**
  *  Define the CM policies that can be plugged into our framework.  For the
@@ -30,6 +33,19 @@
  */
 namespace stm
 {
+  extern pad_word_t    fcm_timestamp;                  // for FCM
+  extern pad_word_t    epochs[MAX_THREADS];            // for coarse-grained CM
+
+  /**
+   *  A simple implementation of randomized exponential backoff.
+   *
+   *  NB: This uses getElapsedTime, which is slow compared to a granularity
+   *      of 64 nops.  However, we can't switch to tick(), because sometimes
+   *      two successive tick() calls return the same value and tickp isn't
+   *      universal.
+   */
+  void exp_backoff(TxThread* tx);
+
   /**
    *  Backoff CM policy: On abort, perform randomized exponential backoff
    */
