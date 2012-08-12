@@ -22,6 +22,7 @@
 #include "../Triggers.hpp"
 #include "../Registration.hpp"
 #include "../inst.hpp"
+#include "../RedoRAWUtils.hpp"
 
 // [mfs] this isn't the right place for these defines, but they help to
 //       reduce code size and the prominence of this placement will hopefully

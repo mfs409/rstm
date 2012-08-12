@@ -56,12 +56,12 @@ namespace
 {
   struct OrecFair {
       static void begin(TX_LONE_PARAMETER);
-      static TM_FASTCALL void* read_ro(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void* read_rw(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void write_ro(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void write_rw(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void commit_ro(TX_LONE_PARAMETER);
-      static TM_FASTCALL void commit_rw(TX_LONE_PARAMETER);
+      static TM_FASTCALL void* ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
+      static TM_FASTCALL void* ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
+      static TM_FASTCALL void WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+      static TM_FASTCALL void WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+      static TM_FASTCALL void CommitRO(TX_LONE_PARAMETER);
+      static TM_FASTCALL void CommitRW(TX_LONE_PARAMETER);
 
       static void rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
@@ -96,7 +96,7 @@ namespace
    *    we have.
    */
   void
-  OrecFair::commit_ro(TX_LONE_PARAMETER)
+  OrecFair::CommitRO(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // If I had priority, release it
@@ -127,7 +127,7 @@ namespace
    *    wait for that thread to detect our conflict and abort itself.
    */
   void
-  OrecFair::commit_rw(TX_LONE_PARAMETER)
+  OrecFair::CommitRW(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // try to lock every location in the write set
@@ -225,7 +225,7 @@ namespace
       tx->writes.reset();
       tx->locks.reset();
       OnRWCommit(tx);
-      ResetToRO(tx, read_ro, write_ro, commit_ro);
+      ResetToRO(tx, ReadRO, WriteRO, CommitRO);
   }
 
   /**
@@ -239,7 +239,7 @@ namespace
    *        optimizations for priority transactions
    */
   void*
-  OrecFair::read_ro(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
+  OrecFair::ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
   {
       TX_GET_TX_INTERNAL;
       // CM instrumentation
@@ -295,7 +295,7 @@ namespace
    *        version of this function
    */
   void*
-  OrecFair::read_rw(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
+  OrecFair::ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
   {
       TX_GET_TX_INTERNAL;
       // check the log for a RAW hazard, we expect to miss
@@ -359,7 +359,7 @@ namespace
    *        redundancy with the checks in the lock acquisition code.
    */
   void
-  OrecFair::write_ro(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  OrecFair::WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // CM instrumentation
@@ -392,7 +392,7 @@ namespace
 
       // Record the new value in a redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
-      stm::OnFirstWrite(tx, read_rw, write_rw, commit_rw);
+      stm::OnFirstWrite(tx, ReadRW, WriteRW, CommitRW);
   }
 
   /**
@@ -402,7 +402,7 @@ namespace
    *    concerns apply as above.
    */
   void
-  OrecFair::write_rw(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  OrecFair::WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // CM instrumentation
@@ -480,7 +480,7 @@ namespace
       exp_backoff(tx);
 
       PostRollback(tx);
-      ResetToRO(tx, read_ro, write_ro, commit_ro);
+      ResetToRO(tx, ReadRO, WriteRO, CommitRO);
   }
 
   /**
@@ -600,9 +600,9 @@ namespace stm {
 
       // set the pointers
       stm::stms[OrecFair].begin     = ::OrecFair::begin;
-      stm::stms[OrecFair].commit    = ::OrecFair::commit_ro;
-      stm::stms[OrecFair].read      = ::OrecFair::read_ro;
-      stm::stms[OrecFair].write     = ::OrecFair::write_ro;
+      stm::stms[OrecFair].commit    = ::OrecFair::CommitRO;
+      stm::stms[OrecFair].read      = ::OrecFair::ReadRO;
+      stm::stms[OrecFair].write     = ::OrecFair::WriteRO;
       stm::stms[OrecFair].rollback  = ::OrecFair::rollback;
       stm::stms[OrecFair].irrevoc   = ::OrecFair::irrevoc;
       stm::stms[OrecFair].switcher  = ::OrecFair::onSwitchTo;

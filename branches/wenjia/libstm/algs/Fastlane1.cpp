@@ -14,7 +14,7 @@
  *  Based on J.Wamhoff et.al's paper "FASTLANE: Streamlining Transactions
  *  For Low Thread Counts", TRANSACT'12, FEB.2012
  *
- *  Using Option1 for commit_rw.
+ *  Using Option1 for CommitRW.
  */
 
 #include "../profiling.hpp"
@@ -44,14 +44,14 @@ namespace {
 
   struct Fastlane1 {
       static void begin(TX_LONE_PARAMETER);
-      static TM_FASTCALL void* read_ro(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void* read_rw(TX_FIRST_PARAMETER STM_READ_SIG(,));
+      static TM_FASTCALL void* ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
+      static TM_FASTCALL void* ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
       static TM_FASTCALL void* read_turbo(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void write_ro(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void write_rw(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+      static TM_FASTCALL void WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+      static TM_FASTCALL void WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
       static TM_FASTCALL void write_turbo(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void commit_ro(TX_LONE_PARAMETER);
-      static TM_FASTCALL void commit_rw(TX_LONE_PARAMETER);
+      static TM_FASTCALL void CommitRO(TX_LONE_PARAMETER);
+      static TM_FASTCALL void CommitRW(TX_LONE_PARAMETER);
       static TM_FASTCALL void commit_turbo(TX_LONE_PARAMETER);
 
       static void rollback(STM_ROLLBACK_SIG(,,));
@@ -107,7 +107,7 @@ namespace {
    *  Read-only transaction commit immediately
    */
   void
-  Fastlane1::commit_ro(TX_LONE_PARAMETER)
+  Fastlane1::CommitRO(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // clean up
@@ -120,7 +120,7 @@ namespace {
    *
    */
   void
-  Fastlane1::commit_rw(TX_LONE_PARAMETER)
+  Fastlane1::CommitRW(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       uint32_t c;
@@ -171,7 +171,7 @@ namespace {
       tx->r_orecs.reset();
       tx->writes.reset();
       OnRWCommit(tx);
-      ResetToRO(tx, read_ro, write_ro, commit_ro);
+      ResetToRO(tx, ReadRO, WriteRO, CommitRO);
   }
 
   /**
@@ -187,7 +187,7 @@ namespace {
    *  Fastlane1 read (read-only transaction)
    */
   void*
-  Fastlane1::read_ro(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
+  Fastlane1::ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
   {
       TX_GET_TX_INTERNAL;
       void *val = *addr;
@@ -209,7 +209,7 @@ namespace {
    *  Fastlane1 read (writing transaction)
    */
   void*
-  Fastlane1::read_rw(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
+  Fastlane1::ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
   {
       TX_GET_TX_INTERNAL;
       // check the log for a RAW hazard, we expect to miss
@@ -217,8 +217,8 @@ namespace {
       bool found = tx->writes.find(log);
       REDO_RAW_CHECK(found, log, mask);
 
-      // reuse read_ro barrier
-      void* val = read_ro(TX_FIRST_ARG addr STM_MASK(mask));
+      // reuse ReadRO barrier
+      void* val = ReadRO(TX_FIRST_ARG addr STM_MASK(mask));
       REDO_RAW_CLEANUP(val, found, log, mask);
       return val;
   }
@@ -250,19 +250,19 @@ namespace {
    *  Fastlane1 write (read-only context): for first write
    */
   void
-  Fastlane1::write_ro(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  Fastlane1::WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // Add to write set
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
-      stm::OnFirstWrite(tx, read_rw, write_rw, commit_rw);
+      stm::OnFirstWrite(tx, ReadRW, WriteRW, CommitRW);
   }
 
   /**
    *  Fastlane1 write (writing context)
    */
   void
-  Fastlane1::write_rw(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  Fastlane1::WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // record the new value in a redo log
@@ -320,9 +320,9 @@ namespace stm {
       stms[Fastlane1].name      = "Fastlane1";
       // set the pointers
       stms[Fastlane1].begin     = ::Fastlane1::begin;
-      stms[Fastlane1].commit    = ::Fastlane1::commit_ro;
-      stms[Fastlane1].read      = ::Fastlane1::read_ro;
-      stms[Fastlane1].write     = ::Fastlane1::write_ro;
+      stms[Fastlane1].commit    = ::Fastlane1::CommitRO;
+      stms[Fastlane1].read      = ::Fastlane1::ReadRO;
+      stms[Fastlane1].write     = ::Fastlane1::WriteRO;
       stms[Fastlane1].rollback  = ::Fastlane1::rollback;
       stms[Fastlane1].irrevoc   = ::Fastlane1::irrevoc;
       stms[Fastlane1].switcher  = ::Fastlane1::onSwitchTo;

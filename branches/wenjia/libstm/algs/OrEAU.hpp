@@ -47,12 +47,12 @@ namespace {
   {
       static void initialize(int id, const char* name);
       static void begin(TX_LONE_PARAMETER);
-      static TM_FASTCALL void* read_ro(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void* read_rw(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void write_ro(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void write_rw(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void commit_ro(TX_LONE_PARAMETER);
-      static TM_FASTCALL void commit_rw(TX_LONE_PARAMETER);
+      static TM_FASTCALL void* ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
+      static TM_FASTCALL void* ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
+      static TM_FASTCALL void WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+      static TM_FASTCALL void WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+      static TM_FASTCALL void CommitRO(TX_LONE_PARAMETER);
+      static TM_FASTCALL void CommitRW(TX_LONE_PARAMETER);
 
       static void rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
@@ -72,9 +72,9 @@ namespace {
 
       // set the pointers
       stm::stms[id].begin     = OrEAU_Generic<CM>::begin;
-      stm::stms[id].commit    = OrEAU_Generic<CM>::commit_ro;
-      stm::stms[id].read      = OrEAU_Generic<CM>::read_ro;
-      stm::stms[id].write     = OrEAU_Generic<CM>::write_ro;
+      stm::stms[id].commit    = OrEAU_Generic<CM>::CommitRO;
+      stm::stms[id].read      = OrEAU_Generic<CM>::ReadRO;
+      stm::stms[id].write     = OrEAU_Generic<CM>::WriteRO;
       stm::stms[id].rollback  = OrEAU_Generic<CM>::rollback;
       stm::stms[id].irrevoc   = OrEAU_Generic<CM>::irrevoc;
       stm::stms[id].switcher  = OrEAU_Generic<CM>::onSwitchTo;
@@ -100,7 +100,7 @@ namespace {
    */
   template <class CM>
   void
-  OrEAU_Generic<CM>::commit_ro(TX_LONE_PARAMETER)
+  OrEAU_Generic<CM>::CommitRO(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       CM::onCommit(tx);
@@ -113,7 +113,7 @@ namespace {
    */
   template <class CM>
   void
-  OrEAU_Generic<CM>::commit_rw(TX_LONE_PARAMETER)
+  OrEAU_Generic<CM>::CommitRW(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // we're a writer, so increment the global timestamp
@@ -142,7 +142,7 @@ namespace {
       tx->undo_log.reset();
       tx->locks.reset();
       OnRWCommit(tx);
-      ResetToRO(tx, read_ro, write_ro, commit_ro);
+      ResetToRO(tx, ReadRO, WriteRO, CommitRO);
   }
 
   /**
@@ -150,7 +150,7 @@ namespace {
    */
   template <class CM>
   void*
-  OrEAU_Generic<CM>::read_ro(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
+  OrEAU_Generic<CM>::ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
   {
       TX_GET_TX_INTERNAL;
       // get the orec addr
@@ -198,7 +198,7 @@ namespace {
    */
   template <class CM>
   void*
-  OrEAU_Generic<CM>::read_rw(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
+  OrEAU_Generic<CM>::ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
   {
       TX_GET_TX_INTERNAL;
       // get the orec addr
@@ -251,7 +251,7 @@ namespace {
    */
   template <class CM>
   void
-  OrEAU_Generic<CM>::write_ro(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  OrEAU_Generic<CM>::WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // get the orec addr
@@ -271,7 +271,7 @@ namespace {
               tx->locks.insert(o);
               tx->undo_log.insert(UndoLogEntry(STM_UNDO_LOG_ENTRY(addr, *addr, mask)));
               STM_DO_MASKED_WRITE(addr, val, mask);
-              stm::OnFirstWrite(tx, read_rw, write_rw, commit_rw);
+              stm::OnFirstWrite(tx, ReadRW, WriteRW, CommitRW);
               return;
           }
 
@@ -299,7 +299,7 @@ namespace {
    */
   template <class CM>
   void
-  OrEAU_Generic<CM>::write_rw(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  OrEAU_Generic<CM>::WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // get the orec addr
@@ -383,7 +383,7 @@ namespace {
       tx->locks.reset();
 
       PostRollback(tx);
-      ResetToRO(tx, read_ro, write_ro, commit_ro);
+      ResetToRO(tx, ReadRO, WriteRO, CommitRO);
   }
 
   /**

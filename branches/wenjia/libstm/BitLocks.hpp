@@ -17,6 +17,20 @@
 
 namespace stm
 {
+/**
+ *  [mfs] These defines are for tuning backoff behavior, but they shouldn't
+ *        be defines...
+ */
+#if defined(STM_CPU_SPARC)
+#  define BITLOCK_READ_TIMEOUT        32
+#  define BITLOCK_ACQUIRE_TIMEOUT     128
+#  define BITLOCK_DRAIN_TIMEOUT       1024
+#else // STM_CPU_X86
+#  define BITLOCK_READ_TIMEOUT        32
+#  define BITLOCK_ACQUIRE_TIMEOUT     128
+#  define BITLOCK_DRAIN_TIMEOUT       256
+#endif
+
   /**
    *  If we want to do an STM with RSTM-style visible readers, this lets us
    *  have an owner and a bunch of readers in a single struct, instead of via

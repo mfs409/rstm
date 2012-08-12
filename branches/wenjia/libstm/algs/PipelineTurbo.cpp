@@ -48,14 +48,14 @@ using stm::WriteSetEntry;
 namespace {
   struct PipelineTurbo {
       static void begin(TX_LONE_PARAMETER);
-      static TM_FASTCALL void* read_ro(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void* read_rw(TX_FIRST_PARAMETER STM_READ_SIG(,));
+      static TM_FASTCALL void* ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
+      static TM_FASTCALL void* ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
       static TM_FASTCALL void* read_turbo(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void write_ro(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void write_rw(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+      static TM_FASTCALL void WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+      static TM_FASTCALL void WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
       static TM_FASTCALL void write_turbo(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void commit_ro(TX_LONE_PARAMETER);
-      static TM_FASTCALL void commit_rw(TX_LONE_PARAMETER);
+      static TM_FASTCALL void CommitRO(TX_LONE_PARAMETER);
+      static TM_FASTCALL void CommitRW(TX_LONE_PARAMETER);
       static TM_FASTCALL void commit_turbo(TX_LONE_PARAMETER);
 
 
@@ -100,7 +100,7 @@ namespace {
    *    semantics.
    */
   void
-  PipelineTurbo::commit_ro(TX_LONE_PARAMETER)
+  PipelineTurbo::CommitRO(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // wait our turn, then validate
@@ -137,7 +137,7 @@ namespace {
    *    commits.
    */
   void
-  PipelineTurbo::commit_rw(TX_LONE_PARAMETER)
+  PipelineTurbo::CommitRW(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // wait our turn, validate, writeback
@@ -172,7 +172,7 @@ namespace {
       tx->r_orecs.reset();
       tx->writes.reset();
       OnRWCommit(tx);
-      ResetToRO(tx, read_ro, write_ro, commit_ro);
+      ResetToRO(tx, ReadRO, WriteRO, CommitRO);
   }
 
   /**
@@ -198,7 +198,7 @@ namespace {
       tx->r_orecs.reset();
       tx->writes.reset();
       OnRWCommit(tx);
-      ResetToRO(tx, read_ro, write_ro, commit_ro);
+      ResetToRO(tx, ReadRO, WriteRO, CommitRO);
   }
 
   /**
@@ -209,7 +209,7 @@ namespace {
    *    Otherwise, this is a standard orec read function.
    */
   void*
-  PipelineTurbo::read_ro(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
+  PipelineTurbo::ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
   {
       TX_GET_TX_INTERNAL;
       void* tmp = *addr;
@@ -233,7 +233,7 @@ namespace {
    *  PipelineTurbo read (writing transaction)
    */
   void*
-  PipelineTurbo::read_rw(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
+  PipelineTurbo::ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
   {
       TX_GET_TX_INTERNAL;
       // check the log for a RAW hazard, we expect to miss
@@ -273,19 +273,19 @@ namespace {
    *  PipelineTurbo write (read-only context)
    */
   void
-  PipelineTurbo::write_ro(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  PipelineTurbo::WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // record the new value in a redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
-      stm::OnFirstWrite(tx, read_rw, write_rw, commit_rw);
+      stm::OnFirstWrite(tx, ReadRW, WriteRW, CommitRW);
   }
 
   /**
    *  PipelineTurbo write (writing context)
    */
   void
-  PipelineTurbo::write_rw(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  PipelineTurbo::WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // record the new value in a redo log
@@ -417,9 +417,9 @@ namespace stm {
 
       // set the pointers
       stms[PipelineTurbo].begin     = ::PipelineTurbo::begin;
-      stms[PipelineTurbo].commit    = ::PipelineTurbo::commit_ro;
-      stms[PipelineTurbo].read      = ::PipelineTurbo::read_ro;
-      stms[PipelineTurbo].write     = ::PipelineTurbo::write_ro;
+      stms[PipelineTurbo].commit    = ::PipelineTurbo::CommitRO;
+      stms[PipelineTurbo].read      = ::PipelineTurbo::ReadRO;
+      stms[PipelineTurbo].write     = ::PipelineTurbo::WriteRO;
       stms[PipelineTurbo].rollback  = ::PipelineTurbo::rollback;
       stms[PipelineTurbo].irrevoc   = ::PipelineTurbo::irrevoc;
       stms[PipelineTurbo].switcher  = ::PipelineTurbo::onSwitchTo;

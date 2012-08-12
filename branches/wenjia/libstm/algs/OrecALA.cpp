@@ -32,7 +32,6 @@ using stm::orec_t;
 using stm::get_orec;
 using stm::WriteSetEntry;
 
-
 /**
  *  Declare the functions that we're going to implement, so that we can avoid
  *  circular dependencies.
@@ -40,12 +39,12 @@ using stm::WriteSetEntry;
 namespace {
   struct OrecALA {
       static void begin(TX_LONE_PARAMETER);
-      static TM_FASTCALL void* read_ro(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void* read_rw(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void write_ro(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void write_rw(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void commit_ro(TX_LONE_PARAMETER);
-      static TM_FASTCALL void commit_rw(TX_LONE_PARAMETER);
+      static TM_FASTCALL void* ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
+      static TM_FASTCALL void* ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
+      static TM_FASTCALL void WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+      static TM_FASTCALL void WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+      static TM_FASTCALL void CommitRO(TX_LONE_PARAMETER);
+      static TM_FASTCALL void CommitRW(TX_LONE_PARAMETER);
 
       static void rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
@@ -82,7 +81,7 @@ namespace {
    *    RO commit is trivial
    */
   void
-  OrecALA::commit_ro(TX_LONE_PARAMETER)
+  OrecALA::CommitRO(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       tx->r_orecs.reset();
@@ -101,7 +100,7 @@ namespace {
    *    then can this txn mark its writeback complete.
    */
   void
-  OrecALA::commit_rw(TX_LONE_PARAMETER)
+  OrecALA::CommitRW(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // acquire locks
@@ -157,7 +156,7 @@ namespace {
       tx->writes.reset();
       tx->locks.reset();
       OnRWCommit(tx);
-      ResetToRO(tx, read_ro, write_ro, commit_ro);
+      ResetToRO(tx, ReadRO, WriteRO, CommitRO);
   }
 
   /**
@@ -167,7 +166,7 @@ namespace {
    *    conflicts
    */
   void*
-  OrecALA::read_ro(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
+  OrecALA::ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
   {
       TX_GET_TX_INTERNAL;
       // read the location, log the orec
@@ -194,7 +193,7 @@ namespace {
    *    Same as above, but with a writeset lookup.
    */
   void*
-  OrecALA::read_rw(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
+  OrecALA::ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
   {
       TX_GET_TX_INTERNAL;
       // check the log for a RAW hazard, we expect to miss
@@ -203,7 +202,7 @@ namespace {
       REDO_RAW_CHECK(found, log, mask);
 
       // reuse the ReadRO barrier, which is adequate here---reduces LOC
-      void* val = read_ro(TX_FIRST_ARG addr STM_MASK(mask));
+      void* val = ReadRO(TX_FIRST_ARG addr STM_MASK(mask));
       REDO_RAW_CLEANUP(val, found, log, mask);
       return val;
   }
@@ -214,11 +213,11 @@ namespace {
    *    Buffer the write, and switch to a writing context.
    */
   void
-  OrecALA::write_ro(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  OrecALA::WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
-      stm::OnFirstWrite(tx, read_rw, write_rw, commit_rw);
+      stm::OnFirstWrite(tx, ReadRW, WriteRW, CommitRW);
   }
 
   /**
@@ -227,7 +226,7 @@ namespace {
    *    Buffer the write
    */
   void
-  OrecALA::write_rw(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  OrecALA::WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
@@ -268,7 +267,7 @@ namespace {
           last_complete.val = tx->end_time;
       }
       PostRollback(tx);
-      ResetToRO(tx, read_ro, write_ro, commit_ro);
+      ResetToRO(tx, ReadRO, WriteRO, CommitRO);
   }
 
   /**
@@ -332,9 +331,9 @@ namespace stm {
 
       // set the pointers
       stm::stms[OrecALA].begin    = ::OrecALA::begin;
-      stm::stms[OrecALA].commit   = ::OrecALA::commit_ro;
-      stm::stms[OrecALA].read     = ::OrecALA::read_ro;
-      stm::stms[OrecALA].write    = ::OrecALA::write_ro;
+      stm::stms[OrecALA].commit   = ::OrecALA::CommitRO;
+      stm::stms[OrecALA].read     = ::OrecALA::ReadRO;
+      stm::stms[OrecALA].write    = ::OrecALA::WriteRO;
       stm::stms[OrecALA].rollback = ::OrecALA::rollback;
       stm::stms[OrecALA].irrevoc  = ::OrecALA::irrevoc;
       stm::stms[OrecALA].switcher = ::OrecALA::onSwitchTo;

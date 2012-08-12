@@ -41,12 +41,12 @@ namespace {
   struct LLT
   {
       static void begin(TX_LONE_PARAMETER);
-      static TM_FASTCALL void* read_ro(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void* read_rw(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void write_ro(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void write_rw(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void commit_ro(TX_LONE_PARAMETER);
-      static TM_FASTCALL void commit_rw(TX_LONE_PARAMETER);
+      static TM_FASTCALL void* ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
+      static TM_FASTCALL void* ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
+      static TM_FASTCALL void WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+      static TM_FASTCALL void WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+      static TM_FASTCALL void CommitRO(TX_LONE_PARAMETER);
+      static TM_FASTCALL void CommitRW(TX_LONE_PARAMETER);
 
       static void rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
@@ -69,7 +69,7 @@ namespace {
    *  LLT commit (read-only):
    */
   void
-  LLT::commit_ro(TX_LONE_PARAMETER)
+  LLT::CommitRO(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // read-only, so just reset lists
@@ -84,7 +84,7 @@ namespace {
    *    validations.
    */
   void
-  LLT::commit_rw(TX_LONE_PARAMETER)
+  LLT::CommitRW(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // acquire locks
@@ -128,7 +128,7 @@ namespace {
       tx->writes.reset();
       tx->locks.reset();
       OnRWCommit(tx);
-      ResetToRO(tx, read_ro, write_ro, commit_ro);
+      ResetToRO(tx, ReadRO, WriteRO, CommitRO);
   }
 
   /**
@@ -137,7 +137,7 @@ namespace {
    *    We use "check twice" timestamps in LLT
    */
   void*
-  LLT::read_ro(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
+  LLT::ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
   {
       TX_GET_TX_INTERNAL;
       // get the orec addr
@@ -164,7 +164,7 @@ namespace {
    *  LLT read (writing transaction)
    */
   void*
-  LLT::read_rw(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
+  LLT::ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
   {
       TX_GET_TX_INTERNAL;
       // check the log for a RAW hazard, we expect to miss
@@ -199,19 +199,19 @@ namespace {
    *  LLT write (read-only context)
    */
   void
-  LLT::write_ro(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  LLT::WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // add to redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
-      stm::OnFirstWrite(tx, read_rw, write_rw, commit_rw);
+      stm::OnFirstWrite(tx, ReadRW, WriteRW, CommitRW);
   }
 
   /**
    *  LLT write (writing context)
    */
   void
-  LLT::write_rw(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  LLT::WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // add to redo log
@@ -240,7 +240,7 @@ namespace {
       tx->writes.reset();
       tx->locks.reset();
       PostRollback(tx);
-      ResetToRO(tx, read_ro, write_ro, commit_ro);
+      ResetToRO(tx, ReadRO, WriteRO, CommitRO);
   }
 
   /**
@@ -293,9 +293,9 @@ namespace stm {
 
       // set the pointers
       stms[LLT].begin     = ::LLT::begin;
-      stms[LLT].commit    = ::LLT::commit_ro;
-      stms[LLT].read      = ::LLT::read_ro;
-      stms[LLT].write     = ::LLT::write_ro;
+      stms[LLT].commit    = ::LLT::CommitRO;
+      stms[LLT].read      = ::LLT::ReadRO;
+      stms[LLT].write     = ::LLT::WriteRO;
       stms[LLT].rollback  = ::LLT::rollback;
       stms[LLT].irrevoc   = ::LLT::irrevoc;
       stms[LLT].switcher  = ::LLT::onSwitchTo;

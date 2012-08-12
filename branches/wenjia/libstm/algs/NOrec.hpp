@@ -44,12 +44,12 @@ namespace {
       static void begin(TX_LONE_PARAMETER);
       // [mfs] Why do we have this function?
       static TM_FASTCALL void commit(TxThread*);
-      static TM_FASTCALL void commit_ro(TX_LONE_PARAMETER);
-      static TM_FASTCALL void commit_rw(TX_LONE_PARAMETER);
-      static TM_FASTCALL void* read_ro(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void* read_rw(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void write_ro(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void write_rw(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+      static TM_FASTCALL void CommitRO(TX_LONE_PARAMETER);
+      static TM_FASTCALL void CommitRW(TX_LONE_PARAMETER);
+      static TM_FASTCALL void* ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
+      static TM_FASTCALL void* ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
+      static TM_FASTCALL void WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+      static TM_FASTCALL void WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
       static void rollback(STM_ROLLBACK_SIG(,,));
       static void initialize(int id, const char* name);
   };
@@ -117,9 +117,9 @@ namespace {
 
       // set the pointers
       stm::stms[id].begin     = NOrec_Generic<CM>::begin;
-      stm::stms[id].commit    = NOrec_Generic<CM>::commit_ro;
-      stm::stms[id].read      = NOrec_Generic<CM>::read_ro;
-      stm::stms[id].write     = NOrec_Generic<CM>::write_ro;
+      stm::stms[id].commit    = NOrec_Generic<CM>::CommitRO;
+      stm::stms[id].read      = NOrec_Generic<CM>::ReadRO;
+      stm::stms[id].write     = NOrec_Generic<CM>::WriteRO;
       stm::stms[id].irrevoc   = irrevoc;
       stm::stms[id].switcher  = onSwitchTo;
       stm::stms[id].privatization_safe = true;
@@ -177,7 +177,7 @@ namespace {
 
   template <class CM>
   void
-  NOrec_Generic<CM>::commit_ro(TX_LONE_PARAMETER)
+  NOrec_Generic<CM>::CommitRO(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // Since all reads were consistent, and no writes were done, the read-only
@@ -189,7 +189,7 @@ namespace {
 
   template <class CM>
   void
-  NOrec_Generic<CM>::commit_rw(TX_LONE_PARAMETER)
+  NOrec_Generic<CM>::CommitRW(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // From a valid state, the transaction increments the seqlock.  Then it does
@@ -214,12 +214,12 @@ namespace {
 
       // This switches the thread back to RO mode.
       OnRWCommit(tx);
-      ResetToRO(tx, read_ro, write_ro, commit_ro);
+      ResetToRO(tx, ReadRO, WriteRO, CommitRO);
   }
 
   template <class CM>
   void*
-  NOrec_Generic<CM>::read_ro(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
+  NOrec_Generic<CM>::ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
   {
       TX_GET_TX_INTERNAL;
       // A read is valid iff it occurs during a period where the seqlock does
@@ -247,7 +247,7 @@ namespace {
 
   template <class CM>
   void*
-  NOrec_Generic<CM>::read_rw(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
+  NOrec_Generic<CM>::ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
   {
       TX_GET_TX_INTERNAL;
       // check the log for a RAW hazard, we expect to miss
@@ -262,24 +262,24 @@ namespace {
       // bytes that we "actually" need, which is computed as bytes in mask but
       // not in log.mask. This is only correct because we know that a failed
       // find also reset the log.mask to 0 (that's part of the find interface).
-      void* val = read_ro(TX_FIRST_ARG addr STM_MASK(mask & ~log.mask));
+      void* val = ReadRO(TX_FIRST_ARG addr STM_MASK(mask & ~log.mask));
       REDO_RAW_CLEANUP(val, found, log, mask);
       return val;
   }
 
   template <class CM>
   void
-  NOrec_Generic<CM>::write_ro(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  NOrec_Generic<CM>::WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // buffer the write, and switch to a writing context
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
-      stm::OnFirstWrite(tx, read_rw, write_rw, commit_rw);
+      stm::OnFirstWrite(tx, ReadRW, WriteRW, CommitRW);
   }
 
   template <class CM>
   void
-  NOrec_Generic<CM>::write_rw(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  NOrec_Generic<CM>::WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // just buffer the write
@@ -303,7 +303,7 @@ namespace {
       tx->vlist.reset();
       tx->writes.reset();
       PostRollback(tx);
-      ResetToRO(tx, read_ro, write_ro, commit_ro);
+      ResetToRO(tx, ReadRO, WriteRO, CommitRO);
   }
 } // (anonymous namespace)
 

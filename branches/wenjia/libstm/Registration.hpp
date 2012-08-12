@@ -11,6 +11,15 @@
 #ifndef REGISTRATION_HPP__
 #define REGISTRATION_HPP__
 
+/**
+ *  This file defines a mechanism for registering implementations, so that we
+ *  can switch among them.
+ *
+ *  [mfs] Obviously this has no value when we are doing adaptivity-less STM,
+ *        but I haven't cleaned the adaptivity stuff well enough for it to be
+ *        invisible yet.
+ */
+
 #include <stdint.h>
 #include "../include/abstract_compiler.hpp"
 #include "../include/macros.hpp"

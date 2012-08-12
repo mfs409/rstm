@@ -12,10 +12,22 @@
 
 namespace stm
 {
-  template <>
+  /**
+   *  ProfileAppMax initialization
+   */
+  template<>
   void initTM<ProfileAppMax>()
   {
-      ProfileApp<__MAXIMUM>::Initialize(ProfileAppMax, "ProfileAppMax");
+      // set the name
+      stms[ProfileAppMax].name      = "ProfileAppMax";
+      stms[ProfileAppMax].begin     = ProfileAppBegin<__MAXIMUM>;
+      stms[ProfileAppMax].commit    = ProfileAppCommitRO<__MAXIMUM>;
+      stms[ProfileAppMax].read      = ProfileAppReadRO<__MAXIMUM>;
+      stms[ProfileAppMax].write     = ProfileAppWriteRO<__MAXIMUM>;
+      stms[ProfileAppMax].rollback  = ProfileAppRollback<__MAXIMUM>;
+      stms[ProfileAppMax].irrevoc   = ProfileAppIrrevoc<__MAXIMUM>;
+      stms[ProfileAppMax].switcher  = ProfileAppOnSwitchTo<__MAXIMUM>;
+      stms[ProfileAppMax].privatization_safe = true;
   }
 }
 

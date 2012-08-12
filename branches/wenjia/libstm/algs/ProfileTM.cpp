@@ -18,32 +18,17 @@
  *    directly.
  */
 
-#include "../profiling.hpp"
 #include "algs.hpp"
 #include "../Diagnostics.hpp"
 
-using namespace stm;
-
-namespace
+namespace stm
 {
-/**
- *  Declare the functions that we're going to implement, so that we can avoid
- *  circular dependencies.
- */
-  struct ProfileTM
-  {
-      static void begin(TX_LONE_PARAMETER);
-      static TM_FASTCALL void* read_ro(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void* read_rw(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void write_ro(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void write_rw(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void commit_ro(TX_LONE_PARAMETER);
-      static TM_FASTCALL void commit_rw(TX_LONE_PARAMETER);
-
-      static void rollback(STM_ROLLBACK_SIG(,,));
-      static bool irrevoc(TxThread*);
-      static void onSwitchTo();
-  };
+  TM_FASTCALL void* ProfileTMReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
+  TM_FASTCALL void* ProfileTMReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
+  TM_FASTCALL void ProfileTMWriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+  TM_FASTCALL void ProfileTMWriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+  TM_FASTCALL void ProfileTMCommitRO(TX_LONE_PARAMETER);
+  TM_FASTCALL void ProfileTMCommitRW(TX_LONE_PARAMETER);
 
   /**
    *  ProfileTM begin:
@@ -53,7 +38,7 @@ namespace
    *    that we run.
    */
   void
-  ProfileTM::begin(TX_LONE_PARAMETER)
+  ProfileTMBegin(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // bump the last_init field
@@ -79,7 +64,7 @@ namespace
           // first, mark self not transactional
           tx->in_tx = 0;
           // next, wait for a good begin pointer
-          while ((stm::tmbegin == begin) ||
+          while ((stm::tmbegin == ProfileTMBegin) ||
                  (stm::tmbegin == stm::begin_blocker))
               spin64();
           CFENCE;
@@ -95,7 +80,7 @@ namespace
           // isn't installed either, we can call the pointer to start a
           // transaction, and then return.  Otherwise, we missed our window,
           // so we need to go back to the top of the loop
-          if ((beginner != stm::begin_blocker) && (beginner != begin))
+          if ((beginner != stm::begin_blocker) && (beginner != ProfileTMBegin))
               break;
       }
       beginner(TX_LONE_ARG);
@@ -109,7 +94,7 @@ namespace
    *    the final transaction of the set that were requested.
    */
   void
-  ProfileTM::commit_ro(TX_LONE_PARAMETER)
+  ProfileTMCommitRO(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // figure out this transaction's running time
@@ -132,7 +117,7 @@ namespace
    *    Same as RO case, but we must also perform the writeback.
    */
   void
-  ProfileTM::commit_rw(TX_LONE_PARAMETER)
+  ProfileTMCommitRW(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // we're committed... run the redo log, remember that this is a commit
@@ -151,7 +136,7 @@ namespace
 
       // do all the standard RW cleanup stuff
       OnRWCommit(tx);
-      ResetToRO(tx, read_ro, write_ro, commit_ro);
+      ResetToRO(tx, ProfileTMReadRO, ProfileTMWriteRO, ProfileTMCommitRO);
 
       // now adapt based on the fact that we just successfully collected a
       // profile
@@ -165,7 +150,7 @@ namespace
    *    Simply read the location, and remember that we did a read
    */
   void*
-  ProfileTM::read_ro(TX_FIRST_PARAMETER_ANON STM_READ_SIG(addr,))
+  ProfileTMReadRO(TX_FIRST_PARAMETER_ANON STM_READ_SIG(addr,))
   {
       ++profiles[last_complete.val].read_ro;
       return *addr;
@@ -175,7 +160,7 @@ namespace
    *  ProfileTM read (writing transaction)
    */
   void*
-  ProfileTM::read_rw(TX_FIRST_PARAMETER STM_READ_SIG( addr,mask))
+  ProfileTMReadRW(TX_FIRST_PARAMETER STM_READ_SIG( addr,mask))
   {
       TX_GET_TX_INTERNAL;
       // check the log
@@ -193,20 +178,20 @@ namespace
    *  ProfileTM write (read-only context)
    */
   void
-  ProfileTM::write_ro(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  ProfileTMWriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // do a buffered write
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
       ++profiles[last_complete.val].write_waw;
-      stm::OnFirstWrite(tx, read_rw, write_rw, commit_rw);
+      stm::OnFirstWrite(tx, ProfileTMReadRW, ProfileTMWriteRW, ProfileTMCommitRW);
   }
 
   /**
    *  ProfileTM write (writing context)
    */
   void
-  ProfileTM::write_rw(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  ProfileTMWriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // do a buffered write
@@ -222,7 +207,7 @@ namespace
    *
    *    NB: This code has not been tested in a while
    */
-  void ProfileTM::rollback(STM_ROLLBACK_SIG(tx, except, len))
+  void ProfileTMRollback(STM_ROLLBACK_SIG(tx, except, len))
   {
       PreRollback(tx);
 
@@ -262,7 +247,7 @@ namespace
           PostRollbackNoTrigger(tx);
       }
       PostRollbackNoTrigger(tx);
-      ResetToRO(tx, read_ro, write_ro, commit_ro);
+      ResetToRO(tx, ProfileTMReadRO, ProfileTMWriteRO, ProfileTMCommitRO);
   }
 
   /**
@@ -272,7 +257,7 @@ namespace
    *        crash the application.  That's not a good long-term plan
    */
   bool
-  ProfileTM::irrevoc(TxThread*)
+  ProfileTMIrrevoc(TxThread*)
   {
       UNRECOVERABLE("Irrevocable ProfileTM transactions are not supported");
       return false;
@@ -285,15 +270,12 @@ namespace
    *    last_complete as a ticket lock, so they need to be zero
    */
   void
-  ProfileTM::onSwitchTo()
+  ProfileTMOnSwitchTo()
   {
       last_init.val = 0;
       last_complete.val = 0;
   }
-}
 
-namespace stm
-{
   /**
    *  ProfileTM initialization
    */
@@ -304,13 +286,13 @@ namespace stm
       stms[ProfileTM].name      = "ProfileTM";
 
       // set the pointers
-      stms[ProfileTM].begin     = ::ProfileTM::begin;
-      stms[ProfileTM].commit    = ::ProfileTM::commit_ro;
-      stms[ProfileTM].read      = ::ProfileTM::read_ro;
-      stms[ProfileTM].write     = ::ProfileTM::write_ro;
-      stms[ProfileTM].rollback  = ::ProfileTM::rollback;
-      stms[ProfileTM].irrevoc   = ::ProfileTM::irrevoc;
-      stms[ProfileTM].switcher  = ::ProfileTM::onSwitchTo;
+      stms[ProfileTM].begin     = ProfileTMBegin;
+      stms[ProfileTM].commit    = ProfileTMCommitRO;
+      stms[ProfileTM].read      = ProfileTMReadRO;
+      stms[ProfileTM].write     = ProfileTMWriteRO;
+      stms[ProfileTM].rollback  = ProfileTMRollback;
+      stms[ProfileTM].irrevoc   = ProfileTMIrrevoc;
+      stms[ProfileTM].switcher  = ProfileTMOnSwitchTo;
       stms[ProfileTM].privatization_safe = true;
   }
 }

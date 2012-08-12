@@ -31,13 +31,6 @@
 #include "../RedoRAWUtils.hpp"
 #include "../Diagnostics.hpp"
 
-using stm::TxThread;
-using stm::profile_t;
-using stm::profiles;
-using stm::app_profiles;
-using stm::WriteSetEntry;
-
-
 /*** to distinguish between the two variants of this code */
 #define __AVERAGE 1
 #define __MAXIMUM 0
@@ -46,7 +39,8 @@ using stm::WriteSetEntry;
  *  Declare the functions that we're going to implement, so that we can avoid
  *  circular dependencies.
  */
-namespace {
+namespace stm
+{
   /**
    *  To support both average and max without too much overhead, we are going
    *  to template the implementation.  Then, we can specialize for two
@@ -54,39 +48,17 @@ namespace {
    *  or MAX (0)
    */
   template <int COUNTMODE>
-  struct ProfileApp
-  {
-      static void Initialize(int id, const char* name);
-      static void begin(TX_LONE_PARAMETER);
-      static TM_FASTCALL void* read_ro(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void* read_rw(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void write_ro(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void write_rw(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void commit_ro(TX_LONE_PARAMETER);
-      static TM_FASTCALL void commit_rw(TX_LONE_PARAMETER);
-
-      static void rollback(STM_ROLLBACK_SIG(,,));
-      static bool irrevoc(TxThread*);
-      static void onSwitchTo();
-  };
-
+  TM_FASTCALL void* ProfileAppReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
   template <int COUNTMODE>
-  void
-  ProfileApp<COUNTMODE>::Initialize(int id, const char* name)
-  {
-      // set the name
-      stm::stms[id].name      = name;
-
-      // set the pointers
-      stm::stms[id].begin     = ProfileApp<COUNTMODE>::begin;
-      stm::stms[id].commit    = ProfileApp<COUNTMODE>::commit_ro;
-      stm::stms[id].read      = ProfileApp<COUNTMODE>::read_ro;
-      stm::stms[id].write     = ProfileApp<COUNTMODE>::write_ro;
-      stm::stms[id].rollback  = ProfileApp<COUNTMODE>::rollback;
-      stm::stms[id].irrevoc   = ProfileApp<COUNTMODE>::irrevoc;
-      stm::stms[id].switcher  = ProfileApp<COUNTMODE>::onSwitchTo;
-      stm::stms[id].privatization_safe = true;
-  }
+  TM_FASTCALL void* ProfileAppReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
+  template <int COUNTMODE>
+  TM_FASTCALL void ProfileAppWriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+  template <int COUNTMODE>
+  TM_FASTCALL void ProfileAppWriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+  template <int COUNTMODE>
+  TM_FASTCALL void ProfileAppCommitRO(TX_LONE_PARAMETER);
+  template <int COUNTMODE>
+  TM_FASTCALL void ProfileAppCommitRW(TX_LONE_PARAMETER);
 
   /**
    *  Helper MACRO
@@ -99,7 +71,7 @@ namespace {
    *    Start measuring tx runtime
    */
   template <int COUNTMODE>
-  void ProfileApp<COUNTMODE>::begin(TX_LONE_PARAMETER)
+  void ProfileAppBegin(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       tx->allocator.onTxBegin();
@@ -112,8 +84,8 @@ namespace {
    *    RO commit just involves updating statistics
    */
   template <int COUNTMODE>
-  void
-  ProfileApp<COUNTMODE>::commit_ro(TX_LONE_PARAMETER)
+  TM_FASTCALL
+  void ProfileAppCommitRO(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // NB: statically optimized version of RW code for RO case
@@ -142,8 +114,8 @@ namespace {
    *    We need to replay writes, then update the statistics
    */
   template <int COUNTMODE>
-  void
-  ProfileApp<COUNTMODE>::commit_rw(TX_LONE_PARAMETER)
+  TM_FASTCALL
+  void ProfileAppCommitRW(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // run the redo log
@@ -182,15 +154,16 @@ namespace {
 
       // finish cleaning up
       OnRWCommit(tx);
-      ResetToRO(tx, read_ro, write_ro, commit_ro);
+      ResetToRO(tx, ProfileAppReadRO<COUNTMODE>, ProfileAppWriteRO<COUNTMODE>,
+                ProfileAppCommitRO<COUNTMODE>);
   }
 
   /**
    *  ProfileApp read (read-only transaction)
    */
   template <int COUNTMODE>
-  void*
-  ProfileApp<COUNTMODE>::read_ro(TX_FIRST_PARAMETER_ANON STM_READ_SIG(addr,))
+  TM_FASTCALL
+  void* ProfileAppReadRO(TX_FIRST_PARAMETER_ANON STM_READ_SIG(addr,))
   {
       // count the read
       ++profiles[0].read_ro;
@@ -202,8 +175,8 @@ namespace {
    *  ProfileApp read (writing transaction)
    */
   template <int COUNTMODE>
-  void*
-  ProfileApp<COUNTMODE>::read_rw(TX_FIRST_PARAMETER STM_READ_SIG( addr,mask))
+  TM_FASTCALL
+  void* ProfileAppReadRW(TX_FIRST_PARAMETER STM_READ_SIG( addr,mask))
   {
       TX_GET_TX_INTERNAL;
       // check the log for a RAW hazard, we expect to miss
@@ -225,21 +198,24 @@ namespace {
    *  ProfileApp write (read-only context)
    */
   template <int COUNTMODE>
-  void
-  ProfileApp<COUNTMODE>::write_ro(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  TM_FASTCALL
+  void ProfileAppWriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // do a buffered write
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
       ++profiles[0].write_waw;
-      stm::OnFirstWrite(tx, read_rw, write_rw, commit_rw);
+      stm::OnFirstWrite(tx, ProfileAppReadRW<COUNTMODE>,
+                        ProfileAppWriteRW<COUNTMODE>,
+                        ProfileAppCommitRW<COUNTMODE>);
   }
 
   /**
    *  ProfileApp write (writing context)
    */
   template <int COUNTMODE>
-  void ProfileApp<COUNTMODE>::write_rw(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  TM_FASTCALL
+  void ProfileAppWriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // do a buffered write
@@ -254,8 +230,7 @@ namespace {
    *    abort, retry, or restart.
    */
   template <int COUNTMODE>
-  void
-  ProfileApp<COUNTMODE>::rollback(STM_ROLLBACK_SIG(,,))
+  void ProfileAppRollback(STM_ROLLBACK_SIG(,,))
   {
       stm::UNRECOVERABLE("ProfileApp should never incur an abort");
   }
@@ -264,8 +239,7 @@ namespace {
    *  ProfileApp in-flight irrevocability:
    */
   template <int COUNTMODE>
-  bool
-  ProfileApp<COUNTMODE>::irrevoc(TxThread*)
+  bool ProfileAppIrrevoc(TxThread*)
   {
       // NB: there is no reason why we can't support this, we just don't yet.
       stm::UNRECOVERABLE("ProfileApp does not support irrevocability");
@@ -279,8 +253,7 @@ namespace {
    *    allocated for doing our logging
    */
   template <int COUNTMODE>
-  void
-  ProfileApp<COUNTMODE>::onSwitchTo()
+  void ProfileAppOnSwitchTo()
   {
       if (app_profiles != NULL)
           return;

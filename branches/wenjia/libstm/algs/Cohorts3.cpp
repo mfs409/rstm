@@ -38,12 +38,12 @@ namespace {
 
   struct Cohorts3 {
       static void begin(TX_LONE_PARAMETER);
-      static TM_FASTCALL void* read_ro(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void* read_rw(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void write_ro(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void write_rw(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void commit_ro(TX_LONE_PARAMETER);
-      static TM_FASTCALL void commit_rw(TX_LONE_PARAMETER);
+      static TM_FASTCALL void* ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
+      static TM_FASTCALL void* ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
+      static TM_FASTCALL void WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+      static TM_FASTCALL void WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+      static TM_FASTCALL void CommitRO(TX_LONE_PARAMETER);
+      static TM_FASTCALL void CommitRW(TX_LONE_PARAMETER);
 
       static void rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
@@ -83,7 +83,7 @@ namespace {
    *  Cohorts3 commit (read-only):
    */
   void
-  Cohorts3::commit_ro(TX_LONE_PARAMETER)
+  Cohorts3::CommitRO(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // decrease total number of tx started
@@ -101,7 +101,7 @@ namespace {
    *  in an order which is given at the beginning of commit.
    */
   void
-  Cohorts3::commit_rw(TX_LONE_PARAMETER)
+  Cohorts3::CommitRW(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // add myself to the queue
@@ -145,14 +145,14 @@ namespace {
       tx->vlist.reset();
       tx->writes.reset();
       OnRWCommit(tx);
-      ResetToRO(tx, read_ro, write_ro, commit_ro);
+      ResetToRO(tx, ReadRO, WriteRO, CommitRO);
   }
 
   /**
    *  Cohorts3 read (read-only transaction)
    */
   void*
-  Cohorts3::read_ro(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
+  Cohorts3::ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
   {
       TX_GET_TX_INTERNAL;
       void * tmp = *addr;
@@ -164,7 +164,7 @@ namespace {
    *  Cohorts3 read (writing transaction)
    */
   void*
-  Cohorts3::read_rw(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
+  Cohorts3::ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
   {
       TX_GET_TX_INTERNAL;
       // check the log for a RAW hazard, we expect to miss
@@ -182,19 +182,19 @@ namespace {
    *  Cohorts3 write (read-only context): for first write
    */
   void
-  Cohorts3::write_ro(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  Cohorts3::WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // record the new value in a redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
-      stm::OnFirstWrite(tx, read_rw, write_rw, commit_rw);
+      stm::OnFirstWrite(tx, ReadRW, WriteRW, CommitRW);
   }
 
   /**
    *  Cohorts3 write (writing context)
    */
   void
-  Cohorts3::write_rw(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  Cohorts3::WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // record the new value in a redo log
@@ -270,9 +270,9 @@ namespace stm {
       stms[Cohorts3].name      = "Cohorts3";
       // set the pointers
       stms[Cohorts3].begin     = ::Cohorts3::begin;
-      stms[Cohorts3].commit    = ::Cohorts3::commit_ro;
-      stms[Cohorts3].read      = ::Cohorts3::read_ro;
-      stms[Cohorts3].write     = ::Cohorts3::write_ro;
+      stms[Cohorts3].commit    = ::Cohorts3::CommitRO;
+      stms[Cohorts3].read      = ::Cohorts3::ReadRO;
+      stms[Cohorts3].write     = ::Cohorts3::WriteRO;
       stms[Cohorts3].rollback  = ::Cohorts3::rollback;
       stms[Cohorts3].irrevoc   = ::Cohorts3::irrevoc;
       stms[Cohorts3].switcher  = ::Cohorts3::onSwitchTo;

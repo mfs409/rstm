@@ -12,10 +12,22 @@
 
 namespace stm
 {
-  template <>
+  /**
+   *  ProfileAppAvg initialization
+   */
+  template<>
   void initTM<ProfileAppAvg>()
   {
-      ProfileApp<__AVERAGE>::Initialize(ProfileAppAvg, "ProfileAppAvg");
+      // set the name
+      stms[ProfileAppAvg].name      = "ProfileAppAvg";
+      stms[ProfileAppAvg].begin     = ProfileAppBegin<__AVERAGE>;
+      stms[ProfileAppAvg].commit    = ProfileAppCommitRO<__AVERAGE>;
+      stms[ProfileAppAvg].read      = ProfileAppReadRO<__AVERAGE>;
+      stms[ProfileAppAvg].write     = ProfileAppWriteRO<__AVERAGE>;
+      stms[ProfileAppAvg].rollback  = ProfileAppRollback<__AVERAGE>;
+      stms[ProfileAppAvg].irrevoc   = ProfileAppIrrevoc<__AVERAGE>;
+      stms[ProfileAppAvg].switcher  = ProfileAppOnSwitchTo<__AVERAGE>;
+      stms[ProfileAppAvg].privatization_safe = true;
   }
 }
 

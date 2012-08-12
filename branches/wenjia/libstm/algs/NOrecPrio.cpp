@@ -38,12 +38,12 @@ using stm::ValueListEntry;
 namespace {
   struct NOrecPrio {
       static void begin(TX_LONE_PARAMETER);
-      static TM_FASTCALL void* read_ro(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void* read_rw(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void write_ro(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void write_rw(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void commit_ro(TX_LONE_PARAMETER);
-      static TM_FASTCALL void commit_rw(TX_LONE_PARAMETER);
+      static TM_FASTCALL void* ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
+      static TM_FASTCALL void* ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
+      static TM_FASTCALL void WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+      static TM_FASTCALL void WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+      static TM_FASTCALL void CommitRO(TX_LONE_PARAMETER);
+      static TM_FASTCALL void CommitRW(TX_LONE_PARAMETER);
 
       static void rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
@@ -84,7 +84,7 @@ namespace {
    *    release it.
    */
   void
-  NOrecPrio::commit_ro(TX_LONE_PARAMETER)
+  NOrecPrio::CommitRO(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // read-only fastpath
@@ -105,7 +105,7 @@ namespace {
    *    to be "fair", without any guarantees.
    */
   void
-  NOrecPrio::commit_rw(TX_LONE_PARAMETER)
+  NOrecPrio::CommitRW(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // wait for all higher-priority transactions to complete
@@ -139,7 +139,7 @@ namespace {
           tx->prio = 0;
       }
       OnRWCommit(tx);
-      ResetToRO(tx, read_ro, write_ro, commit_ro);
+      ResetToRO(tx, ReadRO, WriteRO, CommitRO);
   }
 
   /**
@@ -148,7 +148,7 @@ namespace {
    *    This is a standard NOrec read
    */
   void*
-  NOrecPrio::read_ro(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
+  NOrecPrio::ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
   {
       TX_GET_TX_INTERNAL;
       // read the location to a temp
@@ -174,7 +174,7 @@ namespace {
    *    Standard NOrec read from writing context
    */
   void*
-  NOrecPrio::read_rw(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
+  NOrecPrio::ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
   {
       TX_GET_TX_INTERNAL;
       // check the log for a RAW hazard, we expect to miss
@@ -189,7 +189,7 @@ namespace {
       // bytes that we "actually" need, which is computed as bytes in mask but
       // not in log.mask. This is only correct because we know that a failed
       // find also reset the log.mask to 0 (that's part of the find interface).
-      void* val = read_ro(TX_FIRST_ARG addr STM_MASK(mask & ~log.mask));
+      void* val = ReadRO(TX_FIRST_ARG addr STM_MASK(mask & ~log.mask));
       REDO_RAW_CLEANUP(val, found, log, mask);
       return val;
   }
@@ -200,12 +200,12 @@ namespace {
    *    log the write and switch to a writing context
    */
   void
-  NOrecPrio::write_ro(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  NOrecPrio::WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // do a buffered write
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
-      stm::OnFirstWrite(tx, read_rw, write_rw, commit_rw);
+      stm::OnFirstWrite(tx, ReadRW, WriteRW, CommitRW);
   }
 
   /**
@@ -214,7 +214,7 @@ namespace {
    *    log the write
    */
   void
-  NOrecPrio::write_rw(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  NOrecPrio::WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // do a buffered write
@@ -244,7 +244,7 @@ namespace {
           tx->prio = 0;
       }
       PostRollback(tx);
-      ResetToRO(tx, read_ro, write_ro, commit_ro);
+      ResetToRO(tx, ReadRO, WriteRO, CommitRO);
   }
 
   /**
@@ -314,9 +314,9 @@ namespace stm {
 
       // set the pointers
       stm::stms[NOrecPrio].begin    = ::NOrecPrio::begin;
-      stm::stms[NOrecPrio].commit   = ::NOrecPrio::commit_ro;
-      stm::stms[NOrecPrio].read     = ::NOrecPrio::read_ro;
-      stm::stms[NOrecPrio].write    = ::NOrecPrio::write_ro;
+      stm::stms[NOrecPrio].commit   = ::NOrecPrio::CommitRO;
+      stm::stms[NOrecPrio].read     = ::NOrecPrio::ReadRO;
+      stm::stms[NOrecPrio].write    = ::NOrecPrio::WriteRO;
       stm::stms[NOrecPrio].rollback = ::NOrecPrio::rollback;
       stm::stms[NOrecPrio].irrevoc  = ::NOrecPrio::irrevoc;
       stm::stms[NOrecPrio].switcher = ::NOrecPrio::onSwitchTo;

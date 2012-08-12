@@ -50,14 +50,14 @@ namespace {
 
   struct CTokenTurboQ {
       static void begin(TX_LONE_PARAMETER);
-      static TM_FASTCALL void* read_ro(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void* read_rw(TX_FIRST_PARAMETER STM_READ_SIG(,));
+      static TM_FASTCALL void* ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
+      static TM_FASTCALL void* ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
       static TM_FASTCALL void* read_turbo(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void write_ro(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void write_rw(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+      static TM_FASTCALL void WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+      static TM_FASTCALL void WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
       static TM_FASTCALL void write_turbo(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void commit_ro(TX_LONE_PARAMETER);
-      static TM_FASTCALL void commit_rw(TX_LONE_PARAMETER);
+      static TM_FASTCALL void CommitRO(TX_LONE_PARAMETER);
+      static TM_FASTCALL void CommitRW(TX_LONE_PARAMETER);
       static TM_FASTCALL void commit_turbo(TX_LONE_PARAMETER);
 
       static void rollback(STM_ROLLBACK_SIG(,,));
@@ -91,7 +91,7 @@ namespace {
    *  CTokenTurboQ commit (read-only):
    */
   void
-  CTokenTurboQ::commit_ro(TX_LONE_PARAMETER)
+  CTokenTurboQ::CommitRO(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       tx->r_orecs.reset();
@@ -104,7 +104,7 @@ namespace {
    *  Only valid with pointer-based adaptivity
    */
   void
-  CTokenTurboQ::commit_rw(TX_LONE_PARAMETER)
+  CTokenTurboQ::CommitRW(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // Wait for my turn
@@ -150,7 +150,7 @@ namespace {
       tx->writes.reset();
       tx->status = RESET;
       OnRWCommit(tx);
-      ResetToRO(tx, read_ro, write_ro, commit_ro);
+      ResetToRO(tx, ReadRO, WriteRO, CommitRO);
   }
 
   /**
@@ -173,14 +173,14 @@ namespace {
       tx->writes.reset();
       tx->status = RESET;
       OnRWCommit(tx);
-      ResetToRO(tx, read_ro, write_ro, commit_ro);
+      ResetToRO(tx, ReadRO, WriteRO, CommitRO);
   }
 
   /**
    *  CTokenTurboQ read (read-only transaction)
    */
   void*
-  CTokenTurboQ::read_ro(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
+  CTokenTurboQ::ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
   {
       TX_GET_TX_INTERNAL;
       void* tmp = *addr;
@@ -203,7 +203,7 @@ namespace {
    *  CTokenTurboQ read (writing transaction)
    */
   void*
-  CTokenTurboQ::read_rw(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
+  CTokenTurboQ::ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
   {
       TX_GET_TX_INTERNAL;
       // check the log for a RAW hazard, we expect to miss
@@ -245,7 +245,7 @@ namespace {
    *  CTokenTurboQ write (read-only context)
    */
   void
-  CTokenTurboQ::write_ro(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  CTokenTurboQ::WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // reset tx->node[X].val
@@ -258,7 +258,7 @@ namespace {
 
       // record the new value in a redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
-      stm::OnFirstWrite(tx, read_rw, write_rw, commit_rw);
+      stm::OnFirstWrite(tx, ReadRW, WriteRW, CommitRW);
 
       // go turbo?
       //
@@ -272,7 +272,7 @@ namespace {
    *  CTokenTurboQ write (writing context)
    */
   void
-  CTokenTurboQ::write_rw(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  CTokenTurboQ::WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // record the new value in a redo log
@@ -317,7 +317,7 @@ namespace {
       // NB: we can't reset pointers here, because if the transaction
       //     performed some writes, then it has an order.  If it has an
       //     order, but restarts and is read-only, then it still must call
-      //     commit_rw to finish in-order
+      //     CommitRW to finish in-order
       PostRollback(tx);
   }
 
@@ -410,9 +410,9 @@ namespace stm {
 
       // set the pointers
       stms[CTokenTurboQ].begin     = ::CTokenTurboQ::begin;
-      stms[CTokenTurboQ].commit    = ::CTokenTurboQ::commit_ro;
-      stms[CTokenTurboQ].read      = ::CTokenTurboQ::read_ro;
-      stms[CTokenTurboQ].write     = ::CTokenTurboQ::write_ro;
+      stms[CTokenTurboQ].commit    = ::CTokenTurboQ::CommitRO;
+      stms[CTokenTurboQ].read      = ::CTokenTurboQ::ReadRO;
+      stms[CTokenTurboQ].write     = ::CTokenTurboQ::WriteRO;
       stms[CTokenTurboQ].rollback  = ::CTokenTurboQ::rollback;
       stms[CTokenTurboQ].irrevoc   = ::CTokenTurboQ::irrevoc;
       stms[CTokenTurboQ].switcher  = ::CTokenTurboQ::onSwitchTo;

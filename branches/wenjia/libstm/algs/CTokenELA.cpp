@@ -43,12 +43,12 @@ using stm::get_orec;
 namespace {
   struct CTokenELA {
       static void begin(TX_LONE_PARAMETER);
-      static TM_FASTCALL void* read_ro(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void* read_rw(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void write_ro(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void write_rw(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void commit_ro(TX_LONE_PARAMETER);
-      static TM_FASTCALL void commit_rw(TX_LONE_PARAMETER);
+      static TM_FASTCALL void* ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
+      static TM_FASTCALL void* ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
+      static TM_FASTCALL void WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+      static TM_FASTCALL void WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+      static TM_FASTCALL void CommitRO(TX_LONE_PARAMETER);
+      static TM_FASTCALL void CommitRW(TX_LONE_PARAMETER);
 
       static void rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
@@ -71,7 +71,7 @@ namespace {
    *  CTokenELA commit (read-only):
    */
   void
-  CTokenELA::commit_ro(TX_LONE_PARAMETER)
+  CTokenELA::CommitRO(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // reset lists and we are done
@@ -84,7 +84,7 @@ namespace {
    *
    *  NB:  Only valid if using pointer-based adaptivity
    */
-  void CTokenELA::commit_rw(TX_LONE_PARAMETER)
+  void CTokenELA::CommitRW(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // wait until it is our turn to commit, then validate, acquire, and do
@@ -126,14 +126,14 @@ namespace {
       tx->r_orecs.reset();
       tx->writes.reset();
       OnRWCommit(tx);
-      ResetToRO(tx, read_ro, write_ro, commit_ro);
+      ResetToRO(tx, ReadRO, WriteRO, CommitRO);
   }
 
   /**
    *  CTokenELA read (read-only transaction)
    */
   void*
-  CTokenELA::read_ro(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
+  CTokenELA::ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
   {
       TX_GET_TX_INTERNAL;
       // read the location... this is safe since timestamps behave as in Wang's
@@ -164,7 +164,7 @@ namespace {
    *  CTokenELA read (writing transaction)
    */
   void*
-  CTokenELA::read_rw(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
+  CTokenELA::ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
   {
       TX_GET_TX_INTERNAL;
       // check the log for a RAW hazard, we expect to miss
@@ -173,7 +173,7 @@ namespace {
       REDO_RAW_CHECK(found, log, mask);
 
       // reuse the ReadRO barrier, which is adequate here---reduces LOC
-      void* val = read_ro(TX_FIRST_ARG addr STM_MASK(mask));
+      void* val = ReadRO(TX_FIRST_ARG addr STM_MASK(mask));
       REDO_RAW_CLEANUP(val, found, log, mask);
       return val;
   }
@@ -182,7 +182,7 @@ namespace {
    *  CTokenELA write (read-only context)
    */
   void
-  CTokenELA::write_ro(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  CTokenELA::WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // we don't have any writes yet, so we need to get an order here
@@ -190,14 +190,14 @@ namespace {
 
       // record the new value in a redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
-      stm::OnFirstWrite(tx, read_rw, write_rw, commit_rw);
+      stm::OnFirstWrite(tx, ReadRW, WriteRW, CommitRW);
   }
 
   /**
    *  CTokenELA write (writing context)
    */
   void
-  CTokenELA::write_rw(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  CTokenELA::WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // record the new value in a redo log
@@ -223,7 +223,7 @@ namespace {
       // NB: we can't reset pointers here, because if the transaction
       //     performed some writes, then it has an order.  If it has an
       //     order, but restarts and is read-only, then it still must call
-      //     commit_rw to finish in-order
+      //     CommitRW to finish in-order
       PostRollback(tx);
   }
 
@@ -290,9 +290,9 @@ namespace stm {
       stms[CTokenELA].name      = "CTokenELA";
       // set the pointers
       stms[CTokenELA].begin     = ::CTokenELA::begin;
-      stms[CTokenELA].commit    = ::CTokenELA::commit_ro;
-      stms[CTokenELA].read      = ::CTokenELA::read_ro;
-      stms[CTokenELA].write     = ::CTokenELA::write_ro;
+      stms[CTokenELA].commit    = ::CTokenELA::CommitRO;
+      stms[CTokenELA].read      = ::CTokenELA::ReadRO;
+      stms[CTokenELA].write     = ::CTokenELA::WriteRO;
       stms[CTokenELA].rollback  = ::CTokenELA::rollback;
       stms[CTokenELA].irrevoc   = ::CTokenELA::irrevoc;
       stms[CTokenELA].switcher  = ::CTokenELA::onSwitchTo;

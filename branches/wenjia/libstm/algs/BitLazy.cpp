@@ -28,44 +28,25 @@
  *    'Atomic or' might be useful, too.
  */
 
-#include "../profiling.hpp"
 #include "algs.hpp"
-#include "../RedoRAWUtils.hpp"
-
-using stm::TxThread;
-using stm::BitLockList;
-using stm::WriteSet;
-using stm::rrec_t;
-using stm::bitlock_t;
-using stm::get_bitlock;
-using stm::threads;
-using stm::WriteSetEntry;
-
 
 /**
  *  Declare the functions that we're going to implement, so that we can avoid
  *  circular dependencies.
  */
-namespace {
-  struct BitLazy
-  {
-      static void begin(TX_LONE_PARAMETER);
-      static TM_FASTCALL void* read_ro(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void* read_rw(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void write_ro(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void write_rw(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void commit_ro(TX_LONE_PARAMETER);
-      static TM_FASTCALL void commit_rw(TX_LONE_PARAMETER);
-
-      static void rollback(STM_ROLLBACK_SIG(,,));
-      static bool irrevoc(TxThread*);
-      static void onSwitchTo();
-  };
+namespace stm
+{
+  TM_FASTCALL
+  void BitLazyWriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+  TM_FASTCALL
+  void BitLazyWriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+  TM_FASTCALL
+  void* BitLazyReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
 
   /**
    *  BitLazy begin:
    */
-  void BitLazy::begin(TX_LONE_PARAMETER)
+  void BitLazyBegin(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       tx->allocator.onTxBegin();
@@ -75,7 +56,8 @@ namespace {
   /**
    *  BitLazy commit (read-only):
    */
-  void BitLazy::commit_ro(TX_LONE_PARAMETER)
+  TM_FASTCALL
+  void BitLazyCommitRO(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // were there remote aborts?
@@ -100,7 +82,8 @@ namespace {
    *    the transaction is still alive at that point, it will redo its writes,
    *    release locks, and clean up.
    */
-  void BitLazy::commit_rw(TX_LONE_PARAMETER)
+  TM_FASTCALL
+  void BitLazyCommitRW(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // try to lock every location in the write set
@@ -165,7 +148,7 @@ namespace {
       tx->writes.reset();
       tx->w_bitlocks.reset();
       OnRWCommit(tx);
-      ResetToRO(tx, read_ro, write_ro, commit_ro);
+      ResetToRO(tx, BitLazyReadRO, BitLazyWriteRO, BitLazyCommitRO);
   }
 
   /**
@@ -174,7 +157,7 @@ namespace {
    *    Must preserve write-before-read ordering between marking self as a reader
    *    and checking for conflicting writers.
    */
-  void* BitLazy::read_ro(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
+  void* BitLazyReadRO(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
   {
       TX_GET_TX_INTERNAL;
       // first test if we've got a read bit
@@ -197,7 +180,8 @@ namespace {
    *
    *    Same as above, but with a test if this tx has a pending write
    */
-  void* BitLazy::read_rw(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
+  TM_FASTCALL
+  void* BitLazyReadRW(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
   {
       TX_GET_TX_INTERNAL;
       // Used by REDO_RAW_CLEANUP so they have to be scoped out here. We assume
@@ -230,7 +214,7 @@ namespace {
    *
    *    Log the write, and then mark the location as if reading.
    */
-  void BitLazy::write_ro(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  void BitLazyWriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // Record the new value in a redo log
@@ -242,13 +226,14 @@ namespace {
           tx->r_bitlocks.insert(bl);
       if (bl->owner)
           stm::tmabort();
-      stm::OnFirstWrite(tx, read_rw, write_rw, commit_rw);
+      stm::OnFirstWrite(tx, BitLazyReadRW, BitLazyWriteRW, BitLazyCommitRW);
   }
 
   /**
    *  BitLazy write (writing context)
    */
-  void BitLazy::write_rw(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  TM_FASTCALL
+  void BitLazyWriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // Record the new value in a redo log
@@ -266,7 +251,7 @@ namespace {
    *  BitLazy unwinder:
    */
   void
-  BitLazy::rollback(STM_ROLLBACK_SIG(tx, except, len))
+  BitLazyRollback(STM_ROLLBACK_SIG(tx, except, len))
   {
       PreRollback(tx);
 
@@ -286,13 +271,13 @@ namespace {
       tx->w_bitlocks.reset();
 
       PostRollback(tx);
-      ResetToRO(tx, read_ro, write_ro, commit_ro);
+      ResetToRO(tx, BitLazyReadRO, BitLazyWriteRO, BitLazyCommitRO);
   }
 
   /**
    *  BitLazy in-flight irrevocability:
    */
-  bool BitLazy::irrevoc(TxThread*)
+  bool BitLazyIrrevoc(TxThread*)
   {
       return false;
   }
@@ -302,7 +287,7 @@ namespace {
    *
    *    The BitLock array should be all zeroes when we start using this algorithm
    */
-  void BitLazy::onSwitchTo() {
+  void BitLazyOnSwitchTo() {
   }
 }
 
@@ -317,13 +302,13 @@ namespace stm {
       stms[BitLazy].name      = "BitLazy";
 
       // set the pointers
-      stms[BitLazy].begin     = ::BitLazy::begin;
-      stms[BitLazy].commit    = ::BitLazy::commit_ro;
-      stms[BitLazy].read      = ::BitLazy::read_ro;
-      stms[BitLazy].write     = ::BitLazy::write_ro;
-      stms[BitLazy].rollback  = ::BitLazy::rollback;
-      stms[BitLazy].irrevoc   = ::BitLazy::irrevoc;
-      stms[BitLazy].switcher  = ::BitLazy::onSwitchTo;
+      stms[BitLazy].begin     = BitLazyBegin;
+      stms[BitLazy].commit    = BitLazyCommitRO;
+      stms[BitLazy].read      = BitLazyReadRO;
+      stms[BitLazy].write     = BitLazyWriteRO;
+      stms[BitLazy].rollback  = BitLazyRollback;
+      stms[BitLazy].irrevoc   = BitLazyIrrevoc;
+      stms[BitLazy].switcher  = BitLazyOnSwitchTo;
       stms[BitLazy].privatization_safe = true;
   }
 }

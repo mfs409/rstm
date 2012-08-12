@@ -56,14 +56,14 @@ namespace {
 
   struct FastlaneSwitch {
       static void begin(TX_LONE_PARAMETER);
-      static TM_FASTCALL void* read_ro(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void* read_rw(TX_FIRST_PARAMETER STM_READ_SIG(,));
+      static TM_FASTCALL void* ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
+      static TM_FASTCALL void* ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
       static TM_FASTCALL void* read_turbo(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void write_ro(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void write_rw(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+      static TM_FASTCALL void WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+      static TM_FASTCALL void WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
       static TM_FASTCALL void write_turbo(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void commit_ro(TX_LONE_PARAMETER);
-      static TM_FASTCALL void commit_rw(TX_LONE_PARAMETER);
+      static TM_FASTCALL void CommitRO(TX_LONE_PARAMETER);
+      static TM_FASTCALL void CommitRW(TX_LONE_PARAMETER);
       static TM_FASTCALL void commit_turbo(TX_LONE_PARAMETER);
 
       static void rollback(STM_ROLLBACK_SIG(,,));
@@ -123,7 +123,7 @@ namespace {
       //
       // [mfs] I don't think this is needed... the prior commit should have
       // reset these to the _ro variants already.
-      stm::GoTurbo(tx, read_ro, write_ro, commit_ro);
+      stm::GoTurbo(tx, ReadRO, WriteRO, CommitRO);
   }
 
   /**
@@ -141,7 +141,7 @@ namespace {
       // release master lock
       master = 0;
       OnRWCommit(tx);
-      ResetToRO(tx, read_ro, write_ro, commit_ro);
+      ResetToRO(tx, ReadRO, WriteRO, CommitRO);
   }
 
   /**
@@ -149,7 +149,7 @@ namespace {
    *  Read-only transaction commit immediately
    */
   void
-  FastlaneSwitch::commit_ro(TX_LONE_PARAMETER)
+  FastlaneSwitch::CommitRO(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // clean up
@@ -164,7 +164,7 @@ namespace {
    *
    */
   void
-  FastlaneSwitch::commit_rw(TX_LONE_PARAMETER)
+  FastlaneSwitch::CommitRW(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
 
@@ -231,7 +231,7 @@ namespace {
       tx->r_orecs.reset();
       tx->writes.reset();
       OnRWCommit(tx);
-      ResetToRO(tx, read_ro, write_ro, commit_ro);
+      ResetToRO(tx, ReadRO, WriteRO, CommitRO);
   }
 
   /**
@@ -247,7 +247,7 @@ namespace {
    *  FastlaneSwitch read (read-only transaction)
    */
   void*
-  FastlaneSwitch::read_ro(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
+  FastlaneSwitch::ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
   {
       TX_GET_TX_INTERNAL;
 
@@ -277,7 +277,7 @@ namespace {
    *  FastlaneSwitch read (writing transaction)
    */
   void*
-  FastlaneSwitch::read_rw(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
+  FastlaneSwitch::ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
   {
       TX_GET_TX_INTERNAL;
 
@@ -286,8 +286,8 @@ namespace {
       bool found = tx->writes.find(log);
       REDO_RAW_CHECK(found, log, mask);
 
-      // reuse read_ro barrier
-      void* val = read_ro(TX_FIRST_ARG addr STM_MASK(mask));
+      // reuse ReadRO barrier
+      void* val = ReadRO(TX_FIRST_ARG addr STM_MASK(mask));
       REDO_RAW_CLEANUP(val, found, log, mask);
       return val;
   }
@@ -308,7 +308,7 @@ namespace {
    *  FastlaneSwitch write (read-only context): for first write
    */
   void
-  FastlaneSwitch::write_ro(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  FastlaneSwitch::WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // get orec
@@ -319,14 +319,14 @@ namespace {
 
       // Add to write set
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
-      stm::OnFirstWrite(tx, read_rw, write_rw, commit_rw);
+      stm::OnFirstWrite(tx, ReadRW, WriteRW, CommitRW);
   }
 
   /**
    *  FastlaneSwitch write (writing context)
    */
   void
-  FastlaneSwitch::write_rw(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  FastlaneSwitch::WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // get orec
@@ -448,9 +448,9 @@ namespace stm {
       stms[FastlaneSwitch].name      = "FastlaneSwitch";
       // set the pointers
       stms[FastlaneSwitch].begin     = ::FastlaneSwitch::begin;
-      stms[FastlaneSwitch].commit    = ::FastlaneSwitch::commit_ro;
-      stms[FastlaneSwitch].read      = ::FastlaneSwitch::read_ro;
-      stms[FastlaneSwitch].write     = ::FastlaneSwitch::write_ro;
+      stms[FastlaneSwitch].commit    = ::FastlaneSwitch::CommitRO;
+      stms[FastlaneSwitch].read      = ::FastlaneSwitch::ReadRO;
+      stms[FastlaneSwitch].write     = ::FastlaneSwitch::WriteRO;
       stms[FastlaneSwitch].rollback  = ::FastlaneSwitch::rollback;
       stms[FastlaneSwitch].irrevoc   = ::FastlaneSwitch::irrevoc;
       stms[FastlaneSwitch].switcher  = ::FastlaneSwitch::onSwitchTo;

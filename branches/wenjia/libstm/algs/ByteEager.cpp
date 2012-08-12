@@ -35,12 +35,12 @@ namespace {
   struct ByteEager
   {
       static void begin(TX_LONE_PARAMETER);
-      static TM_FASTCALL void* read_ro(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void* read_rw(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void write_ro(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void write_rw(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void commit_ro(TX_LONE_PARAMETER);
-      static TM_FASTCALL void commit_rw(TX_LONE_PARAMETER);
+      static TM_FASTCALL void* ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
+      static TM_FASTCALL void* ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
+      static TM_FASTCALL void WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+      static TM_FASTCALL void WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+      static TM_FASTCALL void CommitRO(TX_LONE_PARAMETER);
+      static TM_FASTCALL void CommitRW(TX_LONE_PARAMETER);
 
       static void rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
@@ -73,7 +73,7 @@ namespace {
    *  ByteEager commit (read-only):
    */
   void
-  ByteEager::commit_ro(TX_LONE_PARAMETER)
+  ByteEager::CommitRO(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // read-only... release read locks
@@ -88,7 +88,7 @@ namespace {
    *  ByteEager commit (writing context):
    */
   void
-  ByteEager::commit_rw(TX_LONE_PARAMETER)
+  ByteEager::CommitRW(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // release write locks, then read locks
@@ -102,14 +102,14 @@ namespace {
       tx->w_bytelocks.reset();
       tx->undo_log.reset();
       OnRWCommit(tx);
-      ResetToRO(tx, read_ro, write_ro, commit_ro);
+      ResetToRO(tx, ReadRO, WriteRO, CommitRO);
   }
 
   /**
    *  ByteEager read (read-only transaction)
    */
   void*
-  ByteEager::read_ro(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
+  ByteEager::ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
   {
       TX_GET_TX_INTERNAL;
       uint32_t tries = 0;
@@ -144,7 +144,7 @@ namespace {
    *  ByteEager read (writing transaction)
    */
   void*
-  ByteEager::read_rw(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
+  ByteEager::ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
   {
       TX_GET_TX_INTERNAL;
       uint32_t tries = 0;
@@ -181,7 +181,7 @@ namespace {
    *  ByteEager write (read-only context)
    */
   void
-  ByteEager::write_ro(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  ByteEager::WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       uint32_t tries = 0;
@@ -210,14 +210,14 @@ namespace {
       tx->undo_log.insert(UndoLogEntry(STM_UNDO_LOG_ENTRY(addr, *addr, mask)));
       STM_DO_MASKED_WRITE(addr, val, mask);
 
-      stm::OnFirstWrite(tx, read_rw, write_rw, commit_rw);
+      stm::OnFirstWrite(tx, ReadRW, WriteRW, CommitRW);
   }
 
   /**
    *  ByteEager write (writing context)
    */
   void
-  ByteEager::write_rw(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  ByteEager::WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       uint32_t tries = 0;
@@ -281,7 +281,7 @@ namespace {
       exp_backoff(tx);
 
       PostRollback(tx);
-      ResetToRO(tx, read_ro, write_ro, commit_ro);
+      ResetToRO(tx, ReadRO, WriteRO, CommitRO);
   }
 
   /**
@@ -310,9 +310,9 @@ namespace stm {
 
       // set the pointers
       stms[ByteEager].begin     = ::ByteEager::begin;
-      stms[ByteEager].commit    = ::ByteEager::commit_ro;
-      stms[ByteEager].read      = ::ByteEager::read_ro;
-      stms[ByteEager].write     = ::ByteEager::write_ro;
+      stms[ByteEager].commit    = ::ByteEager::CommitRO;
+      stms[ByteEager].read      = ::ByteEager::ReadRO;
+      stms[ByteEager].write     = ::ByteEager::WriteRO;
       stms[ByteEager].rollback  = ::ByteEager::rollback;
       stms[ByteEager].irrevoc   = ::ByteEager::irrevoc;
       stms[ByteEager].switcher  = ::ByteEager::onSwitchTo;

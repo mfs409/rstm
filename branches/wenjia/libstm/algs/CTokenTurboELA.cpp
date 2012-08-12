@@ -42,14 +42,14 @@ using stm::WriteSetEntry;
 namespace {
   struct CTokenTurboELA {
       static void begin(TX_LONE_PARAMETER);
-      static TM_FASTCALL void* read_ro(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void* read_rw(TX_FIRST_PARAMETER STM_READ_SIG(,));
+      static TM_FASTCALL void* ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
+      static TM_FASTCALL void* ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
       static TM_FASTCALL void* read_turbo(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void write_ro(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void write_rw(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+      static TM_FASTCALL void WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+      static TM_FASTCALL void WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
       static TM_FASTCALL void write_turbo(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void commit_ro(TX_LONE_PARAMETER);
-      static TM_FASTCALL void commit_rw(TX_LONE_PARAMETER);
+      static TM_FASTCALL void CommitRO(TX_LONE_PARAMETER);
+      static TM_FASTCALL void CommitRW(TX_LONE_PARAMETER);
       static TM_FASTCALL void commit_turbo(TX_LONE_PARAMETER);
 
       static void rollback(STM_ROLLBACK_SIG(,,));
@@ -80,7 +80,7 @@ namespace {
    *  CTokenTurboELA commit (read-only):
    */
   void
-  CTokenTurboELA::commit_ro(TX_LONE_PARAMETER)
+  CTokenTurboELA::CommitRO(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       tx->r_orecs.reset();
@@ -94,7 +94,7 @@ namespace {
    *  Only valid with pointer-based adaptivity
    */
   void
-  CTokenTurboELA::commit_rw(TX_LONE_PARAMETER)
+  CTokenTurboELA::CommitRW(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // we need to transition to fast here, but not till our turn
@@ -136,7 +136,7 @@ namespace {
       tx->r_orecs.reset();
       tx->writes.reset();
       OnRWCommit(tx);
-      ResetToRO(tx, read_ro, write_ro, commit_ro);
+      ResetToRO(tx, ReadRO, WriteRO, CommitRO);
   }
 
   /**
@@ -156,14 +156,14 @@ namespace {
       tx->r_orecs.reset();
       tx->writes.reset();
       OnRWCommit(tx);
-      ResetToRO(tx, read_ro, write_ro, commit_ro);
+      ResetToRO(tx, ReadRO, WriteRO, CommitRO);
   }
 
   /**
    *  CTokenTurboELA read (read-only transaction)
    */
   void*
-  CTokenTurboELA::read_ro(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
+  CTokenTurboELA::ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
   {
       TX_GET_TX_INTERNAL;
       void* tmp = *addr;
@@ -207,7 +207,7 @@ namespace {
    *  CTokenTurboELA read (writing transaction)
    */
   void*
-  CTokenTurboELA::read_rw(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
+  CTokenTurboELA::ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
   {
       TX_GET_TX_INTERNAL;
       // check the log for a RAW hazard, we expect to miss
@@ -248,7 +248,7 @@ namespace {
    *  CTokenTurboELA write (read-only context)
    */
   void
-  CTokenTurboELA::write_ro(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  CTokenTurboELA::WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // we don't have any writes yet, so we need to get an order here
@@ -257,7 +257,7 @@ namespace {
       // record the new value in a redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
 
-      stm::OnFirstWrite(tx, read_rw, write_rw, commit_rw);
+      stm::OnFirstWrite(tx, ReadRW, WriteRW, CommitRW);
 
       // go turbo?
       //
@@ -271,7 +271,7 @@ namespace {
    *  CTokenTurboELA write (writing context)
    */
   void
-  CTokenTurboELA::write_rw(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  CTokenTurboELA::WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // record the new value in a redo log
@@ -316,7 +316,7 @@ namespace {
       // NB: we can't reset pointers here, because if the transaction
       //     performed some writes, then it has an order.  If it has an
       //     order, but restarts and is read-only, then it still must call
-      //     commit_rw to finish in-order
+      //     CommitRW to finish in-order
       PostRollback(tx);
   }
 
@@ -403,9 +403,9 @@ namespace stm {
 
       // set the pointers
       stms[CTokenTurboELA].begin     = ::CTokenTurboELA::begin;
-      stms[CTokenTurboELA].commit    = ::CTokenTurboELA::commit_ro;
-      stms[CTokenTurboELA].read      = ::CTokenTurboELA::read_ro;
-      stms[CTokenTurboELA].write     = ::CTokenTurboELA::write_ro;
+      stms[CTokenTurboELA].commit    = ::CTokenTurboELA::CommitRO;
+      stms[CTokenTurboELA].read      = ::CTokenTurboELA::ReadRO;
+      stms[CTokenTurboELA].write     = ::CTokenTurboELA::WriteRO;
       stms[CTokenTurboELA].rollback  = ::CTokenTurboELA::rollback;
       stms[CTokenTurboELA].irrevoc   = ::CTokenTurboELA::irrevoc;
       stms[CTokenTurboELA].switcher  = ::CTokenTurboELA::onSwitchTo;

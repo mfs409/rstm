@@ -53,12 +53,12 @@ namespace {
       static void Initialize(int id, const char* name);
 
       static void begin(TX_LONE_PARAMETER);
-      static TM_FASTCALL void* read_ro(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void* read_rw(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void write_ro(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void write_rw(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void commit_ro(TX_LONE_PARAMETER);
-      static TM_FASTCALL void commit_rw(TX_LONE_PARAMETER);
+      static TM_FASTCALL void* ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
+      static TM_FASTCALL void* ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
+      static TM_FASTCALL void WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+      static TM_FASTCALL void WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+      static TM_FASTCALL void CommitRO(TX_LONE_PARAMETER);
+      static TM_FASTCALL void CommitRW(TX_LONE_PARAMETER);
 
       static void rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
@@ -77,9 +77,9 @@ namespace {
 
       // set the pointers
       stm::stms[id].begin     = ByEAU_Generic<CM>::begin;
-      stm::stms[id].commit    = ByEAU_Generic<CM>::commit_ro;
-      stm::stms[id].read      = ByEAU_Generic<CM>::read_ro;
-      stm::stms[id].write     = ByEAU_Generic<CM>::write_ro;
+      stm::stms[id].commit    = ByEAU_Generic<CM>::CommitRO;
+      stm::stms[id].read      = ByEAU_Generic<CM>::ReadRO;
+      stm::stms[id].write     = ByEAU_Generic<CM>::WriteRO;
       stm::stms[id].rollback  = ByEAU_Generic<CM>::rollback;
       stm::stms[id].irrevoc   = ByEAU_Generic<CM>::irrevoc;
       stm::stms[id].switcher  = ByEAU_Generic<CM>::onSwitchTo;
@@ -106,7 +106,7 @@ namespace {
    */
   template <class CM>
   void
-  ByEAU_Generic<CM>::commit_ro(TX_LONE_PARAMETER)
+  ByEAU_Generic<CM>::CommitRO(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // read-only... release read locks
@@ -129,7 +129,7 @@ namespace {
    */
   template <class CM>
   void
-  ByEAU_Generic<CM>::commit_rw(TX_LONE_PARAMETER)
+  ByEAU_Generic<CM>::CommitRW(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // release write locks, then read locks
@@ -147,7 +147,7 @@ namespace {
       tx->undo_log.reset();
 
       OnRWCommit(tx);
-      ResetToRO(tx, read_ro, write_ro, commit_ro);
+      ResetToRO(tx, ReadRO, WriteRO, CommitRO);
   }
 
   /**
@@ -155,7 +155,7 @@ namespace {
    */
   template <class CM>
   void*
-  ByEAU_Generic<CM>::read_ro(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
+  ByEAU_Generic<CM>::ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
   {
       TX_GET_TX_INTERNAL;
       bytelock_t* lock = get_bytelock(addr);
@@ -197,7 +197,7 @@ namespace {
    */
   template <class CM>
   void*
-  ByEAU_Generic<CM>::read_rw(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
+  ByEAU_Generic<CM>::ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
   {
       TX_GET_TX_INTERNAL;
       bytelock_t* lock = get_bytelock(addr);
@@ -240,7 +240,7 @@ namespace {
    */
   template <class CM>
   void
-  ByEAU_Generic<CM>::write_ro(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  ByEAU_Generic<CM>::WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       bytelock_t* lock = get_bytelock(addr);
@@ -284,7 +284,7 @@ namespace {
       if (tx->alive == TX_ABORTED)
           stm::tmabort();
 
-      stm::OnFirstWrite(tx, read_rw, write_rw, commit_rw);
+      stm::OnFirstWrite(tx, ReadRW, WriteRW, CommitRW);
   }
 
   /**
@@ -292,7 +292,7 @@ namespace {
    */
   template <class CM>
   void
-  ByEAU_Generic<CM>::write_rw(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  ByEAU_Generic<CM>::WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       bytelock_t* lock = get_bytelock(addr);
@@ -369,7 +369,7 @@ namespace {
       CM::onAbort(tx);
 
       PostRollback(tx);
-      ResetToRO(tx, read_ro, write_ro, commit_ro);
+      ResetToRO(tx, ReadRO, WriteRO, CommitRO);
   }
 
   /**

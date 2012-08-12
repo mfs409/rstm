@@ -48,12 +48,12 @@ namespace {
 
   struct Cohorts2 {
       static void begin(TX_LONE_PARAMETER);
-      static TM_FASTCALL void* read_ro(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void* read_rw(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void write_ro(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void write_rw(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void commit_ro(TX_LONE_PARAMETER);
-      static TM_FASTCALL void commit_rw(TX_LONE_PARAMETER);
+      static TM_FASTCALL void* ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
+      static TM_FASTCALL void* ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
+      static TM_FASTCALL void WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+      static TM_FASTCALL void WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+      static TM_FASTCALL void CommitRO(TX_LONE_PARAMETER);
+      static TM_FASTCALL void CommitRW(TX_LONE_PARAMETER);
 
       static void rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
@@ -88,7 +88,7 @@ namespace {
    *  Cohorts2 commit (read-only):
    */
   void
-  Cohorts2::commit_ro(TX_LONE_PARAMETER)
+  Cohorts2::CommitRO(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // decrease total number of tx started
@@ -106,7 +106,7 @@ namespace {
    *  in an order which is given at the beginning of commit.
    */
   void
-  Cohorts2::commit_rw(TX_LONE_PARAMETER)
+  Cohorts2::CommitRW(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // increment # ready, decrement # started
@@ -158,14 +158,14 @@ namespace {
       tx->r_orecs.reset();
       tx->writes.reset();
       OnRWCommit(tx);
-      ResetToRO(tx, read_ro, write_ro, commit_ro);
+      ResetToRO(tx, ReadRO, WriteRO, CommitRO);
   }
 
   /**
    *  Cohorts2 read (read-only transaction)
    */
   void*
-  Cohorts2::read_ro(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
+  Cohorts2::ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
   {
       TX_GET_TX_INTERNAL;
       // log orec
@@ -177,7 +177,7 @@ namespace {
    *  Cohorts2 read (writing transaction)
    */
   void*
-  Cohorts2::read_rw(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
+  Cohorts2::ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
   {
       TX_GET_TX_INTERNAL;
       // check the log for a RAW hazard, we expect to miss
@@ -197,19 +197,19 @@ namespace {
    *  Cohorts2 write (read-only context): for first write
    */
   void
-  Cohorts2::write_ro(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  Cohorts2::WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // record the new value in a redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
-      stm::OnFirstWrite(tx, read_rw, write_rw, commit_rw);
+      stm::OnFirstWrite(tx, ReadRW, WriteRW, CommitRW);
   }
 
   /**
    *  Cohorts2 write (writing context)
    */
   void
-  Cohorts2::write_rw(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  Cohorts2::WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // record the new value in a redo log
@@ -286,9 +286,9 @@ namespace stm {
       stms[Cohorts2].name      = "Cohorts2";
       // set the pointers
       stms[Cohorts2].begin     = ::Cohorts2::begin;
-      stms[Cohorts2].commit    = ::Cohorts2::commit_ro;
-      stms[Cohorts2].read      = ::Cohorts2::read_ro;
-      stms[Cohorts2].write     = ::Cohorts2::write_ro;
+      stms[Cohorts2].commit    = ::Cohorts2::CommitRO;
+      stms[Cohorts2].read      = ::Cohorts2::ReadRO;
+      stms[Cohorts2].write     = ::Cohorts2::WriteRO;
       stms[Cohorts2].rollback  = ::Cohorts2::rollback;
       stms[Cohorts2].irrevoc   = ::Cohorts2::irrevoc;
       stms[Cohorts2].switcher  = ::Cohorts2::onSwitchTo;

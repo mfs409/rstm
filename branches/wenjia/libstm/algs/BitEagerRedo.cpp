@@ -15,24 +15,9 @@
  *    Note that we still have eager acquire.
  */
 
-#include "../profiling.hpp"
 #include "../cm.hpp"
-#include "../RedoRAWUtils.hpp"
 #include "algs.hpp"
 
-/**
- *  [mfs] These defines are for tuning backoff behavior... should they be
- *        part of BitLocks.hpp instead?
- */
-#if defined(STM_CPU_SPARC)
-#  define READ_TIMEOUT        32
-#  define ACQUIRE_TIMEOUT     128
-#  define DRAIN_TIMEOUT       1024
-#else // STM_CPU_X86
-#  define READ_TIMEOUT        32
-#  define ACQUIRE_TIMEOUT     128
-#  define DRAIN_TIMEOUT       256
-#endif
 
 namespace stm
 {
@@ -124,7 +109,7 @@ namespace stm
           // drop read lock, wait (with timeout) for lock release
           lock->readers.unsetbit(tx->id-1);
           while (lock->owner != 0) {
-              if (++tries > READ_TIMEOUT)
+              if (++tries > BITLOCK_READ_TIMEOUT)
                   tmabort();
           }
       }
@@ -173,7 +158,7 @@ namespace stm
           // drop read lock, wait (with timeout) for lock release
           lock->readers.unsetbit(tx->id-1);
           while (lock->owner != 0) {
-              if (++tries > READ_TIMEOUT)
+              if (++tries > BITLOCK_READ_TIMEOUT)
                   tmabort();
           }
       }
@@ -193,7 +178,7 @@ namespace stm
 
       // get the write lock, with timeout
       while (!bcasptr(&(lock->owner), 0u, tx->id))
-          if (++tries > ACQUIRE_TIMEOUT)
+          if (++tries > BITLOCK_ACQUIRE_TIMEOUT)
               tmabort();
 
       // log the lock, drop any read locks I have
@@ -205,7 +190,7 @@ namespace stm
       for (unsigned b = 0; b < rrec_t::BUCKETS; ++b) {
           tries = 0;
           while (lock->readers.bits[b])
-              if (++tries > DRAIN_TIMEOUT)
+              if (++tries > BITLOCK_DRAIN_TIMEOUT)
                   tmabort();
       }
 
@@ -238,7 +223,7 @@ namespace stm
 
       // get the write lock, with timeout
       while (!bcasptr(&(lock->owner), 0u, tx->id))
-          if (++tries > ACQUIRE_TIMEOUT)
+          if (++tries > BITLOCK_ACQUIRE_TIMEOUT)
               tmabort();
 
       // log the lock, drop any read locks I have
@@ -250,7 +235,7 @@ namespace stm
       for (unsigned b = 0; b < rrec_t::BUCKETS; ++b) {
           tries = 0;
           while (lock->readers.bits[b])
-              if (++tries > DRAIN_TIMEOUT)
+              if (++tries > BITLOCK_DRAIN_TIMEOUT)
                   tmabort();
       }
 

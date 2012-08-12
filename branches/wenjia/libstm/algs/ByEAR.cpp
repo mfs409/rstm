@@ -36,12 +36,12 @@ namespace {
   struct ByEAR
   {
       static void begin(TX_LONE_PARAMETER);
-      static TM_FASTCALL void* read_ro(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void* read_rw(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void write_ro(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void write_rw(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void commit_ro(TX_LONE_PARAMETER);
-      static TM_FASTCALL void commit_rw(TX_LONE_PARAMETER);
+      static TM_FASTCALL void* ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
+      static TM_FASTCALL void* ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
+      static TM_FASTCALL void WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+      static TM_FASTCALL void WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+      static TM_FASTCALL void CommitRO(TX_LONE_PARAMETER);
+      static TM_FASTCALL void CommitRW(TX_LONE_PARAMETER);
 
       static void rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
@@ -63,7 +63,7 @@ namespace {
    *  ByEAR commit (read-only):
    */
   void
-  ByEAR::commit_ro(TX_LONE_PARAMETER)
+  ByEAR::CommitRO(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // read-only... release read locks
@@ -78,7 +78,7 @@ namespace {
    *  ByEAR commit (writing context):
    */
   void
-  ByEAR::commit_rw(TX_LONE_PARAMETER)
+  ByEAR::CommitRW(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // atomically mark self committed
@@ -100,14 +100,14 @@ namespace {
       tx->w_bytelocks.reset();
       tx->writes.reset();
       OnRWCommit(tx);
-      ResetToRO(tx, read_ro, write_ro, commit_ro);
+      ResetToRO(tx, ReadRO, WriteRO, CommitRO);
   }
 
   /**
    *  ByEAR read (read-only transaction)
    */
   void*
-  ByEAR::read_ro(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
+  ByEAR::ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
   {
       TX_GET_TX_INTERNAL;
       bytelock_t* lock = get_bytelock(addr);
@@ -151,7 +151,7 @@ namespace {
    *  ByEAR read (writing transaction)
    */
   void*
-  ByEAR::read_rw(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
+  ByEAR::ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
   {
       TX_GET_TX_INTERNAL;
       bytelock_t* lock = get_bytelock(addr);
@@ -209,7 +209,7 @@ namespace {
    *  ByEAR write (read-only context)
    */
   void
-  ByEAR::write_ro(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  ByEAR::WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       bytelock_t* lock = get_bytelock(addr);
@@ -245,14 +245,14 @@ namespace {
       // add to redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
 
-      stm::OnFirstWrite(tx, read_rw, write_rw, commit_rw);
+      stm::OnFirstWrite(tx, ReadRW, WriteRW, CommitRW);
   }
 
   /**
    *  ByEAR write (writing context)
    */
   void
-  ByEAR::write_rw(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  ByEAR::WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       bytelock_t* lock = get_bytelock(addr);
@@ -318,7 +318,7 @@ namespace {
       exp_backoff(tx);
 
       PostRollback(tx);
-      ResetToRO(tx, read_ro, write_ro, commit_ro);
+      ResetToRO(tx, ReadRO, WriteRO, CommitRO);
   }
 
   /**
@@ -348,9 +348,9 @@ namespace stm {
 
       // set the pointers
       stms[ByEAR].begin     = ::ByEAR::begin;
-      stms[ByEAR].commit    = ::ByEAR::commit_ro;
-      stms[ByEAR].read      = ::ByEAR::read_ro;
-      stms[ByEAR].write     = ::ByEAR::write_ro;
+      stms[ByEAR].commit    = ::ByEAR::CommitRO;
+      stms[ByEAR].read      = ::ByEAR::ReadRO;
+      stms[ByEAR].write     = ::ByEAR::WriteRO;
       stms[ByEAR].rollback  = ::ByEAR::rollback;
       stms[ByEAR].irrevoc   = ::ByEAR::irrevoc;
       stms[ByEAR].switcher  = ::ByEAR::onSwitchTo;
