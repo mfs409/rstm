@@ -43,14 +43,14 @@ namespace {
 
   struct CohortsEN {
       static void begin(TX_LONE_PARAMETER);
-      static TM_FASTCALL void* read_ro(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void* read_rw(TX_FIRST_PARAMETER STM_READ_SIG(,));
+      static TM_FASTCALL void* ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
+      static TM_FASTCALL void* ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
       static TM_FASTCALL void* read_turbo(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void write_ro(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void write_rw(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+      static TM_FASTCALL void WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+      static TM_FASTCALL void WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
       static TM_FASTCALL void write_turbo(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void commit_ro(TX_LONE_PARAMETER);
-      static TM_FASTCALL void commit_rw(TX_LONE_PARAMETER);
+      static TM_FASTCALL void CommitRO(TX_LONE_PARAMETER);
+      static TM_FASTCALL void CommitRW(TX_LONE_PARAMETER);
       static TM_FASTCALL void commit_turbo(TX_LONE_PARAMETER);
 
       static void rollback(STM_ROLLBACK_SIG(,,));
@@ -89,7 +89,7 @@ namespace {
    *  CohortsEN commit (read-only):
    */
   void
-  CohortsEN::commit_ro(TX_LONE_PARAMETER)
+  CohortsEN::CommitRO(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // decrease total number of tx started
@@ -115,7 +115,7 @@ namespace {
       tx->vlist.reset();
       tx->writes.reset();
       OnRWCommit(tx);
-      ResetToRO(tx, read_ro, write_ro, commit_ro);
+      ResetToRO(tx, ReadRO, WriteRO, CommitRO);
 
       // wait for my turn
       while (last_complete.val != (uintptr_t)(tx->order - 1));
@@ -138,7 +138,7 @@ namespace {
    *  in an order which is given at the beginning of commit.
    */
   void
-  CohortsEN::commit_rw(TX_LONE_PARAMETER)
+  CohortsEN::CommitRW(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // order of first tx in cohort
@@ -178,7 +178,7 @@ namespace {
       tx->vlist.reset();
       tx->writes.reset();
       OnRWCommit(tx);
-      ResetToRO(tx, read_ro, write_ro, commit_ro);
+      ResetToRO(tx, ReadRO, WriteRO, CommitRO);
   }
 
   /**
@@ -194,7 +194,7 @@ namespace {
    *  CohortsEN read (read-only transaction)
    */
   void*
-  CohortsEN::read_ro(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
+  CohortsEN::ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
   {
       TX_GET_TX_INTERNAL;
       void *tmp = *addr;
@@ -206,7 +206,7 @@ namespace {
    *  CohortsEN read (writing transaction)
    */
   void*
-  CohortsEN::read_rw(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
+  CohortsEN::ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
   {
       TX_GET_TX_INTERNAL;
       // check the log for a RAW hazard, we expect to miss
@@ -224,7 +224,7 @@ namespace {
    *  CohortsEN write (read-only context): for first write
    */
   void
-  CohortsEN::write_ro(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  CohortsEN::WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {TX_GET_TX_INTERNAL;
 
 #ifndef TRY
@@ -245,7 +245,7 @@ namespace {
       }
 #endif
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
-      stm::OnFirstWrite(tx, read_rw, write_rw, commit_rw);
+      stm::OnFirstWrite(tx, ReadRW, WriteRW, CommitRW);
   }
 
   /**
@@ -261,7 +261,7 @@ namespace {
    *  CohortsEN write (writing context)
    */
   void
-  CohortsEN::write_rw(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  CohortsEN::WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
 #ifdef TRY
@@ -357,9 +357,9 @@ namespace stm {
       stms[CohortsEN].name      = "CohortsEN";
       // set the pointers
       stms[CohortsEN].begin     = ::CohortsEN::begin;
-      stms[CohortsEN].commit    = ::CohortsEN::commit_ro;
-      stms[CohortsEN].read      = ::CohortsEN::read_ro;
-      stms[CohortsEN].write     = ::CohortsEN::write_ro;
+      stms[CohortsEN].commit    = ::CohortsEN::CommitRO;
+      stms[CohortsEN].read      = ::CohortsEN::ReadRO;
+      stms[CohortsEN].write     = ::CohortsEN::WriteRO;
       stms[CohortsEN].rollback  = ::CohortsEN::rollback;
       stms[CohortsEN].irrevoc   = ::CohortsEN::irrevoc;
       stms[CohortsEN].switcher  = ::CohortsEN::onSwitchTo;

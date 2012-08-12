@@ -128,7 +128,7 @@ namespace stm
    *  The begin function pointer.  Note that we need tmbegin to equal
    *  begin_cgl initially, since "0" is the default algorithm
    */
-  void (*volatile tmbegin)(TX_LONE_PARAMETER) = begin_CGL;
+  void (*volatile tmbegin)(TX_LONE_PARAMETER) = CGLBegin;
 #endif
 
   /**

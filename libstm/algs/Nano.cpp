@@ -43,12 +43,12 @@ namespace {
   struct Nano
   {
       static void begin(TX_LONE_PARAMETER);
-      static TM_FASTCALL void* read_ro(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void* read_rw(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void write_ro(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void write_rw(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void commit_ro(TX_LONE_PARAMETER);
-      static TM_FASTCALL void commit_rw(TX_LONE_PARAMETER);
+      static TM_FASTCALL void* ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
+      static TM_FASTCALL void* ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
+      static TM_FASTCALL void WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+      static TM_FASTCALL void WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+      static TM_FASTCALL void CommitRO(TX_LONE_PARAMETER);
+      static TM_FASTCALL void CommitRW(TX_LONE_PARAMETER);
 
       static void rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
@@ -68,7 +68,7 @@ namespace {
    *  Nano commit (read-only context)
    */
   void
-  Nano::commit_ro(TX_LONE_PARAMETER)
+  Nano::CommitRO(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // read-only, so reset the orec list and we are done
@@ -83,7 +83,7 @@ namespace {
    *    then validate, then do writeback.
    */
   void
-  Nano::commit_rw(TX_LONE_PARAMETER)
+  Nano::CommitRW(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // acquire locks
@@ -129,14 +129,14 @@ namespace {
       tx->writes.reset();
       tx->locks.reset();
       OnRWCommit(tx);
-      ResetToRO(tx, read_ro, write_ro, commit_ro);
+      ResetToRO(tx, ReadRO, WriteRO, CommitRO);
   }
 
   /**
    *  Nano read (read-only context):
    */
   void*
-  Nano::read_ro(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
+  Nano::ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
   {
       TX_GET_TX_INTERNAL;
       // Nano knows that it isn't a good algorithm when the read set is
@@ -204,7 +204,7 @@ namespace {
    *  Nano read (writing context):
    */
   void*
-  Nano::read_rw(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
+  Nano::ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
   {
       TX_GET_TX_INTERNAL;
       // check the log for a RAW hazard, we expect to miss
@@ -213,7 +213,7 @@ namespace {
       REDO_RAW_CHECK(found, log, mask);
 
       // reuse the ReadRO barrier, which is adequate here---reduces LOC
-      void* val = read_ro(TX_FIRST_ARG addr STM_MASK(mask));
+      void* val = ReadRO(TX_FIRST_ARG addr STM_MASK(mask));
       REDO_RAW_CLEANUP(val, found, log, mask);
       return val;
   }
@@ -222,19 +222,19 @@ namespace {
    *  Nano write (read-only context):
    */
   void
-  Nano::write_ro(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  Nano::WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // add to redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
-      stm::OnFirstWrite(tx, read_rw, write_rw, commit_rw);
+      stm::OnFirstWrite(tx, ReadRW, WriteRW, CommitRW);
   }
 
   /**
    *  Nano write (writing context):
    */
   void
-  Nano::write_rw(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  Nano::WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // add to redo log
@@ -266,7 +266,7 @@ namespace {
       tx->writes.reset();
       tx->locks.reset();
       PostRollback(tx);
-      ResetToRO(tx, read_ro, write_ro, commit_ro);
+      ResetToRO(tx, ReadRO, WriteRO, CommitRO);
   }
 
   /**
@@ -299,9 +299,9 @@ namespace stm {
 
       // set the pointers
       stms[Nano].begin     = ::Nano::begin;
-      stms[Nano].commit    = ::Nano::commit_ro;
-      stms[Nano].read      = ::Nano::read_ro;
-      stms[Nano].write     = ::Nano::write_ro;
+      stms[Nano].commit    = ::Nano::CommitRO;
+      stms[Nano].read      = ::Nano::ReadRO;
+      stms[Nano].write     = ::Nano::WriteRO;
       stms[Nano].rollback  = ::Nano::rollback;
       stms[Nano].irrevoc   = ::Nano::irrevoc;
       stms[Nano].switcher  = ::Nano::onSwitchTo;

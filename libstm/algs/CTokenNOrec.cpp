@@ -43,12 +43,12 @@ using stm::ValueListEntry;
 namespace {
   struct CTokenNOrec {
       static void begin(TX_LONE_PARAMETER);
-      static TM_FASTCALL void* read_ro(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void* read_rw(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void write_ro(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void write_rw(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void commit_ro(TX_LONE_PARAMETER);
-      static TM_FASTCALL void commit_rw(TX_LONE_PARAMETER);
+      static TM_FASTCALL void* ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
+      static TM_FASTCALL void* ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
+      static TM_FASTCALL void WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+      static TM_FASTCALL void WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+      static TM_FASTCALL void CommitRO(TX_LONE_PARAMETER);
+      static TM_FASTCALL void CommitRW(TX_LONE_PARAMETER);
 
       static void rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
@@ -71,7 +71,7 @@ namespace {
    *  CTokenNOrec commit (read-only):
    */
   void
-  CTokenNOrec::commit_ro(TX_LONE_PARAMETER)
+  CTokenNOrec::CommitRO(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // reset lists and we are done
@@ -85,7 +85,7 @@ namespace {
    *  NB:  Only valid if using pointer-based adaptivity
    */
   void
-  CTokenNOrec::commit_rw(TX_LONE_PARAMETER)
+  CTokenNOrec::CommitRW(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // wait until it is our turn to commit, then validate, acquire, and do
@@ -125,14 +125,14 @@ namespace {
       tx->vlist.reset();
       tx->writes.reset();
       OnRWCommit(tx);
-      ResetToRO(tx, read_ro, write_ro, commit_ro);
+      ResetToRO(tx, ReadRO, WriteRO, CommitRO);
   }
 
   /**
    *  CTokenNOrec read (read-only transaction)
    */
   void*
-  CTokenNOrec::read_ro(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
+  CTokenNOrec::ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
   {
       TX_GET_TX_INTERNAL;
       // read the location
@@ -151,7 +151,7 @@ namespace {
    *  CTokenNOrec read (writing transaction)
    */
   void*
-  CTokenNOrec::read_rw(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
+  CTokenNOrec::ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
   {
       TX_GET_TX_INTERNAL;
       // check the log for a RAW hazard, we expect to miss
@@ -160,7 +160,7 @@ namespace {
       REDO_RAW_CHECK(found, log, mask);
 
       // reuse the ReadRO barrier, which is adequate here---reduces LOC
-      void* val = read_ro(TX_FIRST_ARG addr STM_MASK(mask));
+      void* val = ReadRO(TX_FIRST_ARG addr STM_MASK(mask));
       REDO_RAW_CLEANUP(val, found, log, mask);
       return val;
   }
@@ -169,7 +169,7 @@ namespace {
    *  CTokenNOrec write (read-only context)
    */
   void
-  CTokenNOrec::write_ro(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  CTokenNOrec::WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // we don't have any writes yet, so we need to get an order here
@@ -177,14 +177,14 @@ namespace {
 
       // record the new value in a redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
-      stm::OnFirstWrite(tx, read_rw, write_rw, commit_rw);
+      stm::OnFirstWrite(tx, ReadRW, WriteRW, CommitRW);
   }
 
   /**
    *  CTokenNOrec write (writing context)
    */
   void
-  CTokenNOrec::write_rw(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  CTokenNOrec::WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // record the new value in a redo log
@@ -210,7 +210,7 @@ namespace {
       // NB: we can't reset pointers here, because if the transaction
       //     performed some writes, then it has an order.  If it has an
       //     order, but restarts and is read-only, then it still must call
-      //     commit_rw to finish in-order
+      //     CommitRW to finish in-order
       PostRollback(tx);
   }
 
@@ -274,9 +274,9 @@ namespace stm {
       stms[CTokenNOrec].name      = "CTokenNOrec";
       // set the pointers
       stms[CTokenNOrec].begin     = ::CTokenNOrec::begin;
-      stms[CTokenNOrec].commit    = ::CTokenNOrec::commit_ro;
-      stms[CTokenNOrec].read      = ::CTokenNOrec::read_ro;
-      stms[CTokenNOrec].write     = ::CTokenNOrec::write_ro;
+      stms[CTokenNOrec].commit    = ::CTokenNOrec::CommitRO;
+      stms[CTokenNOrec].read      = ::CTokenNOrec::ReadRO;
+      stms[CTokenNOrec].write     = ::CTokenNOrec::WriteRO;
       stms[CTokenNOrec].rollback  = ::CTokenNOrec::rollback;
       stms[CTokenNOrec].irrevoc   = ::CTokenNOrec::irrevoc;
       stms[CTokenNOrec].switcher  = ::CTokenNOrec::onSwitchTo;

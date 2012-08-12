@@ -44,12 +44,12 @@ namespace {
 
   struct CTokenQ {
       static void begin(TX_LONE_PARAMETER);
-      static TM_FASTCALL void* read_ro(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void* read_rw(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void write_ro(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void write_rw(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void commit_ro(TX_LONE_PARAMETER);
-      static TM_FASTCALL void commit_rw(TX_LONE_PARAMETER);
+      static TM_FASTCALL void* ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
+      static TM_FASTCALL void* ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
+      static TM_FASTCALL void WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+      static TM_FASTCALL void WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+      static TM_FASTCALL void CommitRO(TX_LONE_PARAMETER);
+      static TM_FASTCALL void CommitRW(TX_LONE_PARAMETER);
 
       static void rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
@@ -76,7 +76,7 @@ namespace {
    *  CTokenQ commit (read-only):
    */
   void
-  CTokenQ::commit_ro(TX_LONE_PARAMETER)
+  CTokenQ::CommitRO(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // reset lists and we are done
@@ -90,7 +90,7 @@ namespace {
    *  NB:  Only valid if using pointer-based adaptivity
    */
   void
-  CTokenQ::commit_rw(TX_LONE_PARAMETER)
+  CTokenQ::CommitRW(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // Wait for my turn
@@ -128,14 +128,14 @@ namespace {
       tx->r_orecs.reset();
       tx->writes.reset();
       OnRWCommit(tx);
-      ResetToRO(tx, read_ro, write_ro, commit_ro);
+      ResetToRO(tx, ReadRO, WriteRO, CommitRO);
   }
 
   /**
    *  CTokenQ read (read-only transaction)
    */
   void*
-  CTokenQ::read_ro(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
+  CTokenQ::ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
   {
       TX_GET_TX_INTERNAL;
       // read the location... this is safe since timestamps behave as in Wang's
@@ -163,7 +163,7 @@ namespace {
    *  CTokenQ read (writing transaction)
    */
   void*
-  CTokenQ::read_rw(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
+  CTokenQ::ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
   {
       TX_GET_TX_INTERNAL;
       // check the log for a RAW hazard, we expect to miss
@@ -172,7 +172,7 @@ namespace {
       REDO_RAW_CHECK(found, log, mask);
 
       // reuse the ReadRO barrier, which is adequate here---reduces LOC
-      void* val = read_ro(TX_FIRST_ARG addr STM_MASK(mask));
+      void* val = ReadRO(TX_FIRST_ARG addr STM_MASK(mask));
       REDO_RAW_CLEANUP(val, found, log, mask);
       return val;
   }
@@ -181,7 +181,7 @@ namespace {
    *  CTokenQ write (read-only context)
    */
   void
-  CTokenQ::write_ro(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  CTokenQ::WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // we don't have any writes yet, so we need to add myself to the queue
@@ -191,14 +191,14 @@ namespace {
 
       // record the new value in a redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
-      stm::OnFirstWrite(tx, read_rw, write_rw, commit_rw);
+      stm::OnFirstWrite(tx, ReadRW, WriteRW, CommitRW);
   }
 
   /**
    *  CTokenQ write (writing context)
    */
   void
-  CTokenQ::write_rw(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  CTokenQ::WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // record the new value in a redo log
@@ -224,7 +224,7 @@ namespace {
       // NB: we can't reset pointers here, because if the transaction
       //     performed some writes, then it has an order.  If it has an
       //     order, but restarts and is read-only, then it still must call
-      //     commit_rw to finish in-order
+      //     CommitRW to finish in-order
       PostRollback(tx);
   }
 
@@ -239,7 +239,7 @@ namespace {
   }
 
   /**
-   *  CTokenQ validation for commit_rw
+   *  CTokenQ validation for CommitRW
    */
   void
   CTokenQ::validate(TxThread* tx)
@@ -277,9 +277,9 @@ namespace stm {
       stms[CTokenQ].name      = "CTokenQ";
       // set the pointers
       stms[CTokenQ].begin     = ::CTokenQ::begin;
-      stms[CTokenQ].commit    = ::CTokenQ::commit_ro;
-      stms[CTokenQ].read      = ::CTokenQ::read_ro;
-      stms[CTokenQ].write     = ::CTokenQ::write_ro;
+      stms[CTokenQ].commit    = ::CTokenQ::CommitRO;
+      stms[CTokenQ].read      = ::CTokenQ::ReadRO;
+      stms[CTokenQ].write     = ::CTokenQ::WriteRO;
       stms[CTokenQ].rollback  = ::CTokenQ::rollback;
       stms[CTokenQ].irrevoc   = ::CTokenQ::irrevoc;
       stms[CTokenQ].switcher  = ::CTokenQ::onSwitchTo;

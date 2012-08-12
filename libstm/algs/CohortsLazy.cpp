@@ -11,7 +11,7 @@
 /**
  *  CohortsLazy Implementation
  *
- *  Cohorts with only one CAS in commit_rw to get an order. Using
+ *  Cohorts with only one CAS in CommitRW to get an order. Using
  *  txn local status instead of 3 global accumulators.
  *
  * "Lazy" isn't a good name for this... if I understand correctly, this is
@@ -43,12 +43,12 @@ using stm::last_order;
 namespace {
   struct CohortsLazy {
       static void begin(TX_LONE_PARAMETER);
-      static TM_FASTCALL void* read_ro(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void* read_rw(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void write_ro(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void write_rw(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void commit_ro(TX_LONE_PARAMETER);
-      static TM_FASTCALL void commit_rw(TX_LONE_PARAMETER);
+      static TM_FASTCALL void* ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
+      static TM_FASTCALL void* ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
+      static TM_FASTCALL void WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+      static TM_FASTCALL void WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+      static TM_FASTCALL void CommitRO(TX_LONE_PARAMETER);
+      static TM_FASTCALL void CommitRW(TX_LONE_PARAMETER);
 
       static void rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
@@ -91,7 +91,7 @@ namespace {
    *  CohortsLazy commit (read-only):
    */
   void
-  CohortsLazy::commit_ro(TX_LONE_PARAMETER)
+  CohortsLazy::CommitRO(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // mark self status
@@ -107,7 +107,7 @@ namespace {
    *
    */
   void
-  CohortsLazy::commit_rw(TX_LONE_PARAMETER)
+  CohortsLazy::CommitRW(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // Mark a global flag, no one is allowed to begin now
@@ -170,14 +170,14 @@ namespace {
       tx->r_orecs.reset();
       tx->writes.reset();
       OnRWCommit(tx);
-      ResetToRO(tx, read_ro, write_ro, commit_ro);
+      ResetToRO(tx, ReadRO, WriteRO, CommitRO);
   }
 
   /**
    *  CohortsLazy read (read-only transaction)
    */
   void*
-  CohortsLazy::read_ro(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
+  CohortsLazy::ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
   {
       TX_GET_TX_INTERNAL;
       // log orec
@@ -189,7 +189,7 @@ namespace {
    *  CohortsLazy read (writing transaction)
    */
   void*
-  CohortsLazy::read_rw(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
+  CohortsLazy::ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
   {
       TX_GET_TX_INTERNAL;
       // check the log for a RAW hazard, we expect to miss
@@ -209,19 +209,19 @@ namespace {
    *  CohortsLazy write (read-only context): for first write
    */
   void
-  CohortsLazy::write_ro(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  CohortsLazy::WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // record the new value in a redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
-      stm::OnFirstWrite(tx, read_rw, write_rw, commit_rw);
+      stm::OnFirstWrite(tx, ReadRW, WriteRW, CommitRW);
   }
 
   /**
    *  CohortsLazy write (writing context)
    */
   void
-  CohortsLazy::write_rw(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  CohortsLazy::WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // record the new value in a redo log
@@ -322,9 +322,9 @@ namespace stm {
       stms[CohortsLazy].name      = "CohortsLazy";
       // set the pointers
       stms[CohortsLazy].begin     = ::CohortsLazy::begin;
-      stms[CohortsLazy].commit    = ::CohortsLazy::commit_ro;
-      stms[CohortsLazy].read      = ::CohortsLazy::read_ro;
-      stms[CohortsLazy].write     = ::CohortsLazy::write_ro;
+      stms[CohortsLazy].commit    = ::CohortsLazy::CommitRO;
+      stms[CohortsLazy].read      = ::CohortsLazy::ReadRO;
+      stms[CohortsLazy].write     = ::CohortsLazy::WriteRO;
       stms[CohortsLazy].rollback  = ::CohortsLazy::rollback;
       stms[CohortsLazy].irrevoc   = ::CohortsLazy::irrevoc;
       stms[CohortsLazy].switcher  = ::CohortsLazy::onSwitchTo;

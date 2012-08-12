@@ -46,12 +46,12 @@ using stm::locks;
 namespace {
   struct CohortsOld {
       static void begin(TX_LONE_PARAMETER);
-      static TM_FASTCALL void* read_ro(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void* read_rw(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void write_ro(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void write_rw(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void commit_ro(TX_LONE_PARAMETER);
-      static TM_FASTCALL void commit_rw(TX_LONE_PARAMETER);
+      static TM_FASTCALL void* ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
+      static TM_FASTCALL void* ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
+      static TM_FASTCALL void WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+      static TM_FASTCALL void WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+      static TM_FASTCALL void CommitRO(TX_LONE_PARAMETER);
+      static TM_FASTCALL void CommitRW(TX_LONE_PARAMETER);
 
       static void rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
@@ -105,7 +105,7 @@ namespace {
    *  RO commit is easy.
    */
   void
-  CohortsOld::commit_ro(TX_LONE_PARAMETER)
+  CohortsOld::CommitRO(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // decrease total number of tx in a cohort
@@ -124,7 +124,7 @@ namespace {
    *  in an order which is given at the beginning of commit.
    */
   void
-  CohortsOld::commit_rw(TX_LONE_PARAMETER)
+  CohortsOld::CommitRW(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // NB: get a new order at the begainning of commit
@@ -177,7 +177,7 @@ namespace {
       tx->r_orecs.reset();
       tx->writes.reset();
       OnRWCommit(tx);
-      ResetToRO(tx, read_ro, write_ro, commit_ro);
+      ResetToRO(tx, ReadRO, WriteRO, CommitRO);
 
       // decrease total number of committing tx
       faaptr(&started.val, -2);
@@ -194,7 +194,7 @@ namespace {
    *  Standard orec read function.
    */
   void*
-  CohortsOld::read_ro(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
+  CohortsOld::ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
   {
       TX_GET_TX_INTERNAL;
       void* tmp = *addr;
@@ -203,7 +203,7 @@ namespace {
       // It's possible that no validation is needed
       if (started.val % 2 != 0 && locks[0] == 0)
       {
-          // mark my lock 1, means I'm doing no validation read_ro
+          // mark my lock 1, means I'm doing no validation ReadRO
           locks[tx->id] = 1;
 
           if (locks[0] == 0)
@@ -216,12 +216,12 @@ namespace {
               if (last_complete.val > tx->ts_cache)
                   tx->ts_cache = last_complete.val;
 
-              // mark my lock 0, means I finished no validation read_ro
+              // mark my lock 0, means I finished no validation ReadRO
               locks[tx->id] = 0;
               return tmp;
           }
           else
-              // mark my lock 0, means I will do validation read_ro
+              // mark my lock 0, means I will do validation ReadRO
               locks[tx->id] = 0;
 
       }
@@ -251,7 +251,7 @@ namespace {
    *  CohortsOld read (writing transaction)
    */
   void*
-  CohortsOld::read_rw(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
+  CohortsOld::ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
   {
       TX_GET_TX_INTERNAL;
       // check the log for a RAW hazard, we expect to miss
@@ -260,7 +260,7 @@ namespace {
       REDO_RAW_CHECK(found, log, mask);
 
       // reuse the ReadRO barrier, which is adequate here---reduces LOC
-      void* val = read_ro(TX_FIRST_ARG addr STM_MASK(mask));
+      void* val = ReadRO(TX_FIRST_ARG addr STM_MASK(mask));
 
       REDO_RAW_CLEANUP(tmp, found, log, mask);
       return val;
@@ -270,19 +270,19 @@ namespace {
    *  CohortsOld write (read-only context)
    */
   void
-  CohortsOld::write_ro(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  CohortsOld::WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // record the new value in a redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
-      stm::OnFirstWrite(tx, read_rw, write_rw, commit_rw);
+      stm::OnFirstWrite(tx, ReadRW, WriteRW, CommitRW);
   }
 
   /**
    *  CohortsOld write (writing context)
    */
   void
-  CohortsOld::write_rw(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  CohortsOld::WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // record the new value in a redo log
@@ -308,7 +308,7 @@ namespace {
       // NB: we can't reset pointers here, because if the transaction
       //     performed some writes, then it has an order.  If it has an
       //     order, but restarts and is read-only, then it still must call
-      //     commit_rw to finish in-order
+      //     CommitRW to finish in-order
 
       PostRollback(tx);
   }
@@ -433,9 +433,9 @@ namespace stm {
       stms[CohortsOld].name      = "CohortsOld";
       // set the pointers
       stms[CohortsOld].begin     = ::CohortsOld::begin;
-      stms[CohortsOld].commit    = ::CohortsOld::commit_ro;
-      stms[CohortsOld].read      = ::CohortsOld::read_ro;
-      stms[CohortsOld].write     = ::CohortsOld::write_ro;
+      stms[CohortsOld].commit    = ::CohortsOld::CommitRO;
+      stms[CohortsOld].read      = ::CohortsOld::ReadRO;
+      stms[CohortsOld].write     = ::CohortsOld::WriteRO;
       stms[CohortsOld].rollback  = ::CohortsOld::rollback;
       stms[CohortsOld].irrevoc   = ::CohortsOld::irrevoc;
       stms[CohortsOld].switcher  = ::CohortsOld::onSwitchTo;

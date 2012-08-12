@@ -43,12 +43,12 @@ namespace {
   struct LLT_amd64
   {
       static void begin(TX_LONE_PARAMETER);
-      static TM_FASTCALL void* read_ro(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void* read_rw(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void write_ro(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void write_rw(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void commit_ro(TX_LONE_PARAMETER);
-      static TM_FASTCALL void commit_rw(TX_LONE_PARAMETER);
+      static TM_FASTCALL void* ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
+      static TM_FASTCALL void* ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
+      static TM_FASTCALL void WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+      static TM_FASTCALL void WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+      static TM_FASTCALL void CommitRO(TX_LONE_PARAMETER);
+      static TM_FASTCALL void CommitRW(TX_LONE_PARAMETER);
 
       static void rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
@@ -71,7 +71,7 @@ namespace {
    *  LLT_amd64 commit (read-only):
    */
   void
-  LLT_amd64::commit_ro(TX_LONE_PARAMETER)
+  LLT_amd64::CommitRO(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // read-only, so just reset lists
@@ -86,7 +86,7 @@ namespace {
    *    validations.
    */
   void
-  LLT_amd64::commit_rw(TX_LONE_PARAMETER)
+  LLT_amd64::CommitRW(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // acquire locks
@@ -129,7 +129,7 @@ namespace {
       tx->writes.reset();
       tx->locks.reset();
       OnRWCommit(tx);
-      ResetToRO(tx, read_ro, write_ro, commit_ro);
+      ResetToRO(tx, ReadRO, WriteRO, CommitRO);
   }
 
   /**
@@ -138,7 +138,7 @@ namespace {
    *    We use "check twice" timestamps in LLT_amd64
    */
   void*
-  LLT_amd64::read_ro(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
+  LLT_amd64::ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
   {
       TX_GET_TX_INTERNAL;
       // get the orec addr
@@ -165,7 +165,7 @@ namespace {
    *  LLT_amd64 read (writing transaction)
    */
   void*
-  LLT_amd64::read_rw(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
+  LLT_amd64::ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
   {
       TX_GET_TX_INTERNAL;
       // check the log for a RAW hazard, we expect to miss
@@ -200,19 +200,19 @@ namespace {
    *  LLT_amd64 write (read-only context)
    */
   void
-  LLT_amd64::write_ro(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  LLT_amd64::WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // add to redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
-      stm::OnFirstWrite(tx, read_rw, write_rw, commit_rw);
+      stm::OnFirstWrite(tx, ReadRW, WriteRW, CommitRW);
   }
 
   /**
    *  LLT_amd64 write (writing context)
    */
   void
-  LLT_amd64::write_rw(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  LLT_amd64::WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // add to redo log
@@ -241,7 +241,7 @@ namespace {
       tx->writes.reset();
       tx->locks.reset();
       PostRollback(tx);
-      ResetToRO(tx, read_ro, write_ro, commit_ro);
+      ResetToRO(tx, ReadRO, WriteRO, CommitRO);
   }
 
   /**
@@ -294,9 +294,9 @@ namespace stm {
 
       // set the pointers
       stms[LLT_amd64].begin     = ::LLT_amd64::begin;
-      stms[LLT_amd64].commit    = ::LLT_amd64::commit_ro;
-      stms[LLT_amd64].read      = ::LLT_amd64::read_ro;
-      stms[LLT_amd64].write     = ::LLT_amd64::write_ro;
+      stms[LLT_amd64].commit    = ::LLT_amd64::CommitRO;
+      stms[LLT_amd64].read      = ::LLT_amd64::ReadRO;
+      stms[LLT_amd64].write     = ::LLT_amd64::WriteRO;
       stms[LLT_amd64].rollback  = ::LLT_amd64::rollback;
       stms[LLT_amd64].irrevoc   = ::LLT_amd64::irrevoc;
       stms[LLT_amd64].switcher  = ::LLT_amd64::onSwitchTo;

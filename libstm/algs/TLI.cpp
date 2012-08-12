@@ -36,12 +36,12 @@ namespace {
   struct TLI
   {
       static void begin(TX_LONE_PARAMETER);
-      static TM_FASTCALL void* read_ro(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void* read_rw(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void write_ro(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void write_rw(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void commit_ro(TX_LONE_PARAMETER);
-      static TM_FASTCALL void commit_rw(TX_LONE_PARAMETER);
+      static TM_FASTCALL void* ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
+      static TM_FASTCALL void* ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
+      static TM_FASTCALL void WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+      static TM_FASTCALL void WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+      static TM_FASTCALL void CommitRO(TX_LONE_PARAMETER);
+      static TM_FASTCALL void CommitRW(TX_LONE_PARAMETER);
 
       static void rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
@@ -64,7 +64,7 @@ namespace {
    *  TLI commit (read-only):
    */
   void
-  TLI::commit_ro(TX_LONE_PARAMETER)
+  TLI::CommitRO(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // if the transaction is invalid, abort
@@ -81,7 +81,7 @@ namespace {
    *  TLI commit (writing context):
    */
   void
-  TLI::commit_rw(TX_LONE_PARAMETER)
+  TLI::CommitRW(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // if the transaction is invalid, abort
@@ -116,7 +116,7 @@ namespace {
       tx->rf->clear();
       tx->wf->clear();
       OnRWCommit(tx);
-      ResetToRO(tx, read_ro, write_ro, commit_ro);
+      ResetToRO(tx, ReadRO, WriteRO, CommitRO);
   }
 
   /**
@@ -128,7 +128,7 @@ namespace {
    *    ensure that we are still valid
    */
   void*
-  TLI::read_ro(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
+  TLI::ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
   {
       TX_GET_TX_INTERNAL;
       // push address into read filter, ensure ordering w.r.t. the subsequent
@@ -157,7 +157,7 @@ namespace {
    *  TLI read (writing transaction)
    */
   void*
-  TLI::read_rw(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
+  TLI::ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
   {
       TX_GET_TX_INTERNAL;
       // check the log for a RAW hazard, we expect to miss
@@ -166,7 +166,7 @@ namespace {
       REDO_RAW_CHECK(found, log, mask);
 
       // reuse the ReadRO barrier, which is adequate here---reduces LOC
-      void* val = read_ro(TX_FIRST_ARG addr STM_MASK(mask));
+      void* val = ReadRO(TX_FIRST_ARG addr STM_MASK(mask));
       REDO_RAW_CLEANUP(val, found, log, mask);
       return val;
   }
@@ -175,13 +175,13 @@ namespace {
    *  TLI write (read-only context)
    */
   void
-  TLI::write_ro(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  TLI::WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // buffer the write, update the filter
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
       tx->wf->add(addr);
-      stm::OnFirstWrite(tx, read_rw, write_rw, commit_rw);
+      stm::OnFirstWrite(tx, ReadRW, WriteRW, CommitRW);
   }
 
   /**
@@ -190,7 +190,7 @@ namespace {
    *    Just like the RO case
    */
   void
-  TLI::write_rw(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  TLI::WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
@@ -217,7 +217,7 @@ namespace {
           tx->wf->clear();
       }
       PostRollback(tx);
-      ResetToRO(tx, read_ro, write_ro, commit_ro);
+      ResetToRO(tx, ReadRO, WriteRO, CommitRO);
   }
 
   /**
@@ -249,9 +249,9 @@ namespace stm {
 
       // set the pointers
       stms[TLI].begin     = ::TLI::begin;
-      stms[TLI].commit    = ::TLI::commit_ro;
-      stms[TLI].read      = ::TLI::read_ro;
-      stms[TLI].write     = ::TLI::write_ro;
+      stms[TLI].commit    = ::TLI::CommitRO;
+      stms[TLI].read      = ::TLI::ReadRO;
+      stms[TLI].write     = ::TLI::WriteRO;
       stms[TLI].rollback  = ::TLI::rollback;
       stms[TLI].irrevoc   = ::TLI::irrevoc;
       stms[TLI].switcher  = ::TLI::onSwitchTo;

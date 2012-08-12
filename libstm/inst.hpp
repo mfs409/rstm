@@ -8,7 +8,26 @@
  *          Please see the file LICENSE.RSTM for licensing information
  */
 
-/***  This file declares the methods that install a new algorithm */
+/**
+ *  This file declares the methods that install a new algorithm
+ *
+ *  [mfs] This file does a whole lot more than just install algorithms now.
+ *        And it needs to do even more.  My goal is for "inst" to describe
+ *        everything there is to describe about instrumentation.  That is, it
+ *        should address whether the API has funciton pointers or now,
+ *        whether those function pointers are per-thread or not,
+ *        irrevocability, and the registration of algorithm implementations
+ *        when adaptivity is in use.
+ *
+ *  [mfs] I think we want to support the following modes:
+ *        - per-thread function pointers w/ adaptivity
+ *        - global function pointers w/ adaptivity
+ *        - static functions w/ adaptivity (via a switch statement?)
+ *        - static functions w/o adaptivity
+ *
+ *  [mfs] This suggests that we should make adaptivity and the access of
+ *        instrumentation orthogonal.  Can we?
+ */
 
 #ifndef INST_HPP__
 #define INST_HPP__
@@ -106,7 +125,7 @@ namespace stm
   void install_algorithm_local(int new_alg);
 
   // This is used as a default in txthread.cpp... just forwards to CGL::begin.
-  void begin_CGL(TX_LONE_PARAMETER);
+  void CGLBegin(TX_LONE_PARAMETER);
 
   typedef TM_FASTCALL void* (*ReadBarrier)(TX_FIRST_PARAMETER STM_READ_SIG(,));
   typedef TM_FASTCALL void (*WriteBarrier)(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));

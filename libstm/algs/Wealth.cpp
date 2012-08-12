@@ -18,48 +18,40 @@
  *    avoiding atomic operations for acquiring orecs.
  */
 
-#include "../profiling.hpp"
 #include "algs.hpp"
-#include "../RedoRAWUtils.hpp"
 #include "../Diagnostics.hpp"
 
-using stm::TxThread;
-using stm::threads;
-using stm::threadcount;
-using stm::last_complete;
-using stm::timestamp;
-using stm::timestamp_max;
-using stm::WriteSet;
-using stm::OrecList;
-using stm::WriteSetEntry;
-using stm::orec_t;
-using stm::get_orec;
+namespace stm
+{
+  TM_FASTCALL void* WealthReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
+  TM_FASTCALL void* WealthReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
+  TM_FASTCALL void WealthWriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+  TM_FASTCALL void WealthWriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+  TM_FASTCALL void WealthCommitRO(TX_LONE_PARAMETER);
+  TM_FASTCALL void WealthCommitRW(TX_LONE_PARAMETER);
 
-
-/**
- *  Declare the functions that we're going to implement, so that we can avoid
- *  circular dependencies.
- */
-namespace {
-  struct Wealth {
-      static void begin(TX_LONE_PARAMETER);
-      static TM_FASTCALL void* read_ro(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void* read_rw(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void write_ro(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void write_rw(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void commit_ro(TX_LONE_PARAMETER);
-      static TM_FASTCALL void commit_rw(TX_LONE_PARAMETER);
-
-      static void rollback(STM_ROLLBACK_SIG(,,));
-      static bool irrevoc(TxThread*);
-      static void onSwitchTo();
-      static NOINLINE void validate(TxThread* tx, uintptr_t finish_cache);
-  };
+  /**
+   *  Wealth validation
+   */
+  void WealthValidate(TxThread* tx, uintptr_t finish_cache)
+  {
+      // check that all reads are valid
+      foreach (OrecList, i, tx->r_orecs) {
+          // read this orec
+          uintptr_t ivt = (*i)->v.all;
+          // if it has a timestamp of ts_cache or greater, abort
+          if (ivt > tx->ts_cache)
+              stm::tmabort();
+      }
+      // now update the finish_cache to remember that at this time, we were
+      // still valid
+      tx->ts_cache = finish_cache;
+  }
 
   /**
    *  Wealth begin:
    */
-  void Wealth::begin(TX_LONE_PARAMETER)
+  void WealthBegin(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       tx->allocator.onTxBegin();
@@ -70,8 +62,7 @@ namespace {
   /**
    *  Wealth commit (read-only):
    */
-  void
-  Wealth::commit_ro(TX_LONE_PARAMETER)
+  void WealthCommitRO(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // reset lists and we are done
@@ -84,19 +75,18 @@ namespace {
    *
    *  NB:  Only valid if using pointer-based adaptivity
    */
-  void
-  Wealth::commit_rw(TX_LONE_PARAMETER)
+  void WealthCommitRW(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // wait until it is our turn to commit, then validate, acquire, and do
       // writeback
       while (last_complete.val != (uintptr_t)(tx->order - 1)) {
-          if (stm::tmbegin != begin)
+          if (stm::tmbegin != WealthBegin)
               stm::tmabort();
       }
 
       // since we have the token, we can validate before getting locks
-      validate(tx, last_complete.val);
+      WealthValidate(tx, last_complete.val);
 
       // if we had writes, then aborted, then restarted, and then didn't have
       // writes, we could end up trying to lock a nonexistant write set.  This
@@ -124,14 +114,14 @@ namespace {
       tx->r_orecs.reset();
       tx->writes.reset();
       OnRWCommit(tx);
-      ResetToRO(tx, read_ro, write_ro, commit_ro);
+      ResetToRO(tx, WealthReadRO, WealthWriteRO, WealthCommitRO);
   }
 
   /**
    *  Wealth read (read-only transaction)
    */
   void*
-  Wealth::read_ro(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
+  WealthReadRO(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
   {
       TX_GET_TX_INTERNAL;
       // read the location... this is safe since timestamps behave as in Wang's
@@ -154,15 +144,14 @@ namespace {
 
       // validate
       if (last_complete.val > tx->ts_cache)
-          validate(tx, last_complete.val);
+          WealthValidate(tx, last_complete.val);
       return tmp;
   }
 
   /**
    *  Wealth read (writing transaction)
    */
-  void*
-  Wealth::read_rw(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
+  void* WealthReadRW(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
   {
       TX_GET_TX_INTERNAL;
       // check the log for a RAW hazard, we expect to miss
@@ -171,7 +160,7 @@ namespace {
       REDO_RAW_CHECK(found, log, mask);
 
       // reuse the ReadRO barrier, which is adequate here---reduces LOC
-      void* val = read_ro(TX_FIRST_ARG addr STM_MASK(mask));
+      void* val = WealthReadRO(TX_FIRST_ARG addr STM_MASK(mask));
       REDO_RAW_CLEANUP(val, found, log, mask);
       return val;
   }
@@ -180,7 +169,7 @@ namespace {
    *  Wealth write (read-only context)
    */
   void
-  Wealth::write_ro(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  WealthWriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // we don't have any writes yet, so we need to get an order here
@@ -188,14 +177,14 @@ namespace {
 
       // record the new value in a redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
-      stm::OnFirstWrite(tx, read_rw, write_rw, commit_rw);
+      stm::OnFirstWrite(tx, WealthReadRW, WealthWriteRW, WealthCommitRW);
   }
 
   /**
    *  Wealth write (writing context)
    */
   void
-  Wealth::write_rw(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  WealthWriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // record the new value in a redo log
@@ -206,7 +195,7 @@ namespace {
    *  Wealth unwinder:
    */
   void
-  Wealth::rollback(STM_ROLLBACK_SIG(tx, except, len))
+  WealthRollback(STM_ROLLBACK_SIG(tx, except, len))
   {
       PreRollback(tx);
 
@@ -221,7 +210,7 @@ namespace {
       // NB: we can't reset pointers here, because if the transaction
       //     performed some writes, then it has an order.  If it has an
       //     order, but restarts and is read-only, then it still must call
-      //     commit_rw to finish in-order
+      //     CommitRW to finish in-order
       PostRollback(tx);
   }
 
@@ -229,29 +218,10 @@ namespace {
    *  Wealth in-flight irrevocability:
    */
   bool
-  Wealth::irrevoc(TxThread*)
+  WealthIrrevoc(TxThread*)
   {
       stm::UNRECOVERABLE("Wealth Irrevocability not yet supported");
       return false;
-  }
-
-  /**
-   *  Wealth validation
-   */
-  void
-  Wealth::validate(TxThread* tx, uintptr_t finish_cache)
-  {
-      // check that all reads are valid
-      foreach (OrecList, i, tx->r_orecs) {
-          // read this orec
-          uintptr_t ivt = (*i)->v.all;
-          // if it has a timestamp of ts_cache or greater, abort
-          if (ivt > tx->ts_cache)
-              stm::tmabort();
-      }
-      // now update the finish_cache to remember that at this time, we were
-      // still valid
-      tx->ts_cache = finish_cache;
   }
 
   /**
@@ -265,17 +235,14 @@ namespace {
    *
    *    Also, all threads' order values must be -1
    */
-  void
-  Wealth::onSwitchTo()
+  void WealthOnSwitchTo()
   {
       timestamp.val = MAXIMUM(timestamp.val, timestamp_max.val);
       last_complete.val = timestamp.val;
       for (uint32_t i = 0; i < threadcount.val; ++i)
           threads[i]->order = -1;
   }
-}
 
-namespace stm {
   /**
    *  Wealth initialization
    */
@@ -285,17 +252,16 @@ namespace stm {
       // set the name
       stms[Wealth].name      = "Wealth";
       // set the pointers
-      stms[Wealth].begin     = ::Wealth::begin;
-      stms[Wealth].commit    = ::Wealth::commit_ro;
-      stms[Wealth].read      = ::Wealth::read_ro;
-      stms[Wealth].write     = ::Wealth::write_ro;
-      stms[Wealth].rollback  = ::Wealth::rollback;
-      stms[Wealth].irrevoc   = ::Wealth::irrevoc;
-      stms[Wealth].switcher  = ::Wealth::onSwitchTo;
+      stms[Wealth].begin     = WealthBegin;
+      stms[Wealth].commit    = WealthCommitRO;
+      stms[Wealth].read      = WealthReadRO;
+      stms[Wealth].write     = WealthWriteRO;
+      stms[Wealth].rollback  = WealthRollback;
+      stms[Wealth].irrevoc   = WealthIrrevoc;
+      stms[Wealth].switcher  = WealthOnSwitchTo;
       stms[Wealth].privatization_safe = true;
   }
 }
-
 
 #ifdef STM_ONESHOT_ALG_Wealth
 DECLARE_AS_ONESHOT_NORMAL(Wealth)

@@ -40,12 +40,12 @@ namespace {
   struct OrecEagerRedo
   {
       static void begin(TX_LONE_PARAMETER);
-      static TM_FASTCALL void* read_ro(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void* read_rw(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void write_ro(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void write_rw(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void commit_ro(TX_LONE_PARAMETER);
-      static TM_FASTCALL void commit_rw(TX_LONE_PARAMETER);
+      static TM_FASTCALL void* ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
+      static TM_FASTCALL void* ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
+      static TM_FASTCALL void WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+      static TM_FASTCALL void WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+      static TM_FASTCALL void CommitRO(TX_LONE_PARAMETER);
+      static TM_FASTCALL void CommitRW(TX_LONE_PARAMETER);
 
       static void rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
@@ -71,7 +71,7 @@ namespace {
    *    Standard commit: we hold no locks, and we're valid, so just clean up
    */
   void
-  OrecEagerRedo::commit_ro(TX_LONE_PARAMETER)
+  OrecEagerRedo::CommitRO(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       tx->r_orecs.reset();
@@ -86,7 +86,7 @@ namespace {
    *    release locks.
    */
   void
-  OrecEagerRedo::commit_rw(TX_LONE_PARAMETER)
+  OrecEagerRedo::CommitRW(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // note: we're using timestamps in the same manner as
@@ -116,7 +116,7 @@ namespace {
       tx->writes.reset();
       tx->locks.reset();
       OnRWCommit(tx);
-      ResetToRO(tx, read_ro, write_ro, commit_ro);
+      ResetToRO(tx, ReadRO, WriteRO, CommitRO);
   }
 
   /**
@@ -127,7 +127,7 @@ namespace {
    *    necessary.
    */
   void*
-  OrecEagerRedo::read_ro(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
+  OrecEagerRedo::ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
   {
       TX_GET_TX_INTERNAL;
       // get the orec addr
@@ -163,7 +163,7 @@ namespace {
    *    log if we hold the lock, but we must be prepared for that possibility.
    */
   void*
-  OrecEagerRedo::read_rw(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
+  OrecEagerRedo::ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
   {
       TX_GET_TX_INTERNAL;
       // get the orec addr
@@ -210,7 +210,7 @@ namespace {
    *    NB: saving the value first decreases register pressure
    */
   void
-  OrecEagerRedo::write_ro(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  OrecEagerRedo::WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // add to redo log
@@ -231,7 +231,7 @@ namespace {
               // save old, log lock, write, return
               o->p = ivt.all;
               tx->locks.insert(o);
-              stm::OnFirstWrite(tx, read_rw, write_rw, commit_rw);
+              stm::OnFirstWrite(tx, ReadRW, WriteRW, CommitRW);
               return;
           }
 
@@ -253,7 +253,7 @@ namespace {
    *    by the caller.
    */
   void
-  OrecEagerRedo::write_rw(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  OrecEagerRedo::WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // add to redo log
@@ -316,7 +316,7 @@ namespace {
       tx->writes.reset();
       tx->locks.reset();
       PostRollback(tx);
-      ResetToRO(tx, read_ro, write_ro, commit_ro);
+      ResetToRO(tx, ReadRO, WriteRO, CommitRO);
   }
 
   /**
@@ -372,9 +372,9 @@ namespace stm {
 
       // set the pointers
       stms[OrecEagerRedo].begin     = ::OrecEagerRedo::begin;
-      stms[OrecEagerRedo].commit    = ::OrecEagerRedo::commit_ro;
-      stms[OrecEagerRedo].read      = ::OrecEagerRedo::read_ro;
-      stms[OrecEagerRedo].write     = ::OrecEagerRedo::write_ro;
+      stms[OrecEagerRedo].commit    = ::OrecEagerRedo::CommitRO;
+      stms[OrecEagerRedo].read      = ::OrecEagerRedo::ReadRO;
+      stms[OrecEagerRedo].write     = ::OrecEagerRedo::WriteRO;
       stms[OrecEagerRedo].rollback  = ::OrecEagerRedo::rollback;
       stms[OrecEagerRedo].irrevoc   = ::OrecEagerRedo::irrevoc;
       stms[OrecEagerRedo].switcher  = ::OrecEagerRedo::onSwitchTo;

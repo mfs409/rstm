@@ -49,12 +49,12 @@ namespace {
 
   struct CohortsFilter {
       static void begin(TX_LONE_PARAMETER);
-      static TM_FASTCALL void* read_ro(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void* read_rw(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void write_ro(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void write_rw(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void commit_ro(TX_LONE_PARAMETER);
-      static TM_FASTCALL void commit_rw(TX_LONE_PARAMETER);
+      static TM_FASTCALL void* ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
+      static TM_FASTCALL void* ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
+      static TM_FASTCALL void WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+      static TM_FASTCALL void WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+      static TM_FASTCALL void CommitRO(TX_LONE_PARAMETER);
+      static TM_FASTCALL void CommitRW(TX_LONE_PARAMETER);
 
       static void rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
@@ -92,7 +92,7 @@ namespace {
    *  CohortsFilter commit (read-only):
    */
   void
-  CohortsFilter::commit_ro(TX_LONE_PARAMETER)
+  CohortsFilter::CommitRO(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // decrease total number of tx started
@@ -110,7 +110,7 @@ namespace {
    *  in an order which is given at the beginning of commit.
    */
   void
-  CohortsFilter::commit_rw(TX_LONE_PARAMETER)
+  CohortsFilter::CommitRW(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // increment num of tx ready to commit, and use it as the order
@@ -163,14 +163,14 @@ namespace {
       tx->wf->clear();
       tx->writes.reset();
       OnRWCommit(tx);
-      ResetToRO(tx, read_ro, write_ro, commit_ro);
+      ResetToRO(tx, ReadRO, WriteRO, CommitRO);
   }
 
   /**
    *  CohortsFilter read (read-only transaction)
    */
   void*
-  CohortsFilter::read_ro(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
+  CohortsFilter::ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
   {
       TX_GET_TX_INTERNAL;
       tx->rf->add(addr);
@@ -181,7 +181,7 @@ namespace {
    *  CohortsFilter read (writing transaction)
    */
   void*
-  CohortsFilter::read_rw(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
+  CohortsFilter::ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
   {
       TX_GET_TX_INTERNAL;
       // check the log for a RAW hazard, we expect to miss
@@ -201,20 +201,20 @@ namespace {
    *  CohortsFilter write (read-only context): for first write
    */
   void
-  CohortsFilter::write_ro(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  CohortsFilter::WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // record the new value in a redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
       tx->wf->add(addr);
-      stm::OnFirstWrite(tx, read_rw, write_rw, commit_rw);
+      stm::OnFirstWrite(tx, ReadRW, WriteRW, CommitRW);
   }
 
   /**
    *  CohortsFilter write (writing context)
    */
   void
-  CohortsFilter::write_rw(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  CohortsFilter::WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // record the new value in a redo log
@@ -296,9 +296,9 @@ namespace stm {
       stms[CohortsFilter].name      = "CohortsFilter";
       // set the pointers
       stms[CohortsFilter].begin     = ::CohortsFilter::begin;
-      stms[CohortsFilter].commit    = ::CohortsFilter::commit_ro;
-      stms[CohortsFilter].read      = ::CohortsFilter::read_ro;
-      stms[CohortsFilter].write     = ::CohortsFilter::write_ro;
+      stms[CohortsFilter].commit    = ::CohortsFilter::CommitRO;
+      stms[CohortsFilter].read      = ::CohortsFilter::ReadRO;
+      stms[CohortsFilter].write     = ::CohortsFilter::WriteRO;
       stms[CohortsFilter].rollback  = ::CohortsFilter::rollback;
       stms[CohortsFilter].irrevoc   = ::CohortsFilter::irrevoc;
       stms[CohortsFilter].switcher  = ::CohortsFilter::onSwitchTo;

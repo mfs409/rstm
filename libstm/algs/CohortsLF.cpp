@@ -37,12 +37,12 @@ using stm::global_filter;
 namespace {
   struct CohortsLF {
       static void begin(TX_LONE_PARAMETER);
-      static TM_FASTCALL void* read_ro(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void* read_rw(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void write_ro(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void write_rw(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void commit_ro(TX_LONE_PARAMETER);
-      static TM_FASTCALL void commit_rw(TX_LONE_PARAMETER);
+      static TM_FASTCALL void* ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
+      static TM_FASTCALL void* ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
+      static TM_FASTCALL void WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+      static TM_FASTCALL void WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+      static TM_FASTCALL void CommitRO(TX_LONE_PARAMETER);
+      static TM_FASTCALL void CommitRW(TX_LONE_PARAMETER);
 
       static void rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
@@ -83,7 +83,7 @@ namespace {
    *  CohortsLF commit (read-only):
    */
   void
-  CohortsLF::commit_ro(TX_LONE_PARAMETER)
+  CohortsLF::CommitRO(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // mark self status
@@ -99,7 +99,7 @@ namespace {
    *
    */
   void
-  CohortsLF::commit_rw(TX_LONE_PARAMETER)
+  CohortsLF::CommitRW(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // Mark a global flag, no one is allowed to begin now
@@ -155,14 +155,14 @@ namespace {
       tx->wf->clear();
       tx->writes.reset();
       OnRWCommit(tx);
-      ResetToRO(tx, read_ro, write_ro, commit_ro);
+      ResetToRO(tx, ReadRO, WriteRO, CommitRO);
   }
 
   /**
    *  CohortsLF read (read-only transaction)
    */
   void*
-  CohortsLF::read_ro(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
+  CohortsLF::ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
   {
       TX_GET_TX_INTERNAL;
       tx->rf->add(addr);
@@ -173,7 +173,7 @@ namespace {
    *  CohortsLF read (writing transaction)
    */
   void*
-  CohortsLF::read_rw(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
+  CohortsLF::ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
   {
       TX_GET_TX_INTERNAL;
       // check the log for a RAW hazard, we expect to miss
@@ -192,20 +192,20 @@ namespace {
    *  CohortsLF write (read-only context): for first write
    */
   void
-  CohortsLF::write_ro(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  CohortsLF::WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // record the new value in a redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
       tx->wf->add(addr);
-      stm::OnFirstWrite(tx, read_rw, write_rw, commit_rw);
+      stm::OnFirstWrite(tx, ReadRW, WriteRW, CommitRW);
   }
 
   /**
    *  CohortsLF write (writing context)
    */
   void
-  CohortsLF::write_rw(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  CohortsLF::WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // record the new value in a redo log
@@ -307,9 +307,9 @@ namespace stm {
       stms[CohortsLF].name      = "CohortsLF";
       // set the pointers
       stms[CohortsLF].begin     = ::CohortsLF::begin;
-      stms[CohortsLF].commit    = ::CohortsLF::commit_ro;
-      stms[CohortsLF].read      = ::CohortsLF::read_ro;
-      stms[CohortsLF].write     = ::CohortsLF::write_ro;
+      stms[CohortsLF].commit    = ::CohortsLF::CommitRO;
+      stms[CohortsLF].read      = ::CohortsLF::ReadRO;
+      stms[CohortsLF].write     = ::CohortsLF::WriteRO;
       stms[CohortsLF].rollback  = ::CohortsLF::rollback;
       stms[CohortsLF].irrevoc   = ::CohortsLF::irrevoc;
       stms[CohortsLF].switcher  = ::CohortsLF::onSwitchTo;

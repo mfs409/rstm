@@ -58,12 +58,12 @@ namespace
   struct CohortsLNI2QX
   {
       static void begin(TX_LONE_PARAMETER);
-      static TM_FASTCALL void* read_ro(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void* read_rw(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void write_ro(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void write_rw(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void commit_ro(TX_LONE_PARAMETER);
-      static TM_FASTCALL void commit_rw(TX_LONE_PARAMETER);
+      static TM_FASTCALL void* ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
+      static TM_FASTCALL void* ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
+      static TM_FASTCALL void WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+      static TM_FASTCALL void WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+      static TM_FASTCALL void CommitRO(TX_LONE_PARAMETER);
+      static TM_FASTCALL void CommitRW(TX_LONE_PARAMETER);
 
       static TM_FASTCALL void commit_turbo(TX_LONE_PARAMETER);
       static TM_FASTCALL void* read_turbo(TX_FIRST_PARAMETER STM_READ_SIG(,));
@@ -114,7 +114,7 @@ namespace
   /**
    *  CohortsLNI2QX commit (read-only):
    */
-  void CohortsLNI2QX::commit_ro(TX_LONE_PARAMETER)
+  void CohortsLNI2QX::CommitRO(TX_LONE_PARAMETER)
   {
       // [mfs] Do we need a read-write fence to ensure all reads are done
       //       before we write to tx->status?
@@ -140,13 +140,13 @@ namespace
       tx->vlist.reset();
       tx->writes.reset();
       OnRWCommit(tx);
-      ResetToRO(tx, read_ro, write_ro, commit_ro);
+      ResetToRO(tx, ReadRO, WriteRO, CommitRO);
   }
 
   /**
    *  CohortsLNI2QX commit (writing context):
    */
-  void CohortsLNI2QX::commit_rw(TX_LONE_PARAMETER)
+  void CohortsLNI2QX::CommitRW(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // pointer to the predecessor node in the queue
@@ -226,13 +226,13 @@ namespace
       tx->vlist.reset();
       tx->writes.reset();
       OnRWCommit(tx);
-      ResetToRO(tx, read_ro, write_ro, commit_ro);
+      ResetToRO(tx, ReadRO, WriteRO, CommitRO);
   }
 
   /**
    *  CohortsLNI2QX read (read-only transaction)
    */
-  void* CohortsLNI2QX::read_ro(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
+  void* CohortsLNI2QX::ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
   {
       TX_GET_TX_INTERNAL;
       void* tmp = *addr;
@@ -251,7 +251,7 @@ namespace
   /**
    *  CohortsLNI2QX read (writing transaction)
    */
-  void* CohortsLNI2QX::read_rw(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
+  void* CohortsLNI2QX::ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
   {
       TX_GET_TX_INTERNAL;
       // check the log for a RAW hazard, we expect to miss
@@ -268,7 +268,7 @@ namespace
   /**
    *  CohortsLNI2QX write (read-only context): for first write
    */
-  void CohortsLNI2QX::write_ro(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  void CohortsLNI2QX::WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // [mfs] this code is not in the best location.  Consider the following
@@ -298,7 +298,7 @@ namespace
 
       // record the new value in a redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
-      stm::OnFirstWrite(tx, read_rw, write_rw, commit_rw);
+      stm::OnFirstWrite(tx, ReadRW, WriteRW, CommitRW);
   }
   /**
    *  CohortsLNI2QX write_turbo: for write in place tx
@@ -312,7 +312,7 @@ namespace
   /**
    *  CohortsLNI2QX write (writing context)
    */
-  void CohortsLNI2QX::write_rw(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  void CohortsLNI2QX::WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // record the new value in a redo log
@@ -405,9 +405,9 @@ namespace stm
       stms[CohortsLNI2QX].name      = "CohortsLNI2QX";
       // set the pointers
       stms[CohortsLNI2QX].begin     = ::CohortsLNI2QX::begin;
-      stms[CohortsLNI2QX].commit    = ::CohortsLNI2QX::commit_ro;
-      stms[CohortsLNI2QX].read      = ::CohortsLNI2QX::read_ro;
-      stms[CohortsLNI2QX].write     = ::CohortsLNI2QX::write_ro;
+      stms[CohortsLNI2QX].commit    = ::CohortsLNI2QX::CommitRO;
+      stms[CohortsLNI2QX].read      = ::CohortsLNI2QX::ReadRO;
+      stms[CohortsLNI2QX].write     = ::CohortsLNI2QX::WriteRO;
       stms[CohortsLNI2QX].rollback  = ::CohortsLNI2QX::rollback;
       stms[CohortsLNI2QX].irrevoc   = ::CohortsLNI2QX::irrevoc;
       stms[CohortsLNI2QX].switcher  = ::CohortsLNI2QX::onSwitchTo;

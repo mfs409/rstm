@@ -48,12 +48,12 @@ using stm::WriteSetEntry;
 namespace {
   struct Pipeline {
       static void begin(TX_LONE_PARAMETER);
-      static TM_FASTCALL void* read_ro(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void* read_rw(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void write_ro(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void write_rw(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void commit_ro(TX_LONE_PARAMETER);
-      static TM_FASTCALL void commit_rw(TX_LONE_PARAMETER);
+      static TM_FASTCALL void* ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
+      static TM_FASTCALL void* ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
+      static TM_FASTCALL void WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+      static TM_FASTCALL void WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+      static TM_FASTCALL void CommitRO(TX_LONE_PARAMETER);
+      static TM_FASTCALL void CommitRW(TX_LONE_PARAMETER);
 
       static void rollback(STM_ROLLBACK_SIG(,,));
       static bool irrevoc(TxThread*);
@@ -93,7 +93,7 @@ namespace {
    *    semantics.
    */
   void
-  Pipeline::commit_ro(TX_LONE_PARAMETER)
+  Pipeline::CommitRO(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // wait our turn, then validate
@@ -134,7 +134,7 @@ namespace {
    *    commits.
    */
   void
-  Pipeline::commit_rw(TX_LONE_PARAMETER)
+  Pipeline::CommitRW(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // wait our turn, validate, writeback
@@ -173,7 +173,7 @@ namespace {
       tx->r_orecs.reset();
       tx->writes.reset();
       OnRWCommit(tx);
-      ResetToRO(tx, read_ro, write_ro, commit_ro);
+      ResetToRO(tx, ReadRO, WriteRO, CommitRO);
   }
 
   /**
@@ -184,7 +184,7 @@ namespace {
    *    Otherwise, this is a standard orec read function.
    */
   void*
-  Pipeline::read_ro(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
+  Pipeline::ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
   {
       TX_GET_TX_INTERNAL;
       void* tmp = *addr;
@@ -209,7 +209,7 @@ namespace {
    *  Pipeline read (writing transaction)
    */
   void*
-  Pipeline::read_rw(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
+  Pipeline::ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
   {
       TX_GET_TX_INTERNAL;
       // check the log for a RAW hazard, we expect to miss
@@ -240,19 +240,19 @@ namespace {
    *  Pipeline write (read-only context)
    */
   void
-  Pipeline::write_ro(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  Pipeline::WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // record the new value in a redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
-      stm::OnFirstWrite(tx, read_rw, write_rw, commit_rw);
+      stm::OnFirstWrite(tx, ReadRW, WriteRW, CommitRW);
   }
 
   /**
    *  Pipeline write (writing context)
    */
   void
-  Pipeline::write_rw(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  Pipeline::WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // record the new value in a redo log
@@ -328,9 +328,9 @@ namespace stm {
 
       // set the pointers
       stms[Pipeline].begin     = ::Pipeline::begin;
-      stms[Pipeline].commit    = ::Pipeline::commit_ro;
-      stms[Pipeline].read      = ::Pipeline::read_ro;
-      stms[Pipeline].write     = ::Pipeline::write_ro;
+      stms[Pipeline].commit    = ::Pipeline::CommitRO;
+      stms[Pipeline].read      = ::Pipeline::ReadRO;
+      stms[Pipeline].write     = ::Pipeline::WriteRO;
       stms[Pipeline].rollback  = ::Pipeline::rollback;
       stms[Pipeline].irrevoc   = ::Pipeline::irrevoc;
       stms[Pipeline].switcher  = ::Pipeline::onSwitchTo;
