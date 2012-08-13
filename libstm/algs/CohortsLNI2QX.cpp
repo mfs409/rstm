@@ -31,17 +31,17 @@ using stm::gatekeeper;
 using stm::last_order;
 using stm::cohorts_node_t;
 
-// # of reads/writes/aborts before seal a cohort
-#define WRITE_EARLYSEAL  2
-#define READ_EARLYSEAL  -1
-#define ABORT_EARLYSEAL  -1
-
 /**
  *  Declare the functions that we're going to implement, so that we can avoid
  *  circular dependencies.
  */
 namespace
 {
+  // # of reads/writes/aborts before seal a cohort
+  int32_t WRITE_EARLYSEAL = -1;
+  int32_t READ_EARLYSEAL = -1;
+  int32_t ABORT_EARLYSEAL = -1;
+
   struct pad_word {
       volatile uint32_t val;
       char _padding_[128-sizeof(uint32_t)];
@@ -104,6 +104,8 @@ namespace
       // reset threadlocal variables
       tx->turn.val = COHORTS_NOTDONE;
       tx->cohort_writes = 0;
+      tx->cohort_reads = 0;
+
       // test if we need to do a early seal based on abort number
       if (tx->cohort_aborts == ABORT_EARLYSEAL) {
           atomicswap32(&sealed.val, 1);
@@ -235,6 +237,12 @@ namespace
   void* CohortsLNI2QX::ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
   {
       TX_GET_TX_INTERNAL;
+
+      tx->cohort_reads++;
+      // test if we need to do a early seal based on write number
+      if (tx->cohort_reads == READ_EARLYSEAL)
+          atomicswap32(&sealed.val, 1);
+
       void* tmp = *addr;
       STM_LOG_VALUE(tx, addr, tmp, mask);
       return tmp;
@@ -271,24 +279,6 @@ namespace
   void CohortsLNI2QX::WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
-      // [mfs] this code is not in the best location.  Consider the following
-      // alternative:
-      //
-      // - when a thread reaches the commit function, it seals the cohort
-      // - then it counts the number of transactions in the cohort
-      // - then it waits for all of them to finish
-      // - while waiting, it eventually knows when there is exactly one left.
-      // - at that point, it can set a flag to indicate that the last one is
-      //   in-flight.
-      // - all transactions can check that flag on every read/write
-      //
-      // There are a few challenges.  First, the current code waits on the
-      // first thread, then the next, then the next...  Obviously that won't do
-      // anymore.  Second, there can be a "flicker" when a thread sets a flag,
-      // then reads the gatekeeper, then backs out.  Lastly, RO transactions
-      // will require some sort of special attention.  But the tradeoff is more
-      // potential to switch (not just first write), and without so much
-      // redundant checking.
       if (counter.val == 1) {
           *addr = val;
           // switch to turbo mode
@@ -315,6 +305,7 @@ namespace
   void CohortsLNI2QX::WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
+
       // record the new value in a redo log
       //
       // [mfs] we might get better instruction scheduling if we put this code
@@ -390,6 +381,51 @@ namespace
       for (uint32_t i = 0; i < threadcount.val; ++i) {
           threads[i]->status = COHORTS_COMMITTED;
       }
+
+      //[wer210] get a configuration for CohortsLNI2QX
+      // write
+      const char* cfgwrites = "-1";
+      const char* cfgstring1 = getenv("STM_WRITES");
+      if (cfgstring1)
+          cfgwrites = cfgstring1;
+
+      switch (*cfgwrites) {
+        case '-': WRITE_EARLYSEAL = -1; break;
+        case '0': WRITE_EARLYSEAL = 0; break;
+        case '1': WRITE_EARLYSEAL = 1; break;
+        case '2': WRITE_EARLYSEAL = 2; break;
+        case '3': WRITE_EARLYSEAL = 3;
+      };
+
+      // read
+      const char* cfgreads = "-1";
+      const char* cfgstring2 = getenv("STM_READS");
+      if (cfgstring2)
+          cfgreads = cfgstring2;
+
+      switch (*cfgreads) {
+        case '-': READ_EARLYSEAL = -1; break;
+        case '0': READ_EARLYSEAL = 0; break;
+        case '1': READ_EARLYSEAL = 1; break;
+        case '2': READ_EARLYSEAL = 2; break;
+        case '3': READ_EARLYSEAL = 3;
+      };
+
+      // abort
+      const char* cfgaborts = "-1";
+      const char* cfgstring3 = getenv("STM_ABORTS");
+      if (cfgstring3)
+          cfgaborts = cfgstring3;
+
+      switch (*cfgaborts) {
+        case '-': ABORT_EARLYSEAL = -1; break;
+        case '0': ABORT_EARLYSEAL = 0; break;
+        case '1': ABORT_EARLYSEAL = 1; break;
+        case '2': ABORT_EARLYSEAL = 2; break;
+        case '3': ABORT_EARLYSEAL = 3;
+      };
+      printf("Use STM_READS = %d, STM_WRITES = %d, STM_ABORTS = %d\n",
+             READ_EARLYSEAL, WRITE_EARLYSEAL, ABORT_EARLYSEAL);
   }
 }
 
