@@ -47,18 +47,16 @@ namespace stm
   //
   // [mfs] This should be padded, and moved to somewhere else
   extern cohorts_node_t* volatile q;
-  extern volatile uintptr_t inplace;
+  // inplace write indicator
+  extern pad_word_t inplace;
   extern pad_word_t cohortcounter;
 
-  // [mfs] These need to be padded
   // # of reads/writes/aborts before seal a cohort
-  extern int32_t WRITE_EARLYSEAL;
-  extern int32_t READ_EARLYSEAL;
-  extern int32_t ABORT_EARLYSEAL;
+  extern pad_word_t_int WRITE_EARLYSEAL;
+  extern pad_word_t_int READ_EARLYSEAL;
+  extern pad_word_t_int ABORT_EARLYSEAL;
 
   // gatekeeper for early seal
-  //
-  // [mfs] Why not pad_word_t?
   extern pad_word_t sealed;
 
   /**
@@ -84,11 +82,10 @@ namespace stm
   extern  pad_word_t started;         // number of tx started
   extern  pad_word_t cpending;        // number of tx waiting to commit
   extern  pad_word_t committed;       // number of tx committed
-  // [mfs] Do these need padding?  What algs use them?
-  extern volatile int32_t last_order; // order of last tx in a cohort + 1
-  extern volatile uint32_t gatekeeper;// indicating whether tx can start
-  extern filter_t* global_filter;     // global filter
-  extern filter_t* temp_filter;       // temp filter
+  extern  pad_word_t_int last_order;  // order of last tx in a cohort + 1
+  extern  pad_word_t     gatekeeper;  // indicating whether tx can start
+  extern  filter_t* global_filter;    // global filter
+  extern  filter_t* temp_filter;      // temp filter
 
   // Global variables for Fastlane
   extern pad_word_t helper;
@@ -96,7 +93,6 @@ namespace stm
   // Global variables for PTM
   extern pad_word_t global_version;
   extern pad_word_t writer_lock;
-
 
 
   inline void OnRWCommit(TxThread* tx)

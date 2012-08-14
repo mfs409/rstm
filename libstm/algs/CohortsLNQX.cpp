@@ -63,7 +63,7 @@ namespace stm
       tx->cohort_reads = 0;
 
       // test if we need to do a early seal based on abort number
-      if (tx->cohort_aborts == ABORT_EARLYSEAL) {
+      if (tx->cohort_aborts == ABORT_EARLYSEAL.val) {
           atomicswap32(&sealed.val, 1);
           tx->cohort_aborts = 0;
       }
@@ -166,7 +166,7 @@ namespace stm
 
       tx->cohort_reads++;
       // test if we need to do a early seal based on write number
-      if (tx->cohort_reads == READ_EARLYSEAL)
+      if (tx->cohort_reads == READ_EARLYSEAL.val)
           atomicswap32(&sealed.val, 1);
 
       void* tmp = *addr;
@@ -233,7 +233,7 @@ namespace stm
 
       tx->cohort_writes++;
       // test if we need to do a early seal based on write number
-      if (tx->cohort_writes == WRITE_EARLYSEAL)
+      if (tx->cohort_writes == WRITE_EARLYSEAL.val)
           atomicswap32(&sealed.val, 1);
   }
 
@@ -295,11 +295,11 @@ namespace stm
           cfgwrites = cfgstring1;
 
       switch (*cfgwrites) {
-        case '-': WRITE_EARLYSEAL = -1; break;
-        case '0': WRITE_EARLYSEAL = 0; break;
-        case '1': WRITE_EARLYSEAL = 1; break;
-        case '2': WRITE_EARLYSEAL = 2; break;
-        case '3': WRITE_EARLYSEAL = 3;
+        case '-': WRITE_EARLYSEAL.val = -1; break;
+        case '0': WRITE_EARLYSEAL.val = 0; break;
+        case '1': WRITE_EARLYSEAL.val = 1; break;
+        case '2': WRITE_EARLYSEAL.val = 2; break;
+        case '3': WRITE_EARLYSEAL.val = 3;
       };
 
       // read
@@ -309,11 +309,11 @@ namespace stm
           cfgreads = cfgstring2;
 
       switch (*cfgreads) {
-        case '-': READ_EARLYSEAL = -1; break;
-        case '0': READ_EARLYSEAL = 0; break;
-        case '1': READ_EARLYSEAL = 1; break;
-        case '2': READ_EARLYSEAL = 2; break;
-        case '3': READ_EARLYSEAL = 3;
+        case '-': READ_EARLYSEAL.val = -1; break;
+        case '0': READ_EARLYSEAL.val = 0; break;
+        case '1': READ_EARLYSEAL.val = 1; break;
+        case '2': READ_EARLYSEAL.val = 2; break;
+        case '3': READ_EARLYSEAL.val = 3;
       };
 
       // abort
@@ -323,14 +323,14 @@ namespace stm
           cfgaborts = cfgstring3;
 
       switch (*cfgaborts) {
-        case '-': ABORT_EARLYSEAL = -1; break;
-        case '0': ABORT_EARLYSEAL = 0; break;
-        case '1': ABORT_EARLYSEAL = 1; break;
-        case '2': ABORT_EARLYSEAL = 2; break;
-        case '3': ABORT_EARLYSEAL = 3;
+        case '-': ABORT_EARLYSEAL.val = -1; break;
+        case '0': ABORT_EARLYSEAL.val = 0; break;
+        case '1': ABORT_EARLYSEAL.val = 1; break;
+        case '2': ABORT_EARLYSEAL.val = 2; break;
+        case '3': ABORT_EARLYSEAL.val = 3;
       };
       printf("Use STM_READS = %d, STM_WRITES = %d, STM_ABORTS = %d\n",
-             READ_EARLYSEAL, WRITE_EARLYSEAL, ABORT_EARLYSEAL);
+             READ_EARLYSEAL.val, WRITE_EARLYSEAL.val, ABORT_EARLYSEAL.val);
   }
 
   /**

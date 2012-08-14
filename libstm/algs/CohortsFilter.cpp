@@ -102,7 +102,7 @@ namespace stm
           spin64();
 
       // If I'm not the first one in a cohort to commit, validate read
-      if (tx->order != last_order)
+      if (tx->order != last_order.val)
           if (!CohortsFilterValidate(tx)) {
               committed.val++;
               CFENCE;
@@ -122,7 +122,7 @@ namespace stm
 
       // If I'm the last one in the cohort, save the order and clear the filter
       if ((uint32_t)tx->order == started.val) {
-          last_order = tx->order + 1;
+          last_order.val = tx->order + 1;
           global_filter->clear();
       }
 
@@ -241,7 +241,7 @@ namespace stm
       if (global_filter->intersect(tx->rf)) {
           // I'm the last one in the cohort, save the order and clear the filter
           if ((uint32_t)tx->order == started.val) {
-              last_order = started.val + 1;
+              last_order.val = started.val + 1;
               global_filter->clear();
           }
           return false;

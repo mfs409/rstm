@@ -11,7 +11,7 @@
 /**
  *  CohortsLNI Implementation
  *
- *  CohortsLazy with inplace write when tx is the last one in a cohort.
+ *  CohortsLazy with inplace.val write when tx is the last one in a cohort.
  */
 #include "algs.hpp"
 #include "../Diagnostics.hpp"
@@ -44,7 +44,7 @@ namespace stm
 
     S1:
       // wait if I'm blocked
-      while (gatekeeper == 1);
+      while (gatekeeper.val == 1);
 
       // set started
       //
@@ -53,7 +53,7 @@ namespace stm
       //WBR;
 
       // double check no one is ready to commit
-      if (gatekeeper == 1 || inplace == 1){
+      if (gatekeeper.val == 1 || inplace.val == 1){
           tx->status = COHORTS_COMMITTED;
           goto S1;
       }
@@ -103,10 +103,10 @@ namespace stm
       last_complete.val = tx->order;
 
       // I must be the last one, so release gatekeeper lock
-      last_order = tx->order + 1;
-      gatekeeper = 0;
-      // Reset inplace write flag
-      inplace = 0;
+      last_order.val = tx->order + 1;
+      gatekeeper.val = 0;
+      // Reset inplace.val write flag
+      inplace.val = 0;
 
       // Mark self status
       tx->status = COHORTS_COMMITTED;
@@ -122,7 +122,7 @@ namespace stm
   {
       TX_GET_TX_INTERNAL;
       // Mark a global flag, no one is allowed to begin now
-      gatekeeper = 1;
+      gatekeeper.val = 1;
 
       // Get an order
       tx->order = 1 + faiptr(&timestamp.val);
@@ -140,9 +140,9 @@ namespace stm
       // Wait for my turn
       while (last_complete.val != (uintptr_t)(tx->order - 1));
 
-      // If I'm the first one in this cohort and no inplace write happened,
+      // If I'm the first one in this cohort and no inplace.val write happened,
       // I will do no validation, else validate
-      if (inplace == 1 || tx->order != last_order)
+      if (inplace.val == 1 || tx->order != last_order.val)
           CohortsLNIValidate(tx);
 
       // Do write back
@@ -162,8 +162,8 @@ namespace stm
 
       // If I'm the last one, release gatekeeper lock
       if (lastone) {
-          last_order = tx->order + 1;
-          gatekeeper = 0;
+          last_order.val = tx->order + 1;
+          gatekeeper.val = 0;
       }
 
       // commit all frees, reset all lists
@@ -246,20 +246,20 @@ namespace stm
       // If every one else is ready to commit, do in place write, go turbo mode
       if (count == 1) {
           // setup in place write flag
-          atomicswapptr(&inplace, 1);
+          atomicswapptr(&inplace.val, 1);
 
           // double check
           for (uint32_t i = 0; i < threadcount.val && count < 0; ++i)
               count -= (threads[i]->status == COHORTS_STARTED);
           if (count == 0) {
-              // write inplace
+              // write inplace.val
               CohortsLNIWriteTurbo(TX_FIRST_ARG addr, val);
               // go turbo
               OnFirstWrite(tx, CohortsLNIReadTurbo, CohortsLNIWriteTurbo, CohortsLNICommitTurbo);
               return;
           }
           // reset flag
-          inplace = 0;
+          inplace.val = 0;
       }
       // record the new value in a redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
@@ -338,8 +338,8 @@ namespace stm
 
               // If I'm the last one, release gatekeeper lock
               if (l) {
-                  last_order = tx->order + 1;
-                  gatekeeper = 0;
+                  last_order.val = tx->order + 1;
+                  gatekeeper.val = 0;
               }
               tmabort();
           }

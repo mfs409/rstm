@@ -53,7 +53,7 @@ namespace stm
 
       // [NB] we must double check no one is ready to commit yet
       // and no one entered in place write phase(turbo mode)
-      if (cpending.val > committed.val || inplace == 1){
+      if (cpending.val > committed.val || inplace.val == 1){
           faaptr(&started.val, -1);
           goto S1;
       }
@@ -95,7 +95,7 @@ namespace stm
       while (last_complete.val != (uintptr_t)(tx->order - 1));
 
       // reset in place write flag
-      inplace = 0;
+      inplace.val = 0;
 
       // increase # of committed
       committed.val ++;
@@ -130,7 +130,7 @@ namespace stm
 
       // If in place write occurred, all tx validate reads
       // Otherwise, only first one skips validation
-      if (inplace == 1 || tx->order != first)
+      if (inplace.val == 1 || tx->order != first)
           if (!CohortsENValidate(tx)) {
               committed.val++;
               CFENCE;
@@ -205,7 +205,7 @@ namespace stm
       // If everyone else is ready to commit, do in place write
       if (cpending.val + 1 == started.val) {
           // set up flag indicating in place write starts
-          atomicswapptr(&inplace, 1);
+          atomicswapptr(&inplace.val, 1);
           // double check is necessary
           if (cpending.val + 1 == started.val) {
               // in place write
@@ -215,7 +215,7 @@ namespace stm
               return;
           }
           // reset flag
-          inplace = 0;
+          inplace.val = 0;
       }
 #endif
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
@@ -242,7 +242,7 @@ namespace stm
       // Try to go turbo when "writes.size(TX_LONE_PARAMETER) >= TIMES"
       if (tx->writes.size(TX_LONE_PARAMETER) >= TIMES && cpending.val + 1 == started.val) {
           // set up flag indicating in place write starts
-          atomicswapptr(&inplace, 1);
+          atomicswapptr(&inplace.val, 1);
           // double check is necessary
           if (cpending.val + 1 == started.val) {
               // write back
@@ -254,7 +254,7 @@ namespace stm
               return;
           }
           // reset flag
-          inplace = 0;
+          inplace.val = 0;
       }
 #endif
       // record the new value in a redo log
@@ -315,7 +315,7 @@ namespace stm
   CohortsENOnSwitchTo()
   {
       last_complete.val = 0;
-      inplace = 0;
+      inplace.val = 0;
   }
 
   /**

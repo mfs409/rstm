@@ -52,7 +52,7 @@ namespace stm
 
       // [NB] we must double check no one is ready to commit yet
       // and no one entered in place write phase(turbo mode)
-      if (q != NULL|| inplace == 1){
+      if (q != NULL|| inplace.val == 1){
           faaptr(&started.val, -1);
           goto S1;
       }
@@ -97,7 +97,7 @@ namespace stm
       while (q != NULL);
 
       // reset in place write flag
-      inplace = 0;
+      inplace.val = 0;
   }
 
   /**
@@ -127,7 +127,7 @@ namespace stm
 
       // If in place write occurred, all tx validate reads
       // Otherwise, only first one skips validation
-      if (inplace == 1 || tx->turn.next != NULL)
+      if (inplace.val == 1 || tx->turn.next != NULL)
           if (!CohortsENQValidate(tx)) {
               // mark self done
               tx->turn.val = COHORTS_DONE;
@@ -204,7 +204,7 @@ namespace stm
       // If everyone else is ready to commit, do in place write
       if (started.val == 1) {
           // set up flag indicating in place write starts
-          atomicswapptr(&inplace, 1);
+          atomicswapptr(&inplace.val, 1);
           // double check is necessary
           if (started.val == 1) {
               // in place write
@@ -214,7 +214,7 @@ namespace stm
               return;
           }
           // reset flag
-          inplace = 0;
+          inplace.val = 0;
       }
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
       OnFirstWrite(tx, CohortsENQReadRW, CohortsENQWriteRW, CohortsENQCommitRW);
@@ -290,7 +290,7 @@ namespace stm
   void
   CohortsENQOnSwitchTo()
   {
-      inplace = 0;
+      inplace.val = 0;
   }
 
   /**

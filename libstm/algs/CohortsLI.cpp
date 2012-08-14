@@ -18,10 +18,6 @@
 #include "../RedoRAWUtils.hpp"
 #include "../Diagnostics.hpp"
 
-// [mfs] This should probably be a pad_word_t, and should migrate to
-//       algs.cpp... it should also probably be in some sort of namespace stm.
-volatile uintptr_t in = 0;
-
 namespace stm
 {
   TM_FASTCALL void* CohortsLIReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
@@ -52,7 +48,7 @@ namespace stm
 
     S1:
       // wait if I'm blocked
-      while (gatekeeper == 1);
+      while (gatekeeper.val == 1);
 
       // set started
       //
@@ -61,7 +57,7 @@ namespace stm
       //WBR;
 
       // double check no one is ready to commit
-      if (gatekeeper == 1 || in == 1){
+      if (gatekeeper.val == 1 || inplace.val == 1){
           tx->status = COHORTS_COMMITTED;
           goto S1;
       }
@@ -110,11 +106,11 @@ namespace stm
       // Mark self as done
       last_complete.val = tx->order;
 
-      // I must be the last one, so release gatekeeper lock
-      last_order = tx->order + 1;
-      gatekeeper = 0;
+      // I must be the last one, so release gatekeeper.val lock
+      last_order.val = tx->order + 1;
+      gatekeeper.val = 0;
       // Reset inplace write flag
-      in = 0;
+      inplace.val = 0;
 
       // Mark self status
       tx->status = COHORTS_COMMITTED;
@@ -130,7 +126,7 @@ namespace stm
   {
       TX_GET_TX_INTERNAL;
       // Mark a global flag, no one is allowed to begin now
-      gatekeeper = 1;
+      gatekeeper.val = 1;
 
       // Get an order
       tx->order = 1 + faiptr(&timestamp.val);
@@ -150,7 +146,7 @@ namespace stm
 
       // If I'm the first one in this cohort and no inplace write happened
       // then, I will do no validation, else validate
-      if (in == 1 || tx->order != last_order)
+      if (inplace.val == 1 || tx->order != last_order.val)
           CohortsLIValidate(tx);
 
       // mark orec, do write back
@@ -173,8 +169,8 @@ namespace stm
 
       // If I'm the last one, release gatekeeper lock
       if (lastone) {
-          last_order = tx->order + 1;
-          gatekeeper = 0;
+          last_order.val = tx->order + 1;
+          gatekeeper.val = 0;
       }
 
       // commit all frees, reset all lists
@@ -259,7 +255,7 @@ namespace stm
       // If every one else is ready to commit, do in place write, go turbo mode
       if (count == 1) {
           // setup in place write flag
-          atomicswapptr(&in, 1);
+          atomicswapptr(&inplace.val, 1);
 
           // double check
           for (uint32_t i = 0; i < threadcount.val && count < 0; ++i)
@@ -272,7 +268,7 @@ namespace stm
               return;
           }
           // reset flag
-          in = 0;
+          inplace.val = 0;
       }
       // record the new value in a redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
@@ -356,8 +352,8 @@ namespace stm
 
               // If I'm the last one, release gatekeeper lock
               if (l) {
-                  last_order = tx->order + 1;
-                  gatekeeper = 0;
+                  last_order.val = tx->order + 1;
+                  gatekeeper.val = 0;
               }
               tmabort();
           }
