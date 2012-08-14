@@ -16,39 +16,17 @@
  *    Fastpath paper by Spear et al. LCPC 2009.
  */
 
-#include "../profiling.hpp"
 #include "algs.hpp"
-#include "../RedoRAWUtils.hpp"
 
-using stm::TxThread;
-using stm::timestamp;
-using stm::timestamp_max;
-using stm::last_complete;
-using stm::last_init;
-using stm::ring_wf;
-using stm::RING_ELEMENTS;
-using stm::WriteSetEntry;
-
-
-/**
- *  Declare the functions that we're going to implement, so that we can avoid
- *  circular dependencies.
- */
-namespace {
-  struct RingSW {
-      static void begin(TX_LONE_PARAMETER);
-      static TM_FASTCALL void* ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void* ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void CommitRO(TX_LONE_PARAMETER);
-      static TM_FASTCALL void CommitRW(TX_LONE_PARAMETER);
-
-      static void rollback(STM_ROLLBACK_SIG(,,));
-      static bool irrevoc(TxThread*);
-      static void onSwitchTo();
-      static NOINLINE void check_inflight(TxThread* tx, uintptr_t my_index);
-  };
+namespace stm
+{
+  TM_FASTCALL void* RingSWReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
+  TM_FASTCALL void* RingSWReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
+  TM_FASTCALL void RingSWWriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+  TM_FASTCALL void RingSWWriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+  TM_FASTCALL void RingSWCommitRO(TX_LONE_PARAMETER);
+  TM_FASTCALL void RingSWCommitRW(TX_LONE_PARAMETER);
+  NOINLINE void RingSWCheckInflight(TxThread* tx, uintptr_t my_index);
 
   /**
    *  RingSW begin:
@@ -57,7 +35,7 @@ namespace {
    *    writeback-complete.  In the old RingSW, this was hard.  In the new
    *    RingSW, inspired by FastPath, this is easy.
    */
-  void RingSW::begin(TX_LONE_PARAMETER)
+  void RingSWBegin(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       tx->allocator.onTxBegin();
@@ -69,7 +47,7 @@ namespace {
    *  RingSW commit (read-only):
    */
   void
-  RingSW::CommitRO(TX_LONE_PARAMETER)
+  RingSWCommitRO(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // clear the filter and we are done
@@ -87,7 +65,7 @@ namespace {
    *    world, while the logically committed transaction replays its writes.
    */
   void
-  RingSW::CommitRW(TX_LONE_PARAMETER)
+  RingSWCommitRW(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // get a commit time, but only succeed in the CAS if this transaction
@@ -104,7 +82,7 @@ namespace {
               // intersect against all new entries
               for (uintptr_t i = commit_time; i >= tx->start_time + 1; i--)
                   if (ring_wf[i % RING_ELEMENTS].intersect(tx->rf))
-                      stm::tmabort();
+                      tmabort();
 
               // wait for newest entry to be wb-complete before continuing
               while (last_complete.val < commit_time)
@@ -112,7 +90,7 @@ namespace {
 
               // detect ring rollover: start.ts must not have changed
               if (timestamp.val > (tx->start_time + RING_ELEMENTS))
-                  stm::tmabort();
+                  tmabort();
 
               // ensure this tx doesn't look at this entry again
               tx->start_time = commit_time;
@@ -134,14 +112,14 @@ namespace {
       tx->rf->clear();
       tx->wf->clear();
       OnRWCommit(tx);
-      ResetToRO(tx, ReadRO, WriteRO, CommitRO);
+      ResetToRO(tx, RingSWReadRO, RingSWWriteRO, RingSWCommitRO);
   }
 
   /**
    *  RingSW read (read-only transaction)
    */
   void*
-  RingSW::ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
+  RingSWReadRO(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
   {
       TX_GET_TX_INTERNAL;
       // read the value from memory, log the address, and validate
@@ -151,7 +129,7 @@ namespace {
       // get the latest initialized ring entry, return if we've seen it already
       uintptr_t my_index = last_init.val;
       if (__builtin_expect(my_index != tx->start_time, false))
-          check_inflight(tx, my_index);
+          RingSWCheckInflight(tx, my_index);
       return val;
   }
 
@@ -159,7 +137,7 @@ namespace {
    *  RingSW read (writing transaction)
    */
   void*
-  RingSW::ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
+  RingSWReadRW(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
   {
       TX_GET_TX_INTERNAL;
       // check the log for a RAW hazard, we expect to miss
@@ -168,7 +146,7 @@ namespace {
       REDO_RAW_CHECK(found, log, mask);
 
       // reuse the ReadRO barrier, which is adequate here---reduces LOC
-      void* val = ReadRO(TX_FIRST_ARG addr STM_MASK(mask));
+      void* val = RingSWReadRO(TX_FIRST_ARG addr STM_MASK(mask));
       REDO_RAW_CLEANUP(val, found, log, mask);
       return val;
   }
@@ -177,20 +155,20 @@ namespace {
    *  RingSW write (read-only context)
    */
   void
-  RingSW::WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  RingSWWriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // buffer the write and update the filter
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
       tx->wf->add(addr);
-      stm::OnFirstWrite(tx, ReadRW, WriteRW, CommitRW);
+      OnFirstWrite(tx, RingSWReadRW, RingSWWriteRW, RingSWCommitRW);
   }
 
   /**
    *  RingSW write (writing context)
    */
   void
-  RingSW::WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  RingSWWriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
@@ -201,7 +179,7 @@ namespace {
    *  RingSW unwinder:
    */
   void
-  RingSW::rollback(STM_ROLLBACK_SIG(tx, except, len))
+  RingSWRollback(STM_ROLLBACK_SIG(tx, except, len))
   {
       PreRollback(tx);
 
@@ -217,14 +195,14 @@ namespace {
           tx->wf->clear();
       }
       PostRollback(tx);
-      ResetToRO(tx, ReadRO, WriteRO, CommitRO);
+      ResetToRO(tx, RingSWReadRO, RingSWWriteRO, RingSWCommitRO);
   }
 
   /**
    *  RingSW in-flight irrevocability: use abort-and-restart
    */
   bool
-  RingSW::irrevoc(TxThread*)
+  RingSWIrrevoc(TxThread*)
   {
       return false;
   }
@@ -235,12 +213,12 @@ namespace {
    *    check the ring for new entries and validate against them
    */
   void
-  RingSW::check_inflight(TxThread* tx, uintptr_t my_index)
+  RingSWCheckInflight(TxThread* tx, uintptr_t my_index)
   {
       // intersect against all new entries
       for (uintptr_t i = my_index; i >= tx->start_time + 1; i--)
           if (ring_wf[i % RING_ELEMENTS].intersect(tx->rf))
-              stm::tmabort();
+              tmabort();
 
       // wait for newest entry to be writeback-complete before returning
       while (last_complete.val < my_index)
@@ -248,7 +226,7 @@ namespace {
 
       // detect ring rollover: start.ts must not have changed
       if (timestamp.val > (tx->start_time + RING_ELEMENTS))
-          stm::tmabort();
+          tmabort();
 
       // ensure this tx doesn't look at this entry again
       tx->start_time = my_index;
@@ -261,14 +239,12 @@ namespace {
    *    that the timestamp, last_init, and last_complete are equal.
    */
   void
-  RingSW::onSwitchTo()
+  RingSWOnSwitchTo()
   {
       last_init.val = timestamp.val;
       last_complete.val = last_init.val;
   }
-}
 
-namespace stm {
   /**
    *  RingSW initialization
    */
@@ -276,17 +252,17 @@ namespace stm {
   void initTM<RingSW>()
   {
       // set the name
-      stm::stms[RingSW].name      = "RingSW";
+      stms[RingSW].name      = "RingSW";
 
       // set the pointers
-      stm::stms[RingSW].begin     = ::RingSW::begin;
-      stm::stms[RingSW].commit    = ::RingSW::CommitRO;
-      stm::stms[RingSW].read      = ::RingSW::ReadRO;
-      stm::stms[RingSW].write     = ::RingSW::WriteRO;
-      stm::stms[RingSW].rollback  = ::RingSW::rollback;
-      stm::stms[RingSW].irrevoc   = ::RingSW::irrevoc;
-      stm::stms[RingSW].switcher  = ::RingSW::onSwitchTo;
-      stm::stms[RingSW].privatization_safe = true;
+      stms[RingSW].begin     = RingSWBegin;
+      stms[RingSW].commit    = RingSWCommitRO;
+      stms[RingSW].read      = RingSWReadRO;
+      stms[RingSW].write     = RingSWWriteRO;
+      stms[RingSW].rollback  = RingSWRollback;
+      stms[RingSW].irrevoc   = RingSWIrrevoc;
+      stms[RingSW].switcher  = RingSWOnSwitchTo;
+      stms[RingSW].privatization_safe = true;
   }
 }
 

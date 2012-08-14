@@ -16,50 +16,30 @@
  *    in-place writes and no validation.
  */
 
-#include "../profiling.hpp"
 #include "algs.hpp"
-#include "../RedoRAWUtils.hpp"
-#include "../UndoLog.hpp" // STM_DO_MASKED_WRITE
 #include "../Diagnostics.hpp"
-
-using stm::TxThread;
-using stm::timestamp;
-using stm::timestamp_max;
-using stm::last_complete;
-using stm::OrecList;
-using stm::WriteSet;
-using stm::orec_t;
-using stm::get_orec;
-using stm::WriteSetEntry;
-
 
 /**
  *  Declare the functions that we're going to implement, so that we can avoid
  *  circular dependencies.
  */
-namespace {
-  struct CTokenTurbo {
-      static void begin(TX_LONE_PARAMETER);
-      static TM_FASTCALL void* ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void* ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void* read_turbo(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void write_turbo(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void CommitRO(TX_LONE_PARAMETER);
-      static TM_FASTCALL void CommitRW(TX_LONE_PARAMETER);
-      static TM_FASTCALL void commit_turbo(TX_LONE_PARAMETER);
-
-      static void rollback(STM_ROLLBACK_SIG(,,));
-      static bool irrevoc(TxThread*);
-      static void onSwitchTo();
-      static NOINLINE void validate(TxThread*, uintptr_t finish_cache);
-  };
+namespace stm
+{
+  TM_FASTCALL void* CTokenTurboReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
+  TM_FASTCALL void* CTokenTurboReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
+  TM_FASTCALL void* CTokenTurboReadTurbo(TX_FIRST_PARAMETER STM_READ_SIG(,));
+  TM_FASTCALL void CTokenTurboWriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+  TM_FASTCALL void CTokenTurboWriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+  TM_FASTCALL void CTokenTurboWriteTurbo(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+  TM_FASTCALL void CTokenTurboCommitRO(TX_LONE_PARAMETER);
+  TM_FASTCALL void CTokenTurboCommitRW(TX_LONE_PARAMETER);
+  TM_FASTCALL void CTokenTurboCommitTurbo(TX_LONE_PARAMETER);
+  NOINLINE void CTokenTurboValidate(TxThread*, uintptr_t finish_cache);
 
   /**
    *  CTokenTurbo begin:
    */
-  void CTokenTurbo::begin(TX_LONE_PARAMETER)
+  void CTokenTurboBegin(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       tx->allocator.onTxBegin();
@@ -71,14 +51,15 @@ namespace {
       //
       // NB: this only applies to transactions that aborted after doing a write
       if (tx->ts_cache == ((uintptr_t)tx->order - 1))
-          stm::GoTurbo(tx, read_turbo, write_turbo, commit_turbo);
+          GoTurbo(tx, CTokenTurboReadTurbo, CTokenTurboWriteTurbo,
+                  CTokenTurboCommitTurbo);
   }
 
   /**
    *  CTokenTurbo commit (read-only):
    */
   void
-  CTokenTurbo::CommitRO(TX_LONE_PARAMETER)
+  CTokenTurboCommitRO(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       tx->r_orecs.reset();
@@ -91,7 +72,7 @@ namespace {
    *  Only valid with pointer-based adaptivity
    */
   void
-  CTokenTurbo::CommitRW(TX_LONE_PARAMETER)
+  CTokenTurboCommitRW(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // we need to transition to fast here, but not till our turn
@@ -107,7 +88,7 @@ namespace {
               uintptr_t ivt = (*i)->v.all;
               // if it has a timestamp of ts_cache or greater, abort
               if (ivt > tx->ts_cache)
-                  stm::tmabort();
+                  tmabort();
           }
 
       // writeback
@@ -128,14 +109,15 @@ namespace {
       tx->r_orecs.reset();
       tx->writes.reset();
       OnRWCommit(tx);
-      ResetToRO(tx, ReadRO, WriteRO, CommitRO);
+      ResetToRO(tx, CTokenTurboReadRO, CTokenTurboWriteRO,
+                CTokenTurboCommitRO);
   }
 
   /**
    *  CTokenTurbo commit (turbo mode):
    */
   void
-  CTokenTurbo::commit_turbo(TX_LONE_PARAMETER)
+  CTokenTurboCommitTurbo(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       CFENCE; // wbw between writeback and last_complete.val update
@@ -145,14 +127,15 @@ namespace {
       tx->r_orecs.reset();
       tx->writes.reset();
       OnRWCommit(tx);
-      ResetToRO(tx, ReadRO, WriteRO, CommitRO);
+      ResetToRO(tx, CTokenTurboReadRO, CTokenTurboWriteRO,
+                CTokenTurboCommitRO);
   }
 
   /**
    *  CTokenTurbo read (read-only transaction)
    */
   void*
-  CTokenTurbo::ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
+  CTokenTurboReadRO(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
   {
       TX_GET_TX_INTERNAL;
       void* tmp = *addr;
@@ -163,7 +146,7 @@ namespace {
       uintptr_t ivt = o->v.all;
       // abort if this changed since the last time I saw someone finish
       if (ivt > tx->ts_cache)
-          stm::tmabort();
+          tmabort();
 
       // log orec
       tx->r_orecs.insert(o);
@@ -175,7 +158,7 @@ namespace {
    *  CTokenTurbo read (writing transaction)
    */
   void*
-  CTokenTurbo::ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
+  CTokenTurboReadRW(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
   {
       TX_GET_TX_INTERNAL;
       // check the log for a RAW hazard, we expect to miss
@@ -192,14 +175,14 @@ namespace {
       uintptr_t ivt = o->v.all;
       // abort if this changed since the last time I saw someone finish
       if (ivt > tx->ts_cache)
-          stm::tmabort();
+          tmabort();
 
       // log orec
       tx->r_orecs.insert(o);
 
       // validate, and if we have writes, then maybe switch to fast mode
       if (last_complete.val > tx->ts_cache)
-          validate(tx, last_complete.val);
+          CTokenTurboValidate(tx, last_complete.val);
       return tmp;
   }
 
@@ -207,7 +190,7 @@ namespace {
    *  CTokenTurbo read (read-turbo mode)
    */
   void*
-  CTokenTurbo::read_turbo(TX_FIRST_PARAMETER_ANON STM_READ_SIG(addr,))
+  CTokenTurboReadTurbo(TX_FIRST_PARAMETER_ANON STM_READ_SIG(addr,))
   {
       return *addr;
   }
@@ -216,7 +199,7 @@ namespace {
    *  CTokenTurbo write (read-only context)
    */
   void
-  CTokenTurbo::WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  CTokenTurboWriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // we don't have any writes yet, so we need to get an order here
@@ -225,21 +208,22 @@ namespace {
       // record the new value in a redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
 
-      stm::OnFirstWrite(tx, ReadRW, WriteRW, CommitRW);
+      OnFirstWrite(tx, CTokenTurboReadRW, CTokenTurboWriteRW,
+                   CTokenTurboCommitRW);
 
       // go turbo?
       //
       // NB: we test this on first write, but not subsequent writes, because up
       //     until now we didn't have an order, and thus weren't allowed to use
       //     turbo mode
-      validate(tx, last_complete.val);
+      CTokenTurboValidate(tx, last_complete.val);
   }
 
   /**
    *  CTokenTurbo write (writing context)
    */
   void
-  CTokenTurbo::WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  CTokenTurboWriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // record the new value in a redo log
@@ -250,7 +234,7 @@ namespace {
    *  CTokenTurbo write (turbo mode)
    */
   void
-  CTokenTurbo::write_turbo(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  CTokenTurboWriteTurbo(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // mark the orec, then update the location
@@ -267,12 +251,12 @@ namespace {
    *        logging to address this, and add it in Pipeline too.
    */
   void
-  CTokenTurbo::rollback(STM_ROLLBACK_SIG(tx, except, len))
+  CTokenTurboRollback(STM_ROLLBACK_SIG(tx, except, len))
   {
       PreRollback(tx);
       // we cannot be in turbo mode
-      if (stm::CheckTurboMode(tx, read_turbo))
-          stm::UNRECOVERABLE("Attempting to abort a turbo-mode transaction!");
+      if (CheckTurboMode(tx, CTokenTurboReadTurbo))
+          UNRECOVERABLE("Attempting to abort a turbo-mode transaction!");
 
       // Perform writes to the exception object if there were any... taking the
       // branch overhead without concern because we're not worried about
@@ -291,16 +275,16 @@ namespace {
   /**
    *  CTokenTurbo in-flight irrevocability:
    */
-  bool CTokenTurbo::irrevoc(TxThread*)
+  bool CTokenTurboIrrevoc(TxThread*)
   {
-      stm::UNRECOVERABLE("CTokenTurbo Irrevocability not yet supported");
+      UNRECOVERABLE("CTokenTurbo Irrevocability not yet supported");
       return false;
   }
 
   /**
    *  CTokenTurbo validation
    */
-  void CTokenTurbo::validate(TxThread* tx, uintptr_t finish_cache)
+  void CTokenTurboValidate(TxThread* tx, uintptr_t finish_cache)
   {
       // [mfs] There is a performance bug here: we should be looking at the
       //       ts_cache to know if we even need to do this loop.  Consider
@@ -314,7 +298,7 @@ namespace {
               uintptr_t ivt = (*i)->v.all;
               // if it has a timestamp of ts_cache or greater, abort
               if (ivt > tx->ts_cache)
-                  stm::tmabort();
+                  tmabort();
           }
 
       // now update the finish_cache to remember that at this time, we were
@@ -333,7 +317,8 @@ namespace {
                   CFENCE; // WBW
                   *i->addr = i->val;
               }
-              stm::GoTurbo(tx, read_turbo, write_turbo, commit_turbo);
+              GoTurbo(tx, CTokenTurboReadTurbo, CTokenTurboWriteTurbo,
+                      CTokenTurboCommitTurbo);
           }
       }
   }
@@ -349,14 +334,12 @@ namespace {
    *
    */
   void
-  CTokenTurbo::onSwitchTo()
+  CTokenTurboOnSwitchTo()
   {
       timestamp.val = MAXIMUM(timestamp.val, timestamp_max.val);
       last_complete.val = timestamp.val;
   }
-}
 
-namespace stm {
   /**
    *  CTokenTurbo initialization
    */
@@ -367,13 +350,13 @@ namespace stm {
       stms[CTokenTurbo].name      = "CTokenTurbo";
 
       // set the pointers
-      stms[CTokenTurbo].begin     = ::CTokenTurbo::begin;
-      stms[CTokenTurbo].commit    = ::CTokenTurbo::CommitRO;
-      stms[CTokenTurbo].read      = ::CTokenTurbo::ReadRO;
-      stms[CTokenTurbo].write     = ::CTokenTurbo::WriteRO;
-      stms[CTokenTurbo].rollback  = ::CTokenTurbo::rollback;
-      stms[CTokenTurbo].irrevoc   = ::CTokenTurbo::irrevoc;
-      stms[CTokenTurbo].switcher  = ::CTokenTurbo::onSwitchTo;
+      stms[CTokenTurbo].begin     = CTokenTurboBegin;
+      stms[CTokenTurbo].commit    = CTokenTurboCommitRO;
+      stms[CTokenTurbo].read      = CTokenTurboReadRO;
+      stms[CTokenTurbo].write     = CTokenTurboWriteRO;
+      stms[CTokenTurbo].rollback  = CTokenTurboRollback;
+      stms[CTokenTurbo].irrevoc   = CTokenTurboIrrevoc;
+      stms[CTokenTurbo].switcher  = CTokenTurboOnSwitchTo;
       stms[CTokenTurbo].privatization_safe = true;
   }
 }

@@ -15,36 +15,19 @@
  *    no parallelism, but it is very fair.
  */
 
-#include "../profiling.hpp"
 #include "algs.hpp"
-#include "../UndoLog.hpp" // STM_DO_MASKED_WRITE
 #include "../Diagnostics.hpp"
 
-using stm::TxThread;
-using stm::ticketlock;
-
-
-/**
- *  Declare the functions that we're going to implement, so that we can avoid
- *  circular dependencies.
- */
-namespace {
-  struct Ticket
-  {
-      static void begin(TX_LONE_PARAMETER);
-      static TM_FASTCALL void* read(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void write(TX_FIRST_PARAMETER STM_WRITE_SIG(,,  ));
-      static TM_FASTCALL void commit(TX_LONE_PARAMETER);
-
-      static void rollback(STM_ROLLBACK_SIG(,,));
-      static bool irrevoc(TxThread*);
-      static void onSwitchTo();
-  };
+namespace stm
+{
+  TM_FASTCALL void* TicketRead(TX_FIRST_PARAMETER STM_READ_SIG(,));
+  TM_FASTCALL void TicketWrite(TX_FIRST_PARAMETER STM_WRITE_SIG(,,  ));
+  TM_FASTCALL void TicketCommit(TX_LONE_PARAMETER);
 
   /**
    *  Ticket begin:
    */
-  void Ticket::begin(TX_LONE_PARAMETER)
+  void TicketBegin(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // get the ticket lock
@@ -55,7 +38,7 @@ namespace {
   /**
    *  Ticket commit:
    */
-  void Ticket::commit(TX_LONE_PARAMETER)
+  void TicketCommit(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // release the lock, finalize mm ops, and log the commit
@@ -66,7 +49,7 @@ namespace {
   /**
    *  Ticket read
    */
-  void* Ticket::read(TX_FIRST_PARAMETER_ANON STM_READ_SIG(addr,))
+  void* TicketRead(TX_FIRST_PARAMETER_ANON STM_READ_SIG(addr,))
   {
       return *addr;
   }
@@ -74,7 +57,7 @@ namespace {
   /**
    *  Ticket write
    */
-  void Ticket::write(TX_FIRST_PARAMETER_ANON STM_WRITE_SIG(addr,val,mask))
+  void TicketWrite(TX_FIRST_PARAMETER_ANON STM_WRITE_SIG(addr,val,mask))
   {
       STM_DO_MASKED_WRITE(addr, val, mask);
   }
@@ -85,9 +68,9 @@ namespace {
    *    In Ticket, aborts are never valid
    */
   void
-  Ticket::rollback(STM_ROLLBACK_SIG(,,))
+  TicketRollback(STM_ROLLBACK_SIG(,,))
   {
-      stm::UNRECOVERABLE("ATTEMPTING TO ABORT AN IRREVOCABLE TICKET TRANSACTION");
+      UNRECOVERABLE("ATTEMPTING TO ABORT AN IRREVOCABLE TICKET TRANSACTION");
   }
 
   /**
@@ -97,9 +80,9 @@ namespace {
    *    Instead, the become_irrevoc(TX_LONE_PARAMETER) call should just return true.
    */
   bool
-  Ticket::irrevoc(TxThread*)
+  TicketIrrevoc(TxThread*)
   {
-      stm::UNRECOVERABLE("IRREVOC_TICKET SHOULD NEVER BE CALLED");
+      UNRECOVERABLE("IRREVOC_TICKET SHOULD NEVER BE CALLED");
       return false;
   }
 
@@ -110,11 +93,9 @@ namespace {
    *    in this function.
    */
   void
-  Ticket::onSwitchTo() {
+  TicketOnSwitchTo() {
   }
-}
 
-namespace stm {
   /**
    *  Ticket initialization
    */
@@ -125,13 +106,13 @@ namespace stm {
       stms[Ticket].name      = "Ticket";
 
       // set the pointers
-      stms[Ticket].begin     = ::Ticket::begin;
-      stms[Ticket].commit    = ::Ticket::commit;
-      stms[Ticket].read      = ::Ticket::read;
-      stms[Ticket].write     = ::Ticket::write;
-      stms[Ticket].rollback  = ::Ticket::rollback;
-      stms[Ticket].irrevoc   = ::Ticket::irrevoc;
-      stms[Ticket].switcher  = ::Ticket::onSwitchTo;
+      stms[Ticket].begin     = TicketBegin;
+      stms[Ticket].commit    = TicketCommit;
+      stms[Ticket].read      = TicketRead;
+      stms[Ticket].write     = TicketWrite;
+      stms[Ticket].rollback  = TicketRollback;
+      stms[Ticket].irrevoc   = TicketIrrevoc;
+      stms[Ticket].switcher  = TicketOnSwitchTo;
       stms[Ticket].privatization_safe = true;
   }
 }

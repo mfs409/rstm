@@ -19,40 +19,20 @@
  *        probably add ro/rw functions
  */
 
-#include "../profiling.hpp"
 #include "algs.hpp"
-#include "../UndoLog.hpp" // STM_DO_MASKED_WRITE
-#include "../Diagnostics.hpp"
 #include "tml_inline.hpp"
+#include "../Diagnostics.hpp"
 
-using stm::TxThread;
-using stm::timestamp;
-using stm::Trigger;
-
-
-/**
- *  Declare the functions that we're going to implement, so that we can avoid
- *  circular dependencies.  Note that with TML, we don't expect the reads and
- *  writes to be called, because we expect the instrumentation to be inlined
- *  via the dispatch mechanism.  However, we must provide the code to handle
- *  the uncommon case.
- */
-namespace {
-  struct TML {
-      static void begin(TX_LONE_PARAMETER);
-      static TM_FASTCALL void* read(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void write(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void commit(TX_LONE_PARAMETER);
-
-      static void rollback(STM_ROLLBACK_SIG(,,));
-      static bool irrevoc(TxThread*);
-      static void onSwitchTo();
-  };
+namespace stm
+{
+  TM_FASTCALL void* TMLRead(TX_FIRST_PARAMETER STM_READ_SIG(,));
+  TM_FASTCALL void TMLWrite(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+  TM_FASTCALL void TMLCommit(TX_LONE_PARAMETER);
 
   /**
    *  TML begin:
    */
-  void TML::begin(TX_LONE_PARAMETER)
+  void TMLBegin(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       int counter = 0;
@@ -71,7 +51,7 @@ namespace {
    *  TML commit:
    */
   void
-  TML::commit(TX_LONE_PARAMETER)
+  TMLCommit(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // writing context: release lock, free memory, remember commit
@@ -93,7 +73,7 @@ namespace {
    *    If we have the lock, we're irrevocable so just do a read.  Otherwise,
    *    after doing the read, make sure we are still valid.
    */
-  void* TML::read(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
+  void* TMLRead(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
   {
       TX_GET_TX_INTERNAL;
       void* val = *addr;
@@ -110,7 +90,7 @@ namespace {
    *    If we have the lock, do an in-place write and return.  Otherwise, we
    *    need to become irrevocable first, then do the write.
    */
-  void TML::write(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  void TMLWrite(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       if (tx->tmlHasLock) {
@@ -134,7 +114,7 @@ namespace {
    *        exception objects pending.
    */
   void
-  TML::rollback(STM_ROLLBACK_SIG(tx,,))
+  TMLRollback(STM_ROLLBACK_SIG(tx,,))
   {
       PreRollback(tx);
       PostRollback(tx);
@@ -147,9 +127,9 @@ namespace {
    *    never be called.
    */
   bool
-  TML::irrevoc(TxThread*)
+  TMLIrrevoc(TxThread*)
   {
-      stm::UNRECOVERABLE("IRREVOC_TML SHOULD NEVER BE CALLED");
+      UNRECOVERABLE("IRREVOC_TML SHOULD NEVER BE CALLED");
       return false;
   }
 
@@ -161,14 +141,12 @@ namespace {
    *    event that it is odd.
    */
   void
-  TML::onSwitchTo()
+  TMLOnSwitchTo()
   {
       if (timestamp.val & 1)
           ++timestamp.val;
   }
-} // (anonymous namespace)
 
-namespace stm {
   template<>
   void initTM<TML>()
   {
@@ -176,13 +154,13 @@ namespace stm {
       stms[TML].name      = "TML";
 
       // set the pointers
-      stms[TML].begin     = ::TML::begin;
-      stms[TML].commit    = ::TML::commit;
-      stms[TML].read      = ::TML::read;
-      stms[TML].write     = ::TML::write;
-      stms[TML].rollback  = ::TML::rollback;
-      stms[TML].irrevoc   = ::TML::irrevoc;
-      stms[TML].switcher  = ::TML::onSwitchTo;
+      stms[TML].begin     = TMLBegin;
+      stms[TML].commit    = TMLCommit;
+      stms[TML].read      = TMLRead;
+      stms[TML].write     = TMLWrite;
+      stms[TML].rollback  = TMLRollback;
+      stms[TML].irrevoc   = TMLIrrevoc;
+      stms[TML].switcher  = TMLOnSwitchTo;
       stms[TML].privatization_safe = true;
   }
 }

@@ -18,40 +18,21 @@
  *    provides at least ALA semantics.
  */
 
-#include "../profiling.hpp"
 #include "algs.hpp"
-#include "../RedoRAWUtils.hpp"
 
-using stm::TxThread;
-using stm::timestamp;
-using stm::WriteSetEntry;
-
-/**
- *  Declare the functions that we're going to implement, so that we can avoid
- *  circular dependencies.  Note that with TML, we don't expect the reads and
- *  writes to be called, because we expect the isntrumentation to be inlined
- *  via the dispatch mechanism.  However, we must provide the code to handle
- *  the uncommon case.
- */
-namespace {
-  struct TMLLazy {
-      static void begin(TX_LONE_PARAMETER);
-      static TM_FASTCALL void* ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void* ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void CommitRO(TX_LONE_PARAMETER);
-      static TM_FASTCALL void CommitRW(TX_LONE_PARAMETER);
-
-      static void rollback(STM_ROLLBACK_SIG(,,));
-      static bool irrevoc(TxThread*);
-      static void onSwitchTo();
-  };
+namespace stm
+{
+  TM_FASTCALL void* TMLLazyReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
+  TM_FASTCALL void* TMLLazyReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
+  TM_FASTCALL void TMLLazyWriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+  TM_FASTCALL void TMLLazyWriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+  TM_FASTCALL void TMLLazyCommitRO(TX_LONE_PARAMETER);
+  TM_FASTCALL void TMLLazyCommitRW(TX_LONE_PARAMETER);
 
   /**
    *  TMLLazy begin:
    */
-  void TMLLazy::begin(TX_LONE_PARAMETER)
+  void TMLLazyBegin(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // Sample the sequence lock until it is even (unheld)
@@ -66,7 +47,7 @@ namespace {
    *  TMLLazy commit (read-only context):
    */
   void
-  TMLLazy::CommitRO(TX_LONE_PARAMETER)
+  TMLLazyCommitRO(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // no metadata to manage, so just be done!
@@ -77,12 +58,12 @@ namespace {
    *  TMLLazy commit (writer context):
    */
   void
-  TMLLazy::CommitRW(TX_LONE_PARAMETER)
+  TMLLazyCommitRW(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // we have writes... if we can't get the lock, abort
       if (!bcasptr(&timestamp.val, tx->start_time, tx->start_time + 1))
-          stm::tmabort();
+          tmabort();
 
       // we're committed... run the redo log
       tx->writes.writeback();
@@ -91,14 +72,14 @@ namespace {
       timestamp.val++;
       tx->writes.reset();
       OnRWCommit(tx);
-      ResetToRO(tx, ReadRO, WriteRO, CommitRO);
+      ResetToRO(tx, TMLLazyReadRO, TMLLazyWriteRO, TMLLazyCommitRO);
   }
 
   /**
    *  TMLLazy read (read-only context)
    */
   void*
-  TMLLazy::ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
+  TMLLazyReadRO(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
   {
       TX_GET_TX_INTERNAL;
       // read the actual value, direct from memory
@@ -110,7 +91,7 @@ namespace {
       // NB: this form of /if/ appears to be faster
       if (__builtin_expect(timestamp.val == tx->start_time, true))
           return tmp;
-      stm::tmabort();
+      tmabort();
       // unreachable
       return NULL;
   }
@@ -119,7 +100,7 @@ namespace {
    *  TMLLazy read (writing context)
    */
   void*
-  TMLLazy::ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
+  TMLLazyReadRW(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
   {
       TX_GET_TX_INTERNAL;
       // check the log for a RAW hazard, we expect to miss
@@ -128,7 +109,7 @@ namespace {
       REDO_RAW_CHECK(found, log, mask);
 
       // reuse the ReadRO barrier, which is adequate here---reduces LOC
-      void* val = ReadRO(TX_FIRST_ARG addr STM_MASK(mask));
+      void* val = TMLLazyReadRO(TX_FIRST_ARG addr STM_MASK(mask));
       REDO_RAW_CLEANUP(val, found, log, mask);
       return val;
   }
@@ -137,19 +118,19 @@ namespace {
    *  TMLLazy write (read-only context):
    */
   void
-  TMLLazy::WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  TMLLazyWriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // do a buffered write
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
-      stm::OnFirstWrite(tx, ReadRW, WriteRW, CommitRW);
+      OnFirstWrite(tx, TMLLazyReadRW, TMLLazyWriteRW, TMLLazyCommitRW);
   }
 
   /**
    *  TMLLazy write (writing context):
    */
   void
-  TMLLazy::WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  TMLLazyWriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // do a buffered write
@@ -160,7 +141,7 @@ namespace {
    *  TMLLazy unwinder
    */
   void
-  TMLLazy::rollback(STM_ROLLBACK_SIG(tx, except, len))
+  TMLLazyRollback(STM_ROLLBACK_SIG(tx, except, len))
   {
       PreRollback(tx);
       // Perform writes to the exception object if there were any... taking the
@@ -170,14 +151,14 @@ namespace {
 
       tx->writes.reset();
       PostRollback(tx);
-      ResetToRO(tx, ReadRO, WriteRO, CommitRO);
+      ResetToRO(tx, TMLLazyReadRO, TMLLazyWriteRO, TMLLazyCommitRO);
   }
 
   /**
    *  TMLLazy in-flight irrevocability:
    */
   bool
-  TMLLazy::irrevoc(TxThread* tx)
+  TMLLazyIrrevoc(TxThread* tx)
   {
       // we are running in isolation by the time this code is run.  Make sure
       // we are valid.
@@ -200,14 +181,12 @@ namespace {
    *    We just need to be sure that the timestamp is not odd
    */
   void
-  TMLLazy::onSwitchTo()
+  TMLLazyOnSwitchTo()
   {
       if (timestamp.val & 1)
           ++timestamp.val;
   }
-}
 
-namespace stm {
   /**
    *  TMLLazy initialization
    */
@@ -215,17 +194,17 @@ namespace stm {
   void initTM<TMLLazy>()
   {
       // set the name
-      stm::stms[TMLLazy].name     = "TMLLazy";
+      stms[TMLLazy].name     = "TMLLazy";
 
       // set the pointers
-      stm::stms[TMLLazy].begin    = ::TMLLazy::begin;
-      stm::stms[TMLLazy].commit   = ::TMLLazy::CommitRO;
-      stm::stms[TMLLazy].read     = ::TMLLazy::ReadRO;
-      stm::stms[TMLLazy].write    = ::TMLLazy::WriteRO;
-      stm::stms[TMLLazy].rollback = ::TMLLazy::rollback;
-      stm::stms[TMLLazy].irrevoc  = ::TMLLazy::irrevoc;
-      stm::stms[TMLLazy].switcher = ::TMLLazy::onSwitchTo;
-      stm::stms[TMLLazy].privatization_safe = true;
+      stms[TMLLazy].begin    = TMLLazyBegin;
+      stms[TMLLazy].commit   = TMLLazyCommitRO;
+      stms[TMLLazy].read     = TMLLazyReadRO;
+      stms[TMLLazy].write    = TMLLazyWriteRO;
+      stms[TMLLazy].rollback = TMLLazyRollback;
+      stms[TMLLazy].irrevoc  = TMLLazyIrrevoc;
+      stms[TMLLazy].switcher = TMLLazyOnSwitchTo;
+      stms[TMLLazy].privatization_safe = true;
   }
 }
 

@@ -49,87 +49,54 @@
  *    invariants about time ensure correctness.
  */
 
-#include "../profiling.hpp"
-#include "../cm.hpp"
 #include "algs.hpp"
 
-using stm::TxThread;
-using stm::OrecList;
-using stm::orec_t;
-using stm::get_orec;
-using stm::id_version_t;
-using stm::UndoLogEntry;
-
-
-/**
- *  Declare the functions that we're going to implement, so that we can avoid
- *  circular dependencies.
- *
- *  NB: OrecEager_amd64 actually does better without fine-grained switching for
- *      read-only transactions, so we don't support the read-only optimization
- *      in this code.
- */
-namespace
+namespace stm
 {
-  template <class CM>
-  struct OrecEager_amd64_Generic
+  TM_FASTCALL void OrecEagerAMD64Commit(TX_LONE_PARAMETER);
+  TM_FASTCALL void* OrecEagerAMD64Read(TX_FIRST_PARAMETER STM_READ_SIG(,));
+  TM_FASTCALL void OrecEagerAMD64Write(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+
+  /**
+   *  OrecEagerAMD64 validation:
+   *
+   *    Make sure that all orecs that we've read have timestamps older than
+   *    our start time, unless we locked those orecs.  If we locked the orec,
+   *    we did so when the time was smaller than our start time, so we're
+   *    sure to be OK.
+   */
+  void OrecEagerAMD64Validate(TxThread* tx)
   {
-      static void begin(TX_LONE_PARAMETER);
-      static TM_FASTCALL void commit(TX_LONE_PARAMETER);
-      static void initialize(int id, const char* name);
-      static void rollback(STM_ROLLBACK_SIG(,,));
-      static TM_FASTCALL void* read(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void write(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static bool irrevoc(TxThread*);
-      static NOINLINE void validate(TxThread*);
-      static void onSwitchTo();
-  };
-
-
-  template <class CM>
-  void
-  OrecEager_amd64_Generic<CM>::initialize(int id, const char* name)
-  {
-      // set the name
-      stm::stms[id].name      = name;
-
-      // set the pointers
-      stm::stms[id].begin     = OrecEager_amd64_Generic<CM>::begin;
-      stm::stms[id].commit    = OrecEager_amd64_Generic<CM>::commit;
-      stm::stms[id].rollback  = OrecEager_amd64_Generic<CM>::rollback;
-
-      stm::stms[id].read      = OrecEager_amd64_Generic<CM>::read;
-      stm::stms[id].write     = OrecEager_amd64_Generic<CM>::write;
-      stm::stms[id].irrevoc   = OrecEager_amd64_Generic<CM>::irrevoc;
-      stm::stms[id].switcher  = OrecEager_amd64_Generic<CM>::onSwitchTo;
-      stm::stms[id].privatization_safe = false;
+      foreach (OrecList, i, tx->r_orecs) {
+          // read this orec
+          uintptr_t ivt = (*i)->v.all;
+          // if unlocked and newer than start time, abort
+          if ((ivt > tx->start_time) && (ivt != tx->my_lock.all))
+              tmabort();
+      }
   }
 
-  template <class CM>
-  void OrecEager_amd64_Generic<CM>::begin(TX_LONE_PARAMETER)
+  void OrecEagerAMD64Begin(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // sample the timestamp and prepare local structures
       tx->allocator.onTxBegin();
       tx->start_time = tickp();
-      CM::onBegin(tx);
   }
 
   /**
-   *  OrecEager_amd64 commit:
+   *  OrecEagerAMD64 commit:
    *
    *    read-only transactions do no work
    *
    *    writers must increment the timestamp, maybe validate, and then
    *    release locks
    */
-  template <class CM>
-  void OrecEager_amd64_Generic<CM>::commit(TX_LONE_PARAMETER)
+  void OrecEagerAMD64Commit(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // use the lockset size to identify if tx is read-only
       if (!tx->locks.size()) {
-          CM::onCommit(tx);
           tx->r_orecs.reset();
           OnROCommit(tx);
           return;
@@ -140,20 +107,17 @@ namespace
 
       // skip validation if nobody else committed since my last validation
       //if (end_time != (tx->start_time + 1)) {
-          foreach (OrecList, i, tx->r_orecs) {
-              // abort unless orec older than start or owned by me
-              uintptr_t ivt = (*i)->v.all;
-              if ((ivt > tx->start_time) && (ivt != tx->my_lock.all))
-                  stm::tmabort();
-          }
+      foreach (OrecList, i, tx->r_orecs) {
+          // abort unless orec older than start or owned by me
+          uintptr_t ivt = (*i)->v.all;
+          if ((ivt > tx->start_time) && (ivt != tx->my_lock.all))
+              tmabort();
+      }
       //}
 
       // release locks
       foreach (OrecList, i, tx->locks)
           (*i)->v.all = end_time;
-
-      // notify CM
-      CM::onCommit(tx);
 
       // reset lock list and undo log
       tx->locks.reset();
@@ -164,13 +128,12 @@ namespace
   }
 
   /**
-   *  OrecEager_amd64 read:
+   *  OrecEagerAMD64 read:
    *
    *    Must check orec twice, and may need to validate
    */
-  template <class CM>
   void*
-  OrecEager_amd64_Generic<CM>::read(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
+  OrecEagerAMD64Read(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
   {
       TX_GET_TX_INTERNAL;
       // get the orec addr, then start loop to read a consistent value
@@ -200,25 +163,24 @@ namespace
 
           // abort if locked
           if (__builtin_expect(ivt.fields.lock, 0))
-              stm::tmabort();
+              tmabort();
 
           // [mfs] This code looks funny...
-          stm::tmabort();
+          tmabort();
 
           // scale timestamp if ivt is too new, then try again
           uintptr_t newts = tickp();
-          validate(tx);
+          OrecEagerAMD64Validate(tx);
           tx->start_time = newts;
       }
   }
 
   /**
-   *  OrecEager_amd64 write:
+   *  OrecEagerAMD64 write:
    *
    *    Lock the orec, log the old value, do the write
    */
-  template <class CM>
-  void OrecEager_amd64_Generic<CM>::write(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  void OrecEagerAMD64Write(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // get the orec addr, then enter loop to get lock from a consistent state
@@ -231,7 +193,7 @@ namespace
           // common case: uncontended location... try to lock it, abort on fail
           if (ivt.all <= tx->start_time) {
               if (!bcasptr(&o->v.all, ivt.all, tx->my_lock.all))
-                  stm::tmabort();
+                  tmabort();
 
               // save old value, log lock, do the write, and return
               o->p = ivt.all;
@@ -252,26 +214,25 @@ namespace
 
           // fail if lock held by someone else
           if (ivt.fields.lock)
-              stm::tmabort();
+              tmabort();
 
           // [mfs] This code looks funny...
-          stm::tmabort();
+          tmabort();
 
           // unlocked but too new... scale forward and try again
           uintptr_t newts = tickp();
-          validate(tx);
+          OrecEagerAMD64Validate(tx);
           tx->start_time = newts;
       }
   }
 
   /**
-   *  OrecEager_amd64 rollback:
+   *  OrecEagerAMD64 rollback:
    *
    *    Run the redo log, possibly bump timestamp
    */
-  template <class CM>
   void
-  OrecEager_amd64_Generic<CM>::rollback(STM_ROLLBACK_SIG(tx, except, len))
+  OrecEagerAMD64Rollback(STM_ROLLBACK_SIG(tx, except, len))
   {
       // common rollback code
       PreRollback(tx);
@@ -291,15 +252,12 @@ namespace
       tx->undo_log.reset();
       tx->locks.reset();
 
-      // notify CM
-      CM::onAbort(tx);
-
       // common unwind code when no pointer switching
       PostRollback(tx);
   }
 
   /**
-   *  OrecEager_amd64 in-flight irrevocability:
+   *  OrecEagerAMD64 in-flight irrevocability:
    *
    *    Either commit the transaction or return false.  Note that we're
    *    already serial by the time this code runs.
@@ -307,9 +265,8 @@ namespace
    *    NB: This doesn't Undo anything, so there's no need to protect the
    *        stack.
    */
-  template <class CM>
   bool
-  OrecEager_amd64_Generic<CM>::irrevoc(TxThread* tx)
+  OrecEagerAMD64Irrevoc(TxThread* tx)
   {
       // NB: This code is probably more expensive than it needs to be...
       assert(false && "Didn't update this yet!");
@@ -341,45 +298,37 @@ namespace
   }
 
   /**
-   *  OrecEager_amd64 validation:
+   *  Switch to OrecEagerAMD64:
    *
-   *    Make sure that all orecs that we've read have timestamps older than our
-   *    start time, unless we locked those orecs.  If we locked the orec, we
-   *    did so when the time was smaller than our start time, so we're sure to
-   *    be OK.
-   */
-  template <class CM>
-  void OrecEager_amd64_Generic<CM>::validate(TxThread* tx)
-  {
-      foreach (OrecList, i, tx->r_orecs) {
-          // read this orec
-          uintptr_t ivt = (*i)->v.all;
-          // if unlocked and newer than start time, abort
-          if ((ivt > tx->start_time) && (ivt != tx->my_lock.all))
-              stm::tmabort();
-      }
-  }
-
-  /**
-   *  Switch to OrecEager_amd64:
-   *
-   *    Switching to/from OrecEager_amd64 is extremely dangerous... we won't
+   *    Switching to/from OrecEagerAMD64 is extremely dangerous... we won't
    *    be able to re-use the Orec table.
    *
    *    [mfs] Can we do anything about this?
    */
-  template <class CM>
-  void OrecEager_amd64_Generic<CM>::onSwitchTo() { }
+  void OrecEagerAMD64OnSwitchTo() { }
 }
 
-namespace stm {
+namespace stm
+{
   template <>
-  void initTM<OrecEager_amd64>() {
-      OrecEager_amd64_Generic<stm::HyperAggressiveCM>::
-          initialize(OrecEager_amd64, "OrecEager_amd64");
+  void initTM<OrecEagerAMD64>()
+  {
+      // set the name
+      stms[OrecEagerAMD64].name      = "OrecEagerAMD64";
+
+      // set the pointers
+      stms[OrecEagerAMD64].begin     = OrecEagerAMD64Begin;
+      stms[OrecEagerAMD64].commit    = OrecEagerAMD64Commit;
+      stms[OrecEagerAMD64].rollback  = OrecEagerAMD64Rollback;
+
+      stms[OrecEagerAMD64].read      = OrecEagerAMD64Read;
+      stms[OrecEagerAMD64].write     = OrecEagerAMD64Write;
+      stms[OrecEagerAMD64].irrevoc   = OrecEagerAMD64Irrevoc;
+      stms[OrecEagerAMD64].switcher  = OrecEagerAMD64OnSwitchTo;
+      stms[OrecEagerAMD64].privatization_safe = false;
   }
 }
 
-#ifdef STM_ONESHOT_ALG_OrecEager_amd64
-DECLARE_AS_ONESHOT_SIMPLE(OrecEager_amd64_Generic<stm::HyperAggressiveCM>)
+#ifdef STM_ONESHOT_ALG_OrecEagerAMD64
+DECLARE_AS_ONESHOT_SIMPLE(OrecEagerAMD64<HyperAggressiveCM>)
 #endif

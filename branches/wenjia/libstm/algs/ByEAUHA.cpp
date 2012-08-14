@@ -12,13 +12,22 @@
 
 namespace stm
 {
-  template <>
+  template<>
   void initTM<ByEAUHA>()
   {
-      ByEAU_Generic<HyperAggressiveCM>::Initialize(ByEAUHA, "ByEAUHA");
+      // set the name
+      stms[ByEAUHA].name      = "ByEAUHA";
+      stms[ByEAUHA].begin     = ByEAUGenericBegin<HyperAggressiveCM>;
+      stms[ByEAUHA].commit    = ByEAUGenericCommitRO<HyperAggressiveCM>;
+      stms[ByEAUHA].read      = ByEAUGenericReadRO<HyperAggressiveCM>;
+      stms[ByEAUHA].write     = ByEAUGenericWriteRO<HyperAggressiveCM>;
+      stms[ByEAUHA].rollback  = ByEAUGenericRollback<HyperAggressiveCM>;
+      stms[ByEAUHA].irrevoc   = ByEAUGenericIrrevoc<HyperAggressiveCM>;
+      stms[ByEAUHA].switcher  = ByEAUGenericOnSwitchTo<HyperAggressiveCM>;
+      stms[ByEAUHA].privatization_safe = true;
   }
 }
 
 #ifdef STM_ONESHOT_ALG_ByEAUHA
-DECLARE_AS_ONESHOT_NORMAL(ByEAU_Generic<HyperAggressiveCM>)
+DECLARE_AS_ONESHOT_NORMAL(ByEAUGeneric<HyperAggressiveCM>)
 #endif

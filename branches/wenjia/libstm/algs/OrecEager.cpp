@@ -15,10 +15,21 @@ namespace stm
   template <>
   void initTM<OrecEager>()
   {
-      OrecEager_Generic<HyperAggressiveCM>::initialize(OrecEager, "OrecEager");
+      // set the name
+      stms[OrecEager].name      = "OrecEager";
+
+      // set the pointers
+      stms[OrecEager].begin     = OrecEagerGenericBegin<HyperAggressiveCM>;
+      stms[OrecEager].commit    = OrecEagerGenericCommit<HyperAggressiveCM>;
+      stms[OrecEager].rollback  = OrecEagerGenericRollback<HyperAggressiveCM>;
+      stms[OrecEager].read      = OrecEagerGenericRead<HyperAggressiveCM>;
+      stms[OrecEager].write     = OrecEagerGenericWrite<HyperAggressiveCM>;
+      stms[OrecEager].irrevoc   = OrecEagerGenericIrrevoc<HyperAggressiveCM>;
+      stms[OrecEager].switcher  = OrecEagerGenericOnSwitchTo<HyperAggressiveCM>;
+      stms[OrecEager].privatization_safe = false;
   }
 }
 
 #ifdef STM_ONESHOT_ALG_OrecEager
-DECLARE_AS_ONESHOT_SIMPLE(OrecEager_Generic<HyperAggressiveCM>)
+DECLARE_AS_ONESHOT_SIMPLE(OrecEagerGeneric<HyperAggressiveCM>)
 #endif

@@ -8,28 +8,8 @@
  *          Please see the file LICENSE.RSTM for licensing information
  */
 
-#include "../profiling.hpp"
 #include "algs.hpp"
-#include "../RedoRAWUtils.hpp"
 #include "../cm.hpp"
-
-using stm::TxThread;
-using stm::ABORTED;
-using stm::ACTIVE;
-using stm::WriteSet;
-using stm::WriteSetEntry;
-using stm::timestamp;
-using stm::timestamp_max;
-using stm::threads;
-using stm::threadcount;
-using stm::greedy_ts;
-using stm::orec_t;
-using stm::get_orec;
-using stm::id_version_t;
-using stm::nanorec_t;
-using stm::NanorecList;
-using stm::OrecList;
-
 
 /**
  *  This is a good-faith implementation of SwissTM.
@@ -63,42 +43,33 @@ using stm::OrecList;
  *  make the phase2 switch cause a thread to use different function pointers.
  */
 
-namespace
+namespace stm
 {
-
-  struct Swiss
-  {
-      static void begin(TX_LONE_PARAMETER);
-      static TM_FASTCALL void* read(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void write(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void commit(TX_LONE_PARAMETER);
-
-      static void rollback(STM_ROLLBACK_SIG(,,));
-      static bool irrevoc(TxThread*);
-      static void onSwitchTo();
-      static void cm_start(TxThread*);
-      static void cm_on_rollback(TxThread*);
-      static void cm_on_write(TxThread*);
-      static bool cm_should_abort(TxThread*, uintptr_t owner_id);
-      static NOINLINE void validate_inflight(TxThread*);
-      static NOINLINE void validate_commit(TxThread*);
-  };
+  TM_FASTCALL void* SwissRead(TX_FIRST_PARAMETER STM_READ_SIG(,));
+  TM_FASTCALL void SwissWrite(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+  TM_FASTCALL void SwissCommit(TX_LONE_PARAMETER);
+  void SwissCMStart(TxThread*);
+  void SwissCMOnRollback(TxThread*);
+  void SwissCMOnWrite(TxThread*);
+  bool SwissCMShouldAbort(TxThread*, uintptr_t owner_id);
+  NOINLINE void SwissValidateInflight(TxThread*);
+  NOINLINE void SwissValidateCommit(TxThread*);
 
   /**
    * begin swiss transaction: set to active, notify allocator, get start
    * time, and notify CM
    */
-  void Swiss::begin(TX_LONE_PARAMETER)
+  void SwissBegin(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       tx->alive = ACTIVE;
       tx->allocator.onTxBegin();
       tx->start_time = timestamp.val;
-      cm_start(tx);
+      SwissCMStart(tx);
   }
 
   // word based transactional read
-  void* Swiss::read(TX_FIRST_PARAMETER STM_READ_SIG( addr,mask))
+  void* SwissRead(TX_FIRST_PARAMETER STM_READ_SIG( addr,mask))
   {
       TX_GET_TX_INTERNAL;
       // get orec address
@@ -131,7 +102,7 @@ namespace
               // bad read: we'll go back to top, but first make sure we didn't
               // get aborted
               if (tx->alive == ABORTED)
-                  stm::tmabort();
+                  tmabort();
               continue;
           }
           // the read was good: log the orec
@@ -140,7 +111,7 @@ namespace
           if (rver1 > tx->start_time) {
               uintptr_t newts = timestamp.val;
               CFENCE;
-              validate_inflight(tx);
+              SwissValidateInflight(tx);
               CFENCE;
               tx->start_time = newts;
           }
@@ -151,7 +122,7 @@ namespace
   /**
    *  SwissTM write
    */
-  void Swiss::write(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  void SwissWrite(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // put value in redo log
@@ -170,11 +141,11 @@ namespace
           ivt.all = o->v.all;
           // if locked, CM will either tell us to self-abort, or to continue
           if (ivt.fields.lock) {
-              if (cm_should_abort(tx, ivt.fields.id))
-                  stm::tmabort();
+              if (SwissCMShouldAbort(tx, ivt.fields.id))
+                  tmabort();
               // check liveness before continuing
               if (tx->alive == ABORTED)
-                  stm::tmabort();
+                  tmabort();
               continue;
           }
 
@@ -182,7 +153,7 @@ namespace
           if (!bcasptr(&o->v.all, ivt.all, tx->my_lock.all)) {
               // check liveness before continuing
               if (tx->alive == ABORTED)
-                  stm::tmabort();
+                  tmabort();
               continue;
           }
 
@@ -192,12 +163,12 @@ namespace
           // if read version too high, validate and extend ts
           if (o->p > tx->start_time) {
               uintptr_t newts = timestamp.val;
-              validate_inflight(tx);
+              SwissValidateInflight(tx);
               tx->start_time = newts;
           }
 
           // notify CM & return
-          cm_on_write(tx);
+          SwissCMOnWrite(tx);
           return;
       }
   }
@@ -210,7 +181,7 @@ namespace
    *  abort, we can ignore them... either we commit and zero our state,
    *  or we abort anyway.
    */
-  void Swiss::commit(TX_LONE_PARAMETER)
+  void SwissCommit(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // read-only case
@@ -230,7 +201,7 @@ namespace
       // increment the global timestamp, and maybe validate
       tx->end_time = 1 + faiptr(&timestamp.val);
       if (tx->end_time > (tx->start_time + 1))
-          validate_commit(tx);
+          SwissValidateCommit(tx);
 
       // run the redo log
       tx->writes.writeback();
@@ -251,7 +222,7 @@ namespace
 
   // rollback a transaction
   void
-  Swiss::rollback(STM_ROLLBACK_SIG(tx, except, len))
+  SwissRollback(STM_ROLLBACK_SIG(tx, except, len))
   {
       PreRollback(tx);
 
@@ -275,7 +246,7 @@ namespace
       tx->nanorecs.reset();
 
       // contention management on rollback
-      cm_on_rollback(tx);
+      SwissCMOnRollback(tx);
       PostRollback(tx);
   }
 
@@ -283,11 +254,11 @@ namespace
   //
   // for in-flight transactions, write locks don't provide a fallback when
   // read-lock validation fails
-  void Swiss::validate_inflight(TxThread* tx)
+  void SwissValidateInflight(TxThread* tx)
   {
       foreach (OrecList, i, tx->r_orecs) {
           if ((*i)->p > tx->start_time)
-              stm::tmabort();
+              tmabort();
       }
   }
 
@@ -295,7 +266,7 @@ namespace
   //
   // for committing transactions, there is a backup plan wh read-lock
   // validation fails
-  void Swiss::validate_commit(TxThread* tx)
+  void SwissValidateCommit(TxThread* tx)
   {
       foreach (OrecList, i, tx->r_orecs) {
           if ((*i)->p > tx->start_time) {
@@ -303,26 +274,26 @@ namespace
                   foreach (NanorecList, i, tx->nanorecs) {
                       i->o->p = i->v;
                   }
-                  stm::tmabort();
+                  tmabort();
               }
           }
       }
   }
 
   // cotention managers
-  void Swiss::cm_start(TxThread* tx)
+  void SwissCMStart(TxThread* tx)
   {
       if (!tx->consec_aborts)
           tx->cm_ts = UINT_MAX;
   }
 
-  void Swiss::cm_on_write(TxThread* tx)
+  void SwissCMOnWrite(TxThread* tx)
   {
-      if ((tx->cm_ts == UINT_MAX) && (tx->writes.size() == stm::SWISS_PHASE2))
+      if ((tx->cm_ts == UINT_MAX) && (tx->writes.size() == SWISS_PHASE2))
           tx->cm_ts = 1 + faiptr(&greedy_ts.val);
   }
 
-  bool Swiss::cm_should_abort(TxThread* tx, uintptr_t owner_id)
+  bool SwissCMShouldAbort(TxThread* tx, uintptr_t owner_id)
   {
       // if caller has MAX priority, it should self-abort
       if (tx->cm_ts == UINT_MAX)
@@ -338,22 +309,20 @@ namespace
       return false;
   }
 
-  void Swiss::cm_on_rollback(TxThread* tx)
+  void SwissCMOnRollback(TxThread* tx)
   {
       exp_backoff(tx);
   }
 
   /*** Become irrevocable via abort-and-restart */
-  bool Swiss::irrevoc(TxThread*) { return false; }
+  bool SwissIrrevoc(TxThread*) { return false; }
 
   /***  Keep SwissTM metadata healthy */
-  void Swiss::onSwitchTo()
+  void SwissOnSwitchTo()
   {
       timestamp.val = MAXIMUM(timestamp.val, timestamp_max.val);
   }
-}
 
-namespace stm {
   /**
    *  Every STM must provide an 'initialize' function that specifies how the
    *  algorithm is to be used when adaptivity is off.
@@ -368,13 +337,13 @@ namespace stm {
       stms[Swiss].name      = "Swiss";
 
       // set the pointers
-      stms[Swiss].begin     = ::Swiss::begin;
-      stms[Swiss].commit    = ::Swiss::commit;
-      stms[Swiss].read      = ::Swiss::read;
-      stms[Swiss].write     = ::Swiss::write;
-      stms[Swiss].rollback  = ::Swiss::rollback;
-      stms[Swiss].irrevoc   = ::Swiss::irrevoc;
-      stms[Swiss].switcher  = ::Swiss::onSwitchTo;
+      stms[Swiss].begin     = SwissBegin;
+      stms[Swiss].commit    = SwissCommit;
+      stms[Swiss].read      = SwissRead;
+      stms[Swiss].write     = SwissWrite;
+      stms[Swiss].rollback  = SwissRollback;
+      stms[Swiss].irrevoc   = SwissIrrevoc;
+      stms[Swiss].switcher  = SwissOnSwitchTo;
       stms[Swiss].privatization_safe = false;
   }
 }

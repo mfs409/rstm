@@ -24,42 +24,18 @@
  *       enforcing WAW behavior between SSE registers and non-SSE registers.
  */
 
-#include "../profiling.hpp"
 #include "algs.hpp"
-#include "../RedoRAWUtils.hpp"
 #include "../Diagnostics.hpp"
 
-using stm::TxThread;
-using stm::threads;
-using stm::threadcount;
-using stm::last_complete;
-using stm::WriteSetEntry;
-using stm::global_filter;
-using stm::started;
-using stm::cpending;
-using stm::committed;
-using stm::last_order;
-
-/**
- *  Declare the functions that we're going to implement, so that we can avoid
- *  circular dependencies.
- */
-namespace {
-  NOINLINE bool validate(TxThread* tx);
-
-  struct CohortsFilter {
-      static void begin(TX_LONE_PARAMETER);
-      static TM_FASTCALL void* ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void* ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void CommitRO(TX_LONE_PARAMETER);
-      static TM_FASTCALL void CommitRW(TX_LONE_PARAMETER);
-
-      static void rollback(STM_ROLLBACK_SIG(,,));
-      static bool irrevoc(TxThread*);
-      static void onSwitchTo();
-  };
+namespace stm
+{
+  NOINLINE bool CohortsFilterValidate(TxThread* tx);
+  TM_FASTCALL void* CohortsFilterReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
+  TM_FASTCALL void* CohortsFilterReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
+  TM_FASTCALL void CohortsFilterWriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+  TM_FASTCALL void CohortsFilterWriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+  TM_FASTCALL void CohortsFilterCommitRO(TX_LONE_PARAMETER);
+  TM_FASTCALL void CohortsFilterCommitRW(TX_LONE_PARAMETER);
 
   /**
    *  CohortsFilter begin:
@@ -68,7 +44,7 @@ namespace {
    *  tx is allowed to start until all the transactions finishes their
    *  commits.
    */
-  void CohortsFilter::begin(TX_LONE_PARAMETER)
+  void CohortsFilterBegin(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
     S1:
@@ -92,7 +68,7 @@ namespace {
    *  CohortsFilter commit (read-only):
    */
   void
-  CohortsFilter::CommitRO(TX_LONE_PARAMETER)
+  CohortsFilterCommitRO(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // decrease total number of tx started
@@ -110,7 +86,7 @@ namespace {
    *  in an order which is given at the beginning of commit.
    */
   void
-  CohortsFilter::CommitRW(TX_LONE_PARAMETER)
+  CohortsFilterCommitRW(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // increment num of tx ready to commit, and use it as the order
@@ -127,11 +103,11 @@ namespace {
 
       // If I'm not the first one in a cohort to commit, validate read
       if (tx->order != last_order)
-          if (!validate(tx)) {
+          if (!CohortsFilterValidate(tx)) {
               committed.val++;
               CFENCE;
               last_complete.val = tx->order;
-              stm::tmabort();
+              tmabort();
           }
 
       // do write back
@@ -163,14 +139,14 @@ namespace {
       tx->wf->clear();
       tx->writes.reset();
       OnRWCommit(tx);
-      ResetToRO(tx, ReadRO, WriteRO, CommitRO);
+      ResetToRO(tx, CohortsFilterReadRO, CohortsFilterWriteRO, CohortsFilterCommitRO);
   }
 
   /**
    *  CohortsFilter read (read-only transaction)
    */
   void*
-  CohortsFilter::ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
+  CohortsFilterReadRO(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
   {
       TX_GET_TX_INTERNAL;
       tx->rf->add(addr);
@@ -181,7 +157,7 @@ namespace {
    *  CohortsFilter read (writing transaction)
    */
   void*
-  CohortsFilter::ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
+  CohortsFilterReadRW(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
   {
       TX_GET_TX_INTERNAL;
       // check the log for a RAW hazard, we expect to miss
@@ -201,20 +177,20 @@ namespace {
    *  CohortsFilter write (read-only context): for first write
    */
   void
-  CohortsFilter::WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  CohortsFilterWriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // record the new value in a redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
       tx->wf->add(addr);
-      stm::OnFirstWrite(tx, ReadRW, WriteRW, CommitRW);
+      OnFirstWrite(tx, CohortsFilterReadRW, CohortsFilterWriteRW, CohortsFilterCommitRW);
   }
 
   /**
    *  CohortsFilter write (writing context)
    */
   void
-  CohortsFilter::WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  CohortsFilterWriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // record the new value in a redo log
@@ -226,7 +202,7 @@ namespace {
    *  CohortsFilter unwinder:
    */
   void
-  CohortsFilter::rollback(STM_ROLLBACK_SIG(tx, except, len))
+  CohortsFilterRollback(STM_ROLLBACK_SIG(tx, except, len))
   {
       PreRollback(tx);
 
@@ -249,9 +225,9 @@ namespace {
    *  CohortsFilter in-flight irrevocability:
    */
   bool
-  CohortsFilter::irrevoc(TxThread*)
+  CohortsFilterIrrevoc(TxThread*)
   {
-      stm::UNRECOVERABLE("CohortsFilter Irrevocability not yet supported");
+      UNRECOVERABLE("CohortsFilter Irrevocability not yet supported");
       return false;
   }
 
@@ -259,7 +235,7 @@ namespace {
    *  CohortsFilter validation for commit: check that all reads are valid
    */
   bool
-  validate(TxThread* tx)
+  CohortsFilterValidate(TxThread* tx)
   {
       // If there is a same element in both global_filter and read_filter
       if (global_filter->intersect(tx->rf)) {
@@ -278,14 +254,12 @@ namespace {
    *
    */
   void
-  CohortsFilter::onSwitchTo()
+  CohortsFilterOnSwitchTo()
   {
       last_complete.val = 0;
       global_filter->clear();
   }
-}
 
-namespace stm {
   /**
    *  CohortsFilter initialization
    */
@@ -295,13 +269,13 @@ namespace stm {
       // set the name
       stms[CohortsFilter].name      = "CohortsFilter";
       // set the pointers
-      stms[CohortsFilter].begin     = ::CohortsFilter::begin;
-      stms[CohortsFilter].commit    = ::CohortsFilter::CommitRO;
-      stms[CohortsFilter].read      = ::CohortsFilter::ReadRO;
-      stms[CohortsFilter].write     = ::CohortsFilter::WriteRO;
-      stms[CohortsFilter].rollback  = ::CohortsFilter::rollback;
-      stms[CohortsFilter].irrevoc   = ::CohortsFilter::irrevoc;
-      stms[CohortsFilter].switcher  = ::CohortsFilter::onSwitchTo;
+      stms[CohortsFilter].begin     = CohortsFilterBegin;
+      stms[CohortsFilter].commit    = CohortsFilterCommitRO;
+      stms[CohortsFilter].read      = CohortsFilterReadRO;
+      stms[CohortsFilter].write     = CohortsFilterWriteRO;
+      stms[CohortsFilter].rollback  = CohortsFilterRollback;
+      stms[CohortsFilter].irrevoc   = CohortsFilterIrrevoc;
+      stms[CohortsFilter].switcher  = CohortsFilterOnSwitchTo;
       stms[CohortsFilter].privatization_safe = true;
   }
 }

@@ -20,47 +20,21 @@
  *  its commit, it goes to stage 1. Now tx is allowed to start again.
  */
 
-#include "../profiling.hpp"
 #include "algs.hpp"
-#include "../RedoRAWUtils.hpp"
 #include "../Diagnostics.hpp"
 
-using stm::TxThread;
-using stm::threads;
-using stm::threadcount;
-using stm::last_complete;
-using stm::timestamp;
-using stm::timestamp_max;
-using stm::WriteSet;
-using stm::OrecList;
-using stm::WriteSetEntry;
-using stm::orec_t;
-using stm::get_orec;
-using stm::started;
-using stm::locks;
-
-/**
- *  Declare the functions that we're going to implement, so that we can avoid
- *  circular dependencies.
- */
-namespace {
-  struct CohortsOld {
-      static void begin(TX_LONE_PARAMETER);
-      static TM_FASTCALL void* ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void* ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void CommitRO(TX_LONE_PARAMETER);
-      static TM_FASTCALL void CommitRW(TX_LONE_PARAMETER);
-
-      static void rollback(STM_ROLLBACK_SIG(,,));
-      static bool irrevoc(TxThread*);
-      static void onSwitchTo();
-      static NOINLINE void validate(TxThread* tx, uintptr_t finish_cache);
-      static NOINLINE void validate_cm(TxThread* tx, uintptr_t finish_cache);
-      static NOINLINE void TxAbortWrapper(TxThread* tx);
-      static NOINLINE void TxAbortWrapper_cm(TxThread* tx);
-  };
+namespace stm
+{
+  TM_FASTCALL void* CohortsOldReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
+  TM_FASTCALL void* CohortsOldReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
+  TM_FASTCALL void CohortsOldWriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+  TM_FASTCALL void CohortsOldWriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+  TM_FASTCALL void CohortsOldCommitRO(TX_LONE_PARAMETER);
+  TM_FASTCALL void CohortsOldCommitRW(TX_LONE_PARAMETER);
+  NOINLINE void CohortsOldValidate(TxThread* tx, uintptr_t finish_cache);
+  NOINLINE void CohortsOldValidateCM(TxThread* tx, uintptr_t finish_cache);
+  NOINLINE void CohortsOldTxAbortWrapper(TxThread* tx);
+  NOINLINE void CohortsOldTxAbortWrapperCM(TxThread* tx);
 
   /**
    *  CohortsOld begin:
@@ -69,7 +43,7 @@ namespace {
    *  tx is allowed to start until all the transactions finishes their
    *  commits.
    */
-  void CohortsOld::begin(TX_LONE_PARAMETER)
+  void CohortsOldBegin(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // wait until we are allowed to start
@@ -86,8 +60,8 @@ namespace {
           }
 
           // check if an adaptivity action is underway
-          if (stm::tmbegin != begin){
-              stm::tmabort();
+          if (tmbegin != CohortsOldBegin){
+              tmabort();
           }
       }
 
@@ -105,7 +79,7 @@ namespace {
    *  RO commit is easy.
    */
   void
-  CohortsOld::CommitRO(TX_LONE_PARAMETER)
+  CohortsOldCommitRO(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // decrease total number of tx in a cohort
@@ -124,7 +98,7 @@ namespace {
    *  in an order which is given at the beginning of commit.
    */
   void
-  CohortsOld::CommitRW(TX_LONE_PARAMETER)
+  CohortsOldCommitRW(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // NB: get a new order at the begainning of commit
@@ -132,8 +106,8 @@ namespace {
 
       // Wait until it is our turn to commit, validate, and do writeback
       while (last_complete.val != (uintptr_t)(tx->order - 1)) {
-          if (stm::tmbegin != begin)
-              TxAbortWrapper_cm(tx);
+          if (tmbegin != CohortsOldBegin)
+              CohortsOldTxAbortWrapperCM(tx);
       }
 
       // since we have order, from now on ,only one tx can go through below at one time
@@ -154,7 +128,7 @@ namespace {
       }
 
       // since we have the token, we can validate before getting locks
-      validate_cm(tx, last_complete.val);
+      CohortsOldValidateCM(tx, last_complete.val);
 
       // if we had writes, then aborted, then restarted, and then didn't have
       // writes, we could end up trying to lock a nonexistant write set.  This
@@ -177,7 +151,7 @@ namespace {
       tx->r_orecs.reset();
       tx->writes.reset();
       OnRWCommit(tx);
-      ResetToRO(tx, ReadRO, WriteRO, CommitRO);
+      ResetToRO(tx, CohortsOldReadRO, CohortsOldWriteRO, CohortsOldCommitRO);
 
       // decrease total number of committing tx
       faaptr(&started.val, -2);
@@ -194,7 +168,7 @@ namespace {
    *  Standard orec read function.
    */
   void*
-  CohortsOld::ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
+  CohortsOldReadRO(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
   {
       TX_GET_TX_INTERNAL;
       void* tmp = *addr;
@@ -234,7 +208,7 @@ namespace {
       // NB: this is a pretty serious tradeoff... it admits false aborts for
       //     the sake of preventing a 'check if locked' test
       if (ivt > tx->ts_cache){
-          TxAbortWrapper(tx);
+          CohortsOldTxAbortWrapper(tx);
       }
 
       // log orec
@@ -242,7 +216,7 @@ namespace {
 
       // validate
       if (last_complete.val > tx->ts_cache)
-          validate(tx, last_complete.val);
+          CohortsOldValidate(tx, last_complete.val);
 
       return tmp;
   }
@@ -251,7 +225,7 @@ namespace {
    *  CohortsOld read (writing transaction)
    */
   void*
-  CohortsOld::ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
+  CohortsOldReadRW(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
   {
       TX_GET_TX_INTERNAL;
       // check the log for a RAW hazard, we expect to miss
@@ -260,7 +234,7 @@ namespace {
       REDO_RAW_CHECK(found, log, mask);
 
       // reuse the ReadRO barrier, which is adequate here---reduces LOC
-      void* val = ReadRO(TX_FIRST_ARG addr STM_MASK(mask));
+      void* val = CohortsOldReadRO(TX_FIRST_ARG addr STM_MASK(mask));
 
       REDO_RAW_CLEANUP(tmp, found, log, mask);
       return val;
@@ -270,19 +244,19 @@ namespace {
    *  CohortsOld write (read-only context)
    */
   void
-  CohortsOld::WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  CohortsOldWriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // record the new value in a redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
-      stm::OnFirstWrite(tx, ReadRW, WriteRW, CommitRW);
+      OnFirstWrite(tx, CohortsOldReadRW, CohortsOldWriteRW, CohortsOldCommitRW);
   }
 
   /**
    *  CohortsOld write (writing context)
    */
   void
-  CohortsOld::WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  CohortsOldWriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // record the new value in a redo log
@@ -293,7 +267,7 @@ namespace {
    *  CohortsOld unwinder:
    */
   void
-  CohortsOld::rollback(STM_ROLLBACK_SIG(tx, except, len))
+  CohortsOldRollback(STM_ROLLBACK_SIG(tx, except, len))
   {
       PreRollback(tx);
 
@@ -317,9 +291,9 @@ namespace {
    *  CohortsOld in-flight irrevocability:
    */
   bool
-  CohortsOld::irrevoc(TxThread*)
+  CohortsOldIrrevoc(TxThread*)
   {
-      stm::UNRECOVERABLE("CohortsOld Irrevocability not yet supported");
+      UNRECOVERABLE("CohortsOld Irrevocability not yet supported");
       return false;
   }
 
@@ -327,7 +301,7 @@ namespace {
    *  CohortsOld validation
    */
   void
-  CohortsOld::validate(TxThread* tx, uintptr_t finish_cache)
+  CohortsOldValidate(TxThread* tx, uintptr_t finish_cache)
   {
       // check that all reads are valid
       foreach (OrecList, i, tx->r_orecs) {
@@ -335,7 +309,7 @@ namespace {
           uintptr_t ivt = (*i)->v.all;
           // if it has a timestamp of ts_cache or greater, abort
           if (ivt > tx->ts_cache)
-              TxAbortWrapper(tx);
+              CohortsOldTxAbortWrapper(tx);
       }
       // now update the finish_cache to remember that at this time, we were
       // still valid
@@ -346,7 +320,7 @@ namespace {
    *  CohortsOld validation for commit
    */
   void
-  CohortsOld::validate_cm(TxThread* tx, uintptr_t finish_cache)
+  CohortsOldValidateCM(TxThread* tx, uintptr_t finish_cache)
   {
       // check that all reads are valid
       foreach (OrecList, i, tx->r_orecs) {
@@ -354,7 +328,7 @@ namespace {
           uintptr_t ivt = (*i)->v.all;
           // if it has a timestamp of ts_cache or greater, abort
           if (ivt > tx->ts_cache)
-              TxAbortWrapper_cm(tx);
+              CohortsOldTxAbortWrapperCM(tx);
       }
       // now update the finish_cache to remember that at this time, we were
       // still valid
@@ -366,13 +340,13 @@ namespace {
    *   decrease total # in one cohort, and abort
    */
   void
-  CohortsOld::TxAbortWrapper(TxThread*)
+  CohortsOldTxAbortWrapper(TxThread*)
   {
       // decrease total number of tx in one cohort
       faaptr(&started.val, -2);
 
       // abort
-      stm::tmabort();
+      tmabort();
   }
 
   /**
@@ -381,7 +355,7 @@ namespace {
    *   self as last_complete, and decrease total number of tx in one cohort.
    */
   void
-  CohortsOld::TxAbortWrapper_cm(TxThread* tx)
+  CohortsOldTxAbortWrapperCM(TxThread* tx)
   {
       // decrease total number of tx in one cohort
       faaptr(&started.val, -2);
@@ -390,7 +364,7 @@ namespace {
       last_complete.val = tx->order;
 
       // abort
-      stm::tmabort();
+      tmabort();
   }
 
   /**
@@ -405,7 +379,7 @@ namespace {
    *    Also, all threads' order values must be -1
    */
   void
-  CohortsOld::onSwitchTo()
+  CohortsOldOnSwitchTo()
   {
       timestamp.val = MAXIMUM(timestamp.val, timestamp_max.val);
       last_complete.val = timestamp.val;
@@ -420,9 +394,7 @@ namespace {
       for (uint32_t i = 0; i < 9; i++)
           locks[i] = 0;
   }
-}
 
-namespace stm {
   /**
    *  CohortsOld initialization
    */
@@ -432,13 +404,13 @@ namespace stm {
       // set the name
       stms[CohortsOld].name      = "CohortsOld";
       // set the pointers
-      stms[CohortsOld].begin     = ::CohortsOld::begin;
-      stms[CohortsOld].commit    = ::CohortsOld::CommitRO;
-      stms[CohortsOld].read      = ::CohortsOld::ReadRO;
-      stms[CohortsOld].write     = ::CohortsOld::WriteRO;
-      stms[CohortsOld].rollback  = ::CohortsOld::rollback;
-      stms[CohortsOld].irrevoc   = ::CohortsOld::irrevoc;
-      stms[CohortsOld].switcher  = ::CohortsOld::onSwitchTo;
+      stms[CohortsOld].begin     = CohortsOldBegin;
+      stms[CohortsOld].commit    = CohortsOldCommitRO;
+      stms[CohortsOld].read      = CohortsOldReadRO;
+      stms[CohortsOld].write     = CohortsOldWriteRO;
+      stms[CohortsOld].rollback  = CohortsOldRollback;
+      stms[CohortsOld].irrevoc   = CohortsOldIrrevoc;
+      stms[CohortsOld].switcher  = CohortsOldOnSwitchTo;
       stms[CohortsOld].privatization_safe = true;
   }
 }

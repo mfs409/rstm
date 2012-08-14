@@ -17,42 +17,21 @@
  *    optimistic mechanisms.
  */
 
-#include "../profiling.hpp"
 #include "algs.hpp"
-#include "../RedoRAWUtils.hpp"
 
-using stm::TxThread;
-using stm::timestamp;
-using stm::threads;
-using stm::threadcount;
-using stm::WriteSetEntry;
-
-
-/**
- *  Declare the functions that we're going to implement, so that we can avoid
- *  circular dependencies.
- */
-namespace {
-  struct TLI
-  {
-      static void begin(TX_LONE_PARAMETER);
-      static TM_FASTCALL void* ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void* ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void CommitRO(TX_LONE_PARAMETER);
-      static TM_FASTCALL void CommitRW(TX_LONE_PARAMETER);
-
-      static void rollback(STM_ROLLBACK_SIG(,,));
-      static bool irrevoc(TxThread*);
-      static void onSwitchTo();
-  };
-
+namespace stm
+{
+  TM_FASTCALL void* TLIReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
+  TM_FASTCALL void* TLIReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
+  TM_FASTCALL void TLIWriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+  TM_FASTCALL void TLIWriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+  TM_FASTCALL void TLICommitRO(TX_LONE_PARAMETER);
+  TM_FASTCALL void TLICommitRW(TX_LONE_PARAMETER);
 
   /**
    *  TLI begin:
    */
-  void TLI::begin(TX_LONE_PARAMETER)
+  void TLIBegin(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // mark self as alive
@@ -64,12 +43,12 @@ namespace {
    *  TLI commit (read-only):
    */
   void
-  TLI::CommitRO(TX_LONE_PARAMETER)
+  TLICommitRO(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // if the transaction is invalid, abort
       if (__builtin_expect(tx->alive == 2, false))
-          stm::tmabort();
+          tmabort();
 
       // ok, all is good
       tx->alive = 0;
@@ -81,12 +60,12 @@ namespace {
    *  TLI commit (writing context):
    */
   void
-  TLI::CommitRW(TX_LONE_PARAMETER)
+  TLICommitRW(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // if the transaction is invalid, abort
       if (__builtin_expect(tx->alive == 2, false))
-          stm::tmabort();
+          tmabort();
 
       // grab the lock to stop the world
       uintptr_t tmp = timestamp.val;
@@ -98,7 +77,7 @@ namespace {
       // double check that we're valid
       if (__builtin_expect(tx->alive == 2,false)) {
           timestamp.val = tmp + 2; // release the lock
-          stm::tmabort();
+          tmabort();
       }
 
       // kill conflicting transactions
@@ -116,7 +95,7 @@ namespace {
       tx->rf->clear();
       tx->wf->clear();
       OnRWCommit(tx);
-      ResetToRO(tx, ReadRO, WriteRO, CommitRO);
+      ResetToRO(tx, TLIReadRO, TLIWriteRO, TLICommitRO);
   }
 
   /**
@@ -128,7 +107,7 @@ namespace {
    *    ensure that we are still valid
    */
   void*
-  TLI::ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
+  TLIReadRO(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
   {
       TX_GET_TX_INTERNAL;
       // push address into read filter, ensure ordering w.r.t. the subsequent
@@ -149,7 +128,7 @@ namespace {
               return val;
           // abort if we're killed
           if (tx->alive == 2)
-              stm::tmabort();
+              tmabort();
       }
   }
 
@@ -157,7 +136,7 @@ namespace {
    *  TLI read (writing transaction)
    */
   void*
-  TLI::ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
+  TLIReadRW(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
   {
       TX_GET_TX_INTERNAL;
       // check the log for a RAW hazard, we expect to miss
@@ -166,7 +145,7 @@ namespace {
       REDO_RAW_CHECK(found, log, mask);
 
       // reuse the ReadRO barrier, which is adequate here---reduces LOC
-      void* val = ReadRO(TX_FIRST_ARG addr STM_MASK(mask));
+      void* val = TLIReadRO(TX_FIRST_ARG addr STM_MASK(mask));
       REDO_RAW_CLEANUP(val, found, log, mask);
       return val;
   }
@@ -175,13 +154,13 @@ namespace {
    *  TLI write (read-only context)
    */
   void
-  TLI::WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  TLIWriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // buffer the write, update the filter
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
       tx->wf->add(addr);
-      stm::OnFirstWrite(tx, ReadRW, WriteRW, CommitRW);
+      OnFirstWrite(tx, TLIReadRW, TLIWriteRW, TLICommitRW);
   }
 
   /**
@@ -190,7 +169,7 @@ namespace {
    *    Just like the RO case
    */
   void
-  TLI::WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  TLIWriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
@@ -201,7 +180,7 @@ namespace {
    *  TLI unwinder:
    */
   void
-  TLI::rollback(STM_ROLLBACK_SIG(tx, except, len))
+  TLIRollback(STM_ROLLBACK_SIG(tx, except, len))
   {
       PreRollback(tx);
 
@@ -217,27 +196,25 @@ namespace {
           tx->wf->clear();
       }
       PostRollback(tx);
-      ResetToRO(tx, ReadRO, WriteRO, CommitRO);
+      ResetToRO(tx, TLIReadRO, TLIWriteRO, TLICommitRO);
   }
 
   /**
    *  TLI in-flight irrevocability: use abort-and-restart
    */
-  bool TLI::irrevoc(TxThread*) { return false; }
+  bool TLIIrrevoc(TxThread*) { return false; }
 
   /**
    *  Switch to TLI:
    *
    *    Must be sure the timestamp is not odd.
    */
-  void TLI::onSwitchTo()
+  void TLIOnSwitchTo()
   {
       if (timestamp.val & 1)
           ++timestamp.val;
   }
-}
 
-namespace stm {
   /**
    *  TLI initialization
    */
@@ -248,13 +225,13 @@ namespace stm {
       stms[TLI].name      = "TLI";
 
       // set the pointers
-      stms[TLI].begin     = ::TLI::begin;
-      stms[TLI].commit    = ::TLI::CommitRO;
-      stms[TLI].read      = ::TLI::ReadRO;
-      stms[TLI].write     = ::TLI::WriteRO;
-      stms[TLI].rollback  = ::TLI::rollback;
-      stms[TLI].irrevoc   = ::TLI::irrevoc;
-      stms[TLI].switcher  = ::TLI::onSwitchTo;
+      stms[TLI].begin     = TLIBegin;
+      stms[TLI].commit    = TLICommitRO;
+      stms[TLI].read      = TLIReadRO;
+      stms[TLI].write     = TLIWriteRO;
+      stms[TLI].rollback  = TLIRollback;
+      stms[TLI].irrevoc   = TLIIrrevoc;
+      stms[TLI].switcher  = TLIOnSwitchTo;
       stms[TLI].privatization_safe = true;
   }
 }

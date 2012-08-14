@@ -15,37 +15,19 @@
  *    lock.  There is no parallelism, but it is very fair.
  */
 
-#include "../profiling.hpp"
 #include "algs.hpp"
-#include "../UndoLog.hpp" // STM_DO_MASKED_WRITE
 #include "../Diagnostics.hpp"
 
-using stm::TxThread;
-using stm::mcslock;
-
-
-/**
- *  Declare the functions that we're going to implement, so that we can avoid
- *  circular dependencies.
- */
-namespace  {
-  struct MCS
-  {
-      static void begin(TX_LONE_PARAMETER);
-      static TM_FASTCALL void* read(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void write(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void commit(TX_LONE_PARAMETER);
-
-      static void rollback(STM_ROLLBACK_SIG(,,));
-      static bool irrevoc(TxThread*);
-      static void onSwitchTo();
-  };
-
+namespace stm
+{
+  TM_FASTCALL void* MCSRead(TX_FIRST_PARAMETER STM_READ_SIG(,));
+  TM_FASTCALL void MCSWrite(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+  TM_FASTCALL void MCSCommit(TX_LONE_PARAMETER);
 
   /**
    *  MCS begin:
    */
-  void MCS::begin(TX_LONE_PARAMETER)
+  void MCSBegin(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // acquire the MCS lock
@@ -57,7 +39,7 @@ namespace  {
    *  MCS commit
    */
   void
-  MCS::commit(TX_LONE_PARAMETER)
+  MCSCommit(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // release the lock, finalize mm ops, and log the commit
@@ -69,7 +51,7 @@ namespace  {
    *  MCS read
    */
   void*
-  MCS::read(TX_FIRST_PARAMETER_ANON STM_READ_SIG(addr,))
+  MCSRead(TX_FIRST_PARAMETER_ANON STM_READ_SIG(addr,))
   {
       return *addr;
   }
@@ -78,7 +60,7 @@ namespace  {
    *  MCS write
    */
   void
-  MCS::write(TX_FIRST_PARAMETER_ANON STM_WRITE_SIG(addr,val,mask))
+  MCSWrite(TX_FIRST_PARAMETER_ANON STM_WRITE_SIG(addr,val,mask))
   {
       STM_DO_MASKED_WRITE(addr, val, mask);
   }
@@ -89,9 +71,9 @@ namespace  {
    *    In MCS, aborts are never valid
    */
   void
-  MCS::rollback(STM_ROLLBACK_SIG(,,))
+  MCSRollback(STM_ROLLBACK_SIG(,,))
   {
-      stm::UNRECOVERABLE("ATTEMPTING TO ABORT AN IRREVOCABLE MCS TRANSACTION");
+      UNRECOVERABLE("ATTEMPTING TO ABORT AN IRREVOCABLE MCS TRANSACTION");
   }
 
   /**
@@ -101,9 +83,9 @@ namespace  {
    *    Instead, the become_irrevoc(TX_LONE_PARAMETER) call should just return true
    */
   bool
-  MCS::irrevoc(TxThread*)
+  MCSIrrevoc(TxThread*)
   {
-      stm::UNRECOVERABLE("MCS::IRREVOC SHOULD NEVER BE CALLED");
+      UNRECOVERABLE("MCSIRREVOC SHOULD NEVER BE CALLED");
       return false;
   }
 
@@ -114,11 +96,9 @@ namespace  {
    *    function
    */
   void
-  MCS::onSwitchTo() {
+  MCSOnSwitchTo() {
   }
-}
 
-namespace stm {
   /**
    *  MCS initialization
    */
@@ -129,13 +109,13 @@ namespace stm {
       stms[MCS].name      = "MCS";
 
       // set the pointers
-      stms[MCS].begin     = ::MCS::begin;
-      stms[MCS].commit    = ::MCS::commit;
-      stms[MCS].read      = ::MCS::read;
-      stms[MCS].write     = ::MCS::write;
-      stms[MCS].rollback  = ::MCS::rollback;
-      stms[MCS].irrevoc   = ::MCS::irrevoc;
-      stms[MCS].switcher  = ::MCS::onSwitchTo;
+      stms[MCS].begin     = MCSBegin;
+      stms[MCS].commit    = MCSCommit;
+      stms[MCS].read      = MCSRead;
+      stms[MCS].write     = MCSWrite;
+      stms[MCS].rollback  = MCSRollback;
+      stms[MCS].irrevoc   = MCSIrrevoc;
+      stms[MCS].switcher  = MCSOnSwitchTo;
       stms[MCS].privatization_safe = true;
   }
 }

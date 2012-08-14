@@ -15,11 +15,21 @@ namespace stm
   template <>
   void initTM<OrEAUFCM>()
   {
-      OrEAU_Generic<FCM>::initialize(OrEAUFCM, "OrEAUFCM");
+      stms[OrEAUFCM].name = "OrEAUFCM";
+
+      // set the pointers
+      stms[OrEAUFCM].begin     = OrEAUGenericBegin<FCM>;
+      stms[OrEAUFCM].commit    = OrEAUGenericCommitRO<FCM>;
+      stms[OrEAUFCM].read      = OrEAUGenericReadRO<FCM>;
+      stms[OrEAUFCM].write     = OrEAUGenericWriteRO<FCM>;
+      stms[OrEAUFCM].irrevoc   = OrEAUGenericIrrevoc<FCM>;
+      stms[OrEAUFCM].switcher  = OrEAUGenericOnSwitchTo<FCM>;
+      stms[OrEAUFCM].privatization_safe = false;
+      stms[OrEAUFCM].rollback  = OrEAUGenericRollback<FCM>;
   }
 
 }
 
 #ifdef STM_ONESHOT_ALG_OrEAUFCM
-DECLARE_AS_ONESHOT_NORMAL(OrEAU_Generic<FCM>)
+DECLARE_AS_ONESHOT_NORMAL(OrEAUGeneric<FCM>)
 #endif

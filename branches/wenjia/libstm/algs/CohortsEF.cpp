@@ -15,45 +15,22 @@
  *  See notes in Eager and Filter implementations
  */
 
-#include "../profiling.hpp"
 #include "algs.hpp"
-#include "../RedoRAWUtils.hpp"
 #include "../Diagnostics.hpp"
 
-using stm::TxThread;
-using stm::last_complete;
-using stm::WriteSetEntry;
-using stm::global_filter;
-using stm::started;
-using stm::cpending;
-using stm::committed;
-using stm::last_order;
+namespace stm
+{
+  NOINLINE bool CohortsEFValidate(TxThread* tx);
 
-/**
- *  Declare the functions that we're going to implement, so that we can avoid
- *  circular dependencies.
- */
-namespace {
-  // inplace write flag
-  volatile uintptr_t inplace = 0;
-  NOINLINE bool validate(TxThread* tx);
-
-  struct CohortsEF {
-      static void begin(TX_LONE_PARAMETER);
-      static TM_FASTCALL void* ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void* ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void* read_turbo(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void write_turbo(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void CommitRO(TX_LONE_PARAMETER);
-      static TM_FASTCALL void CommitRW(TX_LONE_PARAMETER);
-      static TM_FASTCALL void commit_turbo(TX_LONE_PARAMETER);
-
-      static void rollback(STM_ROLLBACK_SIG(,,));
-      static bool irrevoc(TxThread*);
-      static void onSwitchTo();
-  };
+  TM_FASTCALL void* CohortsEFReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
+  TM_FASTCALL void* CohortsEFReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
+  TM_FASTCALL void* CohortsEFReadTurbo(TX_FIRST_PARAMETER STM_READ_SIG(,));
+  TM_FASTCALL void CohortsEFWriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+  TM_FASTCALL void CohortsEFWriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+  TM_FASTCALL void CohortsEFWriteTurbo(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+  TM_FASTCALL void CohortsEFCommitRO(TX_LONE_PARAMETER);
+  TM_FASTCALL void CohortsEFCommitRW(TX_LONE_PARAMETER);
+  TM_FASTCALL void CohortsEFCommitTurbo(TX_LONE_PARAMETER);
 
   /**
    *  CohortsEF begin:
@@ -62,7 +39,7 @@ namespace {
    *  tx is allowed to start until all the transactions finishes their
    *  commits.
    */
-  void CohortsEF::begin(TX_LONE_PARAMETER)
+  void CohortsEFBegin(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
     S1:
@@ -86,7 +63,7 @@ namespace {
    *  CohortsEF commit (read-only):
    */
   void
-  CohortsEF::CommitRO(TX_LONE_PARAMETER)
+  CohortsEFCommitRO(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // decrease total number of tx started
@@ -102,7 +79,7 @@ namespace {
    *  no other thread touches cpending.
    */
   void
-  CohortsEF::commit_turbo(TX_LONE_PARAMETER)
+  CohortsEFCommitTurbo(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // increase # of tx waiting to commit, and use it as the order
@@ -111,7 +88,7 @@ namespace {
       // clean up
       tx->rf->clear();
       OnRWCommit(tx);
-      ResetToRO(tx, ReadRO, WriteRO, CommitRO);
+      ResetToRO(tx, CohortsEFReadRO, CohortsEFWriteRO, CohortsEFCommitRO);
 
       // wait for my turn, in this case, cpending is my order
       while (last_complete.val != (uintptr_t)(tx->order - 1));
@@ -137,7 +114,7 @@ namespace {
    *  in an order which is given at the beginning of commit.
    */
   void
-  CohortsEF::CommitRW(TX_LONE_PARAMETER)
+  CohortsEFCommitRW(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // increase # of tx waiting to commit, and use it as the order
@@ -152,11 +129,11 @@ namespace {
       // If in place write occurred, all tx validate reads
       // Otherwise, only first one skips validation
       if (inplace == 1 || tx->order != last_order)
-          if (!validate(tx)) {
+          if (!CohortsEFValidate(tx)) {
               committed.val ++;
               CFENCE;
               last_complete.val = tx->order;
-              stm::tmabort();
+              tmabort();
           }
 
       // do write back
@@ -185,14 +162,14 @@ namespace {
       tx->wf->clear();
       tx->writes.reset();
       OnRWCommit(tx);
-      ResetToRO(tx, ReadRO, WriteRO, CommitRO);
+      ResetToRO(tx, CohortsEFReadRO, CohortsEFWriteRO, CohortsEFCommitRO);
   }
 
   /**
-   *  CohortsEF read_turbo
+   *  CohortsEF ReadTurbo
    */
   void*
-  CohortsEF::read_turbo(TX_FIRST_PARAMETER_ANON STM_READ_SIG(addr,))
+  CohortsEFReadTurbo(TX_FIRST_PARAMETER_ANON STM_READ_SIG(addr,))
   {
       return *addr;
   }
@@ -201,7 +178,7 @@ namespace {
    *  CohortsEF read (read-only transaction)
    */
   void*
-  CohortsEF::ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
+  CohortsEFReadRO(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
   {
       TX_GET_TX_INTERNAL;
       tx->rf->add(addr);
@@ -212,7 +189,7 @@ namespace {
    *  CohortsEF read (writing transaction)
    */
   void*
-  CohortsEF::ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
+  CohortsEFReadRW(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
   {
       TX_GET_TX_INTERNAL;
       // check the log for a RAW hazard, we expect to miss
@@ -231,7 +208,7 @@ namespace {
    *  CohortsEF write (read-only context): for first write
    */
   void
-  CohortsEF::WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  CohortsEFWriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // If everyone else is ready to commit, do in place write
@@ -245,7 +222,7 @@ namespace {
               // add entry to the global filter
               global_filter->add(addr);
               // go turbo mode
-              stm::OnFirstWrite(tx, read_turbo, write_turbo, commit_turbo);
+              OnFirstWrite(tx, CohortsEFReadTurbo, CohortsEFWriteTurbo, CohortsEFCommitTurbo);
               return;
           }
           // reset flag
@@ -253,14 +230,14 @@ namespace {
       }
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
       tx->wf->add(addr);
-      stm::OnFirstWrite(tx, ReadRW, WriteRW, CommitRW);
+      OnFirstWrite(tx, CohortsEFReadRW, CohortsEFWriteRW, CohortsEFCommitRW);
   }
 
   /**
    *  CohortsEF write (in place write)
    */
   void
-  CohortsEF::write_turbo(TX_FIRST_PARAMETER_ANON STM_WRITE_SIG(addr,val,mask))
+  CohortsEFWriteTurbo(TX_FIRST_PARAMETER_ANON STM_WRITE_SIG(addr,val,mask))
   {
       *addr = val; // in place write
       // add entry to the global filter
@@ -271,7 +248,7 @@ namespace {
    *  CohortsEF write (writing context)
    */
   void
-  CohortsEF::WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  CohortsEFWriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // record the new value in a redo log
@@ -283,7 +260,7 @@ namespace {
    *  CohortsEF unwinder:
    */
   void
-  CohortsEF::rollback(STM_ROLLBACK_SIG(tx, except, len))
+  CohortsEFRollback(STM_ROLLBACK_SIG(tx, except, len))
   {
       PreRollback(tx);
 
@@ -305,17 +282,16 @@ namespace {
    *  CohortsEF in-flight irrevocability:
    */
   bool
-  CohortsEF::irrevoc(TxThread*)
+  CohortsEFIrrevoc(TxThread*)
   {
-      stm::UNRECOVERABLE("CohortsEF Irrevocability not yet supported");
+      UNRECOVERABLE("CohortsEF Irrevocability not yet supported");
       return false;
   }
 
   /**
    *  CohortsEF validation for commit: check that all reads are valid
    */
-  bool
-  validate(TxThread* tx)
+  bool CohortsEFValidate(TxThread* tx)
   {
       // If there is a same element in both global_filter and read_filter
       if (global_filter->intersect(tx->rf)) {
@@ -334,14 +310,12 @@ namespace {
    *
    */
   void
-  CohortsEF::onSwitchTo()
+  CohortsEFOnSwitchTo()
   {
       last_complete.val = 0;
       global_filter->clear();
   }
-}
 
-namespace stm {
   /**
    *  CohortsEF initialization
    */
@@ -351,13 +325,13 @@ namespace stm {
       // set the name
       stms[CohortsEF].name      = "CohortsEF";
       // set the pointers
-      stms[CohortsEF].begin     = ::CohortsEF::begin;
-      stms[CohortsEF].commit    = ::CohortsEF::CommitRO;
-      stms[CohortsEF].read      = ::CohortsEF::ReadRO;
-      stms[CohortsEF].write     = ::CohortsEF::WriteRO;
-      stms[CohortsEF].rollback  = ::CohortsEF::rollback;
-      stms[CohortsEF].irrevoc   = ::CohortsEF::irrevoc;
-      stms[CohortsEF].switcher  = ::CohortsEF::onSwitchTo;
+      stms[CohortsEF].begin     = CohortsEFBegin;
+      stms[CohortsEF].commit    = CohortsEFCommitRO;
+      stms[CohortsEF].read      = CohortsEFReadRO;
+      stms[CohortsEF].write     = CohortsEFWriteRO;
+      stms[CohortsEF].rollback  = CohortsEFRollback;
+      stms[CohortsEF].irrevoc   = CohortsEFIrrevoc;
+      stms[CohortsEF].switcher  = CohortsEFOnSwitchTo;
       stms[CohortsEF].privatization_safe = true;
   }
 }

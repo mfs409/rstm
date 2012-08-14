@@ -15,52 +15,25 @@
  *  go to turbo mode, do in place read and write, and do turbo commit.
  */
 
-#include "../profiling.hpp"
 #include "algs.hpp"
-#include "../RedoRAWUtils.hpp"
 #include "../Diagnostics.hpp"
-
-using stm::TxThread;
-using stm::last_complete;
-using stm::timestamp;
-using stm::timestamp_max;
-using stm::WriteSet;
-using stm::OrecList;
-using stm::WriteSetEntry;
-using stm::orec_t;
-using stm::get_orec;
-
-using stm::started;
-using stm::cpending;
-using stm::committed;
-using stm::last_order;
-
 
 /**
  *  Declare the functions that we're going to implement, so that we can avoid
  *  circular dependencies.
  */
-namespace {
-
-  volatile uint32_t inplace = 0;
-
-  struct CohortsEager {
-      static void begin(TX_LONE_PARAMETER);
-      static TM_FASTCALL void* ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void* ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void* read_turbo(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void write_turbo(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void CommitRO(TX_LONE_PARAMETER);
-      static TM_FASTCALL void CommitRW(TX_LONE_PARAMETER);
-      static TM_FASTCALL void commit_turbo(TX_LONE_PARAMETER);
-
-      static void rollback(STM_ROLLBACK_SIG(,,));
-      static bool irrevoc(TxThread*);
-      static void onSwitchTo();
-      static NOINLINE void validate(TxThread* tx);
-  };
+namespace stm
+{
+  TM_FASTCALL void* CohortsEagerReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
+  TM_FASTCALL void* CohortsEagerReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
+  TM_FASTCALL void* CohortsEagerReadTurbo(TX_FIRST_PARAMETER STM_READ_SIG(,));
+  TM_FASTCALL void CohortsEagerWriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+  TM_FASTCALL void CohortsEagerWriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+  TM_FASTCALL void CohortsEagerWriteTurbo(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+  TM_FASTCALL void CohortsEagerCommitRO(TX_LONE_PARAMETER);
+  TM_FASTCALL void CohortsEagerCommitRW(TX_LONE_PARAMETER);
+  TM_FASTCALL void CohortsEagerCommitTurbo(TX_LONE_PARAMETER);
+  NOINLINE void CohortsEagerValidate(TxThread* tx);
 
   /**
    *  CohortsEager begin:
@@ -69,7 +42,7 @@ namespace {
    *  tx is allowed to start until all the transactions finishes their
    *  commits.
    */
-  void CohortsEager::begin(TX_LONE_PARAMETER)
+  void CohortsEagerBegin(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       tx->allocator.onTxBegin();
@@ -96,7 +69,7 @@ namespace {
    *  CohortsEager commit (read-only):
    */
   void
-  CohortsEager::CommitRO(TX_LONE_PARAMETER)
+  CohortsEagerCommitRO(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // decrease total number of tx started
@@ -112,7 +85,7 @@ namespace {
    *  no other thread touches cpending
    */
   void
-  CohortsEager::commit_turbo(TX_LONE_PARAMETER)
+  CohortsEagerCommitTurbo(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // increase # of tx waiting to commit, and use it as the order
@@ -122,7 +95,7 @@ namespace {
       tx->r_orecs.reset();
       tx->writes.reset();
       OnRWCommit(tx);
-      ResetToRO(tx, ReadRO, WriteRO, CommitRO);
+      ResetToRO(tx, CohortsEagerReadRO, CohortsEagerWriteRO, CohortsEagerCommitRO);
 
       // wait for my turn, in this case, cpending is my order
       while (last_complete.val != (uintptr_t)(tx->order - 1));
@@ -144,7 +117,7 @@ namespace {
    *  in an order which is given at the beginning of commit.
    */
   void
-  CohortsEager::CommitRW(TX_LONE_PARAMETER)
+  CohortsEagerCommitRW(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // increase # of tx waiting to commit, and use it as the order
@@ -159,7 +132,7 @@ namespace {
       // If in place write occurred, all tx validate reads
       // Otherwise, only first one skips validation
       if (inplace == 1 || tx->order != last_order)
-          validate(tx);
+          CohortsEagerValidate(tx);
 
       // Last one doesn't needs to mark orec
       if ((uint32_t)tx->order != started.val)
@@ -188,14 +161,14 @@ namespace {
       tx->r_orecs.reset();
       tx->writes.reset();
       OnRWCommit(tx);
-      ResetToRO(tx, ReadRO, WriteRO, CommitRO);
+      ResetToRO(tx, CohortsEagerReadRO, CohortsEagerWriteRO, CohortsEagerCommitRO);
   }
 
   /**
-   *  CohortsEager read_turbo
+   *  CohortsEager ReadTurbo
    */
   void*
-  CohortsEager::read_turbo(TX_FIRST_PARAMETER_ANON STM_READ_SIG(addr,))
+  CohortsEagerReadTurbo(TX_FIRST_PARAMETER_ANON STM_READ_SIG(addr,))
   {
       return *addr;
   }
@@ -204,7 +177,7 @@ namespace {
    *  CohortsEager read (read-only transaction)
    */
   void*
-  CohortsEager::ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
+  CohortsEagerReadRO(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
   {
       TX_GET_TX_INTERNAL;
       // log orec
@@ -216,7 +189,7 @@ namespace {
    *  CohortsEager read (writing transaction)
    */
   void*
-  CohortsEager::ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
+  CohortsEagerReadRW(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
   {
       TX_GET_TX_INTERNAL;
       // check the log for a RAW hazard, we expect to miss
@@ -236,7 +209,7 @@ namespace {
    *  CohortsEager write (read-only context): for first write
    */
   void
-  CohortsEager::WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  CohortsEagerWriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // If everyone else is ready to commit, do in place write
@@ -255,21 +228,21 @@ namespace {
               // in place write
               *addr = val;
               // go turbo mode
-              stm::OnFirstWrite(tx, read_turbo, write_turbo, commit_turbo);
+              OnFirstWrite(tx, CohortsEagerReadTurbo, CohortsEagerWriteTurbo, CohortsEagerCommitTurbo);
               return;
           }
           // reset flag
           inplace = 0;
       }
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
-      stm::OnFirstWrite(tx, ReadRW, WriteRW, CommitRW);
+      OnFirstWrite(tx, CohortsEagerReadRW, CohortsEagerWriteRW, CohortsEagerCommitRW);
   }
 
   /**
    *  CohortsEager write (in place write)
    */
   void
-  CohortsEager::write_turbo(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  CohortsEagerWriteTurbo(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       orec_t* o = get_orec(addr);
@@ -281,7 +254,7 @@ namespace {
    *  CohortsEager write (writing context)
    */
   void
-  CohortsEager::WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  CohortsEagerWriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // record the new value in a redo log
@@ -292,7 +265,7 @@ namespace {
    *  CohortsEager unwinder:
    */
   void
-  CohortsEager::rollback(STM_ROLLBACK_SIG(tx, except, len))
+  CohortsEagerRollback(STM_ROLLBACK_SIG(tx, except, len))
   {
       PreRollback(tx);
 
@@ -312,9 +285,9 @@ namespace {
    *  CohortsEager in-flight irrevocability:
    */
   bool
-  CohortsEager::irrevoc(TxThread*)
+  CohortsEagerIrrevoc(TxThread*)
   {
-      stm::UNRECOVERABLE("CohortsEager Irrevocability not yet supported");
+      UNRECOVERABLE("CohortsEager Irrevocability not yet supported");
       return false;
   }
 
@@ -322,7 +295,7 @@ namespace {
    *  CohortsEager validation for commit: check that all reads are valid
    */
   void
-  CohortsEager::validate(TxThread* tx)
+  CohortsEagerValidate(TxThread* tx)
   {
       foreach (OrecList, i, tx->r_orecs) {
           // read this orec
@@ -336,7 +309,7 @@ namespace {
               // set self as completed
               last_complete.val = tx->order;
               // abort
-              stm::tmabort();
+              tmabort();
           }
       }
   }
@@ -350,14 +323,12 @@ namespace {
    *
    */
   void
-  CohortsEager::onSwitchTo()
+  CohortsEagerOnSwitchTo()
   {
       last_complete.val = 0;
       inplace = 0;
   }
-}
 
-namespace stm {
   /**
    *  CohortsEager initialization
    */
@@ -367,13 +338,13 @@ namespace stm {
       // set the name
       stms[CohortsEager].name      = "CohortsEager";
       // set the pointers
-      stms[CohortsEager].begin     = ::CohortsEager::begin;
-      stms[CohortsEager].commit    = ::CohortsEager::CommitRO;
-      stms[CohortsEager].read      = ::CohortsEager::ReadRO;
-      stms[CohortsEager].write     = ::CohortsEager::WriteRO;
-      stms[CohortsEager].rollback  = ::CohortsEager::rollback;
-      stms[CohortsEager].irrevoc   = ::CohortsEager::irrevoc;
-      stms[CohortsEager].switcher  = ::CohortsEager::onSwitchTo;
+      stms[CohortsEager].begin     = CohortsEagerBegin;
+      stms[CohortsEager].commit    = CohortsEagerCommitRO;
+      stms[CohortsEager].read      = CohortsEagerReadRO;
+      stms[CohortsEager].write     = CohortsEagerWriteRO;
+      stms[CohortsEager].rollback  = CohortsEagerRollback;
+      stms[CohortsEager].irrevoc   = CohortsEagerIrrevoc;
+      stms[CohortsEager].switcher  = CohortsEagerOnSwitchTo;
       stms[CohortsEager].privatization_safe = true;
   }
 }

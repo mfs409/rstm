@@ -19,6 +19,24 @@
 
 namespace stm
 {
+  // [mfs] padding?
+  volatile uintptr_t inplace = 0;
+
+  pad_word_t cohortcounter = {0, {0}};
+
+  // [mfs] These need to be padded
+  // # of reads/writes/aborts before seal a cohort
+  int32_t WRITE_EARLYSEAL = -1;
+  int32_t READ_EARLYSEAL = -1;
+  int32_t ABORT_EARLYSEAL = -1;
+  pad_word_t sealed = {0,{0}};
+
+
+  // global linklist's head
+  //
+  // [mfs] This should be padded, and moved to somewhere else
+  cohorts_node_t* volatile q = NULL;
+
   /*** BACKING FOR GLOBAL METADATA */
 
   /**

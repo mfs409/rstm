@@ -62,7 +62,7 @@ namespace stm
       TX_GET_TX_INTERNAL;
       // were there remote aborts?
       if (!tx->alive)
-          stm::tmabort();
+          tmabort();
       CFENCE;
 
       // release read locks
@@ -95,14 +95,14 @@ namespace stm
           // abort if cannot acquire and haven't locked yet
           if (bl->owner == 0) {
               if (!bcasptr(&bl->owner, (uintptr_t)0, tx->my_lock.all))
-                  stm::tmabort();
+                  tmabort();
               // log lock
               tx->w_bitlocks.insert(bl);
               // get readers
               accumulator |= bl->readers;
           }
           else if (bl->owner != tx->my_lock.all) {
-              stm::tmabort();
+              tmabort();
           }
       }
 
@@ -130,7 +130,7 @@ namespace stm
       // were there remote aborts?
       CFENCE;
       if (!tx->alive)
-          stm::tmabort();
+          tmabort();
       CFENCE;
 
       // we committed... replay redo log
@@ -166,12 +166,12 @@ namespace stm
           tx->r_bitlocks.insert(bl);
       // if there's a writer, it can't be me since I'm in-flight
       if (bl->owner)
-          stm::tmabort();
+          tmabort();
       // order the read before checking for remote aborts
       void* val = *addr;
       CFENCE;
       if (!tx->alive)
-          stm::tmabort();
+          tmabort();
       return val;
   }
 
@@ -200,12 +200,12 @@ namespace stm
           REDO_RAW_CHECK(found, log, mask);
       }
       if (bl->owner)
-          stm::tmabort();
+          tmabort();
       void* val = *addr;
       REDO_RAW_CLEANUP(val, found, log, mask);
       CFENCE;
       if (!tx->alive)
-          stm::tmabort();
+          tmabort();
       return val;
   }
 
@@ -225,8 +225,8 @@ namespace stm
       if (bl->readers.setif(tx->id-1))
           tx->r_bitlocks.insert(bl);
       if (bl->owner)
-          stm::tmabort();
-      stm::OnFirstWrite(tx, BitLazyReadRW, BitLazyWriteRW, BitLazyCommitRW);
+          tmabort();
+      OnFirstWrite(tx, BitLazyReadRW, BitLazyWriteRW, BitLazyCommitRW);
   }
 
   /**
@@ -244,7 +244,7 @@ namespace stm
       if (bl->readers.setif(tx->id-1))
           tx->r_bitlocks.insert(bl);
       if (bl->owner)
-          stm::tmabort();
+          tmabort();
   }
 
   /**
@@ -289,9 +289,7 @@ namespace stm
    */
   void BitLazyOnSwitchTo() {
   }
-}
 
-namespace stm {
   /**
    *  BitLazy initialization
    */

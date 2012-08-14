@@ -41,7 +41,7 @@ namespace stm
           uintptr_t ivt = (*i)->v.all;
           // if it has a timestamp of ts_cache or greater, abort
           if (ivt > tx->ts_cache)
-              stm::tmabort();
+              tmabort();
       }
       // now update the finish_cache to remember that at this time, we were
       // still valid
@@ -81,8 +81,8 @@ namespace stm
       // wait until it is our turn to commit, then validate, acquire, and do
       // writeback
       while (last_complete.val != (uintptr_t)(tx->order - 1)) {
-          if (stm::tmbegin != WealthBegin)
-              stm::tmabort();
+          if (tmbegin != WealthBegin)
+              tmabort();
       }
 
       // since we have the token, we can validate before getting locks
@@ -137,7 +137,7 @@ namespace stm
       // NB: this is a pretty serious tradeoff... it admits false aborts for
       //     the sake of preventing a 'check if locked' test
       if (ivt > tx->ts_cache)
-          stm::tmabort();
+          tmabort();
 
       // log orec
       tx->r_orecs.insert(o);
@@ -177,7 +177,7 @@ namespace stm
 
       // record the new value in a redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
-      stm::OnFirstWrite(tx, WealthReadRW, WealthWriteRW, WealthCommitRW);
+      OnFirstWrite(tx, WealthReadRW, WealthWriteRW, WealthCommitRW);
   }
 
   /**
@@ -220,7 +220,7 @@ namespace stm
   bool
   WealthIrrevoc(TxThread*)
   {
-      stm::UNRECOVERABLE("Wealth Irrevocability not yet supported");
+      UNRECOVERABLE("Wealth Irrevocability not yet supported");
       return false;
   }
 

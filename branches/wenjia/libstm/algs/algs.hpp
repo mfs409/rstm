@@ -43,6 +43,24 @@ namespace stm
   const uint32_t ACTIVE        = 0;        // transaction status
   const uint32_t ABORTED       = 1;        // transaction status
 
+  // global linklist's head
+  //
+  // [mfs] This should be padded, and moved to somewhere else
+  extern cohorts_node_t* volatile q;
+  extern volatile uintptr_t inplace;
+  extern pad_word_t cohortcounter;
+
+  // [mfs] These need to be padded
+  // # of reads/writes/aborts before seal a cohort
+  extern int32_t WRITE_EARLYSEAL;
+  extern int32_t READ_EARLYSEAL;
+  extern int32_t ABORT_EARLYSEAL;
+
+  // gatekeeper for early seal
+  //
+  // [mfs] Why not pad_word_t?
+  extern pad_word_t sealed;
+
   /**
    *  These global fields are used for concurrency control and conflict
    *  detection in our STM systems

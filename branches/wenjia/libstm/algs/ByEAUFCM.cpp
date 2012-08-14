@@ -15,10 +15,19 @@ namespace stm
   template <>
   void initTM<ByEAUFCM>()
   {
-      ByEAU_Generic<FCM>::Initialize(ByEAUFCM, "ByEAUFCM");
+      // set the name
+      stms[ByEAUFCM].name      = "ByEAUFCM";
+      stms[ByEAUFCM].begin     = ByEAUGenericBegin<FCM>;
+      stms[ByEAUFCM].commit    = ByEAUGenericCommitRO<FCM>;
+      stms[ByEAUFCM].read      = ByEAUGenericReadRO<FCM>;
+      stms[ByEAUFCM].write     = ByEAUGenericWriteRO<FCM>;
+      stms[ByEAUFCM].rollback  = ByEAUGenericRollback<FCM>;
+      stms[ByEAUFCM].irrevoc   = ByEAUGenericIrrevoc<FCM>;
+      stms[ByEAUFCM].switcher  = ByEAUGenericOnSwitchTo<FCM>;
+      stms[ByEAUFCM].privatization_safe = true;
   }
 }
 
 #ifdef STM_ONESHOT_ALG_ByEAUFCM
-DECLARE_AS_ONESHOT_NORMAL(ByEAU_Generic<FCM>)
+DECLARE_AS_ONESHOT_NORMAL(ByEAUGeneric<FCM>)
 #endif

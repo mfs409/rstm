@@ -15,9 +15,7 @@
  *  Model", TRANSACT'12, FEB.2012
  */
 
-#include "../profiling.hpp"
 #include "algs.hpp"
-#include "../RedoRAWUtils.hpp"
 #include "../Diagnostics.hpp"
 
 // ThreadID associated with activity_array
@@ -28,20 +26,16 @@
 // [mfs] why do we only support 8 threads
 #define MAXTHREADS 12
 
-using stm::TxThread;
-using stm::WriteSet;
-using stm::WriteSetEntry;
-using stm::orec_t;
-using stm::get_orec;
-using stm::global_version;
-using stm::writer_lock;
-
 /**
  *  Declare the functions that we're going to implement, so that we can avoid
  *  circular dependencies.
  */
-namespace {
+namespace stm
+{
   // ThreadID associated array to record each txn's activity
+  //
+  // [mfs] Why not embed this in the descriptor?  We aren't trying to save on
+  // cache misses...
   struct Activity {
       volatile uint32_t tx_version;
       volatile bool writer_waiting;
@@ -53,27 +47,20 @@ namespace {
        {0xFFFFFFFF, false, {0}},{0xFFFFFFFF, false, {0}},{0xFFFFFFFF, false, {0}},
        {0xFFFFFFFF, false, {0}},{0xFFFFFFFF, false, {0}},{0xFFFFFFFF, false, {0}}};
 
-  struct PessimisticTM {
-      static void begin(TX_LONE_PARAMETER);
-      static TM_FASTCALL void* ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void* ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void write_read_only(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void CommitRO(TX_LONE_PARAMETER);
-      static TM_FASTCALL void CommitRW(TX_LONE_PARAMETER);
-      static TM_FASTCALL void commit_read_only(TX_LONE_PARAMETER);
-
-      static void rollback(STM_ROLLBACK_SIG(,,));
-      static bool irrevoc(TxThread*);
-      static void onSwitchTo();
-  };
+  TM_FASTCALL void* PessimisticTMReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
+  TM_FASTCALL void* PessimisticTMReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
+  TM_FASTCALL void PessimisticTMWriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+  TM_FASTCALL void PessimisticTMWriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+  TM_FASTCALL void PessimisticTMWriteReadOnly(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+  TM_FASTCALL void PessimisticTMCommitRO(TX_LONE_PARAMETER);
+  TM_FASTCALL void PessimisticTMCommitRW(TX_LONE_PARAMETER);
+  TM_FASTCALL void PessimisticTMCommitReadOnly(TX_LONE_PARAMETER);
 
   /**
    *  PessimisticTM begin:
    *  Master thread set cntr from even to odd.
    */
-  void PessimisticTM::begin(TX_LONE_PARAMETER)
+  void PessimisticTMBegin(TX_LONE_PARAMETER)
   {
 #ifdef STM_ONESHOT_ALG_PessimisticTM
       assert(0 && "PessimisticTM not yet ported to oneshot build");
@@ -87,7 +74,8 @@ namespace {
           // Read the global version to tx_version
           MY.tx_version = global_version.val;
           // go read-only mode
-          stm::GoTurbo(tx, ReadRO, write_read_only, commit_read_only);
+          GoTurbo(tx, PessimisticTMReadRO, PessimisticTMWriteReadOnly,
+                  PessimisticTMCommitReadOnly);
       }
       // For Read-Write transactions
       else {
@@ -113,7 +101,7 @@ namespace {
           MY.tx_version = global_version.val;
 
           // Go read-write mode
-          stm::GoTurbo(tx, ReadRW, WriteRW, CommitRW);
+          GoTurbo(tx, PessimisticTMReadRW, PessimisticTMWriteRW, PessimisticTMCommitRW);
       }
   }
 
@@ -122,7 +110,7 @@ namespace {
    *  Read-only transaction commit immediately
    */
   void
-  PessimisticTM::commit_read_only(TX_LONE_PARAMETER)
+  PessimisticTMCommitReadOnly(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // Set the tx_version to the maximum value
@@ -142,7 +130,7 @@ namespace {
    *  [mfs] Is this optimal?  There might be a fast path we can employ here.
    */
   void
-  PessimisticTM::CommitRO(TX_LONE_PARAMETER)
+  PessimisticTMCommitRO(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // Set the tx_version to the maximum value
@@ -162,7 +150,7 @@ namespace {
    *        particularly clear from the code.
    */
   void
-  PessimisticTM::CommitRW(TX_LONE_PARAMETER)
+  PessimisticTMCommitRW(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // Wait if tx_version is even
@@ -236,14 +224,14 @@ namespace {
       tx->writes.reset();
       tx->progress_is_seen = false;
       OnRWCommit(tx);
-      ResetToRO(tx, ReadRO, WriteRO, CommitRO);
+      ResetToRO(tx, PessimisticTMReadRO, PessimisticTMWriteRO, PessimisticTMCommitRO);
   }
 
   /**
    *  PessimisticTM read (read-only transaction)
    */
   void*
-  PessimisticTM::ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
+  PessimisticTMReadRO(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
   {
       TX_GET_TX_INTERNAL;
       // read_only tx only wait for one round at most
@@ -268,7 +256,7 @@ namespace {
    *  PessimisticTM read (writing transaction)
    */
   void*
-  PessimisticTM::ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
+  PessimisticTMReadRW(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
   {
       TX_GET_TX_INTERNAL;
       // check the log for a RAW hazard, we expect to miss
@@ -277,7 +265,7 @@ namespace {
       REDO_RAW_CHECK(found, log, mask);
 
       // reuse ReadRO barrier
-      void* val = ReadRO(TX_FIRST_ARG addr STM_MASK(mask));
+      void* val = PessimisticTMReadRO(TX_FIRST_ARG addr STM_MASK(mask));
       REDO_RAW_CLEANUP(val, found, log, mask);
       return val;
   }
@@ -285,7 +273,7 @@ namespace {
   /**
    *  PessimisticTM write (for read-only transactions): Do nothing
    */
-  void PessimisticTM::write_read_only(TX_FIRST_PARAMETER_ANON STM_WRITE_SIG(,,))
+  void PessimisticTMWriteReadOnly(TX_FIRST_PARAMETER_ANON STM_WRITE_SIG(,,))
   {
       printf("Read-only tx called writes!\n");
       return;
@@ -295,19 +283,19 @@ namespace {
    *  PessimisticTM write (read-only context): for first write
    */
   void
-  PessimisticTM::WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  PessimisticTMWriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // Add to write set
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
-      stm::OnFirstWrite(tx, ReadRW, WriteRW, CommitRW);
+      OnFirstWrite(tx, PessimisticTMReadRW, PessimisticTMWriteRW, PessimisticTMCommitRW);
   }
 
   /**
    *  PessimisticTM write (writing context)
    */
   void
-  PessimisticTM::WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  PessimisticTMWriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // record the new value in a redo log
@@ -317,18 +305,18 @@ namespace {
   /**
    *  PessimisticTM unwinder:
    */
-  void PessimisticTM::rollback(STM_ROLLBACK_SIG(,,))
+  void PessimisticTMRollback(STM_ROLLBACK_SIG(,,))
   {
-      stm::UNRECOVERABLE("PessimisticTM should never call rollback");
+      UNRECOVERABLE("PessimisticTM should never call rollback");
   }
 
   /**
    *  PessimisticTM in-flight irrevocability:
    */
   bool
-  PessimisticTM::irrevoc(TxThread*)
+  PessimisticTMIrrevoc(TxThread*)
   {
-      stm::UNRECOVERABLE("PessimisticTM Irrevocability not yet supported");
+      UNRECOVERABLE("PessimisticTM Irrevocability not yet supported");
       return false;
   }
 
@@ -337,14 +325,12 @@ namespace {
    *
    */
   void
-  PessimisticTM::onSwitchTo()
+  PessimisticTMOnSwitchTo()
   {
       writer_lock.val = 0;
       global_version.val = 1;
   }
-}
 
-namespace stm {
   /**
    *  PessimisticTM initialization
    */
@@ -354,13 +340,13 @@ namespace stm {
       // set the name
       stms[PessimisticTM].name      = "PessimisticTM";
       // set the pointers
-      stms[PessimisticTM].begin     = ::PessimisticTM::begin;
-      stms[PessimisticTM].commit    = ::PessimisticTM::CommitRO;
-      stms[PessimisticTM].read      = ::PessimisticTM::ReadRO;
-      stms[PessimisticTM].write     = ::PessimisticTM::WriteRO;
-      stms[PessimisticTM].rollback  = ::PessimisticTM::rollback;
-      stms[PessimisticTM].irrevoc   = ::PessimisticTM::irrevoc;
-      stms[PessimisticTM].switcher  = ::PessimisticTM::onSwitchTo;
+      stms[PessimisticTM].begin     = PessimisticTMBegin;
+      stms[PessimisticTM].commit    = PessimisticTMCommitRO;
+      stms[PessimisticTM].read      = PessimisticTMReadRO;
+      stms[PessimisticTM].write     = PessimisticTMWriteRO;
+      stms[PessimisticTM].rollback  = PessimisticTMRollback;
+      stms[PessimisticTM].irrevoc   = PessimisticTMIrrevoc;
+      stms[PessimisticTM].switcher  = PessimisticTMOnSwitchTo;
       stms[PessimisticTM].privatization_safe = true;
   }
 }

@@ -15,47 +15,22 @@
  *  cohort. Use queue to handle ordered commit.
  */
 
-#include "../profiling.hpp"
 #include "algs.hpp"
-#include "../RedoRAWUtils.hpp"
 #include "../Diagnostics.hpp"
 
-using stm::TxThread;
-using stm::WriteSet;
-using stm::WriteSetEntry;
-using stm::ValueList;
-using stm::ValueListEntry;
-using stm::started;
-using stm::cohorts_node_t;
+namespace stm
+{
+  NOINLINE bool CohortsENQValidate(TxThread* tx);
+  TM_FASTCALL void* CohortsENQReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
+  TM_FASTCALL void* CohortsENQReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
+  TM_FASTCALL void* CohortsENQReadTurbo(TX_FIRST_PARAMETER STM_READ_SIG(,));
+  TM_FASTCALL void CohortsENQWriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+  TM_FASTCALL void CohortsENQWriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+  TM_FASTCALL void CohortsENQWriteTurbo(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+  TM_FASTCALL void CohortsENQCommitRO(TX_LONE_PARAMETER);
+  TM_FASTCALL void CohortsENQCommitRW(TX_LONE_PARAMETER);
+  TM_FASTCALL void CohortsENQCommitTurbo(TX_LONE_PARAMETER);
 
-/**
- *  Declare the functions that we're going to implement, so that we can avoid
- *  circular dependencies.
- */
-namespace {
-  volatile uintptr_t inplace = 0;
-
-  NOINLINE bool validate(TxThread* tx);
-
-  // global linklist's head
-  struct cohorts_node_t* volatile q = NULL;
-
-  struct CohortsENQ {
-      static void begin(TX_LONE_PARAMETER);
-      static TM_FASTCALL void* ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void* ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void* read_turbo(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void write_turbo(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void CommitRO(TX_LONE_PARAMETER);
-      static TM_FASTCALL void CommitRW(TX_LONE_PARAMETER);
-      static TM_FASTCALL void commit_turbo(TX_LONE_PARAMETER);
-
-      static void rollback(STM_ROLLBACK_SIG(,,));
-      static bool irrevoc(TxThread*);
-      static void onSwitchTo();
-  };
 
   /**
    *  CohortsENQ begin:
@@ -64,7 +39,7 @@ namespace {
    *  tx is allowed to start until all the transactions finishes their
    *  commits.
    */
-  void CohortsENQ::begin(TX_LONE_PARAMETER)
+  void CohortsENQBegin(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       tx->allocator.onTxBegin();
@@ -90,7 +65,7 @@ namespace {
    *  CohortsENQ commit (read-only):
    */
   void
-  CohortsENQ::CommitRO(TX_LONE_PARAMETER)
+  CohortsENQCommitRO(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // decrease total number of tx started
@@ -106,7 +81,7 @@ namespace {
    *  no other thread touches cpending
    */
   void
-  CohortsENQ::commit_turbo(TX_LONE_PARAMETER)
+  CohortsENQCommitTurbo(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // decrease total number of tx started
@@ -116,7 +91,7 @@ namespace {
       tx->vlist.reset();
       tx->writes.reset();
       OnRWCommit(tx);
-      ResetToRO(tx, ReadRO, WriteRO, CommitRO);
+      ResetToRO(tx, CohortsENQReadRO, CohortsENQWriteRO, CohortsENQCommitRO);
 
       // wait for tx in CommitRW finish
       while (q != NULL);
@@ -132,7 +107,7 @@ namespace {
    *  in an order which is given at the beginning of commit.
    */
   void
-  CohortsENQ::CommitRW(TX_LONE_PARAMETER)
+  CohortsENQCommitRW(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // add myself to the queue
@@ -153,13 +128,13 @@ namespace {
       // If in place write occurred, all tx validate reads
       // Otherwise, only first one skips validation
       if (inplace == 1 || tx->turn.next != NULL)
-          if (!validate(tx)) {
+          if (!CohortsENQValidate(tx)) {
               // mark self done
               tx->turn.val = COHORTS_DONE;
               // reset q if last one
               if (q == &(tx->turn)) q = NULL;
               // abort
-              stm::tmabort();
+              tmabort();
           }
 
       // do write back
@@ -177,14 +152,14 @@ namespace {
       tx->vlist.reset();
       tx->writes.reset();
       OnRWCommit(tx);
-      ResetToRO(tx, ReadRO, WriteRO, CommitRO);
+      ResetToRO(tx, CohortsENQReadRO, CohortsENQWriteRO, CohortsENQCommitRO);
   }
 
   /**
-   *  CohortsENQ read_turbo
+   *  CohortsENQ ReadTurbo
    */
   void*
-  CohortsENQ::read_turbo(TX_FIRST_PARAMETER_ANON STM_READ_SIG(addr,))
+  CohortsENQReadTurbo(TX_FIRST_PARAMETER_ANON STM_READ_SIG(addr,))
   {
       return *addr;
   }
@@ -193,7 +168,7 @@ namespace {
    *  CohortsENQ read (read-only transaction)
    */
   void*
-  CohortsENQ::ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
+  CohortsENQReadRO(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
   {
       TX_GET_TX_INTERNAL;
       void *tmp = *addr;
@@ -205,7 +180,7 @@ namespace {
    *  CohortsENQ read (writing transaction)
    */
   void*
-  CohortsENQ::ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
+  CohortsENQReadRW(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
   {
       TX_GET_TX_INTERNAL;
       // check the log for a RAW hazard, we expect to miss
@@ -223,7 +198,7 @@ namespace {
    *  CohortsENQ write (read-only context): for first write
    */
   void
-  CohortsENQ::WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  CohortsENQWriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // If everyone else is ready to commit, do in place write
@@ -235,21 +210,21 @@ namespace {
               // in place write
               *addr = val;
               // go turbo mode
-              stm::OnFirstWrite(tx, read_turbo, write_turbo, commit_turbo);
+              OnFirstWrite(tx, CohortsENQReadTurbo, CohortsENQWriteTurbo, CohortsENQCommitTurbo);
               return;
           }
           // reset flag
           inplace = 0;
       }
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
-      stm::OnFirstWrite(tx, ReadRW, WriteRW, CommitRW);
+      OnFirstWrite(tx, CohortsENQReadRW, CohortsENQWriteRW, CohortsENQCommitRW);
   }
 
   /**
    *  CohortsENQ write (in place write)
    */
   void
-  CohortsENQ::write_turbo(TX_FIRST_PARAMETER_ANON STM_WRITE_SIG(addr,val,mask))
+  CohortsENQWriteTurbo(TX_FIRST_PARAMETER_ANON STM_WRITE_SIG(addr,val,mask))
   {
       *addr = val; // in place write
   }
@@ -258,7 +233,7 @@ namespace {
    *  CohortsENQ write (writing context)
    */
   void
-  CohortsENQ::WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  CohortsENQWriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // record the new value in a redo log
@@ -269,7 +244,7 @@ namespace {
    *  CohortsENQ unwinder:
    */
   void
-  CohortsENQ::rollback(STM_ROLLBACK_SIG(tx, except, len))
+  CohortsENQRollback(STM_ROLLBACK_SIG(tx, except, len))
   {
       PreRollback(tx);
 
@@ -289,9 +264,9 @@ namespace {
    *  CohortsENQ in-flight irrevocability:
    */
   bool
-  CohortsENQ::irrevoc(TxThread*)
+  CohortsENQIrrevoc(TxThread*)
   {
-      stm::UNRECOVERABLE("CohortsENQ Irrevocability not yet supported");
+      UNRECOVERABLE("CohortsENQ Irrevocability not yet supported");
       return false;
   }
 
@@ -299,7 +274,7 @@ namespace {
    *  CohortsENQ validation for commit: check that all reads are valid
    */
   bool
-  validate(TxThread* tx)
+  CohortsENQValidate(TxThread* tx)
   {
       foreach (ValueList, i, tx->vlist) {
           bool valid = STM_LOG_VALUE_IS_VALID(i, tx);
@@ -313,13 +288,11 @@ namespace {
    *
    */
   void
-  CohortsENQ::onSwitchTo()
+  CohortsENQOnSwitchTo()
   {
       inplace = 0;
   }
-}
 
-namespace stm {
   /**
    *  CohortsENQ initialization
    */
@@ -329,13 +302,13 @@ namespace stm {
       // set the name
       stms[CohortsENQ].name      = "CohortsENQ";
       // set the pointers
-      stms[CohortsENQ].begin     = ::CohortsENQ::begin;
-      stms[CohortsENQ].commit    = ::CohortsENQ::CommitRO;
-      stms[CohortsENQ].read      = ::CohortsENQ::ReadRO;
-      stms[CohortsENQ].write     = ::CohortsENQ::WriteRO;
-      stms[CohortsENQ].rollback  = ::CohortsENQ::rollback;
-      stms[CohortsENQ].irrevoc   = ::CohortsENQ::irrevoc;
-      stms[CohortsENQ].switcher  = ::CohortsENQ::onSwitchTo;
+      stms[CohortsENQ].begin     = CohortsENQBegin;
+      stms[CohortsENQ].commit    = CohortsENQCommitRO;
+      stms[CohortsENQ].read      = CohortsENQReadRO;
+      stms[CohortsENQ].write     = CohortsENQWriteRO;
+      stms[CohortsENQ].rollback  = CohortsENQRollback;
+      stms[CohortsENQ].irrevoc   = CohortsENQIrrevoc;
+      stms[CohortsENQ].switcher  = CohortsENQOnSwitchTo;
       stms[CohortsENQ].privatization_safe = true;
   }
 }

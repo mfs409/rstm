@@ -16,42 +16,20 @@
  *    threads cannot commit if they are writers
  */
 
-#include "../profiling.hpp"
 #include "algs.hpp"
-#include "../RedoRAWUtils.hpp"
 
-using stm::TxThread;
-using stm::timestamp;
-using stm::KARMA_FACTOR;
-using stm::prioTxCount;
-using stm::threadcount;
-using stm::threads;
-using stm::WriteSetEntry;
-using stm::ValueList;
-using stm::ValueListEntry;
+namespace stm
+{
+  // [mfs] Get rid of this...
+  static const uintptr_t VALIDATION_FAILED = 1;
 
-
-/**
- *  Declare the functions that we're going to implement, so that we can avoid
- *  circular dependencies.
- */
-namespace {
-  struct NOrecPrio {
-      static void begin(TX_LONE_PARAMETER);
-      static TM_FASTCALL void* ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void* ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void CommitRO(TX_LONE_PARAMETER);
-      static TM_FASTCALL void CommitRW(TX_LONE_PARAMETER);
-
-      static void rollback(STM_ROLLBACK_SIG(,,));
-      static bool irrevoc(TxThread*);
-      static void onSwitchTo();
-
-      static const uintptr_t VALIDATION_FAILED = 1;
-      static NOINLINE uintptr_t validate(TxThread*);
-  };
+  TM_FASTCALL void* NOrecPrioReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
+  TM_FASTCALL void* NOrecPrioReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
+  TM_FASTCALL void NOrecPrioWriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+  TM_FASTCALL void NOrecPrioWriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+  TM_FASTCALL void NOrecPrioCommitRO(TX_LONE_PARAMETER);
+  TM_FASTCALL void NOrecPrioCommitRW(TX_LONE_PARAMETER);
+  NOINLINE uintptr_t NOrecPrioValidate(TxThread*);
 
   /**
    *  NOrecPrio begin:
@@ -59,7 +37,7 @@ namespace {
    *    We're using the 'classic' NOrec begin technique here.  Also, we check if
    *    we need priority here, rather than retaining it across an abort.
    */
-  void NOrecPrio::begin(TX_LONE_PARAMETER)
+  void NOrecPrioBegin(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // Sample the sequence lock until it is even (unheld)
@@ -84,7 +62,7 @@ namespace {
    *    release it.
    */
   void
-  NOrecPrio::CommitRO(TX_LONE_PARAMETER)
+  NOrecPrioCommitRO(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // read-only fastpath
@@ -105,7 +83,7 @@ namespace {
    *    to be "fair", without any guarantees.
    */
   void
-  NOrecPrio::CommitRW(TX_LONE_PARAMETER)
+  NOrecPrioCommitRW(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // wait for all higher-priority transactions to complete
@@ -122,8 +100,8 @@ namespace {
 
       // get the lock and validate (use RingSTM obstruction-free technique)
       while (!bcasptr(&timestamp.val, tx->start_time, tx->start_time + 1))
-          if ((tx->start_time = validate(tx)) == VALIDATION_FAILED)
-              stm::tmabort();
+          if ((tx->start_time = NOrecPrioValidate(tx)) == VALIDATION_FAILED)
+              tmabort();
 
       // redo writes
       tx->writes.writeback();
@@ -139,7 +117,7 @@ namespace {
           tx->prio = 0;
       }
       OnRWCommit(tx);
-      ResetToRO(tx, ReadRO, WriteRO, CommitRO);
+      ResetToRO(tx, NOrecPrioReadRO, NOrecPrioWriteRO, NOrecPrioCommitRO);
   }
 
   /**
@@ -148,7 +126,7 @@ namespace {
    *    This is a standard NOrec read
    */
   void*
-  NOrecPrio::ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
+  NOrecPrioReadRO(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
   {
       TX_GET_TX_INTERNAL;
       // read the location to a temp
@@ -156,8 +134,8 @@ namespace {
       CFENCE;
 
       while (tx->start_time != timestamp.val) {
-          if ((tx->start_time = validate(tx)) == VALIDATION_FAILED)
-              stm::tmabort();
+          if ((tx->start_time = NOrecPrioValidate(tx)) == VALIDATION_FAILED)
+              tmabort();
           tmp = *addr;
           CFENCE;
       }
@@ -174,7 +152,7 @@ namespace {
    *    Standard NOrec read from writing context
    */
   void*
-  NOrecPrio::ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
+  NOrecPrioReadRW(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
   {
       TX_GET_TX_INTERNAL;
       // check the log for a RAW hazard, we expect to miss
@@ -189,7 +167,7 @@ namespace {
       // bytes that we "actually" need, which is computed as bytes in mask but
       // not in log.mask. This is only correct because we know that a failed
       // find also reset the log.mask to 0 (that's part of the find interface).
-      void* val = ReadRO(TX_FIRST_ARG addr STM_MASK(mask & ~log.mask));
+      void* val = NOrecPrioReadRO(TX_FIRST_ARG addr STM_MASK(mask & ~log.mask));
       REDO_RAW_CLEANUP(val, found, log, mask);
       return val;
   }
@@ -200,12 +178,12 @@ namespace {
    *    log the write and switch to a writing context
    */
   void
-  NOrecPrio::WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  NOrecPrioWriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // do a buffered write
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
-      stm::OnFirstWrite(tx, ReadRW, WriteRW, CommitRW);
+      OnFirstWrite(tx, NOrecPrioReadRW, NOrecPrioWriteRW, NOrecPrioCommitRW);
   }
 
   /**
@@ -214,7 +192,7 @@ namespace {
    *    log the write
    */
   void
-  NOrecPrio::WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  NOrecPrioWriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // do a buffered write
@@ -227,7 +205,7 @@ namespace {
    *    If we abort, be sure to release priority
    */
   void
-  NOrecPrio::rollback(STM_ROLLBACK_SIG(tx, except, len))
+  NOrecPrioRollback(STM_ROLLBACK_SIG(tx, except, len))
   {
       PreRollback(tx);
 
@@ -244,14 +222,14 @@ namespace {
           tx->prio = 0;
       }
       PostRollback(tx);
-      ResetToRO(tx, ReadRO, WriteRO, CommitRO);
+      ResetToRO(tx, NOrecPrioReadRO, NOrecPrioWriteRO, NOrecPrioCommitRO);
   }
 
   /**
    *  NOrecPrio in-flight irrevocability: Getting priority right is very
    *  hard, so we're just going to use abort-and-restart
    */
-  bool NOrecPrio::irrevoc(TxThread*)
+  bool NOrecPrioIrrevoc(TxThread*)
   {
       return false;
   }
@@ -263,7 +241,7 @@ namespace {
    *    and odd, all values in the read log are still present in memory.
    */
   uintptr_t
-  NOrecPrio::validate(TxThread* tx)
+  NOrecPrioValidate(TxThread* tx)
   {
       while (true) {
           // read the lock until it is even
@@ -295,14 +273,12 @@ namespace {
    *    Must be sure the timestamp is not odd.
    */
   void
-  NOrecPrio::onSwitchTo()
+  NOrecPrioOnSwitchTo()
   {
       if (timestamp.val & 1)
           ++timestamp.val;
   }
-}
 
-namespace stm {
   /**
    *  NOrecPrio initialization
    */
@@ -310,17 +286,17 @@ namespace stm {
   void initTM<NOrecPrio>()
   {
       // set the name
-      stm::stms[NOrecPrio].name      = "NOrecPrio";
+      stms[NOrecPrio].name      = "NOrecPrio";
 
       // set the pointers
-      stm::stms[NOrecPrio].begin    = ::NOrecPrio::begin;
-      stm::stms[NOrecPrio].commit   = ::NOrecPrio::CommitRO;
-      stm::stms[NOrecPrio].read     = ::NOrecPrio::ReadRO;
-      stm::stms[NOrecPrio].write    = ::NOrecPrio::WriteRO;
-      stm::stms[NOrecPrio].rollback = ::NOrecPrio::rollback;
-      stm::stms[NOrecPrio].irrevoc  = ::NOrecPrio::irrevoc;
-      stm::stms[NOrecPrio].switcher = ::NOrecPrio::onSwitchTo;
-      stm::stms[NOrecPrio].privatization_safe = true;
+      stms[NOrecPrio].begin    = NOrecPrioBegin;
+      stms[NOrecPrio].commit   = NOrecPrioCommitRO;
+      stms[NOrecPrio].read     = NOrecPrioReadRO;
+      stms[NOrecPrio].write    = NOrecPrioWriteRO;
+      stms[NOrecPrio].rollback = NOrecPrioRollback;
+      stms[NOrecPrio].irrevoc  = NOrecPrioIrrevoc;
+      stms[NOrecPrio].switcher = NOrecPrioOnSwitchTo;
+      stms[NOrecPrio].privatization_safe = true;
   }
 }
 

@@ -18,43 +18,21 @@
  * [mfs] see comments in lazy and norec codes elsewhere
  */
 
-#include "../profiling.hpp"
 #include "algs.hpp"
-#include "../RedoRAWUtils.hpp"
 #include "../Diagnostics.hpp"
 
-using stm::TxThread;
-using stm::threads;
-using stm::threadcount;
-using stm::last_complete;
-using stm::ValueList;
-using stm::ValueListEntry;
-using stm::timestamp;
-using stm::WriteSetEntry;
-using stm::gatekeeper;
-using stm::last_order;
-using stm::cpending;
-/**
- *  Declare the functions that we're going to implement, so that we can avoid
- *  circular dependencies.
- */
-namespace {
+namespace stm
+{
+  // [mfs] Migrate this?
   const uintptr_t VALIDATION_FAILED = 1;
-  NOINLINE uintptr_t validate(TxThread* tx);
 
-  struct CohortsLN {
-      static void begin(TX_LONE_PARAMETER);
-      static TM_FASTCALL void* ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void* ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void CommitRO(TX_LONE_PARAMETER);
-      static TM_FASTCALL void CommitRW(TX_LONE_PARAMETER);
-
-      static void rollback(STM_ROLLBACK_SIG(,,));
-      static bool irrevoc(TxThread*);
-      static void onSwitchTo();
-  };
+  NOINLINE uintptr_t CohortsLNValidate(TxThread* tx);
+  TM_FASTCALL void* CohortsLNReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
+  TM_FASTCALL void* CohortsLNReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
+  TM_FASTCALL void CohortsLNWriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+  TM_FASTCALL void CohortsLNWriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+  TM_FASTCALL void CohortsLNCommitRO(TX_LONE_PARAMETER);
+  TM_FASTCALL void CohortsLNCommitRW(TX_LONE_PARAMETER);
 
   /**
    *  CohortsLN begin:
@@ -63,7 +41,7 @@ namespace {
    *  tx is allowed to start until all the transactions finishes their
    *  commits.
    */
-  void CohortsLN::begin(TX_LONE_PARAMETER)
+  void CohortsLNBegin(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
     S1:
@@ -91,7 +69,7 @@ namespace {
    *  CohortsLN commit (read-only):
    */
   void
-  CohortsLN::CommitRO(TX_LONE_PARAMETER)
+  CohortsLNCommitRO(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // mark self status
@@ -107,7 +85,7 @@ namespace {
    *
    */
   void
-  CohortsLN::CommitRW(TX_LONE_PARAMETER)
+  CohortsLNCommitRW(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
     // Mark a global flag, no one is allowed to begin now
@@ -132,7 +110,7 @@ namespace {
       // get the lock and validate (use RingSTM obstruction-free
       // technique)
       while (!bcasptr(&timestamp.val, tx->start_time, tx->start_time + 1))
-          if ((tx->start_time = validate(tx)) == VALIDATION_FAILED) {
+          if ((tx->start_time = CohortsLNValidate(tx)) == VALIDATION_FAILED) {
               // Mark self status
               tx->status = COHORTS_COMMITTED;
               WBR;
@@ -147,7 +125,7 @@ namespace {
               if (lastone)
                   gatekeeper = 0;
 
-              stm::tmabort();
+              tmabort();
           }
 
       // do write back
@@ -177,14 +155,14 @@ namespace {
       tx->vlist.reset();
       tx->writes.reset();
       OnRWCommit(tx);
-      ResetToRO(tx, ReadRO, WriteRO, CommitRO);
+      ResetToRO(tx, CohortsLNReadRO, CohortsLNWriteRO, CohortsLNCommitRO);
   }
 
   /**
    *  CohortsLN read (read-only transaction)
    */
   void*
-  CohortsLN::ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
+  CohortsLNReadRO(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
   {
       TX_GET_TX_INTERNAL;
       void * tmp = *addr;
@@ -196,7 +174,7 @@ namespace {
    *  CohortsLN read (writing transaction)
    */
   void*
-  CohortsLN::ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
+  CohortsLNReadRW(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
   {
       TX_GET_TX_INTERNAL;
       // check the log for a RAW hazard, we expect to miss
@@ -214,19 +192,19 @@ namespace {
    *  CohortsLN write (read-only context): for first write
    */
   void
-  CohortsLN::WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  CohortsLNWriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // record the new value in a redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
-      stm::OnFirstWrite(tx, ReadRW, WriteRW, CommitRW);
+      OnFirstWrite(tx, CohortsLNReadRW, CohortsLNWriteRW, CohortsLNCommitRW);
   }
 
   /**
    *  CohortsLN write (writing context)
    */
   void
-  CohortsLN::WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  CohortsLNWriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // record the new value in a redo log
@@ -237,7 +215,7 @@ namespace {
    *  CohortsLN unwinder:
    */
   void
-  CohortsLN::rollback(STM_ROLLBACK_SIG(tx, except, len))
+  CohortsLNRollback(STM_ROLLBACK_SIG(tx, except, len))
   {
       PreRollback(tx);
 
@@ -257,9 +235,9 @@ namespace {
    *  CohortsLN in-flight irrevocability:
    */
   bool
-  CohortsLN::irrevoc(TxThread*)
+  CohortsLNIrrevoc(TxThread*)
   {
-      stm::UNRECOVERABLE("CohortsLN Irrevocability not yet supported");
+      UNRECOVERABLE("CohortsLN Irrevocability not yet supported");
       return false;
   }
 
@@ -267,7 +245,7 @@ namespace {
    *  CohortsLN validation for commit: check that all reads are valid
    */
   uintptr_t
-  validate(TxThread* tx)
+  CohortsLNValidate(TxThread* tx)
   {
       while (true) {
           // read the lock until it is even
@@ -302,7 +280,7 @@ namespace {
    *
    */
   void
-  CohortsLN::onSwitchTo()
+  CohortsLNOnSwitchTo()
   {
       last_complete.val = 0;
       if (timestamp.val & 1)
@@ -312,9 +290,7 @@ namespace {
           threads[i]->status = COHORTS_COMMITTED;
       }
   }
-}
 
-namespace stm {
   /**
    *  CohortsLN initialization
    */
@@ -324,13 +300,13 @@ namespace stm {
       // set the name
       stms[CohortsLN].name      = "CohortsLN";
       // set the pointers
-      stms[CohortsLN].begin     = ::CohortsLN::begin;
-      stms[CohortsLN].commit    = ::CohortsLN::CommitRO;
-      stms[CohortsLN].read      = ::CohortsLN::ReadRO;
-      stms[CohortsLN].write     = ::CohortsLN::WriteRO;
-      stms[CohortsLN].rollback  = ::CohortsLN::rollback;
-      stms[CohortsLN].irrevoc   = ::CohortsLN::irrevoc;
-      stms[CohortsLN].switcher  = ::CohortsLN::onSwitchTo;
+      stms[CohortsLN].begin     = CohortsLNBegin;
+      stms[CohortsLN].commit    = CohortsLNCommitRO;
+      stms[CohortsLN].read      = CohortsLNReadRO;
+      stms[CohortsLN].write     = CohortsLNWriteRO;
+      stms[CohortsLN].rollback  = CohortsLNRollback;
+      stms[CohortsLN].irrevoc   = CohortsLNIrrevoc;
+      stms[CohortsLN].switcher  = CohortsLNOnSwitchTo;
       stms[CohortsLN].privatization_safe = true;
   }
 }

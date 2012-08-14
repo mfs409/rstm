@@ -17,9 +17,7 @@
  *  Using Option1 for CommitRW.
  */
 
-#include "../profiling.hpp"
 #include "algs.hpp"
-#include "../RedoRAWUtils.hpp"
 #include "../Diagnostics.hpp"
 
 // define atomic operations
@@ -27,43 +25,26 @@
 #define SUB __sync_sub_and_fetch
 #define OR  __sync_or_and_fetch
 
-using stm::TxThread;
-using stm::WriteSet;
-using stm::OrecList;
-using stm::WriteSetEntry;
-using stm::orec_t;
-using stm::get_orec;
-using stm::timestamp;
-
-/**
- *  Declare the functions that we're going to implement, so that we can avoid
- *  circular dependencies.
- */
-namespace {
+namespace stm
+{
+  // [mfs] Not valid for 64-bit code?
   const uint32_t MSB = 0x80000000;
 
-  struct Fastlane1 {
-      static void begin(TX_LONE_PARAMETER);
-      static TM_FASTCALL void* ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void* ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void* read_turbo(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void write_turbo(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void CommitRO(TX_LONE_PARAMETER);
-      static TM_FASTCALL void CommitRW(TX_LONE_PARAMETER);
-      static TM_FASTCALL void commit_turbo(TX_LONE_PARAMETER);
-
-      static void rollback(STM_ROLLBACK_SIG(,,));
-      static bool irrevoc(TxThread*);
-      static void onSwitchTo();
-  };
+  TM_FASTCALL void* Fastlane1ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
+  TM_FASTCALL void* Fastlane1ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
+  TM_FASTCALL void* Fastlane1ReadTurbo(TX_FIRST_PARAMETER STM_READ_SIG(,));
+  TM_FASTCALL void Fastlane1WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+  TM_FASTCALL void Fastlane1WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+  TM_FASTCALL void Fastlane1WriteTurbo(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+  TM_FASTCALL void Fastlane1CommitRO(TX_LONE_PARAMETER);
+  TM_FASTCALL void Fastlane1CommitRW(TX_LONE_PARAMETER);
+  TM_FASTCALL void Fastlane1CommitTurbo(TX_LONE_PARAMETER);
 
   /**
    *  Fastlane1 begin:
    *  Master thread set timestamp.val from even to odd.
    */
-  void Fastlane1::begin(TX_LONE_PARAMETER)
+  void Fastlane1Begin(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       tx->allocator.onTxBegin();
@@ -81,8 +62,8 @@ namespace {
           timestamp.val = (timestamp.val & ~MSB) + 1;
 
           // go master mode
-          if (!CheckTurboMode(tx, read_turbo))
-              stm::GoTurbo(tx, read_turbo, write_turbo, commit_turbo);
+          if (!CheckTurboMode(tx, Fastlane1ReadTurbo))
+              GoTurbo(tx, Fastlane1ReadTurbo, Fastlane1WriteTurbo, Fastlane1CommitTurbo);
       }
 
       // helpers get even counter (discard LSD & MSB)
@@ -90,10 +71,10 @@ namespace {
   }
 
   /**
-   *  Fastline: commit_turbo for master mode
+   *  Fastline: CommitTurbo for master mode
    */
   void
-  Fastlane1::commit_turbo(TX_LONE_PARAMETER)
+  Fastlane1CommitTurbo(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       CFENCE; //wbw between write back and change of timestamp.val
@@ -107,7 +88,7 @@ namespace {
    *  Read-only transaction commit immediately
    */
   void
-  Fastlane1::CommitRO(TX_LONE_PARAMETER)
+  Fastlane1CommitRO(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // clean up
@@ -120,7 +101,7 @@ namespace {
    *
    */
   void
-  Fastlane1::CommitRW(TX_LONE_PARAMETER)
+  Fastlane1CommitRW(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       uint32_t c;
@@ -147,7 +128,7 @@ namespace {
           // If orec changed , abort
           if ((*i)->v.all > tx->start_time) {
               SUB(&timestamp.val, 1);
-              stm::tmabort();
+              tmabort();
           }
 
       // Write updates to memory, mark orec as c + 1
@@ -171,14 +152,14 @@ namespace {
       tx->r_orecs.reset();
       tx->writes.reset();
       OnRWCommit(tx);
-      ResetToRO(tx, ReadRO, WriteRO, CommitRO);
+      ResetToRO(tx, Fastlane1ReadRO, Fastlane1WriteRO, Fastlane1CommitRO);
   }
 
   /**
-   *  Fastlane1 read_turbo for master mode
+   *  Fastlane1 ReadTurbo for master mode
    */
   void*
-  Fastlane1::read_turbo(TX_FIRST_PARAMETER_ANON STM_READ_SIG(addr,))
+  Fastlane1ReadTurbo(TX_FIRST_PARAMETER_ANON STM_READ_SIG(addr,))
   {
       return *addr;
   }
@@ -187,7 +168,7 @@ namespace {
    *  Fastlane1 read (read-only transaction)
    */
   void*
-  Fastlane1::ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
+  Fastlane1ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
   {
       TX_GET_TX_INTERNAL;
       void *val = *addr;
@@ -197,7 +178,7 @@ namespace {
 
       // validate read value
       if (o->v.all > tx->start_time)
-          stm::tmabort();
+          tmabort();
 
       // log orec
       tx->r_orecs.insert(o);
@@ -209,7 +190,7 @@ namespace {
    *  Fastlane1 read (writing transaction)
    */
   void*
-  Fastlane1::ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
+  Fastlane1ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
   {
       TX_GET_TX_INTERNAL;
       // check the log for a RAW hazard, we expect to miss
@@ -218,16 +199,16 @@ namespace {
       REDO_RAW_CHECK(found, log, mask);
 
       // reuse ReadRO barrier
-      void* val = ReadRO(TX_FIRST_ARG addr STM_MASK(mask));
+      void* val = Fastlane1ReadRO(TX_FIRST_ARG addr STM_MASK(mask));
       REDO_RAW_CLEANUP(val, found, log, mask);
       return val;
   }
 
   /**
-   *  Fastlane1 write_turbo for master mode (in place write)
+   *  Fastlane1 WriteTurbo for master mode (in place write)
    */
   void
-  Fastlane1::write_turbo(TX_FIRST_PARAMETER_ANON STM_WRITE_SIG(addr,val,mask))
+  Fastlane1WriteTurbo(TX_FIRST_PARAMETER_ANON STM_WRITE_SIG(addr,val,mask))
   {
       orec_t* o = get_orec(addr);
       // [mfs] strictly speaking, timestamp.val is a volatile, and reading it here means
@@ -250,19 +231,19 @@ namespace {
    *  Fastlane1 write (read-only context): for first write
    */
   void
-  Fastlane1::WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  Fastlane1WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // Add to write set
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
-      stm::OnFirstWrite(tx, ReadRW, WriteRW, CommitRW);
+      OnFirstWrite(tx, Fastlane1ReadRW, Fastlane1WriteRW, Fastlane1CommitRW);
   }
 
   /**
    *  Fastlane1 write (writing context)
    */
   void
-  Fastlane1::WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  Fastlane1WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // record the new value in a redo log
@@ -273,7 +254,7 @@ namespace {
    *  Fastlane1 unwinder:
    */
   void
-  Fastlane1::rollback(STM_ROLLBACK_SIG(tx, except, len))
+  Fastlane1Rollback(STM_ROLLBACK_SIG(tx, except, len))
   {
       PreRollback(tx);
 
@@ -293,9 +274,9 @@ namespace {
    *  Fastlane1 in-flight irrevocability:
    */
   bool
-  Fastlane1::irrevoc(TxThread*)
+  Fastlane1Irrevoc(TxThread*)
   {
-      stm::UNRECOVERABLE("Fastlane1 Irrevocability not yet supported");
+      UNRECOVERABLE("Fastlane1 Irrevocability not yet supported");
       return false;
   }
 
@@ -303,13 +284,11 @@ namespace {
    *  Switch to Fastlane1:
    */
   void
-  Fastlane1::onSwitchTo()
+  Fastlane1OnSwitchTo()
   {
       timestamp.val = 0;
   }
-}
 
-namespace stm {
   /**
    *  Fastlane1 initialization
    */
@@ -319,13 +298,13 @@ namespace stm {
       // set the name
       stms[Fastlane1].name      = "Fastlane1";
       // set the pointers
-      stms[Fastlane1].begin     = ::Fastlane1::begin;
-      stms[Fastlane1].commit    = ::Fastlane1::CommitRO;
-      stms[Fastlane1].read      = ::Fastlane1::ReadRO;
-      stms[Fastlane1].write     = ::Fastlane1::WriteRO;
-      stms[Fastlane1].rollback  = ::Fastlane1::rollback;
-      stms[Fastlane1].irrevoc   = ::Fastlane1::irrevoc;
-      stms[Fastlane1].switcher  = ::Fastlane1::onSwitchTo;
+      stms[Fastlane1].begin     = Fastlane1Begin;
+      stms[Fastlane1].commit    = Fastlane1CommitRO;
+      stms[Fastlane1].read      = Fastlane1ReadRO;
+      stms[Fastlane1].write     = Fastlane1WriteRO;
+      stms[Fastlane1].rollback  = Fastlane1Rollback;
+      stms[Fastlane1].irrevoc   = Fastlane1Irrevoc;
+      stms[Fastlane1].switcher  = Fastlane1OnSwitchTo;
       stms[Fastlane1].privatization_safe = true;
   }
 }

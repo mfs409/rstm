@@ -17,44 +17,22 @@
  *    conflicts on every read.
  */
 
-#include "../profiling.hpp"
 #include "algs.hpp"
-#include "../RedoRAWUtils.hpp"
 
-using stm::TxThread;
-using stm::last_complete;
-using stm::timestamp;
-using stm::last_init;
-using stm::ring_wf;
-using stm::RING_ELEMENTS;
-using stm::WriteSetEntry;
-
-
-/**
- *  Declare the functions that we're going to implement, so that we can avoid
- *  circular dependencies.
- */
-namespace {
-  struct RingALA
-  {
-      static void begin(TX_LONE_PARAMETER);
-      static TM_FASTCALL void* ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void* ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void CommitRO(TX_LONE_PARAMETER);
-      static TM_FASTCALL void CommitRW(TX_LONE_PARAMETER);
-
-      static void rollback(STM_ROLLBACK_SIG(,,));
-      static bool irrevoc(TxThread*);
-      static void onSwitchTo();
-      static NOINLINE void update_cf(TxThread*);
-  };
+namespace stm
+{
+  TM_FASTCALL void* RingALAReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
+  TM_FASTCALL void* RingALAReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
+  TM_FASTCALL void RingALAWriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+  TM_FASTCALL void RingALAWriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+  TM_FASTCALL void RingALACommitRO(TX_LONE_PARAMETER);
+  TM_FASTCALL void RingALACommitRW(TX_LONE_PARAMETER);
+  NOINLINE void RingALAUpdateCF(TxThread*);
 
   /**
    *  RingALA begin:
    */
-  void RingALA::begin(TX_LONE_PARAMETER)
+  void RingALABegin(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       tx->allocator.onTxBegin();
@@ -65,7 +43,7 @@ namespace {
    *  RingALA commit (read-only):
    */
   void
-  RingALA::CommitRO(TX_LONE_PARAMETER)
+  RingALACommitRO(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // just clear the filters
@@ -80,7 +58,7 @@ namespace {
    *    The writer commit algorithm is the same as RingSW
    */
   void
-  RingALA::CommitRW(TX_LONE_PARAMETER)
+  RingALACommitRW(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // get a commit time, but only succeed in the CAS if this transaction
@@ -103,7 +81,7 @@ namespace {
               // change from here on out.
               for (uintptr_t i = commit_time; i >= tx->start_time + 1; i--)
                   if (ring_wf[i % RING_ELEMENTS].intersect(tx->rf))
-                      stm::tmabort();
+                      tmabort();
 
               // wait for newest entry to be wb-complete before continuing
               while (last_complete.val < commit_time)
@@ -111,7 +89,7 @@ namespace {
 
               // detect ring rollover: start.ts must not have changed
               if (timestamp.val > (tx->start_time + RING_ELEMENTS))
-                  stm::tmabort();
+                  tmabort();
 
               // ensure this tx doesn't look at this entry again
               tx->start_time = commit_time;
@@ -134,7 +112,7 @@ namespace {
       tx->cf->clear();
       tx->wf->clear();
       OnRWCommit(tx);
-      ResetToRO(tx, ReadRO, WriteRO, CommitRO);
+      ResetToRO(tx, RingALAReadRO, RingALAWriteRO, RingALACommitRO);
   }
 
   /**
@@ -144,12 +122,12 @@ namespace {
    *    that our reads won't result in ALA conflicts
    */
   void*
-  RingALA::ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
+  RingALAReadRO(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
   {
       TX_GET_TX_INTERNAL;
       // abort if this read would violate ALA
       if (tx->cf->lookup(addr))
-          stm::tmabort();
+          tmabort();
 
       // read the value from memory, log the address, and validate
       void* val = *addr;
@@ -157,7 +135,7 @@ namespace {
       tx->rf->add(addr);
       // get the latest initialized ring entry, return if we've seen it already
       if (__builtin_expect(last_init.val != tx->start_time, false))
-          update_cf(tx);
+          RingALAUpdateCF(tx);
       return val;
   }
 
@@ -165,7 +143,7 @@ namespace {
    *  RingALA read (writing transaction)
    */
   void*
-  RingALA::ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
+  RingALAReadRW(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
   {
       TX_GET_TX_INTERNAL;
       // check the log for a RAW hazard, we expect to miss
@@ -175,7 +153,7 @@ namespace {
 
       // abort if this read would violate ALA
       if (tx->cf->lookup(addr))
-          stm::tmabort();
+          tmabort();
 
       // read the value from memory, log the address, and validate
       void* val = *addr;
@@ -183,7 +161,7 @@ namespace {
       tx->rf->add(addr);
       // get the latest initialized ring entry, return if we've seen it already
       if (__builtin_expect(last_init.val != tx->start_time, false))
-          update_cf(tx);
+          RingALAUpdateCF(tx);
 
       REDO_RAW_CLEANUP(val, found, log, mask);
       return val;
@@ -193,20 +171,20 @@ namespace {
    *  RingALA write (read-only context)
    */
   void
-  RingALA::WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  RingALAWriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // buffer the write and update the filter
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
       tx->wf->add(addr);
-      stm::OnFirstWrite(tx, ReadRW, WriteRW, CommitRW);
+      OnFirstWrite(tx, RingALAReadRW, RingALAWriteRW, RingALACommitRW);
   }
 
   /**
    *  RingALA write (writing context)
    */
   void
-  RingALA::WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  RingALAWriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
@@ -217,7 +195,7 @@ namespace {
    *  RingALA unwinder:
    */
   void
-  RingALA::rollback(STM_ROLLBACK_SIG(tx, except, len))
+  RingALARollback(STM_ROLLBACK_SIG(tx, except, len))
   {
       PreRollback(tx);
 
@@ -234,7 +212,7 @@ namespace {
           tx->wf->clear();
       }
       PostRollback(tx);
-      ResetToRO(tx, ReadRO, WriteRO, CommitRO);
+      ResetToRO(tx, RingALAReadRO, RingALAWriteRO, RingALACommitRO);
   }
 
   /**
@@ -242,7 +220,7 @@ namespace {
    *
    *  NB: RingALA actually **must** use abort-and-restart to preserve ALA.
    */
-  bool RingALA::irrevoc(TxThread*) { return false; }
+  bool RingALAIrrevoc(TxThread*) { return false; }
 
   /**
    *  RingALA validation
@@ -251,7 +229,7 @@ namespace {
    *    the read filter with the conflict filter to identify ALA violations.
    */
   void
-  RingALA::update_cf(TxThread* tx)
+  RingALAUpdateCF(TxThread* tx)
   {
       // get latest entry
       uintptr_t my_index = last_init.val;
@@ -263,11 +241,11 @@ namespace {
       CFENCE;
       // detect ring rollover: start.ts must not have changed
       if (timestamp.val > (tx->start_time + RING_ELEMENTS))
-          stm::tmabort();
+          tmabort();
 
       // now intersect my rf with my cf
       if (tx->rf->intersect(tx->cf))
-          stm::tmabort();
+          tmabort();
 
       // wait for newest entry to be writeback-complete before returning
       while (last_complete.val < my_index)
@@ -284,14 +262,12 @@ namespace {
    *    that the timestamp, last_init, and last_complete are equal.
    */
   void
-  RingALA::onSwitchTo()
+  RingALAOnSwitchTo()
   {
       last_init.val = timestamp.val;
       last_complete.val = last_init.val;
   }
-}
 
-namespace stm {
   /**
    *  RingALA initialization
    */
@@ -302,13 +278,13 @@ namespace stm {
       stms[RingALA].name      = "RingALA";
 
       // set the pointers
-      stms[RingALA].begin     = ::RingALA::begin;
-      stms[RingALA].commit    = ::RingALA::CommitRO;
-      stms[RingALA].read      = ::RingALA::ReadRO;
-      stms[RingALA].write     = ::RingALA::WriteRO;
-      stms[RingALA].rollback  = ::RingALA::rollback;
-      stms[RingALA].irrevoc   = ::RingALA::irrevoc;
-      stms[RingALA].switcher  = ::RingALA::onSwitchTo;
+      stms[RingALA].begin     = RingALABegin;
+      stms[RingALA].commit    = RingALACommitRO;
+      stms[RingALA].read      = RingALAReadRO;
+      stms[RingALA].write     = RingALAWriteRO;
+      stms[RingALA].rollback  = RingALARollback;
+      stms[RingALA].irrevoc   = RingALAIrrevoc;
+      stms[RingALA].switcher  = RingALAOnSwitchTo;
       stms[RingALA].privatization_safe = true;
   }
 }

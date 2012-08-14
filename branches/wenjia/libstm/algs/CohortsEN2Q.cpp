@@ -16,48 +16,26 @@
  *  Use Queue to handle ordered commit.
  */
 
-#include "../profiling.hpp"
 #include "algs.hpp"
-#include "../RedoRAWUtils.hpp"
 #include "../Diagnostics.hpp"
 
-using stm::TxThread;
-using stm::WriteSet;
-using stm::WriteSetEntry;
-using stm::ValueList;
-using stm::ValueListEntry;
-using stm::started;
-using stm::threads;
-using stm::threadcount;
-using stm::cohorts_node_t;
-
+// [mfs] Can we move these out?
 #define TURBO   5
 #define RESET   0
-/**
- *  Declare the functions that we're going to implement, so that we can avoid
- *  circular dependencies.
- */
-namespace {
-  NOINLINE bool validate(TxThread* tx);
-  // global linklist's head
-  struct cohorts_node_t* volatile q = NULL;
 
-  struct CohortsEN2Q {
-      static void begin(TX_LONE_PARAMETER);
-      static TM_FASTCALL void* ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void* ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void* read_turbo(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void write_turbo(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void CommitRO(TX_LONE_PARAMETER);
-      static TM_FASTCALL void CommitRW(TX_LONE_PARAMETER);
-      static TM_FASTCALL void commit_turbo(TX_LONE_PARAMETER);
-
-      static void rollback(STM_ROLLBACK_SIG(,,));
-      static bool irrevoc(TxThread*);
-      static void onSwitchTo();
-  };
+namespace stm
+{
+  NOINLINE bool CohortsEN2QValidate(TxThread* tx);
+  void Begin(TX_LONE_PARAMETER);
+  TM_FASTCALL void* CohortsEN2QReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
+  TM_FASTCALL void* CohortsEN2QReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
+  TM_FASTCALL void* CohortsEN2QReadTurbo(TX_FIRST_PARAMETER STM_READ_SIG(,));
+  TM_FASTCALL void CohortsEN2QWriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+  TM_FASTCALL void CohortsEN2QWriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+  TM_FASTCALL void CohortsEN2QWriteTurbo(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+  TM_FASTCALL void CohortsEN2QCommitRO(TX_LONE_PARAMETER);
+  TM_FASTCALL void CohortsEN2QCommitRW(TX_LONE_PARAMETER);
+  TM_FASTCALL void CohortsEN2QCommitTurbo(TX_LONE_PARAMETER);
 
   /**
    *  CohortsEN2Q begin:
@@ -66,7 +44,7 @@ namespace {
    *  tx is allowed to start until all the transactions finishes their
    *  commits.
    */
-  void CohortsEN2Q::begin(TX_LONE_PARAMETER)
+  void CohortsEN2QBegin(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       tx->allocator.onTxBegin();
@@ -94,7 +72,7 @@ namespace {
    *  CohortsEN2Q commit (read-only):
    */
   void
-  CohortsEN2Q::CommitRO(TX_LONE_PARAMETER)
+  CohortsEN2QCommitRO(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // decrease total number of tx started
@@ -109,7 +87,7 @@ namespace {
    *  CohortsEN2Q commit (in place write commit): no validation, no write back
    */
   void
-  CohortsEN2Q::commit_turbo(TX_LONE_PARAMETER)
+  CohortsEN2QCommitTurbo(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // decrease total number of tx started
@@ -119,7 +97,7 @@ namespace {
       tx->vlist.reset();
       tx->writes.reset();
       OnRWCommit(tx);
-      ResetToRO(tx, ReadRO, WriteRO, CommitRO);
+      ResetToRO(tx, CohortsEN2QReadRO, CohortsEN2QWriteRO, CohortsEN2QCommitRO);
   }
 
   /**
@@ -129,7 +107,7 @@ namespace {
    *  in an order which is given at the beginning of commit.
    */
   void
-  CohortsEN2Q::CommitRW(TX_LONE_PARAMETER)
+  CohortsEN2QCommitRW(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // add myself to the queue
@@ -153,10 +131,10 @@ namespace {
       while (started.val != 0);
 
       // Everyone must validate read
-      if (!validate(tx)) {
+      if (!CohortsEN2QValidate(tx)) {
           tx->turn.val = COHORTS_DONE;
           if (q == &(tx->turn)) q = NULL;
-          stm::tmabort();
+          tmabort();
       }
 
       // do write back
@@ -174,14 +152,14 @@ namespace {
       tx->vlist.reset();
       tx->writes.reset();
       OnRWCommit(tx);
-      ResetToRO(tx, ReadRO, WriteRO, CommitRO);
+      ResetToRO(tx, CohortsEN2QReadRO, CohortsEN2QWriteRO, CohortsEN2QCommitRO);
   }
 
   /**
-   *  CohortsEN2Q read_turbo
+   *  CohortsEN2Q ReadTurbo
    */
   void*
-  CohortsEN2Q::read_turbo(TX_FIRST_PARAMETER_ANON STM_READ_SIG(addr,))
+  CohortsEN2QReadTurbo(TX_FIRST_PARAMETER_ANON STM_READ_SIG(addr,))
   {
       return *addr;
   }
@@ -190,14 +168,14 @@ namespace {
    *  CohortsEN2Q read (read-only transaction)
    */
   void*
-  CohortsEN2Q::ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
+  CohortsEN2QReadRO(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
   {
       TX_GET_TX_INTERNAL;
       void *tmp = *addr;
       STM_LOG_VALUE(tx, addr, tmp, mask);
       // test if I can go turbo
       if (tx->status == TURBO)
-          stm::GoTurbo(tx, read_turbo, write_turbo, commit_turbo);
+          GoTurbo(tx, CohortsEN2QReadTurbo, CohortsEN2QWriteTurbo, CohortsEN2QCommitTurbo);
       return tmp;
   }
 
@@ -205,7 +183,7 @@ namespace {
    *  CohortsEN2Q read (writing transaction)
    */
   void*
-  CohortsEN2Q::ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
+  CohortsEN2QReadRW(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
   {
       TX_GET_TX_INTERNAL;
       // check the log for a RAW hazard, we expect to miss
@@ -219,7 +197,7 @@ namespace {
       // test if I can go turbo
       if (tx->status == TURBO) {
           tx->writes.writeback();
-          stm::GoTurbo(tx, read_turbo, write_turbo, commit_turbo);
+          GoTurbo(tx, CohortsEN2QReadTurbo, CohortsEN2QWriteTurbo, CohortsEN2QCommitTurbo);
       }
       return tmp;
   }
@@ -228,25 +206,25 @@ namespace {
    *  CohortsEN2Q write (read-only context): for first write
    */
   void
-  CohortsEN2Q::WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  CohortsEN2QWriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       if (tx->status == TURBO) {
           // in place write
           *addr = val;
           // go turbo mode
-          stm::OnFirstWrite(tx, read_turbo, write_turbo, commit_turbo);
+          OnFirstWrite(tx, CohortsEN2QReadTurbo, CohortsEN2QWriteTurbo, CohortsEN2QCommitTurbo);
           return;
       }
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
-      stm::OnFirstWrite(tx, ReadRW, WriteRW, CommitRW);
+      OnFirstWrite(tx, CohortsEN2QReadRW, CohortsEN2QWriteRW, CohortsEN2QCommitRW);
   }
 
   /**
    *  CohortsEN2Q write (in place write)
    */
   void
-  CohortsEN2Q::write_turbo(TX_FIRST_PARAMETER_ANON STM_WRITE_SIG(addr,val,mask))
+  CohortsEN2QWriteTurbo(TX_FIRST_PARAMETER_ANON STM_WRITE_SIG(addr,val,mask))
   {
       *addr = val; // in place write
   }
@@ -255,7 +233,7 @@ namespace {
    *  CohortsEN2Q write (writing context)
    */
   void
-  CohortsEN2Q::WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  CohortsEN2QWriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       if (tx->status == TURBO) {
@@ -266,7 +244,7 @@ namespace {
           // in place write
           *addr = val;
           // go turbo mode
-          stm::OnFirstWrite(tx, read_turbo, write_turbo, commit_turbo);
+          OnFirstWrite(tx, CohortsEN2QReadTurbo, CohortsEN2QWriteTurbo, CohortsEN2QCommitTurbo);
           return;
       }
       // record the new value in a redo log
@@ -277,7 +255,7 @@ namespace {
    *  CohortsEN2Q unwinder:
    */
   void
-  CohortsEN2Q::rollback(STM_ROLLBACK_SIG(tx, except, len))
+  CohortsEN2QRollback(STM_ROLLBACK_SIG(tx, except, len))
   {
       PreRollback(tx);
 
@@ -297,17 +275,16 @@ namespace {
    *  CohortsEN2Q in-flight irrevocability:
    */
   bool
-  CohortsEN2Q::irrevoc(TxThread*)
+  CohortsEN2QIrrevoc(TxThread*)
   {
-      stm::UNRECOVERABLE("CohortsEN2Q Irrevocability not yet supported");
+      UNRECOVERABLE("CohortsEN2Q Irrevocability not yet supported");
       return false;
   }
 
   /**
    *  CohortsEN2Q validation for commit: check that all reads are valid
    */
-  bool
-  validate(TxThread* tx)
+  bool CohortsEN2QValidate(TxThread* tx)
   {
       foreach (ValueList, i, tx->vlist) {
           bool valid = STM_LOG_VALUE_IS_VALID(i, tx);
@@ -321,12 +298,10 @@ namespace {
    *
    */
   void
-  CohortsEN2Q::onSwitchTo()
+  CohortsEN2QOnSwitchTo()
   {
   }
-}
 
-namespace stm {
   /**
    *  CohortsEN2Q initialization
    */
@@ -336,13 +311,13 @@ namespace stm {
       // set the name
       stms[CohortsEN2Q].name      = "CohortsEN2Q";
       // set the pointers
-      stms[CohortsEN2Q].begin     = ::CohortsEN2Q::begin;
-      stms[CohortsEN2Q].commit    = ::CohortsEN2Q::CommitRO;
-      stms[CohortsEN2Q].read      = ::CohortsEN2Q::ReadRO;
-      stms[CohortsEN2Q].write     = ::CohortsEN2Q::WriteRO;
-      stms[CohortsEN2Q].rollback  = ::CohortsEN2Q::rollback;
-      stms[CohortsEN2Q].irrevoc   = ::CohortsEN2Q::irrevoc;
-      stms[CohortsEN2Q].switcher  = ::CohortsEN2Q::onSwitchTo;
+      stms[CohortsEN2Q].begin     = CohortsEN2QBegin;
+      stms[CohortsEN2Q].commit    = CohortsEN2QCommitRO;
+      stms[CohortsEN2Q].read      = CohortsEN2QReadRO;
+      stms[CohortsEN2Q].write     = CohortsEN2QWriteRO;
+      stms[CohortsEN2Q].rollback  = CohortsEN2QRollback;
+      stms[CohortsEN2Q].irrevoc   = CohortsEN2QIrrevoc;
+      stms[CohortsEN2Q].switcher  = CohortsEN2QOnSwitchTo;
       stms[CohortsEN2Q].privatization_safe = true;
   }
 }

@@ -31,66 +31,33 @@
  *    for who wins in any conflict.
  */
 
-#include "../profiling.hpp"
 #include "../cm.hpp"
 #include "algs.hpp"
-
-using stm::TxThread;
-using stm::ByteLockList;
-using stm::bytelock_t;
-using stm::get_bytelock;
-using stm::threads;
-using stm::UndoLogEntry;
 
 /**
  *  Declare the functions that we're going to implement, so that we can avoid
  *  circular dependencies.
  */
-namespace {
+namespace stm
+{
   template <class CM>
-  struct ByEAU_Generic
-  {
-      static void Initialize(int id, const char* name);
-
-      static void begin(TX_LONE_PARAMETER);
-      static TM_FASTCALL void* ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void* ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void CommitRO(TX_LONE_PARAMETER);
-      static TM_FASTCALL void CommitRW(TX_LONE_PARAMETER);
-
-      static void rollback(STM_ROLLBACK_SIG(,,));
-      static bool irrevoc(TxThread*);
-      static void onSwitchTo();
-  };
+  TM_FASTCALL void* ByEAUGenericReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
+  template <class CM>
+  TM_FASTCALL void* ByEAUGenericReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
+  template <class CM>
+  TM_FASTCALL void ByEAUGenericWriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+  template <class CM>
+  TM_FASTCALL void ByEAUGenericWriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+  template <class CM>
+  TM_FASTCALL void ByEAUGenericCommitRO(TX_LONE_PARAMETER);
+  template <class CM>
+  TM_FASTCALL void ByEAUGenericCommitRW(TX_LONE_PARAMETER);
 
   /**
-   *  ByEAU initialization
+   *  ByEAUGeneric begin:
    */
   template <class CM>
-  void
-  ByEAU_Generic<CM>::Initialize(int id, const char* name)
-  {
-      // set the name
-      stm::stms[id].name      = name;
-
-      // set the pointers
-      stm::stms[id].begin     = ByEAU_Generic<CM>::begin;
-      stm::stms[id].commit    = ByEAU_Generic<CM>::CommitRO;
-      stm::stms[id].read      = ByEAU_Generic<CM>::ReadRO;
-      stm::stms[id].write     = ByEAU_Generic<CM>::WriteRO;
-      stm::stms[id].rollback  = ByEAU_Generic<CM>::rollback;
-      stm::stms[id].irrevoc   = ByEAU_Generic<CM>::irrevoc;
-      stm::stms[id].switcher  = ByEAU_Generic<CM>::onSwitchTo;
-      stm::stms[id].privatization_safe = true;
-  }
-
-  /**
-   *  ByEAU_Generic begin:
-   */
-  template <class CM>
-  void ByEAU_Generic<CM>::begin(TX_LONE_PARAMETER)
+  void ByEAUGenericBegin(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // mark self alive
@@ -102,11 +69,11 @@ namespace {
   }
 
   /**
-   *  ByEAU_Generic commit (read-only):
+   *  ByEAUGeneric commit (read-only):
    */
   template <class CM>
-  void
-  ByEAU_Generic<CM>::CommitRO(TX_LONE_PARAMETER)
+  TM_FASTCALL
+  void ByEAUGenericCommitRO(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // read-only... release read locks
@@ -122,14 +89,14 @@ namespace {
   }
 
   /**
-   *  ByEAU_Generic commit (writing context):
+   *  ByEAUGeneric commit (writing context):
    *
    *    Since this is ByteEager, we just drop the locks to commit, regardless of
    *    the CM policy.
    */
   template <class CM>
-  void
-  ByEAU_Generic<CM>::CommitRW(TX_LONE_PARAMETER)
+  TM_FASTCALL
+  void ByEAUGenericCommitRW(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // release write locks, then read locks
@@ -147,15 +114,16 @@ namespace {
       tx->undo_log.reset();
 
       OnRWCommit(tx);
-      ResetToRO(tx, ReadRO, WriteRO, CommitRO);
+      ResetToRO(tx, ByEAUGenericReadRO<CM>, ByEAUGenericWriteRO<CM>,
+                ByEAUGenericCommitRO<CM>);
   }
 
   /**
-   *  ByEAU_Generic read (read-only transaction)
+   *  ByEAUGeneric read (read-only transaction)
    */
   template <class CM>
-  void*
-  ByEAU_Generic<CM>::ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
+  TM_FASTCALL
+  void* ByEAUGenericReadRO(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
   {
       TX_GET_TX_INTERNAL;
       bytelock_t* lock = get_bytelock(addr);
@@ -174,11 +142,11 @@ namespace {
           if (CM::mayKill(tx, owner - 1))
               threads[owner-1]->alive = TX_ABORTED;
           else
-              stm::tmabort();
+              tmabort();
           // NB: must have liveness check in the spin, since we may have read
           //     locks
           if (tx->alive == TX_ABORTED)
-              stm::tmabort();
+              tmabort();
       }
 
       // do the read
@@ -188,16 +156,16 @@ namespace {
 
       // check for remote abort
       if (tx->alive == TX_ABORTED)
-          stm::tmabort();
+          tmabort();
       return result;
   }
 
   /**
-   *  ByEAU_Generic read (writing transaction)
+   *  ByEAUGeneric read (writing transaction)
    */
   template <class CM>
-  void*
-  ByEAU_Generic<CM>::ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
+  TM_FASTCALL
+  void* ByEAUGenericReadRW(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
   {
       TX_GET_TX_INTERNAL;
       bytelock_t* lock = get_bytelock(addr);
@@ -217,10 +185,10 @@ namespace {
               if (CM::mayKill(tx, owner - 1))
                   threads[owner-1]->alive = TX_ABORTED;
               else
-                  stm::tmabort();
+                  tmabort();
               // NB: again, need liveness check
               if (tx->alive == TX_ABORTED)
-                  stm::tmabort();
+                  tmabort();
           }
       }
 
@@ -231,16 +199,16 @@ namespace {
 
       // check for remote abort
       if (tx->alive == TX_ABORTED)
-          stm::tmabort();
+          tmabort();
       return result;
   }
 
   /**
-   *  ByEAU_Generic write (read-only context)
+   *  ByEAUGeneric write (read-only context)
    */
   template <class CM>
-  void
-  ByEAU_Generic<CM>::WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  TM_FASTCALL
+  void ByEAUGenericWriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       bytelock_t* lock = get_bytelock(addr);
@@ -253,13 +221,13 @@ namespace {
               if (CM::mayKill(tx, owner - 1))
                   threads[owner-1]->alive = TX_ABORTED;
               else
-                  stm::tmabort();
+                  tmabort();
           // try to get ownership
           else if (bcas32(&(lock->owner), 0u, tx->id))
               break;
           // liveness check
           if (tx->alive == TX_ABORTED)
-              stm::tmabort();
+              tmabort();
       }
 
       // log the lock, drop any read locks I have
@@ -273,7 +241,7 @@ namespace {
               if (CM::mayKill(tx, i))
                   threads[i]->alive = TX_ABORTED;
               else
-                  stm::tmabort();
+                  tmabort();
           }
 
       // add to undo log, do in-place write
@@ -282,17 +250,18 @@ namespace {
 
       // check for remote abort
       if (tx->alive == TX_ABORTED)
-          stm::tmabort();
+          tmabort();
 
-      stm::OnFirstWrite(tx, ReadRW, WriteRW, CommitRW);
+      OnFirstWrite(tx, ByEAUGenericReadRW<CM>, ByEAUGenericWriteRW<CM>,
+                        ByEAUGenericCommitRW<CM>);
   }
 
   /**
-   *  ByEAU_Generic write (writing context)
+   *  ByEAUGeneric write (writing context)
    */
   template <class CM>
-  void
-  ByEAU_Generic<CM>::WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  TM_FASTCALL
+  void ByEAUGenericWriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       bytelock_t* lock = get_bytelock(addr);
@@ -307,13 +276,13 @@ namespace {
                   if (CM::mayKill(tx, owner-1))
                       threads[owner-1]->alive = TX_ABORTED;
                   else
-                      stm::tmabort();
+                      tmabort();
               // try to get ownership
               else if (bcas32(&(lock->owner), 0u, tx->id))
                   break;
               // liveness check
               if (tx->alive == TX_ABORTED)
-                  stm::tmabort();
+                  tmabort();
           }
           // log the lock, drop any read locks I have
           tx->w_bytelocks.insert(lock);
@@ -326,7 +295,7 @@ namespace {
                   if (CM::mayKill(tx, i))
                       threads[i]->alive = TX_ABORTED;
                   else
-                      stm::tmabort();
+                      tmabort();
               }
       }
 
@@ -336,18 +305,18 @@ namespace {
 
       // check for remote abort
       if (tx->alive == TX_ABORTED)
-          stm::tmabort();
+          tmabort();
   }
 
   /**
-   *  ByEAU_Generic unwinder:
+   *  ByEAUGeneric unwinder:
    *
    *    All ByEAU algorithms unwind in the same way: we run the undo log, then we
    *    release locks, notify the CM, and clean up.
    */
   template <class CM>
   void
-  ByEAU_Generic<CM>::rollback(STM_ROLLBACK_SIG(tx, except, len))
+  ByEAUGenericRollback(STM_ROLLBACK_SIG(tx, except, len))
   {
       PreRollback(tx);
 
@@ -369,28 +338,29 @@ namespace {
       CM::onAbort(tx);
 
       PostRollback(tx);
-      ResetToRO(tx, ReadRO, WriteRO, CommitRO);
+      ResetToRO(tx, ByEAUGenericReadRO<CM>, ByEAUGenericWriteRO<CM>,
+                ByEAUGenericCommitRO<CM>);
   }
 
   /**
-   *  ByEAU_Generic in-flight irrevocability:
+   *  ByEAUGeneric in-flight irrevocability:
    */
   template <class CM>
   bool
-  ByEAU_Generic<CM>::irrevoc(TxThread*)
+  ByEAUGenericIrrevoc(TxThread*)
   {
       return false;
   }
 
   /**
-   *  Switch to ByEAU_Generic:
+   *  Switch to ByEAUGeneric:
    *
    *    No algorithm leaves the ByteLock array in a nonzero state, so we
    *    don't have any overhead here.
    */
   template <class CM>
   void
-  ByEAU_Generic<CM>::onSwitchTo() { }
+  ByEAUGenericOnSwitchTo() { }
 }
 
 #endif // BYEAU_HPP__

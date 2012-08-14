@@ -42,6 +42,6 @@ namespace stm
       tx->tmlHasLock = true;
   }
 
-} // namespace stm
+} // namespace stm stm
 
 #endif // TMLINLINE_HPP__

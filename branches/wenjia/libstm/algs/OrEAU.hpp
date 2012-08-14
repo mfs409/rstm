@@ -22,70 +22,32 @@
  *        This STM?
  */
 
-#include "../profiling.hpp"
+
 #include "../cm.hpp"
 #include "algs.hpp"
 
-using stm::TxThread;
-using stm::timestamp;
-using stm::timestamp_max;
-using stm::OrecList;
-using stm::orec_t;
-using stm::get_orec;
-using stm::id_version_t;
-using stm::threads;
-using stm::UndoLogEntry;
-
-
-/**
- *  Declare the functions that we're going to implement, so that we can avoid
- *  circular dependencies.
- */
-namespace {
+namespace stm
+{
   template <class CM>
-  struct OrEAU_Generic
-  {
-      static void initialize(int id, const char* name);
-      static void begin(TX_LONE_PARAMETER);
-      static TM_FASTCALL void* ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void* ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void CommitRO(TX_LONE_PARAMETER);
-      static TM_FASTCALL void CommitRW(TX_LONE_PARAMETER);
-
-      static void rollback(STM_ROLLBACK_SIG(,,));
-      static bool irrevoc(TxThread*);
-      static void onSwitchTo();
-      static NOINLINE void validate(TxThread*);
-  };
-
-  /**
-   *  OrEAU initialization
-   */
+  TM_FASTCALL void* OrEAUGenericReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
   template <class CM>
-  void
-  OrEAU_Generic<CM>::initialize(int id, const char* name)
-  {
-      // set the name
-      stm::stms[id].name      = name;
-
-      // set the pointers
-      stm::stms[id].begin     = OrEAU_Generic<CM>::begin;
-      stm::stms[id].commit    = OrEAU_Generic<CM>::CommitRO;
-      stm::stms[id].read      = OrEAU_Generic<CM>::ReadRO;
-      stm::stms[id].write     = OrEAU_Generic<CM>::WriteRO;
-      stm::stms[id].rollback  = OrEAU_Generic<CM>::rollback;
-      stm::stms[id].irrevoc   = OrEAU_Generic<CM>::irrevoc;
-      stm::stms[id].switcher  = OrEAU_Generic<CM>::onSwitchTo;
-      stm::stms[id].privatization_safe = false;
-  }
+  TM_FASTCALL void* OrEAUGenericReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
+  template <class CM>
+  TM_FASTCALL void OrEAUGenericWriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+  template <class CM>
+  TM_FASTCALL void OrEAUGenericWriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+  template <class CM>
+  TM_FASTCALL void OrEAUGenericCommitRO(TX_LONE_PARAMETER);
+  template <class CM>
+  TM_FASTCALL void OrEAUGenericCommitRW(TX_LONE_PARAMETER);
+  template <class CM>
+  NOINLINE void OrEAUGenericValidate(TxThread*);
 
   /**
    *  OrEAU begin:
    */
   template <class CM>
-  void OrEAU_Generic<CM>::begin(TX_LONE_PARAMETER)
+  void OrEAUGenericBegin(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       tx->allocator.onTxBegin();
@@ -100,7 +62,7 @@ namespace {
    */
   template <class CM>
   void
-  OrEAU_Generic<CM>::CommitRO(TX_LONE_PARAMETER)
+  OrEAUGenericCommitRO(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       CM::onCommit(tx);
@@ -113,7 +75,7 @@ namespace {
    */
   template <class CM>
   void
-  OrEAU_Generic<CM>::CommitRW(TX_LONE_PARAMETER)
+  OrEAUGenericCommitRW(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // we're a writer, so increment the global timestamp
@@ -126,7 +88,7 @@ namespace {
               uintptr_t ivt = (*i)->v.all;
               // if unlocked and newer than start time, abort
               if ((ivt > tx->start_time) && (ivt != tx->my_lock.all))
-                  stm::tmabort();
+                  tmabort();
           }
       }
 
@@ -142,7 +104,7 @@ namespace {
       tx->undo_log.reset();
       tx->locks.reset();
       OnRWCommit(tx);
-      ResetToRO(tx, ReadRO, WriteRO, CommitRO);
+      ResetToRO(tx, OrEAUGenericReadRO<CM>, OrEAUGenericWriteRO<CM>, OrEAUGenericCommitRO<CM>);
   }
 
   /**
@@ -150,7 +112,7 @@ namespace {
    */
   template <class CM>
   void*
-  OrEAU_Generic<CM>::ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
+  OrEAUGenericReadRO(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
   {
       TX_GET_TX_INTERNAL;
       // get the orec addr
@@ -179,16 +141,16 @@ namespace {
               if (CM::mayKill(tx, ivt.fields.id - 1))
                   threads[ivt.fields.id-1]->alive = TX_ABORTED;
               else
-                  stm::tmabort();
+                  tmabort();
           }
 
           // liveness check
           if (tx->alive == TX_ABORTED)
-              stm::tmabort();
+              tmabort();
 
           // scale timestamp if ivt2 is too new
           uintptr_t newts = timestamp.val;
-          validate(tx);
+          OrEAUGenericValidate<CM>(tx);
           tx->start_time = newts;
       }
   }
@@ -198,7 +160,7 @@ namespace {
    */
   template <class CM>
   void*
-  OrEAU_Generic<CM>::ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
+  OrEAUGenericReadRW(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
   {
       TX_GET_TX_INTERNAL;
       // get the orec addr
@@ -231,16 +193,16 @@ namespace {
               if (CM::mayKill(tx, ivt.fields.id - 1))
                   threads[ivt.fields.id-1]->alive = TX_ABORTED;
               else
-                  stm::tmabort();
+                  tmabort();
           }
 
           // liveness check
           if (tx->alive == TX_ABORTED)
-              stm::tmabort();
+              tmabort();
 
           // scale timestamp if ivt2 is too new
           uintptr_t newts = timestamp.val;
-          validate(tx);
+          OrEAUGenericValidate<CM>(tx);
 
           tx->start_time = newts;
       }
@@ -251,7 +213,7 @@ namespace {
    */
   template <class CM>
   void
-  OrEAU_Generic<CM>::WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  OrEAUGenericWriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // get the orec addr
@@ -264,14 +226,14 @@ namespace {
           // common case: uncontended location... lock it
           if (ivt.all <= tx->start_time) {
               if (!bcasptr(&o->v.all, ivt.all, tx->my_lock.all))
-                  stm::tmabort();
+                  tmabort();
 
               // save old, log lock, write, return
               o->p = ivt.all;
               tx->locks.insert(o);
               tx->undo_log.insert(UndoLogEntry(STM_UNDO_LOG_ENTRY(addr, *addr, mask)));
               STM_DO_MASKED_WRITE(addr, val, mask);
-              stm::OnFirstWrite(tx, ReadRW, WriteRW, CommitRW);
+              OnFirstWrite(tx, OrEAUGenericReadRW<CM>, OrEAUGenericWriteRW<CM>, OrEAUGenericCommitRW<CM>);
               return;
           }
 
@@ -280,16 +242,16 @@ namespace {
               if (CM::mayKill(tx, ivt.fields.id - 1))
                   threads[ivt.fields.id-1]->alive = TX_ABORTED;
               else
-                  stm::tmabort();
+                  tmabort();
           }
 
           // liveness check
           if (tx->alive == TX_ABORTED)
-              stm::tmabort();
+              tmabort();
 
           // unlocked but too new... scale forward and try again
           uintptr_t newts = timestamp.val;
-          validate(tx);
+          OrEAUGenericValidate<CM>(tx);
           tx->start_time = newts;
       }
   }
@@ -299,7 +261,7 @@ namespace {
    */
   template <class CM>
   void
-  OrEAU_Generic<CM>::WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  OrEAUGenericWriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // get the orec addr
@@ -312,7 +274,7 @@ namespace {
           // common case: uncontended location... lock it
           if (ivt.all <= tx->start_time) {
               if (!bcasptr(&o->v.all, ivt.all, tx->my_lock.all))
-                  stm::tmabort();
+                  tmabort();
 
               // save old, log lock, write, return
               o->p = ivt.all;
@@ -334,16 +296,16 @@ namespace {
               if (CM::mayKill(tx, ivt.fields.id - 1))
                   threads[ivt.fields.id-1]->alive = TX_ABORTED;
               else
-                  stm::tmabort();
+                  tmabort();
           }
 
           // liveness check
           if (tx->alive == TX_ABORTED)
-              stm::tmabort();
+              tmabort();
 
           // unlocked but too new... scale forward and try again
           uintptr_t newts = timestamp.val;
-          validate(tx);
+          OrEAUGenericValidate<CM>(tx);
           tx->start_time = newts;
       }
   }
@@ -353,7 +315,7 @@ namespace {
    */
   template <class CM>
   void
-  OrEAU_Generic<CM>::rollback(STM_ROLLBACK_SIG(tx, except, len))
+  OrEAUGenericRollback(STM_ROLLBACK_SIG(tx, except, len))
   {
       PreRollback(tx);
       // run the undo log
@@ -383,7 +345,7 @@ namespace {
       tx->locks.reset();
 
       PostRollback(tx);
-      ResetToRO(tx, ReadRO, WriteRO, CommitRO);
+      ResetToRO(tx, OrEAUGenericReadRO<CM>, OrEAUGenericWriteRO<CM>, OrEAUGenericCommitRO<CM>);
   }
 
   /**
@@ -394,7 +356,7 @@ namespace {
    */
   template <class CM>
   bool
-  OrEAU_Generic<CM>::irrevoc(TxThread*)
+  OrEAUGenericIrrevoc(TxThread*)
   {
       return false;
   }
@@ -407,14 +369,14 @@ namespace {
    */
   template <class CM>
   void
-  OrEAU_Generic<CM>::validate(TxThread* tx)
+  OrEAUGenericValidate(TxThread* tx)
   {
       foreach (OrecList, i, tx->r_orecs) {
           // read this orec
           uintptr_t ivt = (*i)->v.all;
           // if unlocked and newer than start time, abort
           if ((ivt > tx->start_time) && (ivt != tx->my_lock.all))
-              stm::tmabort();
+              tmabort();
       }
   }
 
@@ -426,8 +388,8 @@ namespace {
    *    timestamp first, in timestamp_max.
    */
   template <class CM>
-  void
-  OrEAU_Generic<CM>::onSwitchTo() {
+  void OrEAUGenericOnSwitchTo()
+  {
       timestamp.val = MAXIMUM(timestamp.val, timestamp_max.val);
   }
 }
