@@ -19,45 +19,22 @@
  *    time, the transaction aborts.
  */
 
-#include "../profiling.hpp"
 #include "algs.hpp"
-#include "../RedoRAWUtils.hpp"
 
-using stm::TxThread;
-using stm::timestamp;
-using stm::timestamp_max;
-using stm::WriteSet;
-using stm::OrecList;
-using stm::WriteSetEntry;
-using stm::orec_t;
-using stm::get_orec;
-
-
-/**
- *  Declare the functions that we're going to implement, so that we can avoid
- *  circular dependencies.
- */
-namespace {
-  struct LLT
-  {
-      static void begin(TX_LONE_PARAMETER);
-      static TM_FASTCALL void* ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void* ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void CommitRO(TX_LONE_PARAMETER);
-      static TM_FASTCALL void CommitRW(TX_LONE_PARAMETER);
-
-      static void rollback(STM_ROLLBACK_SIG(,,));
-      static bool irrevoc(TxThread*);
-      static void onSwitchTo();
-      static NOINLINE void validate(TxThread*);
-  };
+namespace stm
+{
+  TM_FASTCALL void* LLTReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
+  TM_FASTCALL void* LLTReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
+  TM_FASTCALL void LLTWriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+  TM_FASTCALL void LLTWriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+  TM_FASTCALL void LLTCommitRO(TX_LONE_PARAMETER);
+  TM_FASTCALL void LLTCommitRW(TX_LONE_PARAMETER);
+  NOINLINE void LLTValidate(TxThread*);
 
   /**
    *  LLT begin:
    */
-  void LLT::begin(TX_LONE_PARAMETER)
+  void LLTBegin(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       tx->allocator.onTxBegin();
@@ -69,7 +46,7 @@ namespace {
    *  LLT commit (read-only):
    */
   void
-  LLT::CommitRO(TX_LONE_PARAMETER)
+  LLTCommitRO(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // read-only, so just reset lists
@@ -84,7 +61,7 @@ namespace {
    *    validations.
    */
   void
-  LLT::CommitRW(TX_LONE_PARAMETER)
+  LLTCommitRW(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // acquire locks
@@ -97,14 +74,14 @@ namespace {
           if (ivt <= tx->start_time) {
               // abort if cannot acquire
               if (!bcasptr(&o->v.all, ivt, tx->my_lock.all))
-                  stm::tmabort();
+                  tmabort();
               // save old version to o->p, remember that we hold the lock
               o->p = ivt;
               tx->locks.insert(o);
           }
           // else if we don't hold the lock abort
           else if (ivt != tx->my_lock.all) {
-              stm::tmabort();
+              tmabort();
           }
       }
 
@@ -113,7 +90,7 @@ namespace {
 
       // skip validation if nobody else committed
       if (end_time != (tx->start_time + 1))
-          validate(tx);
+          LLTValidate(tx);
 
       // run the redo log
       tx->writes.writeback();
@@ -128,7 +105,7 @@ namespace {
       tx->writes.reset();
       tx->locks.reset();
       OnRWCommit(tx);
-      ResetToRO(tx, ReadRO, WriteRO, CommitRO);
+      ResetToRO(tx, LLTReadRO, LLTWriteRO, LLTCommitRO);
   }
 
   /**
@@ -137,7 +114,7 @@ namespace {
    *    We use "check twice" timestamps in LLT
    */
   void*
-  LLT::ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
+  LLTReadRO(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
   {
       TX_GET_TX_INTERNAL;
       // get the orec addr
@@ -156,7 +133,7 @@ namespace {
           return tmp;
       }
       // unreachable
-      stm::tmabort();
+      tmabort();
       return NULL;
   }
 
@@ -164,7 +141,7 @@ namespace {
    *  LLT read (writing transaction)
    */
   void*
-  LLT::ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
+  LLTReadRW(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
   {
       TX_GET_TX_INTERNAL;
       // check the log for a RAW hazard, we expect to miss
@@ -190,7 +167,7 @@ namespace {
           tx->r_orecs.insert(o);
           return tmp;
       }
-      stm::tmabort();
+      tmabort();
       // unreachable
       return NULL;
   }
@@ -199,19 +176,19 @@ namespace {
    *  LLT write (read-only context)
    */
   void
-  LLT::WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  LLTWriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // add to redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
-      stm::OnFirstWrite(tx, ReadRW, WriteRW, CommitRW);
+      OnFirstWrite(tx, LLTReadRW, LLTWriteRW, LLTCommitRW);
   }
 
   /**
    *  LLT write (writing context)
    */
   void
-  LLT::WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  LLTWriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // add to redo log
@@ -222,7 +199,7 @@ namespace {
    *  LLT unwinder:
    */
   void
-  LLT::rollback(STM_ROLLBACK_SIG(tx, except, len))
+  LLTRollback(STM_ROLLBACK_SIG(tx, except, len))
   {
       PreRollback(tx);
 
@@ -240,14 +217,14 @@ namespace {
       tx->writes.reset();
       tx->locks.reset();
       PostRollback(tx);
-      ResetToRO(tx, ReadRO, WriteRO, CommitRO);
+      ResetToRO(tx, LLTReadRO, LLTWriteRO, LLTCommitRO);
   }
 
   /**
    *  LLT in-flight irrevocability:
    */
   bool
-  LLT::irrevoc(TxThread*)
+  LLTIrrevoc(TxThread*)
   {
       return false;
   }
@@ -255,15 +232,14 @@ namespace {
   /**
    *  LLT validation
    */
-  void
-  LLT::validate(TxThread* tx)
+  void LLTValidate(TxThread* tx)
   {
       // validate
       foreach (OrecList, i, tx->r_orecs) {
           uintptr_t ivt = (*i)->v.all;
           // if unlocked and newer than start time, abort
           if ((ivt > tx->start_time) && (ivt != tx->my_lock.all))
-              stm::tmabort();
+              tmabort();
       }
   }
 
@@ -275,13 +251,11 @@ namespace {
    *    timestamp first, in timestamp_max.
    */
   void
-  LLT::onSwitchTo()
+  LLTOnSwitchTo()
   {
       timestamp.val = MAXIMUM(timestamp.val, timestamp_max.val);
   }
-}
 
-namespace stm {
   /**
    *  LLT initialization
    */
@@ -292,13 +266,13 @@ namespace stm {
       stms[LLT].name      = "LLT";
 
       // set the pointers
-      stms[LLT].begin     = ::LLT::begin;
-      stms[LLT].commit    = ::LLT::CommitRO;
-      stms[LLT].read      = ::LLT::ReadRO;
-      stms[LLT].write     = ::LLT::WriteRO;
-      stms[LLT].rollback  = ::LLT::rollback;
-      stms[LLT].irrevoc   = ::LLT::irrevoc;
-      stms[LLT].switcher  = ::LLT::onSwitchTo;
+      stms[LLT].begin     = LLTBegin;
+      stms[LLT].commit    = LLTCommitRO;
+      stms[LLT].read      = LLTReadRO;
+      stms[LLT].write     = LLTWriteRO;
+      stms[LLT].rollback  = LLTRollback;
+      stms[LLT].irrevoc   = LLTIrrevoc;
+      stms[LLT].switcher  = LLTOnSwitchTo;
       stms[LLT].privatization_safe = false;
   }
 }

@@ -19,7 +19,6 @@
  */
 
 #include "algs.hpp"
-//#include "../UndoLog.hpp" // STM_DO_MASKED_WRITE
 #include "../Diagnostics.hpp"
 
 /**
@@ -66,7 +65,7 @@ namespace stm
    */
   void CGLRollback(STM_ROLLBACK_SIG(,,))
   {
-      stm::UNRECOVERABLE("ATTEMPTING TO ABORT AN IRREVOCABLE CGL TRANSACTION");
+      UNRECOVERABLE("ATTEMPTING TO ABORT AN IRREVOCABLE CGL TRANSACTION");
   }
 
   /**
@@ -77,7 +76,7 @@ namespace stm
    */
   bool CGLIrrevoc(TxThread*)
   {
-      stm::UNRECOVERABLE("CGL::IRREVOC SHOULD NEVER BE CALLED");
+      UNRECOVERABLE("CGLIRREVOC SHOULD NEVER BE CALLED");
       return false;
   }
 

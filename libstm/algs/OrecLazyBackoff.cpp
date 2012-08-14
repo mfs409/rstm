@@ -13,11 +13,23 @@
 namespace stm
 {
     template <>
-    void initTM<OrecLazyBackoff>() {
-        OrecLazy_Generic<BackoffCM>::Initialize(OrecLazyBackoff, "OrecLazyBackoff");
+    void initTM<OrecLazyBackoff>()
+    {
+      // set the name
+      stms[OrecLazyBackoff].name      = "OrecLazyBackoff";
+
+      // set the pointers
+      stms[OrecLazyBackoff].begin     = OrecLazyGenericBegin<BackoffCM>;
+      stms[OrecLazyBackoff].commit    = OrecLazyGenericCommitRO<BackoffCM>;
+      stms[OrecLazyBackoff].rollback  = OrecLazyGenericRollback<BackoffCM>;
+      stms[OrecLazyBackoff].read      = OrecLazyGenericReadRO<BackoffCM>;
+      stms[OrecLazyBackoff].write     = OrecLazyGenericWriteRO<BackoffCM>;
+      stms[OrecLazyBackoff].irrevoc   = OrecLazyGenericIrrevoc<BackoffCM>;
+      stms[OrecLazyBackoff].switcher  = OrecLazyGenericOnSwitchTo<BackoffCM>;
+      stms[OrecLazyBackoff].privatization_safe = false;
     }
 }
 
 #ifdef STM_ONESHOT_ALG_OrecLazyBackoff
-DECLARE_AS_ONESHOT_NORMAL(OrecLazy_Generic<BackoffCM>)
+DECLARE_AS_ONESHOT_NORMAL(OrecLazyGeneric<BackoffCM>)
 #endif

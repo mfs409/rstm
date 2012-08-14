@@ -15,10 +15,21 @@ namespace stm
   template <>
   void initTM<OrecEagerHB>()
   {
-      OrecEager_Generic<HourglassBackoffCM>::initialize(OrecEagerHB, "OrecEagerHB");
+      // set the name
+      stms[OrecEagerHB].name      = "OrecEagerHB";
+
+      // set the pointers
+      stms[OrecEagerHB].begin     = OrecEagerGenericBegin<HourglassBackoffCM>;
+      stms[OrecEagerHB].commit    = OrecEagerGenericCommit<HourglassBackoffCM>;
+      stms[OrecEagerHB].rollback  = OrecEagerGenericRollback<HourglassBackoffCM>;
+      stms[OrecEagerHB].read      = OrecEagerGenericRead<HourglassBackoffCM>;
+      stms[OrecEagerHB].write     = OrecEagerGenericWrite<HourglassBackoffCM>;
+      stms[OrecEagerHB].irrevoc   = OrecEagerGenericIrrevoc<HourglassBackoffCM>;
+      stms[OrecEagerHB].switcher  = OrecEagerGenericOnSwitchTo<HourglassBackoffCM>;
+      stms[OrecEagerHB].privatization_safe = false;
   }
 }
 
 #ifdef STM_ONESHOT_ALG_OrecEagerHB
-DECLARE_AS_ONESHOT_SIMPLE(OrecEager_Generic<HourglassBackoffCM>)
+DECLARE_AS_ONESHOT_SIMPLE(OrecEagerGeneric<HourglassBackoffCM>)
 #endif

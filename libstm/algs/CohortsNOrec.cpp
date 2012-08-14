@@ -14,41 +14,18 @@
  *  Cohorts NOrec version.
  */
 
-#include "../profiling.hpp"
 #include "algs.hpp"
-#include "../RedoRAWUtils.hpp"
 #include "../Diagnostics.hpp"
 
-using stm::TxThread;
-using stm::WriteSetEntry;
-using stm::ValueList;
-using stm::ValueListEntry;
-
-using stm::started;
-using stm::cpending;
-using stm::committed;
-using stm::last_complete;
-
-/**
- *  Declare the functions that we're going to implement, so that we can avoid
- *  circular dependencies.
- */
-namespace {
-  NOINLINE bool validate(TxThread* tx);
-
-  struct CohortsNOrec {
-      static void begin(TX_LONE_PARAMETER);
-      static TM_FASTCALL void* ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void* ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void CommitRO(TX_LONE_PARAMETER);
-      static TM_FASTCALL void CommitRW(TX_LONE_PARAMETER);
-
-      static void rollback(STM_ROLLBACK_SIG(,,));
-      static bool irrevoc(TxThread*);
-      static void onSwitchTo();
-  };
+namespace stm
+{
+  NOINLINE bool CohortsNOrecValidate(TxThread* tx);
+  TM_FASTCALL void* CohortsNOrecReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
+  TM_FASTCALL void* CohortsNOrecReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
+  TM_FASTCALL void CohortsNOrecWriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+  TM_FASTCALL void CohortsNOrecWriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+  TM_FASTCALL void CohortsNOrecCommitRO(TX_LONE_PARAMETER);
+  TM_FASTCALL void CohortsNOrecCommitRW(TX_LONE_PARAMETER);
 
   /**
    *  CohortsNOrec begin:
@@ -57,7 +34,7 @@ namespace {
    *  tx is allowed to start until all the transactions finishes their
    *  commits.
    */
-  void CohortsNOrec::begin(TX_LONE_PARAMETER)
+  void CohortsNOrecBegin(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       tx->allocator.onTxBegin();
@@ -80,7 +57,7 @@ namespace {
    *  CohortsNOrec commit (read-only):
    */
   void
-  CohortsNOrec::CommitRO(TX_LONE_PARAMETER)
+  CohortsNOrecCommitRO(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // decrease total number of tx started
@@ -98,7 +75,7 @@ namespace {
    *  in an order which is given at the beginning of commit.
    */
   void
-  CohortsNOrec::CommitRW(TX_LONE_PARAMETER)
+  CohortsNOrecCommitRW(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // order of first tx in cohort
@@ -112,11 +89,11 @@ namespace {
 
       // get the lock and validate
       if (tx->order != first)
-          if (!validate(tx)) {
+          if (!CohortsNOrecValidate(tx)) {
               committed.val++;
               CFENCE;
               last_complete.val = tx->order;
-              stm::tmabort();
+              tmabort();
           }
 
       // Wait until all tx are ready to commit
@@ -136,14 +113,14 @@ namespace {
       tx->vlist.reset();
       tx->writes.reset();
       OnRWCommit(tx);
-      ResetToRO(tx, ReadRO, WriteRO, CommitRO);
+      ResetToRO(tx, CohortsNOrecReadRO, CohortsNOrecWriteRO, CohortsNOrecCommitRO);
   }
 
   /**
    *  CohortsNOrec read (read-only transaction)
    */
   void*
-  CohortsNOrec::ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
+  CohortsNOrecReadRO(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
   {
       TX_GET_TX_INTERNAL;
       void * tmp = *addr;
@@ -155,7 +132,7 @@ namespace {
    *  CohortsNOrec read (writing transaction)
    */
   void*
-  CohortsNOrec::ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
+  CohortsNOrecReadRW(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
   {
       TX_GET_TX_INTERNAL;
       // check the log for a RAW hazard, we expect to miss
@@ -172,18 +149,18 @@ namespace {
   /**
    *  CohortsNOrec write (read-only context): for first write
    */
-  void CohortsNOrec::WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  void CohortsNOrecWriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // record the new value in a redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
-      stm::OnFirstWrite(tx, ReadRW, WriteRW, CommitRW);
+      OnFirstWrite(tx, CohortsNOrecReadRW, CohortsNOrecWriteRW, CohortsNOrecCommitRW);
   }
 
   /**
    *  CohortsNOrec write (writing context)
    */
-  void CohortsNOrec::WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  void CohortsNOrecWriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // record the new value in a redo log
@@ -194,7 +171,7 @@ namespace {
    *  CohortsNOrec unwinder:
    */
   void
-  CohortsNOrec::rollback(STM_ROLLBACK_SIG(tx, except, len))
+  CohortsNOrecRollback(STM_ROLLBACK_SIG(tx, except, len))
   {
       PreRollback(tx);
 
@@ -214,9 +191,9 @@ namespace {
    *  CohortsNOrec in-flight irrevocability:
    */
   bool
-  CohortsNOrec::irrevoc(TxThread*)
+  CohortsNOrecIrrevoc(TxThread*)
   {
-      stm::UNRECOVERABLE("CohortsNOrec Irrevocability not yet supported");
+      UNRECOVERABLE("CohortsNOrec Irrevocability not yet supported");
       return false;
   }
 
@@ -224,7 +201,7 @@ namespace {
    *  CohortsNOrec validation for commit: check that all reads are valid
    */
   bool
-  validate(TxThread* tx)
+  CohortsNOrecValidate(TxThread* tx)
   {
       foreach (ValueList, i, tx->vlist) {
           bool valid = STM_LOG_VALUE_IS_VALID(i, tx);
@@ -242,13 +219,11 @@ namespace {
    *
    */
   void
-  CohortsNOrec::onSwitchTo()
+  CohortsNOrecOnSwitchTo()
   {
       last_complete.val = 0;
   }
-}
 
-namespace stm {
   /**
    *  CohortsNOrec initialization
    */
@@ -258,13 +233,13 @@ namespace stm {
       // set the name
       stms[CohortsNOrec].name      = "CohortsNOrec";
       // set the pointers
-      stms[CohortsNOrec].begin     = ::CohortsNOrec::begin;
-      stms[CohortsNOrec].commit    = ::CohortsNOrec::CommitRO;
-      stms[CohortsNOrec].read      = ::CohortsNOrec::ReadRO;
-      stms[CohortsNOrec].write     = ::CohortsNOrec::WriteRO;
-      stms[CohortsNOrec].rollback  = ::CohortsNOrec::rollback;
-      stms[CohortsNOrec].irrevoc   = ::CohortsNOrec::irrevoc;
-      stms[CohortsNOrec].switcher  = ::CohortsNOrec::onSwitchTo;
+      stms[CohortsNOrec].begin     = CohortsNOrecBegin;
+      stms[CohortsNOrec].commit    = CohortsNOrecCommitRO;
+      stms[CohortsNOrec].read      = CohortsNOrecReadRO;
+      stms[CohortsNOrec].write     = CohortsNOrecWriteRO;
+      stms[CohortsNOrec].rollback  = CohortsNOrecRollback;
+      stms[CohortsNOrec].irrevoc   = CohortsNOrecIrrevoc;
+      stms[CohortsNOrec].switcher  = CohortsNOrecOnSwitchTo;
       stms[CohortsNOrec].privatization_safe = true;
   }
 }

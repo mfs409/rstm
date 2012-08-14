@@ -30,56 +30,31 @@
  *    clock for free.
  */
 
-#include "../profiling.hpp"
 #include "algs.hpp"
-#include "../RedoRAWUtils.hpp"
 
-using stm::TxThread;
-using stm::WriteSet;
-using stm::WriteSetEntry;
-using stm::OrecList;
-using stm::orec_t;
-using stm::NanorecList;
-using stm::nanorec_t;
-using stm::get_nanorec;
-using stm::id_version_t;
-
-
-/**
- *  Declare the functions that we're going to implement, so that we can avoid
- *  circular dependencies.
- */
-namespace
+namespace stm
 {
-  struct NanoELA_amd64
-  {
-      static void begin(TX_LONE_PARAMETER);
-      static TM_FASTCALL void* ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void* ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void CommitRO(TX_LONE_PARAMETER);
-      static TM_FASTCALL void CommitRW(TX_LONE_PARAMETER);
-
-      static void rollback(STM_ROLLBACK_SIG(,,));
-      static bool irrevoc(TxThread*);
-      static void onSwitchTo();
-  };
+  TM_FASTCALL void* NanoELAAMD64ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
+  TM_FASTCALL void* NanoELAAMD64ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
+  TM_FASTCALL void NanoELAAMD64WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+  TM_FASTCALL void NanoELAAMD64WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+  TM_FASTCALL void NanoELAAMD64CommitRO(TX_LONE_PARAMETER);
+  TM_FASTCALL void NanoELAAMD64CommitRW(TX_LONE_PARAMETER);
 
   /**
-   *  NanoELA_amd64 begin:
+   *  NanoELAAMD64 begin:
    */
-  void NanoELA_amd64::begin(TX_LONE_PARAMETER)
+  void NanoELAAMD64Begin(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       tx->allocator.onTxBegin();
   }
 
   /**
-   *  NanoELA_amd64 commit (read-only context)
+   *  NanoELAAMD64 commit (read-only context)
    */
   void
-  NanoELA_amd64::CommitRO(TX_LONE_PARAMETER)
+  NanoELAAMD64CommitRO(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // read-only, so reset the orec list and we are done
@@ -88,13 +63,13 @@ namespace
   }
 
   /**
-   *  NanoELA_amd64 commit (writing context)
+   *  NanoELAAMD64 commit (writing context)
    *
    *    There are no optimization opportunities here... we grab all locks,
    *    then validate, then do writeback.
    */
   void
-  NanoELA_amd64::CommitRW(TX_LONE_PARAMETER)
+  NanoELAAMD64CommitRW(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // as per Menon SPAA 2008, we need to start by updating our
@@ -115,7 +90,7 @@ namespace
               if (!ivt.fields.lock) {
                   if (!bcasptr(&o->v.all, ivt.all, tx->my_lock.all)) {
                       tx->last_val_time = (uint64_t)-1; // come out of epoch
-                      stm::tmabort();
+                      tmabort();
                   }
                   // save old version to o->p, remember that we hold the lock
                   o->p = ivt.all;
@@ -123,7 +98,7 @@ namespace
               }
               else {
                   tx->last_val_time = (uint64_t)-1; // come out of epoch
-                  stm::tmabort();
+                  tmabort();
               }
           }
       }
@@ -136,7 +111,7 @@ namespace
           if ((ivt != i->v) && ((ivt != tx->my_lock.all) || (i->v != i->o->p)))
           {
               tx->last_val_time = (uint64_t)-1; // come out of epoch
-              stm::tmabort();
+              tmabort();
           }
       }
 
@@ -150,38 +125,38 @@ namespace
           (*i)->v.all = (*i)->p+1;
 
       // quiesce
-      for (uint32_t id = 0; id < stm::threadcount.val; ++id)
-          while (stm::threads[id]->last_val_time < mynum) spin64();
+      for (uint32_t id = 0; id < threadcount.val; ++id)
+          while (threads[id]->last_val_time < mynum) spin64();
 
       // clean-up
       tx->nanorecs.reset();
       tx->writes.reset();
       tx->locks.reset();
       OnRWCommit(tx);
-      ResetToRO(tx, ReadRO, WriteRO, CommitRO);
+      ResetToRO(tx, NanoELAAMD64ReadRO, NanoELAAMD64WriteRO, NanoELAAMD64CommitRO);
   }
 
   /**
-   *  NanoELA_amd64 read (read-only context):
+   *  NanoELAAMD64 read (read-only context):
    */
   void*
-  NanoELA_amd64::ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
+  NanoELAAMD64ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
   {
       TX_GET_TX_INTERNAL;
-      // NanoELA_amd64 knows that it isn't a good algorithm when the read set is
-      // large.  To address this situation, on every read, NanoELA_amd64 checks if the
+      // NanoELAAMD64 knows that it isn't a good algorithm when the read set is
+      // large.  To address this situation, on every read, NanoELAAMD64 checks if the
       // transaction is too big, and if so, it sets a flag and aborts itself,
       // so that we can change algorithms.
       //
       // One danger is that we must have some sort of adaptivity policy in
       // place for this to work.  Implicit is that the adaptivity policy
-      // can't continuously re-select NanoELA_amd64, but that's a problem for the
+      // can't continuously re-select NanoELAAMD64, but that's a problem for the
       // policy, not for this code.  This code need only ensure that it
       // doesn't self-abort unless there is an adaptive policy that will
       // register the trigger and cause a policy change.
       //
       // A hack here is that we use an extremely large consec_aborts rate to
-      // indicate that NanoELA_amd64 is in big trouble.  So if this code cranks the
+      // indicate that NanoELAAMD64 is in big trouble.  So if this code cranks the
       // consec_aborts field up, then the trigger will assume that this is a
       // self-abort for the sake of switching, and will inform the adaptivity
       // policy accordingly.
@@ -189,10 +164,10 @@ namespace
       // [mfs] note that the toxic transaction work suggests that 1024 aborts
       //       might happen anyway, so we may have a problem.  We're not
       //       going to worry about it for now.
-      if (stm::curr_policy.POL_ID != stm::Single) {
+      if (curr_policy.POL_ID != Single) {
           if (tx->nanorecs.size() > 8) {
               tx->consec_aborts = 1024;
-              stm::tmabort();
+              tmabort();
           }
       }
 
@@ -219,7 +194,7 @@ namespace
               // validate the whole read set, then return the value we just read
               foreach (NanorecList, i, tx->nanorecs)
                   if (i->o->v.all != i->v)
-                      stm::tmabort();
+                      tmabort();
               return tmp;
           }
 
@@ -230,10 +205,10 @@ namespace
   }
 
   /**
-   *  NanoELA_amd64 read (writing context):
+   *  NanoELAAMD64 read (writing context):
    */
   void*
-  NanoELA_amd64::ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
+  NanoELAAMD64ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
   {
       TX_GET_TX_INTERNAL;
       // check the log for a RAW hazard, we expect to miss
@@ -242,28 +217,28 @@ namespace
       REDO_RAW_CHECK(found, log, mask);
 
       // reuse the ReadRO barrier, which is adequate here---reduces LOC
-      void* val = ReadRO(TX_FIRST_ARG addr STM_MASK(mask));
+      void* val = NanoELAAMD64ReadRO(TX_FIRST_ARG addr STM_MASK(mask));
       REDO_RAW_CLEANUP(val, found, log, mask);
       return val;
   }
 
   /**
-   *  NanoELA_amd64 write (read-only context):
+   *  NanoELAAMD64 write (read-only context):
    */
   void
-  NanoELA_amd64::WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  NanoELAAMD64WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // add to redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
-      stm::OnFirstWrite(tx, ReadRW, WriteRW, CommitRW);
+      OnFirstWrite(tx, NanoELAAMD64ReadRW, NanoELAAMD64WriteRW, NanoELAAMD64CommitRW);
   }
 
   /**
-   *  NanoELA_amd64 write (writing context):
+   *  NanoELAAMD64 write (writing context):
    */
   void
-  NanoELA_amd64::WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  NanoELAAMD64WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // add to redo log
@@ -271,13 +246,13 @@ namespace
   }
 
   /**
-   *  NanoELA_amd64 unwinder:
+   *  NanoELAAMD64 unwinder:
    *
    *    Release any locks we acquired (if we aborted during a commit(TX_LONE_PARAMETER)
    *    operation), and then reset local lists.
    */
   void
-  NanoELA_amd64::rollback(STM_ROLLBACK_SIG(tx, except, len))
+  NanoELAAMD64Rollback(STM_ROLLBACK_SIG(tx, except, len))
   {
       PreRollback(tx);
 
@@ -295,52 +270,47 @@ namespace
       tx->writes.reset();
       tx->locks.reset();
       PostRollback(tx);
-      ResetToRO(tx, ReadRO, WriteRO, CommitRO);
+      ResetToRO(tx, NanoELAAMD64ReadRO, NanoELAAMD64WriteRO, NanoELAAMD64CommitRO);
   }
 
   /**
-   *  NanoELA_amd64 in-flight irrevocability:
+   *  NanoELAAMD64 in-flight irrevocability:
    */
-  bool NanoELA_amd64::irrevoc(TxThread*)
+  bool NanoELAAMD64Irrevoc(TxThread*)
   {
       return false;
   }
 
   /**
-   *  Switch to NanoELA_amd64:
+   *  Switch to NanoELAAMD64:
    *
-   *    Since NanoELA_amd64 does not use timestamps, it can't use the regular
+   *    Since NanoELAAMD64 does not use timestamps, it can't use the regular
    *    orecs, or else switching would get nasty... that means that we don't
    *    need to do anything here.
    */
-  void NanoELA_amd64::onSwitchTo()
-  {
-  }
-}
+  void NanoELAAMD64OnSwitchTo() { }
 
-namespace stm
-{
   /**
-   *  NanoELA_amd64 initialization
+   *  NanoELAAMD64 initialization
    */
   template<>
-  void initTM<NanoELA_amd64>()
+  void initTM<NanoELAAMD64>()
   {
       // set the name
-      stms[NanoELA_amd64].name      = "NanoELA_amd64";
+      stms[NanoELAAMD64].name      = "NanoELAAMD64";
 
       // set the pointers
-      stms[NanoELA_amd64].begin     = ::NanoELA_amd64::begin;
-      stms[NanoELA_amd64].commit    = ::NanoELA_amd64::CommitRO;
-      stms[NanoELA_amd64].read      = ::NanoELA_amd64::ReadRO;
-      stms[NanoELA_amd64].write     = ::NanoELA_amd64::WriteRO;
-      stms[NanoELA_amd64].rollback  = ::NanoELA_amd64::rollback;
-      stms[NanoELA_amd64].irrevoc   = ::NanoELA_amd64::irrevoc;
-      stms[NanoELA_amd64].switcher  = ::NanoELA_amd64::onSwitchTo;
-      stms[NanoELA_amd64].privatization_safe = true;
+      stms[NanoELAAMD64].begin     = NanoELAAMD64Begin;
+      stms[NanoELAAMD64].commit    = NanoELAAMD64CommitRO;
+      stms[NanoELAAMD64].read      = NanoELAAMD64ReadRO;
+      stms[NanoELAAMD64].write     = NanoELAAMD64WriteRO;
+      stms[NanoELAAMD64].rollback  = NanoELAAMD64Rollback;
+      stms[NanoELAAMD64].irrevoc   = NanoELAAMD64Irrevoc;
+      stms[NanoELAAMD64].switcher  = NanoELAAMD64OnSwitchTo;
+      stms[NanoELAAMD64].privatization_safe = true;
   }
 }
 
-#ifdef STM_ONESHOT_ALG_NanoELA_amd64
-DECLARE_AS_ONESHOT_NORMAL(NanoELA_amd64)
+#ifdef STM_ONESHOT_ALG_NanoELAAMD64
+DECLARE_AS_ONESHOT_NORMAL(NanoELAAMD64)
 #endif

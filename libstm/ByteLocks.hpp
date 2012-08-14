@@ -16,6 +16,21 @@
 #include "MiniVector.hpp"
 #include "Globals.hpp"
 
+/**
+ *  These defines are for tuning backoff behavior
+ *
+ *  [mfs] todo: make these constants inside of bytelock_t?
+ */
+#if defined(STM_CPU_SPARC)
+#  define BYTELOCK_READ_TIMEOUT        32
+#  define BYTELOCK_ACQUIRE_TIMEOUT     128
+#  define BYTELOCK_DRAIN_TIMEOUT       1024
+#else // STM_CPU_X86
+#  define BYTELOCK_READ_TIMEOUT        32
+#  define BYTELOCK_ACQUIRE_TIMEOUT     128
+#  define BYTELOCK_DRAIN_TIMEOUT       256
+#endif
+
 namespace stm
 {
   /**

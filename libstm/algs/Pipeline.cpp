@@ -22,43 +22,17 @@
  *    can't self-abort.
  */
 
-#include "../profiling.hpp"
 #include "algs.hpp"
-#include "../RedoRAWUtils.hpp"
-#include "../UndoLog.hpp" // STM_DO_MASKED_WRITE
 #include "../Diagnostics.hpp"
 
-using stm::TxThread;
-using stm::threads;
-using stm::threadcount;
-using stm::last_complete;
-using stm::timestamp;
-using stm::timestamp_max;
-using stm::orec_t;
-using stm::get_orec;
-using stm::OrecList;
-using stm::WriteSet;
-using stm::WriteSetEntry;
-
-
-/**
- *  Declare the functions that we're going to implement, so that we can avoid
- *  circular dependencies.
- */
-namespace {
-  struct Pipeline {
-      static void begin(TX_LONE_PARAMETER);
-      static TM_FASTCALL void* ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void* ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void CommitRO(TX_LONE_PARAMETER);
-      static TM_FASTCALL void CommitRW(TX_LONE_PARAMETER);
-
-      static void rollback(STM_ROLLBACK_SIG(,,));
-      static bool irrevoc(TxThread*);
-      static void onSwitchTo();
-  };
+namespace stm
+{
+  TM_FASTCALL void* PipelineReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
+  TM_FASTCALL void* PipelineReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
+  TM_FASTCALL void PipelineWriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+  TM_FASTCALL void PipelineWriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+  TM_FASTCALL void PipelineCommitRO(TX_LONE_PARAMETER);
+  TM_FASTCALL void PipelineCommitRW(TX_LONE_PARAMETER);
 
   /**
    *  Pipeline begin:
@@ -72,7 +46,7 @@ namespace {
    *    ts_cache and order tells how many transactions need to commit.  Whenever
    *    one does, this tx will need to validate.
    */
-  void Pipeline::begin(TX_LONE_PARAMETER)
+  void PipelineBegin(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       tx->allocator.onTxBegin();
@@ -93,15 +67,15 @@ namespace {
    *    semantics.
    */
   void
-  Pipeline::CommitRO(TX_LONE_PARAMETER)
+  PipelineCommitRO(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // wait our turn, then validate
       while (last_complete.val != ((uintptr_t)tx->order - 1)) {
           // in this wait loop, we need to check if an adaptivity action is
           // underway :(
-          if (stm::tmbegin != begin)
-              stm::tmabort();
+          if (tmbegin != PipelineBegin)
+              tmabort();
       }
       // oldest tx doesn't need validation
 
@@ -111,7 +85,7 @@ namespace {
               uintptr_t ivt = (*i)->v.all;
               // if it has a timestamp of ts_cache or greater, abort
               if (ivt > tx->ts_cache)
-                  stm::tmabort();
+                  tmabort();
           }
 
       // mark self as complete
@@ -134,13 +108,13 @@ namespace {
    *    commits.
    */
   void
-  Pipeline::CommitRW(TX_LONE_PARAMETER)
+  PipelineCommitRW(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // wait our turn, validate, writeback
       while (last_complete.val != ((uintptr_t)tx->order - 1)) {
-          if (stm::tmbegin != begin)
-              stm::tmabort();
+          if (tmbegin != PipelineBegin)
+              tmabort();
       }
 
       // oldest tx doesn't need validation
@@ -150,7 +124,7 @@ namespace {
               uintptr_t ivt = (*i)->v.all;
               // if it has a timestamp of ts_cache or greater, abort
               if (ivt > tx->ts_cache)
-                  stm::tmabort();
+                  tmabort();
           }
 
       // mark every location in the write set, and perform write-back
@@ -173,7 +147,7 @@ namespace {
       tx->r_orecs.reset();
       tx->writes.reset();
       OnRWCommit(tx);
-      ResetToRO(tx, ReadRO, WriteRO, CommitRO);
+      ResetToRO(tx, PipelineReadRO, PipelineWriteRO, PipelineCommitRO);
   }
 
   /**
@@ -184,7 +158,7 @@ namespace {
    *    Otherwise, this is a standard orec read function.
    */
   void*
-  Pipeline::ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
+  PipelineReadRO(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
   {
       TX_GET_TX_INTERNAL;
       void* tmp = *addr;
@@ -198,7 +172,7 @@ namespace {
       uintptr_t ivt = o->v.all;
       // abort if this changed since the last time I saw someone finish
       if (ivt > tx->ts_cache)
-          stm::tmabort();
+          tmabort();
       // log orec
       tx->r_orecs.insert(o);
 
@@ -209,7 +183,7 @@ namespace {
    *  Pipeline read (writing transaction)
    */
   void*
-  Pipeline::ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
+  PipelineReadRW(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
   {
       TX_GET_TX_INTERNAL;
       // check the log for a RAW hazard, we expect to miss
@@ -228,7 +202,7 @@ namespace {
       uintptr_t ivt = o->v.all;
       // abort if this changed since the last time I saw someone finish
       if (ivt > tx->ts_cache)
-          stm::tmabort();
+          tmabort();
       // log orec
       tx->r_orecs.insert(o);
 
@@ -240,19 +214,19 @@ namespace {
    *  Pipeline write (read-only context)
    */
   void
-  Pipeline::WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  PipelineWriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // record the new value in a redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
-      stm::OnFirstWrite(tx, ReadRW, WriteRW, CommitRW);
+      OnFirstWrite(tx, PipelineReadRW, PipelineWriteRW, PipelineCommitRW);
   }
 
   /**
    *  Pipeline write (writing context)
    */
   void
-  Pipeline::WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  PipelineWriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // record the new value in a redo log
@@ -269,7 +243,7 @@ namespace {
    *        turbo mode would resolve the issue.
    */
   void
-  Pipeline::rollback(STM_ROLLBACK_SIG(tx, except, len))
+  PipelineRollback(STM_ROLLBACK_SIG(tx, except, len))
   {
       PreRollback(tx);
 
@@ -289,9 +263,9 @@ namespace {
   /**
    *  Pipeline in-flight irrevocability:
    */
-  bool Pipeline::irrevoc(TxThread*)
+  bool PipelineIrrevoc(TxThread*)
   {
-      stm::UNRECOVERABLE("Pipeline Irrevocability not yet supported");
+      UNRECOVERABLE("Pipeline Irrevocability not yet supported");
       return false;
   }
 
@@ -307,16 +281,14 @@ namespace {
    *    Also, all threads' order values must be -1
    */
   void
-  Pipeline::onSwitchTo()
+  PipelineOnSwitchTo()
   {
       timestamp.val = MAXIMUM(timestamp.val, timestamp_max.val);
       last_complete.val = timestamp.val;
       for (uint32_t i = 0; i < threadcount.val; ++i)
           threads[i]->order = -1;
   }
-}
 
-namespace stm {
   /**
    *  Pipeline initialization
    */
@@ -327,13 +299,13 @@ namespace stm {
       stms[Pipeline].name      = "Pipeline";
 
       // set the pointers
-      stms[Pipeline].begin     = ::Pipeline::begin;
-      stms[Pipeline].commit    = ::Pipeline::CommitRO;
-      stms[Pipeline].read      = ::Pipeline::ReadRO;
-      stms[Pipeline].write     = ::Pipeline::WriteRO;
-      stms[Pipeline].rollback  = ::Pipeline::rollback;
-      stms[Pipeline].irrevoc   = ::Pipeline::irrevoc;
-      stms[Pipeline].switcher  = ::Pipeline::onSwitchTo;
+      stms[Pipeline].begin     = PipelineBegin;
+      stms[Pipeline].commit    = PipelineCommitRO;
+      stms[Pipeline].read      = PipelineReadRO;
+      stms[Pipeline].write     = PipelineWriteRO;
+      stms[Pipeline].rollback  = PipelineRollback;
+      stms[Pipeline].irrevoc   = PipelineIrrevoc;
+      stms[Pipeline].switcher  = PipelineOnSwitchTo;
       stms[Pipeline].privatization_safe = true;
   }
 }

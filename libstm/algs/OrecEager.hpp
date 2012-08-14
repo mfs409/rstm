@@ -44,66 +44,22 @@
  *    invariants about time ensure correctness.
  */
 
-#include "../profiling.hpp"
 #include "../cm.hpp"
 #include "algs.hpp"
 
-using stm::TxThread;
-using stm::timestamp;
-using stm::OrecList;
-using stm::orec_t;
-using stm::get_orec;
-using stm::id_version_t;
-using stm::UndoLogEntry;
-
-
-/**
- *  Declare the functions that we're going to implement, so that we can avoid
- *  circular dependencies.
- *
- *  NB: OrecEager actually does better without fine-grained switching for
- *      read-only transactions, so we don't support the read-only optimization
- *      in this code.
- */
-namespace {
+namespace stm
+{
   template <class CM>
-  struct OrecEager_Generic
-  {
-      static void begin(TX_LONE_PARAMETER);
-      static TM_FASTCALL void commit(TX_LONE_PARAMETER);
-      static void initialize(int id, const char* name);
-      static void rollback(STM_ROLLBACK_SIG(,,));
-      static TM_FASTCALL void* read(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void write(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static bool irrevoc(TxThread*);
-      static NOINLINE void validate(TxThread*);
-      static void onSwitchTo();
-  };
-
-  // -----------------------------------------------------------------------------
-  // OrecEager implementation
-  // -----------------------------------------------------------------------------
+  TM_FASTCALL void OrecEagerGenericCommit(TX_LONE_PARAMETER);
   template <class CM>
-  void
-  OrecEager_Generic<CM>::initialize(int id, const char* name)
-  {
-      // set the name
-      stm::stms[id].name      = name;
-
-      // set the pointers
-      stm::stms[id].begin     = OrecEager_Generic<CM>::begin;
-      stm::stms[id].commit    = OrecEager_Generic<CM>::commit;
-      stm::stms[id].rollback  = OrecEager_Generic<CM>::rollback;
-
-      stm::stms[id].read      = read;
-      stm::stms[id].write     = write;
-      stm::stms[id].irrevoc   = irrevoc;
-      stm::stms[id].switcher  = onSwitchTo;
-      stm::stms[id].privatization_safe = false;
-  }
+  TM_FASTCALL void* OrecEagerGenericRead(TX_FIRST_PARAMETER STM_READ_SIG(,));
+  template <class CM>
+  TM_FASTCALL void OrecEagerGenericWrite(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+  template <class CM>
+  NOINLINE void OrecEagerGenericValidate(TxThread*);
 
   template <class CM>
-  void OrecEager_Generic<CM>::begin(TX_LONE_PARAMETER)
+  void OrecEagerGenericBegin(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // sample the timestamp and prepare local structures
@@ -122,7 +78,7 @@ namespace {
    */
   template <class CM>
   void
-  OrecEager_Generic<CM>::commit(TX_LONE_PARAMETER)
+  OrecEagerGenericCommit(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // use the lockset size to identify if tx is read-only
@@ -142,7 +98,7 @@ namespace {
               // abort unless orec older than start or owned by me
               uintptr_t ivt = (*i)->v.all;
               if ((ivt > tx->start_time) && (ivt != tx->my_lock.all))
-                  stm::tmabort();
+                  tmabort();
           }
       }
 
@@ -168,7 +124,7 @@ namespace {
    */
   template <class CM>
   void*
-  OrecEager_Generic<CM>::read(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
+  OrecEagerGenericRead(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
   {
       TX_GET_TX_INTERNAL;
       // get the orec addr, then start loop to read a consistent value
@@ -198,11 +154,11 @@ namespace {
 
           // abort if locked
           if (__builtin_expect(ivt.fields.lock, 0))
-              stm::tmabort();
+              tmabort();
 
           // scale timestamp if ivt is too new, then try again
           uintptr_t newts = timestamp.val;
-          validate(tx);
+          OrecEagerGenericValidate<CM>(tx);
           tx->start_time = newts;
       }
   }
@@ -214,7 +170,7 @@ namespace {
    */
   template <class CM>
   void
-  OrecEager_Generic<CM>::write(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  OrecEagerGenericWrite(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // get the orec addr, then enter loop to get lock from a consistent state
@@ -227,7 +183,7 @@ namespace {
           // common case: uncontended location... try to lock it, abort on fail
           if (ivt.all <= tx->start_time) {
               if (!bcasptr(&o->v.all, ivt.all, tx->my_lock.all))
-                  stm::tmabort();
+                  tmabort();
 
               // save old value, log lock, do the write, and return
               o->p = ivt.all;
@@ -248,11 +204,11 @@ namespace {
 
           // fail if lock held by someone else
           if (ivt.fields.lock)
-              stm::tmabort();
+              tmabort();
 
           // unlocked but too new... scale forward and try again
           uintptr_t newts = timestamp.val;
-          validate(tx);
+          OrecEagerGenericValidate<CM>(tx);
           tx->start_time = newts;
       }
   }
@@ -264,7 +220,7 @@ namespace {
    */
   template <class CM>
   void
-  OrecEager_Generic<CM>::rollback(STM_ROLLBACK_SIG(tx, except, len))
+  OrecEagerGenericRollback(STM_ROLLBACK_SIG(tx, except, len))
   {
       // common rollback code
       PreRollback(tx);
@@ -310,7 +266,7 @@ namespace {
    */
   template <class CM>
   bool
-  OrecEager_Generic<CM>::irrevoc(TxThread* tx)
+  OrecEagerGenericIrrevoc(TxThread* tx)
   {
       // NB: This code is probably more expensive than it needs to be...
 
@@ -349,14 +305,14 @@ namespace {
    */
   template <class CM>
   void
-  OrecEager_Generic<CM>::validate(TxThread* tx)
+  OrecEagerGenericValidate(TxThread* tx)
   {
       foreach (OrecList, i, tx->r_orecs) {
           // read this orec
           uintptr_t ivt = (*i)->v.all;
           // if unlocked and newer than start time, abort
           if ((ivt > tx->start_time) && (ivt != tx->my_lock.all))
-              stm::tmabort();
+              tmabort();
       }
   }
 
@@ -369,10 +325,10 @@ namespace {
    */
   template <class CM>
   void
-  OrecEager_Generic<CM>::onSwitchTo()
+  OrecEagerGenericOnSwitchTo()
   {
-      timestamp.val = MAXIMUM(timestamp.val, stm::timestamp_max.val);
+      timestamp.val = MAXIMUM(timestamp.val, timestamp_max.val);
   }
-} // (anonymous namespace)
+}
 
 #endif // ORECEAGER_HPP__

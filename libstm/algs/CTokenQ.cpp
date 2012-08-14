@@ -14,21 +14,9 @@
  *  CToken using Queue to hand off orders
  */
 
-#include "../profiling.hpp"
 #include "algs.hpp"
-#include "../RedoRAWUtils.hpp"
 #include "../Diagnostics.hpp"
 #include "../cm.hpp"
-
-using stm::TxThread;
-using stm::last_complete;
-using stm::timestamp;
-using stm::WriteSet;
-using stm::OrecList;
-using stm::WriteSetEntry;
-using stm::orec_t;
-using stm::get_orec;
-using stm::cohorts_node_t;
 
 // for tx->turn.val use
 #define NOTDONE 0
@@ -38,29 +26,20 @@ using stm::cohorts_node_t;
  *  Declare the functions that we're going to implement, so that we can avoid
  *  circular dependencies.
  */
-namespace {
-  // global linklist's head
-  struct cohorts_node_t* volatile q = NULL;
-
-  struct CTokenQ {
-      static void begin(TX_LONE_PARAMETER);
-      static TM_FASTCALL void* ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void* ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void CommitRO(TX_LONE_PARAMETER);
-      static TM_FASTCALL void CommitRW(TX_LONE_PARAMETER);
-
-      static void rollback(STM_ROLLBACK_SIG(,,));
-      static bool irrevoc(TxThread*);
-      static void onSwitchTo();
-      static NOINLINE void validate(TxThread* tx);
-  };
+namespace stm
+{
+  TM_FASTCALL void* CTokenQReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
+  TM_FASTCALL void* CTokenQReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
+  TM_FASTCALL void CTokenQWriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+  TM_FASTCALL void CTokenQWriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+  TM_FASTCALL void CTokenQCommitRO(TX_LONE_PARAMETER);
+  TM_FASTCALL void CTokenQCommitRW(TX_LONE_PARAMETER);
+  NOINLINE void CTokenQValidate(TxThread* tx);
 
   /**
    *  CTokenQ begin:
    */
-  void CTokenQ::begin(TX_LONE_PARAMETER)
+  void CTokenQBegin(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       tx->allocator.onTxBegin();
@@ -76,7 +55,7 @@ namespace {
    *  CTokenQ commit (read-only):
    */
   void
-  CTokenQ::CommitRO(TX_LONE_PARAMETER)
+  CTokenQCommitRO(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // reset lists and we are done
@@ -90,7 +69,7 @@ namespace {
    *  NB:  Only valid if using pointer-based adaptivity
    */
   void
-  CTokenQ::CommitRW(TX_LONE_PARAMETER)
+  CTokenQCommitRW(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // Wait for my turn
@@ -100,7 +79,7 @@ namespace {
 
       // since we have the token, we can validate before getting locks
       if (last_complete.val > tx->ts_cache)
-          validate(tx);
+          CTokenQValidate(tx);
 
       // increment global timestamp and save it to local cache
       tx->order = ++timestamp.val;
@@ -128,14 +107,14 @@ namespace {
       tx->r_orecs.reset();
       tx->writes.reset();
       OnRWCommit(tx);
-      ResetToRO(tx, ReadRO, WriteRO, CommitRO);
+      ResetToRO(tx, CTokenQReadRO, CTokenQWriteRO, CTokenQCommitRO);
   }
 
   /**
    *  CTokenQ read (read-only transaction)
    */
   void*
-  CTokenQ::ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
+  CTokenQReadRO(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
   {
       TX_GET_TX_INTERNAL;
       // read the location... this is safe since timestamps behave as in Wang's
@@ -151,7 +130,7 @@ namespace {
       // NB: this is a pretty serious tradeoff... it admits false aborts for
       //     the sake of preventing a 'check if locked' test
       if (ivt > tx->ts_cache)
-          stm::tmabort();
+          tmabort();
 
       // log orec
       tx->r_orecs.insert(o);
@@ -163,7 +142,7 @@ namespace {
    *  CTokenQ read (writing transaction)
    */
   void*
-  CTokenQ::ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
+  CTokenQReadRW(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
   {
       TX_GET_TX_INTERNAL;
       // check the log for a RAW hazard, we expect to miss
@@ -172,7 +151,7 @@ namespace {
       REDO_RAW_CHECK(found, log, mask);
 
       // reuse the ReadRO barrier, which is adequate here---reduces LOC
-      void* val = ReadRO(TX_FIRST_ARG addr STM_MASK(mask));
+      void* val = CTokenQReadRO(TX_FIRST_ARG addr STM_MASK(mask));
       REDO_RAW_CLEANUP(val, found, log, mask);
       return val;
   }
@@ -181,7 +160,7 @@ namespace {
    *  CTokenQ write (read-only context)
    */
   void
-  CTokenQ::WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  CTokenQWriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // we don't have any writes yet, so we need to add myself to the queue
@@ -191,14 +170,14 @@ namespace {
 
       // record the new value in a redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
-      stm::OnFirstWrite(tx, ReadRW, WriteRW, CommitRW);
+      OnFirstWrite(tx, CTokenQReadRW, CTokenQWriteRW, CTokenQCommitRW);
   }
 
   /**
    *  CTokenQ write (writing context)
    */
   void
-  CTokenQ::WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  CTokenQWriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // record the new value in a redo log
@@ -209,7 +188,7 @@ namespace {
    *  CTokenQ unwinder:
    */
   void
-  CTokenQ::rollback(STM_ROLLBACK_SIG(tx, except, len))
+  CTokenQRollback(STM_ROLLBACK_SIG(tx, except, len))
   {
       PreRollback(tx);
 
@@ -232,9 +211,9 @@ namespace {
    *  CTokenQ in-flight irrevocability:
    */
   bool
-  CTokenQ::irrevoc(TxThread*)
+  CTokenQIrrevoc(TxThread*)
   {
-      stm::UNRECOVERABLE("CTokenQ Irrevocability not yet supported");
+      UNRECOVERABLE("CTokenQ Irrevocability not yet supported");
       return false;
   }
 
@@ -242,7 +221,7 @@ namespace {
    *  CTokenQ validation for CommitRW
    */
   void
-  CTokenQ::validate(TxThread* tx)
+  CTokenQValidate(TxThread* tx)
   {
       // check that all reads are valid
       foreach (OrecList, i, tx->r_orecs) {
@@ -250,7 +229,7 @@ namespace {
           uintptr_t ivt = (*i)->v.all;
           // if it has a timestamp of ts_cache or greater, abort
           if (ivt > tx->ts_cache)
-              stm::tmabort();
+              tmabort();
       }
   }
 
@@ -259,14 +238,12 @@ namespace {
    *
    */
   void
-  CTokenQ::onSwitchTo()
+  CTokenQOnSwitchTo()
   {
       last_complete.val = 0;
       timestamp.val = 0;
   }
-}
 
-namespace stm {
   /**
    *  CTokenQ initialization
    */
@@ -276,13 +253,13 @@ namespace stm {
       // set the name
       stms[CTokenQ].name      = "CTokenQ";
       // set the pointers
-      stms[CTokenQ].begin     = ::CTokenQ::begin;
-      stms[CTokenQ].commit    = ::CTokenQ::CommitRO;
-      stms[CTokenQ].read      = ::CTokenQ::ReadRO;
-      stms[CTokenQ].write     = ::CTokenQ::WriteRO;
-      stms[CTokenQ].rollback  = ::CTokenQ::rollback;
-      stms[CTokenQ].irrevoc   = ::CTokenQ::irrevoc;
-      stms[CTokenQ].switcher  = ::CTokenQ::onSwitchTo;
+      stms[CTokenQ].begin     = CTokenQBegin;
+      stms[CTokenQ].commit    = CTokenQCommitRO;
+      stms[CTokenQ].read      = CTokenQReadRO;
+      stms[CTokenQ].write     = CTokenQWriteRO;
+      stms[CTokenQ].rollback  = CTokenQRollback;
+      stms[CTokenQ].irrevoc   = CTokenQIrrevoc;
+      stms[CTokenQ].switcher  = CTokenQOnSwitchTo;
       stms[CTokenQ].privatization_safe = true;
   }
 }

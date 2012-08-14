@@ -27,46 +27,18 @@
  *        instructions.
  */
 
-#include "../profiling.hpp"
 #include "algs.hpp"
-#include "../RedoRAWUtils.hpp"
 
-using stm::TxThread;
-using stm::timestamp;
-using stm::timestamp_max;
-using stm::WriteSet;
-using stm::OrecList;
-using stm::WriteSetEntry;
-using stm::orec_t;
-using stm::get_orec;
-
-using stm::started;
-using stm::cpending;
-using stm::committed;
-using stm::last_order;
-
-/**
- *  Declare the functions that we're going to implement, so that we can avoid
- *  circular dependencies.
- */
-namespace {
-  struct CohortsNoorder
-  {
-    static void begin(TX_LONE_PARAMETER);
-    static TM_FASTCALL void* ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
-    static TM_FASTCALL void* ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
-    static TM_FASTCALL void WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-    static TM_FASTCALL void WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-    static TM_FASTCALL void CommitRO(TX_LONE_PARAMETER);
-    static TM_FASTCALL void CommitRW(TX_LONE_PARAMETER);
-
-    static void rollback(STM_ROLLBACK_SIG(,,));
-    static bool irrevoc(TxThread*);
-    static void onSwitchTo();
-    static NOINLINE void validate(TxThread*);
-    static NOINLINE void TxAbortWrapper(TxThread* tx);
-
-  };
+namespace stm
+{
+  TM_FASTCALL void* CohortsNoorderReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
+  TM_FASTCALL void* CohortsNoorderReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
+  TM_FASTCALL void CohortsNoorderWriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+  TM_FASTCALL void CohortsNoorderWriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+  TM_FASTCALL void CohortsNoorderCommitRO(TX_LONE_PARAMETER);
+  TM_FASTCALL void CohortsNoorderCommitRW(TX_LONE_PARAMETER);
+  NOINLINE void CohortsNoorderValidate(TxThread*);
+  NOINLINE void CohortsNoorderTxAbortWrapper(TxThread* tx);
 
   /**
    *  CohortsNoorder begin:
@@ -74,7 +46,7 @@ namespace {
    *  Then no tx is allowed to start until all the transactions finishes their
    *  commits.
    */
-  void CohortsNoorder::begin(TX_LONE_PARAMETER)
+  void CohortsNoorderBegin(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
     S1:
@@ -101,7 +73,7 @@ namespace {
    *  CohortsNoorder commit (read-only):
    */
   void
-  CohortsNoorder::CommitRO(TX_LONE_PARAMETER)
+  CohortsNoorderCommitRO(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // decrease total number of tx
@@ -116,7 +88,7 @@ namespace {
    *  CohortsNoorder commit (writing context):
    */
   void
-  CohortsNoorder::CommitRW(TX_LONE_PARAMETER)
+  CohortsNoorderCommitRW(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // increase # of tx waiting to commit
@@ -133,14 +105,14 @@ namespace {
           if (ivt <= tx->start_time) {
               // abort if cannot acquire
               if (!bcasptr(&o->v.all, ivt, tx->my_lock.all))
-                  TxAbortWrapper(tx);
+                  CohortsNoorderTxAbortWrapper(tx);
               // save old version to o->p, remember that we hold the lock
               o->p = ivt;
               tx->locks.insert(o);
           }
           // else if we don't hold the lock abort
           else if (ivt != tx->my_lock.all) {
-              TxAbortWrapper(tx);
+              CohortsNoorderTxAbortWrapper(tx);
           }
       }
 
@@ -149,7 +121,7 @@ namespace {
 
       // skip validation if nobody else committed
       if (end_time != (tx->start_time + 1))
-          validate(tx);
+          CohortsNoorderValidate(tx);
 
       // write back
       tx->writes.writeback();
@@ -164,7 +136,7 @@ namespace {
       tx->writes.reset();
       tx->locks.reset();
       OnRWCommit(tx);
-      ResetToRO(tx, ReadRO, WriteRO, CommitRO);
+      ResetToRO(tx, CohortsNoorderReadRO, CohortsNoorderWriteRO, CohortsNoorderCommitRO);
 
       // increase total number of committed tx
       faiptr(&committed.val);
@@ -174,7 +146,7 @@ namespace {
    *  CohortsNoorder read (read-only transaction)
    */
   void*
-  CohortsNoorder::ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
+  CohortsNoorderReadRO(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
   {
       TX_GET_TX_INTERNAL;
       // log orec
@@ -186,7 +158,7 @@ namespace {
    *  CohortsNoorder read (writing transaction)
    */
   void*
-  CohortsNoorder::ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
+  CohortsNoorderReadRW(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
   {
       TX_GET_TX_INTERNAL;
       // check the log for a RAW hazard, we expect to miss
@@ -207,19 +179,19 @@ namespace {
    *  CohortsNoorder write (read-only context)
    */
   void
-  CohortsNoorder::WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  CohortsNoorderWriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // add to redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
-      stm::OnFirstWrite(tx, ReadRW, WriteRW, CommitRW);
+      OnFirstWrite(tx, CohortsNoorderReadRW, CohortsNoorderWriteRW, CohortsNoorderCommitRW);
   }
 
   /**
    *  CohortsNoorder write (writing context)
    */
   void
-  CohortsNoorder::WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  CohortsNoorderWriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // add to redo log
@@ -230,7 +202,7 @@ namespace {
    *  CohortsNoorder unwinder:
    */
   void
-  CohortsNoorder::rollback(STM_ROLLBACK_SIG(tx, except, len))
+  CohortsNoorderRollback(STM_ROLLBACK_SIG(tx, except, len))
   {
       PreRollback(tx);
 
@@ -248,14 +220,14 @@ namespace {
       tx->writes.reset();
       tx->locks.reset();
       PostRollback(tx);
-      ResetToRO(tx, ReadRO, WriteRO, CommitRO);
+      ResetToRO(tx, CohortsNoorderReadRO, CohortsNoorderWriteRO, CohortsNoorderCommitRO);
   }
 
   /**
    *  CohortsNoorder in-flight irrevocability:
    */
   bool
-  CohortsNoorder::irrevoc(TxThread*)
+  CohortsNoorderIrrevoc(TxThread*)
   {
       return false;
   }
@@ -264,13 +236,13 @@ namespace {
    *  CohortsNoorder validation
    */
   void
-  CohortsNoorder::validate(TxThread* tx)
+  CohortsNoorderValidate(TxThread* tx)
   {
       foreach (OrecList, i, tx->r_orecs) {
           uintptr_t ivt = (*i)->v.all;
           // if unlocked and newer than start time, abort
           if ((ivt > tx->start_time) && (ivt != tx->my_lock.all))
-              TxAbortWrapper(tx);
+              CohortsNoorderTxAbortWrapper(tx);
       }
   }
 
@@ -278,13 +250,13 @@ namespace {
    *   Cohorts Tx Abort Wrapper
    */
   void
-  CohortsNoorder::TxAbortWrapper(TxThread*)
+  CohortsNoorderTxAbortWrapper(TxThread*)
   {
       // Increase total number of committed tx
       faiptr(&committed.val);
 
       // abort
-      stm::tmabort();
+      tmabort();
   }
 
   /**
@@ -295,13 +267,11 @@ namespace {
    *    timestamp first, in timestamp_max.
    */
   void
-  CohortsNoorder::onSwitchTo()
+  CohortsNoorderOnSwitchTo()
   {
       timestamp.val = MAXIMUM(timestamp.val, timestamp_max.val);
   }
-}
 
-namespace stm {
   /**
    *  CohortsNoorder initialization
    */
@@ -312,13 +282,13 @@ namespace stm {
       stms[CohortsNoorder].name      = "CohortsNoorder";
 
       // set the pointers
-      stms[CohortsNoorder].begin     = ::CohortsNoorder::begin;
-      stms[CohortsNoorder].commit    = ::CohortsNoorder::CommitRO;
-      stms[CohortsNoorder].read      = ::CohortsNoorder::ReadRO;
-      stms[CohortsNoorder].write     = ::CohortsNoorder::WriteRO;
-      stms[CohortsNoorder].rollback  = ::CohortsNoorder::rollback;
-      stms[CohortsNoorder].irrevoc   = ::CohortsNoorder::irrevoc;
-      stms[CohortsNoorder].switcher  = ::CohortsNoorder::onSwitchTo;
+      stms[CohortsNoorder].begin     = CohortsNoorderBegin;
+      stms[CohortsNoorder].commit    = CohortsNoorderCommitRO;
+      stms[CohortsNoorder].read      = CohortsNoorderReadRO;
+      stms[CohortsNoorder].write     = CohortsNoorderWriteRO;
+      stms[CohortsNoorder].rollback  = CohortsNoorderRollback;
+      stms[CohortsNoorder].irrevoc   = CohortsNoorderIrrevoc;
+      stms[CohortsNoorder].switcher  = CohortsNoorderOnSwitchTo;
       stms[CohortsNoorder].privatization_safe = false;
   }
 }

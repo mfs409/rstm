@@ -237,34 +237,34 @@ namespace stm                                                           \
     {                                                                   \
         TX_GET_TX_INTERNAL;                                             \
         if (tx->mode == stm::MODE_WRITE)                                \
-            return CLASS::read_rw(TX_FIRST_ARG addr STM_MASK(mask));    \
+            return CLASS##ReadRW(TX_FIRST_ARG addr STM_MASK(mask));     \
         else                                                            \
-            return CLASS::read_ro(TX_FIRST_ARG addr STM_MASK(mask));    \
+            return CLASS##ReadRO(TX_FIRST_ARG addr STM_MASK(mask));     \
     }                                                                   \
     TM_FASTCALL void tmwrite(TX_FIRST_PARAMETER                         \
                              STM_WRITE_SIG(addr,value,mask))            \
     {                                                                   \
         TX_GET_TX_INTERNAL;                                             \
         if (tx->mode == stm::MODE_WRITE)                                \
-            CLASS::write_rw(TX_FIRST_ARG addr, value STM_MASK(mask));   \
+            CLASS##WriteRW(TX_FIRST_ARG addr, value STM_MASK(mask));    \
         else                                                            \
-            CLASS::write_ro(TX_FIRST_ARG addr, value STM_MASK(mask));   \
+            CLASS##WriteRO(TX_FIRST_ARG addr, value STM_MASK(mask));    \
     }                                                                   \
     TM_FASTCALL void tmcommit(TX_LONE_PARAMETER)                        \
     {                                                                   \
         TX_GET_TX_INTERNAL;                                             \
         if (tx->mode == stm::MODE_WRITE)                                \
-            CLASS::commit_rw(TX_LONE_ARG);                              \
+            CLASS##CommitRW(TX_LONE_ARG);                               \
         else                                                            \
-            CLASS::commit_ro(TX_LONE_ARG);                              \
+            CLASS##CommitRO(TX_LONE_ARG);                               \
     }                                                                   \
     bool tmirrevoc(TxThread* tx)                                        \
     {                                                                   \
-        return CLASS::irrevoc(tx);                                      \
+        return CLASS##Irrevoc(tx);                                      \
     }                                                                   \
     void tmrollback(STM_ROLLBACK_SIG(tx,,))                             \
     {                                                                   \
-        CLASS::rollback(tx);                                            \
+        CLASS##Rollback(tx);                                            \
     }                                                                   \
 }
 

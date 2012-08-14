@@ -15,43 +15,26 @@
  *    aggressive contention manager (abort other on conflict).
  */
 
-#include "../profiling.hpp"
-#include "../RedoRAWUtils.hpp"
 #include "../cm.hpp"
 #include "algs.hpp"
-
-using stm::TxThread;
-using stm::ByteLockList;
-using stm::bytelock_t;
-using stm::get_bytelock;
-using stm::WriteSetEntry;
-using stm::threads;
-
 
 /**
  *  Declare the functions that we're going to implement, so that we can avoid
  *  circular dependencies.
  */
-namespace {
-  struct ByEAR
-  {
-      static void begin(TX_LONE_PARAMETER);
-      static TM_FASTCALL void* ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void* ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void CommitRO(TX_LONE_PARAMETER);
-      static TM_FASTCALL void CommitRW(TX_LONE_PARAMETER);
-
-      static void rollback(STM_ROLLBACK_SIG(,,));
-      static bool irrevoc(TxThread*);
-      static void onSwitchTo();
-  };
+namespace stm
+{
+  TM_FASTCALL void* ByEARReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
+  TM_FASTCALL void* ByEARReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
+  TM_FASTCALL void ByEARWriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+  TM_FASTCALL void ByEARWriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+  TM_FASTCALL void ByEARCommitRO(TX_LONE_PARAMETER);
+  TM_FASTCALL void ByEARCommitRW(TX_LONE_PARAMETER);
 
   /**
    *  ByEAR begin:
    */
-  void ByEAR::begin(TX_LONE_PARAMETER)
+  void ByEARBegin(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       tx->allocator.onTxBegin();
@@ -62,8 +45,7 @@ namespace {
   /**
    *  ByEAR commit (read-only):
    */
-  void
-  ByEAR::CommitRO(TX_LONE_PARAMETER)
+  void ByEARCommitRO(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // read-only... release read locks
@@ -77,13 +59,12 @@ namespace {
   /**
    *  ByEAR commit (writing context):
    */
-  void
-  ByEAR::CommitRW(TX_LONE_PARAMETER)
+  void ByEARCommitRW(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // atomically mark self committed
       if (!bcas32(&tx->alive, TX_ACTIVE, TX_COMMITTED))
-          stm::tmabort();
+          tmabort();
 
       // we committed... replay redo log
       tx->writes.writeback();
@@ -100,14 +81,13 @@ namespace {
       tx->w_bytelocks.reset();
       tx->writes.reset();
       OnRWCommit(tx);
-      ResetToRO(tx, ReadRO, WriteRO, CommitRO);
+      ResetToRO(tx, ByEARReadRO, ByEARWriteRO, ByEARCommitRO);
   }
 
   /**
    *  ByEAR read (read-only transaction)
    */
-  void*
-  ByEAR::ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
+  void* ByEARReadRO(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
   {
       TX_GET_TX_INTERNAL;
       bytelock_t* lock = get_bytelock(addr);
@@ -124,11 +104,11 @@ namespace {
           switch (threads[owner-1]->alive) {
             case TX_COMMITTED:
               // abort myself if the owner is writing back
-              stm::tmabort();
+              tmabort();
             case TX_ACTIVE:
               // abort the owner(it's active)
               if (!bcas32(&threads[owner-1]->alive, TX_ACTIVE, TX_ABORTED))
-                  stm::tmabort();
+                  tmabort();
               break;
             case TX_ABORTED:
               // if the owner is unwinding, go through and read
@@ -143,15 +123,14 @@ namespace {
 
       // check for remote abort
       if (tx->alive == TX_ABORTED)
-          stm::tmabort();
+          tmabort();
       return result;
   }
 
   /**
    *  ByEAR read (writing transaction)
    */
-  void*
-  ByEAR::ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
+  void* ByEARReadRW(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
   {
       TX_GET_TX_INTERNAL;
       bytelock_t* lock = get_bytelock(addr);
@@ -181,11 +160,11 @@ namespace {
           switch (threads[owner-1]->alive) {
             case TX_COMMITTED:
               // abort myself if the owner is writing back
-              stm::tmabort();
+              tmabort();
             case TX_ACTIVE:
               // abort the owner(it's active)
               if (!bcas32(&threads[owner-1]->alive, TX_ACTIVE, TX_ABORTED))
-                  stm::tmabort();
+                  tmabort();
               break;
             case TX_ABORTED:
               // if the owner is unwinding, go through and read
@@ -200,7 +179,7 @@ namespace {
 
       // check for remote abort
       if (tx->alive == TX_ABORTED)
-          stm::tmabort();
+          tmabort();
 
       return result;
   }
@@ -208,8 +187,7 @@ namespace {
   /**
    *  ByEAR write (read-only context)
    */
-  void
-  ByEAR::WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  void ByEARWriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       bytelock_t* lock = get_bytelock(addr);
@@ -224,7 +202,7 @@ namespace {
               break;
           // liveness check
           if (tx->alive == TX_ABORTED)
-              stm::tmabort();
+              tmabort();
       }
 
       // log the lock, drop any read locks I have
@@ -233,33 +211,33 @@ namespace {
 
       // abort active readers
       //
-      // [lyj] here we must use the cas to abort the reader, otherwise we would
-      //       risk setting the state of a committing transaction to aborted,
-      //       which can give readers inconsistent results when they trying to
-      //       read while the committer is writing back.
+      // [lyj] here we must use the cas to abort the reader, otherwise we
+      //       would risk setting the state of a committing transaction to
+      //       aborted, which can give readers inconsistent results when they
+      //       trying to read while the committer is writing back.
       for (int i = 0; i < 60; ++i)
           if (lock->reader[i] != 0 && threads[i]->alive == TX_ACTIVE)
               if (!bcas32(&threads[i]->alive, TX_ACTIVE, TX_ABORTED))
-                  stm::tmabort();
+                  tmabort();
 
       // add to redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
 
-      stm::OnFirstWrite(tx, ReadRW, WriteRW, CommitRW);
+      OnFirstWrite(tx, ByEARReadRW, ByEARWriteRW, ByEARCommitRW);
   }
 
   /**
    *  ByEAR write (writing context)
    */
-  void
-  ByEAR::WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  void ByEARWriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       bytelock_t* lock = get_bytelock(addr);
 
       // fastpath for repeat writes to the same location
       if (lock->owner == tx->id) {
-          tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
+          tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr,
+                                                              val, mask)));
           return;
       }
 
@@ -273,7 +251,7 @@ namespace {
               break;
           // liveness check
           if (tx->alive == TX_ABORTED)
-              stm::tmabort();
+              tmabort();
       }
 
       // log the lock, drop any read locks I have
@@ -284,7 +262,7 @@ namespace {
       for (int i = 0; i < 60; ++i)
           if (lock->reader[i] != 0 && threads[i]->alive == TX_ACTIVE)
               if (!bcas32(&threads[i]->alive, TX_ACTIVE, TX_ABORTED))
-                  stm::tmabort();
+                  tmabort();
 
       // add to redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
@@ -293,8 +271,7 @@ namespace {
   /**
    *  ByEAR unwinder:
    */
-  void
-  ByEAR::rollback(STM_ROLLBACK_SIG(tx, except, len))
+  void ByEARRollback(STM_ROLLBACK_SIG(tx, except, len))
   {
       PreRollback(tx);
 
@@ -318,14 +295,13 @@ namespace {
       exp_backoff(tx);
 
       PostRollback(tx);
-      ResetToRO(tx, ReadRO, WriteRO, CommitRO);
+      ResetToRO(tx, ByEARReadRO, ByEARWriteRO, ByEARCommitRO);
   }
 
   /**
    *  ByEAR in-flight irrevocability:
    */
-  bool
-  ByEAR::irrevoc(TxThread*)
+  bool ByEARIrrevoc(TxThread*)
   {
       return false;
   }
@@ -333,10 +309,8 @@ namespace {
   /**
    *  Switch to ByEAR:
    */
-  void ByEAR::onSwitchTo() { }
-}
+  void ByEAROnSwitchTo() { }
 
-namespace stm {
   /**
    *  ByEAR initialization
    */
@@ -347,13 +321,13 @@ namespace stm {
       stms[ByEAR].name      = "ByEAR";
 
       // set the pointers
-      stms[ByEAR].begin     = ::ByEAR::begin;
-      stms[ByEAR].commit    = ::ByEAR::CommitRO;
-      stms[ByEAR].read      = ::ByEAR::ReadRO;
-      stms[ByEAR].write     = ::ByEAR::WriteRO;
-      stms[ByEAR].rollback  = ::ByEAR::rollback;
-      stms[ByEAR].irrevoc   = ::ByEAR::irrevoc;
-      stms[ByEAR].switcher  = ::ByEAR::onSwitchTo;
+      stms[ByEAR].begin     = ByEARBegin;
+      stms[ByEAR].commit    = ByEARCommitRO;
+      stms[ByEAR].read      = ByEARReadRO;
+      stms[ByEAR].write     = ByEARWriteRO;
+      stms[ByEAR].rollback  = ByEARRollback;
+      stms[ByEAR].irrevoc   = ByEARIrrevoc;
+      stms[ByEAR].switcher  = ByEAROnSwitchTo;
       stms[ByEAR].privatization_safe = true;
   }
 }

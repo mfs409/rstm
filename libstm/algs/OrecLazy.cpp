@@ -13,11 +13,23 @@
 namespace stm
 {
     template <>
-    void initTM<OrecLazy>() {
-        OrecLazy_Generic<HyperAggressiveCM>::Initialize(OrecLazy, "OrecLazy");
+    void initTM<OrecLazy>()
+    {
+      // set the name
+      stms[OrecLazy].name      = "OrecLazy";
+
+      // set the pointers
+      stms[OrecLazy].begin     = OrecLazyGenericBegin<HyperAggressiveCM>;
+      stms[OrecLazy].commit    = OrecLazyGenericCommitRO<HyperAggressiveCM>;
+      stms[OrecLazy].rollback  = OrecLazyGenericRollback<HyperAggressiveCM>;
+      stms[OrecLazy].read      = OrecLazyGenericReadRO<HyperAggressiveCM>;
+      stms[OrecLazy].write     = OrecLazyGenericWriteRO<HyperAggressiveCM>;
+      stms[OrecLazy].irrevoc   = OrecLazyGenericIrrevoc<HyperAggressiveCM>;
+      stms[OrecLazy].switcher  = OrecLazyGenericOnSwitchTo<HyperAggressiveCM>;
+      stms[OrecLazy].privatization_safe = false;
     }
 }
 
 #ifdef STM_ONESHOT_ALG_OrecLazy
-DECLARE_AS_ONESHOT_NORMAL(OrecLazy_Generic<HyperAggressiveCM>)
+DECLARE_AS_ONESHOT_NORMAL(OrecLazyGeneric<HyperAggressiveCM>)
 #endif

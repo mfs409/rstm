@@ -23,60 +23,28 @@
  */
 
 #include "../../alt-license/rand_r_32.h"
-#include "../profiling.hpp"
 #include "algs.hpp"
-#include "../RedoRAWUtils.hpp"
 #include "../../include/abstract_timing.hpp"
 #include "../cm.hpp"
 
-using stm::TxThread;
-using stm::timestamp;
-using stm::timestamp_max;
-using stm::KARMA_FACTOR;
-using stm::orec_t;
-using stm::get_orec;
-using stm::rrecs;
-using stm::rrec_t;
-using stm::get_rrec;
-using stm::WriteSet;
-using stm::OrecList;
-using stm::RRecList;
-using stm::id_version_t;
-using stm::MAX_THREADS;
-using stm::threads;
-using stm::prioTxCount;
-using stm::WriteSetEntry;
-
-
-/**
- *  Declare the functions that we're going to implement, so that we can avoid
- *  circular dependencies.
- */
-namespace
+namespace stm
 {
-  struct OrecFair {
-      static void begin(TX_LONE_PARAMETER);
-      static TM_FASTCALL void* ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void* ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void CommitRO(TX_LONE_PARAMETER);
-      static TM_FASTCALL void CommitRW(TX_LONE_PARAMETER);
-
-      static void rollback(STM_ROLLBACK_SIG(,,));
-      static bool irrevoc(TxThread*);
-      static void onSwitchTo();
-      static NOINLINE void validate(TxThread*);
-      static NOINLINE void validate_committime(TxThread*);
-  };
+  TM_FASTCALL void* OrecFairReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
+  TM_FASTCALL void* OrecFairReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
+  TM_FASTCALL void OrecFairWriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+  TM_FASTCALL void OrecFairWriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+  TM_FASTCALL void OrecFairCommitRO(TX_LONE_PARAMETER);
+  TM_FASTCALL void OrecFairCommitRW(TX_LONE_PARAMETER);
+  NOINLINE void OrecFairValidate(TxThread*);
+  NOINLINE void OrecFairValidateCommitTime(TxThread*);
 
   /**
    *  OrecFair begin:
    *
-   *    When a transaction aborts, it releases its priority.  Here we re-acquire
-   *    priority.
+   *    When a transaction aborts, it releases its priority.  Here we
+   *    re-acquire priority.
    */
-  void OrecFair::begin(TX_LONE_PARAMETER)
+  void OrecFairBegin(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       tx->allocator.onTxBegin();
@@ -96,7 +64,7 @@ namespace
    *    we have.
    */
   void
-  OrecFair::CommitRO(TX_LONE_PARAMETER)
+  OrecFairCommitRO(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // If I had priority, release it
@@ -127,7 +95,7 @@ namespace
    *    wait for that thread to detect our conflict and abort itself.
    */
   void
-  OrecFair::CommitRW(TX_LONE_PARAMETER)
+  OrecFairCommitRW(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // try to lock every location in the write set
@@ -152,7 +120,7 @@ namespace
           // else if we don't hold the lock abort
           else if (ivt.all != tx->my_lock.all) {
               if (!ivt.fields.lock)
-                  stm::tmabort();
+                  tmabort();
               // priority test... if I have priority, and the last unlocked
               // version of the orec was the one I read, and the current
               // owner has less priority than me, wait
@@ -162,7 +130,7 @@ namespace
                       continue;
                   }
               }
-              stm::tmabort();
+              tmabort();
           }
           ++i;
       }
@@ -173,7 +141,7 @@ namespace
           // write set
           rrec_t accumulator = {{0}};
           foreach (WriteSet, j, tx->writes) {
-              int index = (((uintptr_t)j->addr) >> 3) % stm::NUM_RRECS;
+              int index = (((uintptr_t)j->addr) >> 3) % NUM_RRECS;
               accumulator |= rrecs[index];
           }
 
@@ -184,7 +152,7 @@ namespace
               unsigned mask = 1lu<<(slot % rrec_t::BITS);
               if (accumulator.bits[bucket] & mask) {
                   if (threads[slot]->prio > tx->prio)
-                      stm::tmabort();
+                      tmabort();
               }
           }
       }
@@ -194,7 +162,7 @@ namespace
 
       // skip validation if nobody else committed
       if (end_time != (tx->start_time + 1))
-          validate_committime(tx);
+          OrecFairValidateCommitTime(tx);
 
       // run the redo log
       tx->writes.writeback();
@@ -225,7 +193,7 @@ namespace
       tx->writes.reset();
       tx->locks.reset();
       OnRWCommit(tx);
-      ResetToRO(tx, ReadRO, WriteRO, CommitRO);
+      ResetToRO(tx, OrecFairReadRO, OrecFairWriteRO, OrecFairCommitRO);
   }
 
   /**
@@ -239,7 +207,7 @@ namespace
    *        optimizations for priority transactions
    */
   void*
-  OrecFair::ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
+  OrecFairReadRO(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
   {
       TX_GET_TX_INTERNAL;
       // CM instrumentation
@@ -279,7 +247,7 @@ namespace
 
           // unlocked but too new... validate and scale forward
           unsigned newts = timestamp.val;
-          validate(tx);
+          OrecFairValidate(tx);
           tx->start_time = newts;
       }
   }
@@ -295,7 +263,7 @@ namespace
    *        version of this function
    */
   void*
-  OrecFair::ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
+  OrecFairReadRW(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
   {
       TX_GET_TX_INTERNAL;
       // check the log for a RAW hazard, we expect to miss
@@ -342,7 +310,7 @@ namespace
 
           // unlocked but too new... validate and scale forward
           unsigned newts = timestamp.val;
-          validate(tx);
+          OrecFairValidate(tx);
           tx->start_time = newts;
       }
   }
@@ -359,7 +327,7 @@ namespace
    *        redundancy with the checks in the lock acquisition code.
    */
   void
-  OrecFair::WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  OrecFairWriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // CM instrumentation
@@ -381,7 +349,7 @@ namespace
               // do we need to scale the start time?
               if (ivt.all > tx->start_time) {
                   unsigned newts = timestamp.val;
-                  validate(tx);
+                  OrecFairValidate(tx);
                   tx->start_time = newts;
                   continue;
               }
@@ -392,7 +360,7 @@ namespace
 
       // Record the new value in a redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
-      stm::OnFirstWrite(tx, ReadRW, WriteRW, CommitRW);
+      OnFirstWrite(tx, OrecFairReadRW, OrecFairWriteRW, OrecFairCommitRW);
   }
 
   /**
@@ -402,7 +370,7 @@ namespace
    *    concerns apply as above.
    */
   void
-  OrecFair::WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  OrecFairWriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // CM instrumentation
@@ -424,7 +392,7 @@ namespace
               // do we need to scale the start time?
               if (ivt.all > tx->start_time) {
                   unsigned newts = timestamp.val;
-                  validate(tx);
+                  OrecFairValidate(tx);
                   tx->start_time = newts;
                   continue;
               }
@@ -448,7 +416,7 @@ namespace
    *        be completely faithful to [Spear PPoPP 2009]
    */
   void
-  OrecFair::rollback(STM_ROLLBACK_SIG(tx, except, len))
+  OrecFairRollback(STM_ROLLBACK_SIG(tx, except, len))
   {
       PreRollback(tx);
 
@@ -480,13 +448,13 @@ namespace
       exp_backoff(tx);
 
       PostRollback(tx);
-      ResetToRO(tx, ReadRO, WriteRO, CommitRO);
+      ResetToRO(tx, OrecFairReadRO, OrecFairWriteRO, OrecFairCommitRO);
   }
 
   /**
    *  OrecFair in-flight irrevocability: use abort-and-restart
    */
-  bool OrecFair::irrevoc(TxThread*)
+  bool OrecFairIrrevoc(TxThread*)
   {
       return false;
   }
@@ -500,7 +468,7 @@ namespace
    *    go away, instead of aborting.
    */
   void
-  OrecFair::validate(TxThread* tx)
+  OrecFairValidate(TxThread* tx)
   {
       OrecList::iterator i = tx->r_orecs.begin(), e = tx->r_orecs.end();
       while (i != e) {
@@ -510,7 +478,7 @@ namespace
           // only a problem if locked or newer than start time
           if (ivt.all > tx->start_time) {
               if (!ivt.fields.lock)
-                  stm::tmabort();
+                  tmabort();
               // priority test... if I have priority, and the last unlocked
               // orec was the one I read, and the current owner has less
               // priority than me, wait
@@ -520,7 +488,7 @@ namespace
                       continue;
                   }
               }
-              stm::tmabort();
+              tmabort();
           }
           ++i;
       }
@@ -533,17 +501,17 @@ namespace
    *    caller holds locks
    */
   void
-  OrecFair::validate_committime(TxThread* tx)
+  OrecFairValidateCommitTime(TxThread* tx)
   {
       if (tx->prio) {
-        OrecList::iterator i = tx->r_orecs.begin(), e = tx->r_orecs.end();
+          OrecList::iterator i = tx->r_orecs.begin(), e = tx->r_orecs.end();
         while (i != e) {
               // read this orec
               id_version_t ivt;
               ivt.all = (*i)->v.all;
               // if unlocked and newer than start time, abort
               if (!ivt.fields.lock && (ivt.all > tx->start_time))
-                  stm::tmabort();
+                  tmabort();
 
               // if locked and not by me, do a priority test
               if (ivt.fields.lock && (ivt.all != tx->my_lock.all)) {
@@ -556,7 +524,7 @@ namespace
                       spin64();
                       continue;
                   }
-                  stm::tmabort();
+                  tmabort();
               }
               ++i;
           }
@@ -568,7 +536,7 @@ namespace
               ivt.all = (*i)->v.all;
               // if unlocked and newer than start time, abort
               if ((ivt.all > tx->start_time) && (ivt.all != tx->my_lock.all))
-                  stm::tmabort();
+                  tmabort();
           }
       }
   }
@@ -581,13 +549,10 @@ namespace
    *    timestamp first, in timestamp_max.
    */
   void
-  OrecFair::onSwitchTo()
+  OrecFairOnSwitchTo()
   {
       timestamp.val = MAXIMUM(timestamp.val, timestamp_max.val);
   }
-}
-
-namespace stm {
 
   /**
    *  OrecFair initialization
@@ -596,17 +561,17 @@ namespace stm {
   void initTM<OrecFair>()
   {
       // set the name
-      stm::stms[OrecFair].name      = "OrecFair";
+      stms[OrecFair].name      = "OrecFair";
 
       // set the pointers
-      stm::stms[OrecFair].begin     = ::OrecFair::begin;
-      stm::stms[OrecFair].commit    = ::OrecFair::CommitRO;
-      stm::stms[OrecFair].read      = ::OrecFair::ReadRO;
-      stm::stms[OrecFair].write     = ::OrecFair::WriteRO;
-      stm::stms[OrecFair].rollback  = ::OrecFair::rollback;
-      stm::stms[OrecFair].irrevoc   = ::OrecFair::irrevoc;
-      stm::stms[OrecFair].switcher  = ::OrecFair::onSwitchTo;
-      stm::stms[OrecFair].privatization_safe = false;
+      stms[OrecFair].begin     = OrecFairBegin;
+      stms[OrecFair].commit    = OrecFairCommitRO;
+      stms[OrecFair].read      = OrecFairReadRO;
+      stms[OrecFair].write     = OrecFairWriteRO;
+      stms[OrecFair].rollback  = OrecFairRollback;
+      stms[OrecFair].irrevoc   = OrecFairIrrevoc;
+      stms[OrecFair].switcher  = OrecFairOnSwitchTo;
+      stms[OrecFair].privatization_safe = false;
   }
 }
 

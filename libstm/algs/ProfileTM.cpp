@@ -58,14 +58,14 @@ namespace stm
 
       // uh-oh, we can't fit this transaction into the range... act like
       // we're in begin_blocker, but don't resume until we're neither in
-      // begin_blocker nor begin(TX_LONE_PARAMETER).
+      // begin_blocker nor Begin(TX_LONE_PARAMETER).
       void (*beginner)(TX_LONE_PARAMETER);
       while (true) {
           // first, mark self not transactional
           tx->in_tx = 0;
           // next, wait for a good begin pointer
-          while ((stm::tmbegin == ProfileTMBegin) ||
-                 (stm::tmbegin == stm::begin_blocker))
+          while ((tmbegin == ProfileTMBegin) ||
+                 (tmbegin == begin_blocker))
               spin64();
           CFENCE;
           // now reestablish that we are in a transaction
@@ -75,12 +75,12 @@ namespace stm
           (void)casptr(&tx->in_tx, 0, 1);
 #endif
           // read the begin function pointer AFTER setting the in_tx flag
-          beginner = stm::tmbegin;
-          // if begin_blocker is no longer installed, and ProfileTM::begin
+          beginner = tmbegin;
+          // if begin_blocker is no longer installed, and ProfileTMbegin
           // isn't installed either, we can call the pointer to start a
           // transaction, and then return.  Otherwise, we missed our window,
           // so we need to go back to the top of the loop
-          if ((beginner != stm::begin_blocker) && (beginner != ProfileTMBegin))
+          if ((beginner != begin_blocker) && (beginner != ProfileTMBegin))
               break;
       }
       beginner(TX_LONE_ARG);
@@ -184,7 +184,7 @@ namespace stm
       // do a buffered write
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
       ++profiles[last_complete.val].write_waw;
-      stm::OnFirstWrite(tx, ProfileTMReadRW, ProfileTMWriteRW, ProfileTMCommitRW);
+      OnFirstWrite(tx, ProfileTMReadRW, ProfileTMWriteRW, ProfileTMCommitRW);
   }
 
   /**

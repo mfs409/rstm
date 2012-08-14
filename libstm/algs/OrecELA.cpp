@@ -19,41 +19,17 @@
  *    which sacrifices some publication safety.
  */
 
-#include "../profiling.hpp"
 #include "algs.hpp"
-#include "../RedoRAWUtils.hpp"
 
-using stm::TxThread;
-using stm::timestamp;
-using stm::timestamp_max;
-using stm::last_complete;
-using stm::orec_t;
-using stm::get_orec;
-using stm::WriteSet;
-using stm::OrecList;
-using stm::WriteSetEntry;
-using stm::id_version_t;
-
-
-/**
- *  Declare the functions that we're going to implement, so that we can avoid
- *  circular dependencies.
- */
-namespace {
-  struct OrecELA {
-      static void begin(TX_LONE_PARAMETER);
-      static TM_FASTCALL void* ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void* ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void CommitRO(TX_LONE_PARAMETER);
-      static TM_FASTCALL void CommitRW(TX_LONE_PARAMETER);
-
-      static void rollback(STM_ROLLBACK_SIG(,,));
-      static bool irrevoc(TxThread*);
-      static void onSwitchTo();
-      static NOINLINE void privtest(TxThread* tx, uintptr_t ts);
-  };
+namespace stm
+{
+  TM_FASTCALL void* OrecELAReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
+  TM_FASTCALL void* OrecELAReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
+  TM_FASTCALL void OrecELAWriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+  TM_FASTCALL void OrecELAWriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+  TM_FASTCALL void OrecELACommitRO(TX_LONE_PARAMETER);
+  TM_FASTCALL void OrecELACommitRW(TX_LONE_PARAMETER);
+  NOINLINE void OrecELAPrivtest(TxThread* tx, uintptr_t ts);
 
   /**
    *  OrecELA begin:
@@ -64,12 +40,12 @@ namespace {
    *    wait for it to finish writeback.  In this code, we choose the former
    *    option.
    */
-  void OrecELA::begin(TX_LONE_PARAMETER)
+  void OrecELABegin(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       tx->allocator.onTxBegin();
       // Start after the last cleanup, instead of after the last commit, to
-      // avoid spinning in begin(TX_LONE_PARAMETER)
+      // avoid spinning in Begin(TX_LONE_PARAMETER)
       tx->start_time = last_complete.val;
       tx->end_time = 0;
   }
@@ -80,7 +56,7 @@ namespace {
    *    RO commit is trivial
    */
   void
-  OrecELA::CommitRO(TX_LONE_PARAMETER)
+  OrecELACommitRO(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       tx->r_orecs.reset();
@@ -99,7 +75,7 @@ namespace {
    *    then can this txn mark its writeback complete.
    */
   void
-  OrecELA::CommitRW(TX_LONE_PARAMETER)
+  OrecELACommitRW(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // acquire locks
@@ -112,14 +88,14 @@ namespace {
           if (ivt <= tx->start_time) {
               // abort if cannot acquire
               if (!bcasptr(&o->v.all, ivt, tx->my_lock.all))
-                  stm::tmabort();
+                  tmabort();
               // save old version to o->p, log lock
               o->p = ivt;
               tx->locks.insert(o);
           }
           // else if we don't hold the lock abort
           else if (ivt != tx->my_lock.all) {
-              stm::tmabort();
+              tmabort();
           }
       }
 
@@ -132,7 +108,7 @@ namespace {
               // read this orec
               uintptr_t ivt = (*i)->v.all;
               if ((ivt > tx->start_time) && (ivt != tx->my_lock.all))
-                  stm::tmabort();
+                  tmabort();
           }
       }
 
@@ -155,7 +131,7 @@ namespace {
       tx->writes.reset();
       tx->locks.reset();
       OnRWCommit(tx);
-      ResetToRO(tx, ReadRO, WriteRO, CommitRO);
+      ResetToRO(tx, OrecELAReadRO, OrecELAWriteRO, OrecELACommitRO);
   }
 
   /**
@@ -166,7 +142,7 @@ namespace {
    *    transaction has committed, in order to catch doomed transactions.
    */
   void*
-  OrecELA::ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
+  OrecELAReadRO(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
   {
       TX_GET_TX_INTERNAL;
       // get the orec addr, read the orec's version#
@@ -188,7 +164,7 @@ namespace {
               // validating if necessary
               uintptr_t ts = timestamp.val;
               if (ts != tx->start_time)
-                  privtest(tx, ts);
+                  OrecELAPrivtest(tx, ts);
               return tmp;
           }
 
@@ -203,7 +179,7 @@ namespace {
           foreach (OrecList, i, tx->r_orecs) {
               // if orec locked or newer than start time, abort
               if ((*i)->v.all > tx->start_time)
-                  stm::tmabort();
+                  tmabort();
           }
 
           uintptr_t cs = last_complete.val;
@@ -218,7 +194,7 @@ namespace {
    *    Identical to RO case, but with write-set lookup first
    */
   void*
-  OrecELA::ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
+  OrecELAReadRW(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
   {
       TX_GET_TX_INTERNAL;
       // check the log for a RAW hazard, we expect to miss
@@ -227,7 +203,7 @@ namespace {
       REDO_RAW_CHECK(found, log, mask);
 
       // reuse the ReadRO barrier, which is adequate here---reduces LOC
-      void* val = ReadRO(TX_FIRST_ARG addr STM_MASK(mask));
+      void* val = OrecELAReadRO(TX_FIRST_ARG addr STM_MASK(mask));
       REDO_RAW_CLEANUP(val, found, log, mask);
       return val;
   }
@@ -238,11 +214,11 @@ namespace {
    *    Simply buffer the write and switch to a writing context
    */
   void
-  OrecELA::WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  OrecELAWriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
-      stm::OnFirstWrite(tx, ReadRW, WriteRW, CommitRW);
+      OnFirstWrite(tx, OrecELAReadRW, OrecELAWriteRW, OrecELACommitRW);
   }
 
   /**
@@ -251,7 +227,7 @@ namespace {
    *    Simply buffer the write
    */
   void
-  OrecELA::WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  OrecELAWriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
@@ -266,7 +242,7 @@ namespace {
    *    consistent.
    */
   void
-  OrecELA::rollback(STM_ROLLBACK_SIG(tx, except, len))
+  OrecELARollback(STM_ROLLBACK_SIG(tx, except, len))
   {
       PreRollback(tx);
 
@@ -293,13 +269,13 @@ namespace {
           last_complete.val = tx->end_time;
       }
       PostRollback(tx);
-      ResetToRO(tx, ReadRO, WriteRO, CommitRO);
+      ResetToRO(tx, OrecELAReadRO, OrecELAWriteRO, OrecELACommitRO);
   }
 
   /**
    *  OrecELA in-flight irrevocability: use abort-and-restart
    */
-  bool OrecELA::irrevoc(TxThread*)
+  bool OrecELAIrrevoc(TxThread*)
   {
       return false;
   }
@@ -313,13 +289,13 @@ namespace {
    *    read that detects that some new transaction has committed).
    */
   void
-  OrecELA::privtest(TxThread* tx, uintptr_t ts)
+  OrecELAPrivtest(TxThread* tx, uintptr_t ts)
   {
       // optimized validation since we don't hold any locks
       foreach (OrecList, i, tx->r_orecs) {
           // if orec locked or newer than start time, abort
           if ((*i)->v.all > tx->start_time)
-              stm::tmabort();
+              tmabort();
       }
       // careful here: we can't scale the start time past last_complete.val,
       // unless we want to re-introduce the need for prevalidation on every
@@ -338,14 +314,12 @@ namespace {
    *    Also, last_complete must equal timestamp
    */
   void
-  OrecELA::onSwitchTo()
+  OrecELAOnSwitchTo()
   {
       timestamp.val = MAXIMUM(timestamp.val, timestamp_max.val);
       last_complete.val = timestamp.val;
   }
-}
 
-namespace stm {
   /**
    *  OrecELA initialization
    */
@@ -353,17 +327,17 @@ namespace stm {
   void initTM<OrecELA>()
   {
       // set the name
-      stm::stms[OrecELA].name     = "OrecELA";
+      stms[OrecELA].name     = "OrecELA";
 
       // set the pointers
-      stm::stms[OrecELA].begin    = ::OrecELA::begin;
-      stm::stms[OrecELA].commit   = ::OrecELA::CommitRO;
-      stm::stms[OrecELA].read     = ::OrecELA::ReadRO;
-      stm::stms[OrecELA].write    = ::OrecELA::WriteRO;
-      stm::stms[OrecELA].rollback = ::OrecELA::rollback;
-      stm::stms[OrecELA].irrevoc  = ::OrecELA::irrevoc;
-      stm::stms[OrecELA].switcher = ::OrecELA::onSwitchTo;
-      stm::stms[OrecELA].privatization_safe = true;
+      stms[OrecELA].begin    = OrecELABegin;
+      stms[OrecELA].commit   = OrecELACommitRO;
+      stms[OrecELA].read     = OrecELAReadRO;
+      stms[OrecELA].write    = OrecELAWriteRO;
+      stms[OrecELA].rollback = OrecELARollback;
+      stms[OrecELA].irrevoc  = OrecELAIrrevoc;
+      stms[OrecELA].switcher = OrecELAOnSwitchTo;
+      stms[OrecELA].privatization_safe = true;
   }
 }
 

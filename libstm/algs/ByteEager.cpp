@@ -16,54 +16,26 @@
  *    update, with timeout for deadlock avoidance.
  */
 
-#include "../profiling.hpp"
 #include "algs.hpp"
 #include "../cm.hpp"
-
-using stm::TxThread;
-using stm::ByteLockList;
-using stm::bytelock_t;
-using stm::get_bytelock;
-using stm::UndoLogEntry;
-
 
 /**
  *  Declare the functions that we're going to implement, so that we can avoid
  *  circular dependencies.
  */
-namespace {
-  struct ByteEager
-  {
-      static void begin(TX_LONE_PARAMETER);
-      static TM_FASTCALL void* ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void* ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void CommitRO(TX_LONE_PARAMETER);
-      static TM_FASTCALL void CommitRW(TX_LONE_PARAMETER);
-
-      static void rollback(STM_ROLLBACK_SIG(,,));
-      static bool irrevoc(TxThread*);
-      static void onSwitchTo();
-  };
-
-  /**
-   *  These defines are for tuning backoff behavior
-   */
-#if defined(STM_CPU_SPARC)
-#  define READ_TIMEOUT        32
-#  define ACQUIRE_TIMEOUT     128
-#  define DRAIN_TIMEOUT       1024
-#else // STM_CPU_X86
-#  define READ_TIMEOUT        32
-#  define ACQUIRE_TIMEOUT     128
-#  define DRAIN_TIMEOUT       256
-#endif
+namespace stm
+{
+  TM_FASTCALL void* ByteEagerReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
+  TM_FASTCALL void* ByteEagerReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
+  TM_FASTCALL void ByteEagerWriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+  TM_FASTCALL void ByteEagerWriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+  TM_FASTCALL void ByteEagerCommitRO(TX_LONE_PARAMETER);
+  TM_FASTCALL void ByteEagerCommitRW(TX_LONE_PARAMETER);
 
   /**
    *  ByteEager begin:
    */
-  void ByteEager::begin(TX_LONE_PARAMETER)
+  void ByteEagerBegin(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       tx->allocator.onTxBegin();
@@ -72,8 +44,7 @@ namespace {
   /**
    *  ByteEager commit (read-only):
    */
-  void
-  ByteEager::CommitRO(TX_LONE_PARAMETER)
+  void ByteEagerCommitRO(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // read-only... release read locks
@@ -87,8 +58,7 @@ namespace {
   /**
    *  ByteEager commit (writing context):
    */
-  void
-  ByteEager::CommitRW(TX_LONE_PARAMETER)
+  void ByteEagerCommitRW(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // release write locks, then read locks
@@ -102,14 +72,13 @@ namespace {
       tx->w_bytelocks.reset();
       tx->undo_log.reset();
       OnRWCommit(tx);
-      ResetToRO(tx, ReadRO, WriteRO, CommitRO);
+      ResetToRO(tx, ByteEagerReadRO, ByteEagerWriteRO, ByteEagerCommitRO);
   }
 
   /**
    *  ByteEager read (read-only transaction)
    */
-  void*
-  ByteEager::ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
+  void* ByteEagerReadRO(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
   {
       TX_GET_TX_INTERNAL;
       uint32_t tries = 0;
@@ -134,8 +103,8 @@ namespace {
           // drop read lock, wait (with timeout) for lock release
           lock->reader[tx->id-1] = 0;
           while (lock->owner != 0) {
-              if (++tries > READ_TIMEOUT)
-                  stm::tmabort();
+              if (++tries > BYTELOCK_READ_TIMEOUT)
+                  tmabort();
           }
       }
   }
@@ -143,8 +112,7 @@ namespace {
   /**
    *  ByteEager read (writing transaction)
    */
-  void*
-  ByteEager::ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
+  void* ByteEagerReadRW(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
   {
       TX_GET_TX_INTERNAL;
       uint32_t tries = 0;
@@ -172,16 +140,15 @@ namespace {
           // drop read lock, wait (with timeout) for lock release
           lock->reader[tx->id-1] = 0;
           while (lock->owner != 0)
-              if (++tries > READ_TIMEOUT)
-                  stm::tmabort();
+              if (++tries > BYTELOCK_READ_TIMEOUT)
+                  tmabort();
       }
   }
 
   /**
    *  ByteEager write (read-only context)
    */
-  void
-  ByteEager::WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  void ByteEagerWriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       uint32_t tries = 0;
@@ -189,8 +156,8 @@ namespace {
 
       // get the write lock, with timeout
       while (!bcas32(&(lock->owner), 0u, tx->id))
-          if (++tries > ACQUIRE_TIMEOUT)
-              stm::tmabort();
+          if (++tries > BYTELOCK_ACQUIRE_TIMEOUT)
+              tmabort();
 
       // log the lock, drop any read locks I have
       tx->w_bytelocks.insert(lock);
@@ -202,22 +169,22 @@ namespace {
       for (int i = 0; i < 15; ++i) {
           tries = 0;
           while (lock_alias[i] != 0)
-              if (++tries > DRAIN_TIMEOUT)
-                  stm::tmabort();
+              if (++tries > BYTELOCK_DRAIN_TIMEOUT)
+                  tmabort();
       }
 
       // add to undo log, do in-place write
       tx->undo_log.insert(UndoLogEntry(STM_UNDO_LOG_ENTRY(addr, *addr, mask)));
       STM_DO_MASKED_WRITE(addr, val, mask);
 
-      stm::OnFirstWrite(tx, ReadRW, WriteRW, CommitRW);
+      OnFirstWrite(tx, ByteEagerReadRW, ByteEagerWriteRW,
+                        ByteEagerCommitRW);
   }
 
   /**
    *  ByteEager write (writing context)
    */
-  void
-  ByteEager::WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  void ByteEagerWriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       uint32_t tries = 0;
@@ -232,8 +199,8 @@ namespace {
 
       // get the write lock, with timeout
       while (!bcas32(&(lock->owner), 0u, tx->id))
-          if (++tries > ACQUIRE_TIMEOUT)
-              stm::tmabort();
+          if (++tries > BYTELOCK_ACQUIRE_TIMEOUT)
+              tmabort();
 
       // log the lock, drop any read locks I have
       tx->w_bytelocks.insert(lock);
@@ -245,8 +212,8 @@ namespace {
       for (int i = 0; i < 15; ++i) {
           tries = 0;
           while (lock_alias[i] != 0)
-              if (++tries > DRAIN_TIMEOUT)
-                  stm::tmabort();
+              if (++tries > BYTELOCK_DRAIN_TIMEOUT)
+                  tmabort();
       }
 
       // add to undo log, do in-place write
@@ -257,8 +224,7 @@ namespace {
   /**
    *  ByteEager unwinder:
    */
-  void
-  ByteEager::rollback(STM_ROLLBACK_SIG(tx, except, len))
+  void ByteEagerRollback(STM_ROLLBACK_SIG(tx, except, len))
   {
       PreRollback(tx);
 
@@ -281,13 +247,13 @@ namespace {
       exp_backoff(tx);
 
       PostRollback(tx);
-      ResetToRO(tx, ReadRO, WriteRO, CommitRO);
+      ResetToRO(tx, ByteEagerReadRO, ByteEagerWriteRO, ByteEagerCommitRO);
   }
 
   /**
    *  ByteEager in-flight irrevocability:
    */
-  bool ByteEager::irrevoc(TxThread*)
+  bool ByteEagerIrrevoc(TxThread*)
   {
       return false;
   }
@@ -295,10 +261,8 @@ namespace {
   /**
    *  Switch to ByteEager:
    */
-  void ByteEager::onSwitchTo() { }
-}
+  void ByteEagerOnSwitchTo() { }
 
-namespace stm {
   /**
    *  ByteEager initialization
    */
@@ -309,13 +273,13 @@ namespace stm {
       stms[ByteEager].name      = "ByteEager";
 
       // set the pointers
-      stms[ByteEager].begin     = ::ByteEager::begin;
-      stms[ByteEager].commit    = ::ByteEager::CommitRO;
-      stms[ByteEager].read      = ::ByteEager::ReadRO;
-      stms[ByteEager].write     = ::ByteEager::WriteRO;
-      stms[ByteEager].rollback  = ::ByteEager::rollback;
-      stms[ByteEager].irrevoc   = ::ByteEager::irrevoc;
-      stms[ByteEager].switcher  = ::ByteEager::onSwitchTo;
+      stms[ByteEager].begin     = ByteEagerBegin;
+      stms[ByteEager].commit    = ByteEagerCommitRO;
+      stms[ByteEager].read      = ByteEagerReadRO;
+      stms[ByteEager].write     = ByteEagerWriteRO;
+      stms[ByteEager].rollback  = ByteEagerRollback;
+      stms[ByteEager].irrevoc   = ByteEagerIrrevoc;
+      stms[ByteEager].switcher  = ByteEagerOnSwitchTo;
       stms[ByteEager].privatization_safe = true;
   }
 }

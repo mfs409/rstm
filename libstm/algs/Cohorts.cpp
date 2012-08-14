@@ -105,7 +105,7 @@ namespace stm
               committed.val++;
               CFENCE;
               last_complete.val = tx->order;
-              stm::tmabort();
+              tmabort();
           }
 
       // Last one in cohort can pass the orec marking process
@@ -180,7 +180,7 @@ namespace stm
       TX_GET_TX_INTERNAL;
       // record the new value in a redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
-      stm::OnFirstWrite(tx, CohortsReadRW, CohortsWriteRW, CohortsCommitRW);
+      OnFirstWrite(tx, CohortsReadRW, CohortsWriteRW, CohortsCommitRW);
   }
 
   /**
@@ -217,7 +217,7 @@ namespace stm
    */
   bool CohortsIrrevoc(TxThread*)
   {
-      stm::UNRECOVERABLE("Cohorts Irrevocability not yet supported");
+      UNRECOVERABLE("Cohorts Irrevocability not yet supported");
       return false;
   }
 

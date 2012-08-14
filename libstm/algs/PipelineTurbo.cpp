@@ -22,48 +22,21 @@
  *    can't self-abort.
  */
 
-#include "../profiling.hpp"
 #include "algs.hpp"
-#include "../RedoRAWUtils.hpp"
-#include "../UndoLog.hpp" // STM_DO_MASKED_WRITE
 #include "../Diagnostics.hpp"
 
-using stm::TxThread;
-using stm::threads;
-using stm::threadcount;
-using stm::last_complete;
-using stm::timestamp;
-using stm::timestamp_max;
-using stm::orec_t;
-using stm::get_orec;
-using stm::OrecList;
-using stm::WriteSet;
-using stm::WriteSetEntry;
-
-
-/**
- *  Declare the functions that we're going to implement, so that we can avoid
- *  circular dependencies.
- */
-namespace {
-  struct PipelineTurbo {
-      static void begin(TX_LONE_PARAMETER);
-      static TM_FASTCALL void* ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void* ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void* read_turbo(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void write_turbo(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void CommitRO(TX_LONE_PARAMETER);
-      static TM_FASTCALL void CommitRW(TX_LONE_PARAMETER);
-      static TM_FASTCALL void commit_turbo(TX_LONE_PARAMETER);
-
-
-      static void rollback(STM_ROLLBACK_SIG(,,));
-      static bool irrevoc(TxThread*);
-      static void onSwitchTo();
-      static NOINLINE void validate(TxThread*, uintptr_t finish_cache);
-  };
+namespace stm
+{
+  TM_FASTCALL void* PipelineTurboReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
+  TM_FASTCALL void* PipelineTurboReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
+  TM_FASTCALL void* PipelineTurboReadTurbo(TX_FIRST_PARAMETER STM_READ_SIG(,));
+  TM_FASTCALL void PipelineTurboWriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+  TM_FASTCALL void PipelineTurboWriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+  TM_FASTCALL void PipelineTurboWriteTurbo(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+  TM_FASTCALL void PipelineTurboCommitRO(TX_LONE_PARAMETER);
+  TM_FASTCALL void PipelineTurboCommitRW(TX_LONE_PARAMETER);
+  TM_FASTCALL void PipelineTurboCommitTurbo(TX_LONE_PARAMETER);
+  NOINLINE void PipelineTurboValidate(TxThread*, uintptr_t finish_cache);
 
   /**
    *  PipelineTurbo begin:
@@ -77,7 +50,7 @@ namespace {
    *    ts_cache and order tells how many transactions need to commit.  Whenever
    *    one does, this tx will need to validate.
    */
-  void PipelineTurbo::begin(TX_LONE_PARAMETER)
+  void PipelineTurboBegin(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       tx->allocator.onTxBegin();
@@ -88,7 +61,7 @@ namespace {
 
       tx->ts_cache = last_complete.val;
       if (tx->ts_cache == ((uintptr_t)tx->order - 1))
-          stm::GoTurbo(tx, read_turbo, write_turbo, commit_turbo);
+          GoTurbo(tx, PipelineTurboReadTurbo, PipelineTurboWriteTurbo, PipelineTurboCommitTurbo);
   }
 
   /**
@@ -100,22 +73,22 @@ namespace {
    *    semantics.
    */
   void
-  PipelineTurbo::CommitRO(TX_LONE_PARAMETER)
+  PipelineTurboCommitRO(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // wait our turn, then validate
       while (last_complete.val != ((uintptr_t)tx->order - 1)) {
           // in this wait loop, we need to check if an adaptivity action is
           // underway :(
-          if (stm::tmbegin != begin)
-              stm::tmabort();
+          if (tmbegin != PipelineTurboBegin)
+              tmabort();
       }
       foreach (OrecList, i, tx->r_orecs) {
           // read this orec
           uintptr_t ivt = (*i)->v.all;
           // if it has a timestamp of ts_cache or greater, abort
           if (ivt > tx->ts_cache)
-              stm::tmabort();
+              tmabort();
       }
       // mark self as complete
       last_complete.val = tx->order;
@@ -137,20 +110,20 @@ namespace {
    *    commits.
    */
   void
-  PipelineTurbo::CommitRW(TX_LONE_PARAMETER)
+  PipelineTurboCommitRW(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // wait our turn, validate, writeback
       while (last_complete.val != ((uintptr_t)tx->order - 1)) {
-          if (stm::tmbegin != begin)
-              stm::tmabort();
+          if (tmbegin != PipelineTurboBegin)
+              tmabort();
       }
       foreach (OrecList, i, tx->r_orecs) {
           // read this orec
           uintptr_t ivt = (*i)->v.all;
           // if it has a timestamp of ts_cache or greater, abort
           if (ivt > tx->ts_cache)
-              stm::tmabort();
+              tmabort();
       }
       // mark every location in the write set, and perform write-back
       // NB: we cannot abort anymore
@@ -172,7 +145,7 @@ namespace {
       tx->r_orecs.reset();
       tx->writes.reset();
       OnRWCommit(tx);
-      ResetToRO(tx, ReadRO, WriteRO, CommitRO);
+      ResetToRO(tx, PipelineTurboReadRO, PipelineTurboWriteRO, PipelineTurboCommitRO);
   }
 
   /**
@@ -185,7 +158,7 @@ namespace {
    *        via tx->writes
    */
   void
-  PipelineTurbo::commit_turbo(TX_LONE_PARAMETER)
+  PipelineTurboCommitTurbo(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       CFENCE;
@@ -198,7 +171,7 @@ namespace {
       tx->r_orecs.reset();
       tx->writes.reset();
       OnRWCommit(tx);
-      ResetToRO(tx, ReadRO, WriteRO, CommitRO);
+      ResetToRO(tx, PipelineTurboReadRO, PipelineTurboWriteRO, PipelineTurboCommitRO);
   }
 
   /**
@@ -209,7 +182,7 @@ namespace {
    *    Otherwise, this is a standard orec read function.
    */
   void*
-  PipelineTurbo::ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
+  PipelineTurboReadRO(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
   {
       TX_GET_TX_INTERNAL;
       void* tmp = *addr;
@@ -220,12 +193,12 @@ namespace {
       uintptr_t ivt = o->v.all;
       // abort if this changed since the last time I saw someone finish
       if (ivt > tx->ts_cache)
-          stm::tmabort();
+          tmabort();
       // log orec
       tx->r_orecs.insert(o);
       // validate if necessary
       if (last_complete.val > tx->ts_cache)
-          validate(tx, last_complete.val);
+          PipelineTurboValidate(tx, last_complete.val);
       return tmp;
   }
 
@@ -233,7 +206,7 @@ namespace {
    *  PipelineTurbo read (writing transaction)
    */
   void*
-  PipelineTurbo::ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
+  PipelineTurboReadRW(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
   {
       TX_GET_TX_INTERNAL;
       // check the log for a RAW hazard, we expect to miss
@@ -249,12 +222,12 @@ namespace {
       uintptr_t ivt = o->v.all;
       // abort if this changed since the last time I saw someone finish
       if (ivt > tx->ts_cache)
-          stm::tmabort();
+          tmabort();
       // log orec
       tx->r_orecs.insert(o);
       // validate if necessary
       if (last_complete.val > tx->ts_cache)
-          validate(tx, last_complete.val);
+          PipelineTurboValidate(tx, last_complete.val);
 
       REDO_RAW_CLEANUP(tmp, found, log, mask)
       return tmp;
@@ -264,7 +237,7 @@ namespace {
    *  PipelineTurbo read (turbo mode)
    */
   void*
-  PipelineTurbo::read_turbo(TX_FIRST_PARAMETER_ANON STM_READ_SIG(addr,))
+  PipelineTurboReadTurbo(TX_FIRST_PARAMETER_ANON STM_READ_SIG(addr,))
   {
       return *addr;
   }
@@ -273,19 +246,19 @@ namespace {
    *  PipelineTurbo write (read-only context)
    */
   void
-  PipelineTurbo::WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  PipelineTurboWriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // record the new value in a redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
-      stm::OnFirstWrite(tx, ReadRW, WriteRW, CommitRW);
+      OnFirstWrite(tx, PipelineTurboReadRW, PipelineTurboWriteRW, PipelineTurboCommitRW);
   }
 
   /**
    *  PipelineTurbo write (writing context)
    */
   void
-  PipelineTurbo::WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  PipelineTurboWriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // record the new value in a redo log
@@ -298,7 +271,7 @@ namespace {
    *    The oldest transaction needs to mark the orec before writing in-place.
    */
   void
-  PipelineTurbo::write_turbo(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  PipelineTurboWriteTurbo(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       orec_t* o = get_orec(addr);
@@ -317,12 +290,12 @@ namespace {
    *        turbo mode would resolve the issue.
    */
   void
-  PipelineTurbo::rollback(STM_ROLLBACK_SIG(tx, except, len))
+  PipelineTurboRollback(STM_ROLLBACK_SIG(tx, except, len))
   {
       PreRollback(tx);
       // we cannot be in fast mode
-      if (stm::CheckTurboMode(tx, read_turbo))
-          stm::UNRECOVERABLE("Attempting to abort a turbo-mode transaction!");
+      if (CheckTurboMode(tx, PipelineTurboReadTurbo))
+          UNRECOVERABLE("Attempting to abort a turbo-mode transaction!");
 
       // Perform writes to the exception object if there were any... taking the
       // branch overhead without concern because we're not worried about
@@ -340,9 +313,9 @@ namespace {
   /**
    *  PipelineTurbo in-flight irrevocability:
    */
-  bool PipelineTurbo::irrevoc(TxThread*)
+  bool PipelineTurboIrrevoc(TxThread*)
   {
-      stm::UNRECOVERABLE("PipelineTurbo Irrevocability not yet supported");
+      UNRECOVERABLE("PipelineTurbo Irrevocability not yet supported");
       return false;
   }
 
@@ -354,14 +327,14 @@ namespace {
    *    written to memory.
    */
   void
-  PipelineTurbo::validate(TxThread* tx, uintptr_t finish_cache)
+  PipelineTurboValidate(TxThread* tx, uintptr_t finish_cache)
   {
       foreach (OrecList, i, tx->r_orecs) {
           // read this orec
           uintptr_t ivt = (*i)->v.all;
           // if it has a timestamp of ts_cache or greater, abort
           if (ivt > tx->ts_cache)
-              stm::tmabort();
+              tmabort();
       }
       // now update the finish_cache to remember that at this time, we were
       // still valid
@@ -379,7 +352,7 @@ namespace {
                   // write-back
                   *i->addr = i->val;
               }
-              stm::GoTurbo(tx, read_turbo, write_turbo, commit_turbo);
+              GoTurbo(tx, PipelineTurboReadTurbo, PipelineTurboWriteTurbo, PipelineTurboCommitTurbo);
           }
       }
   }
@@ -396,16 +369,14 @@ namespace {
    *    Also, all threads' order values must be -1
    */
   void
-  PipelineTurbo::onSwitchTo()
+  PipelineTurboOnSwitchTo()
   {
       timestamp.val = MAXIMUM(timestamp.val, timestamp_max.val);
       last_complete.val = timestamp.val;
       for (uint32_t i = 0; i < threadcount.val; ++i)
           threads[i]->order = -1;
   }
-}
 
-namespace stm {
   /**
    *  PipelineTurbo initialization
    */
@@ -416,13 +387,13 @@ namespace stm {
       stms[PipelineTurbo].name      = "PipelineTurbo";
 
       // set the pointers
-      stms[PipelineTurbo].begin     = ::PipelineTurbo::begin;
-      stms[PipelineTurbo].commit    = ::PipelineTurbo::CommitRO;
-      stms[PipelineTurbo].read      = ::PipelineTurbo::ReadRO;
-      stms[PipelineTurbo].write     = ::PipelineTurbo::WriteRO;
-      stms[PipelineTurbo].rollback  = ::PipelineTurbo::rollback;
-      stms[PipelineTurbo].irrevoc   = ::PipelineTurbo::irrevoc;
-      stms[PipelineTurbo].switcher  = ::PipelineTurbo::onSwitchTo;
+      stms[PipelineTurbo].begin     = PipelineTurboBegin;
+      stms[PipelineTurbo].commit    = PipelineTurboCommitRO;
+      stms[PipelineTurbo].read      = PipelineTurboReadRO;
+      stms[PipelineTurbo].write     = PipelineTurboWriteRO;
+      stms[PipelineTurbo].rollback  = PipelineTurboRollback;
+      stms[PipelineTurbo].irrevoc   = PipelineTurboIrrevoc;
+      stms[PipelineTurbo].switcher  = PipelineTurboOnSwitchTo;
       stms[PipelineTurbo].privatization_safe = true;
   }
 }

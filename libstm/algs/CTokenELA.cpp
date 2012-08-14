@@ -18,48 +18,27 @@
  *    avoiding atomic operations for acquiring orecs.
  */
 
-#include "../profiling.hpp"
 #include "algs.hpp"
-#include "../RedoRAWUtils.hpp"
 #include "../Diagnostics.hpp"
-
-using stm::TxThread;
-using stm::threads;
-using stm::threadcount;
-using stm::last_complete;
-using stm::timestamp;
-using stm::timestamp_max;
-using stm::WriteSet;
-using stm::OrecList;
-using stm::WriteSetEntry;
-using stm::orec_t;
-using stm::get_orec;
-
 
 /**
  *  Declare the functions that we're going to implement, so that we can avoid
  *  circular dependencies.
  */
-namespace {
-  struct CTokenELA {
-      static void begin(TX_LONE_PARAMETER);
-      static TM_FASTCALL void* ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void* ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void CommitRO(TX_LONE_PARAMETER);
-      static TM_FASTCALL void CommitRW(TX_LONE_PARAMETER);
-
-      static void rollback(STM_ROLLBACK_SIG(,,));
-      static bool irrevoc(TxThread*);
-      static void onSwitchTo();
-      static NOINLINE void validate(TxThread* tx, uintptr_t finish_cache);
-  };
+namespace stm
+{
+  TM_FASTCALL void* CTokenELAReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
+  TM_FASTCALL void* CTokenELAReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
+  TM_FASTCALL void CTokenELAWriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+  TM_FASTCALL void CTokenELAWriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+  TM_FASTCALL void CTokenELACommitRO(TX_LONE_PARAMETER);
+  TM_FASTCALL void CTokenELACommitRW(TX_LONE_PARAMETER);
+  NOINLINE    void CTokenELAValidate(TxThread* tx, uintptr_t finish_cache);
 
   /**
    *  CTokenELA begin:
    */
-  void CTokenELA::begin(TX_LONE_PARAMETER)
+  void CTokenELABegin(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       tx->allocator.onTxBegin();
@@ -71,7 +50,7 @@ namespace {
    *  CTokenELA commit (read-only):
    */
   void
-  CTokenELA::CommitRO(TX_LONE_PARAMETER)
+  CTokenELACommitRO(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // reset lists and we are done
@@ -84,20 +63,20 @@ namespace {
    *
    *  NB:  Only valid if using pointer-based adaptivity
    */
-  void CTokenELA::CommitRW(TX_LONE_PARAMETER)
+  void CTokenELACommitRW(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // wait until it is our turn to commit, then validate, acquire, and do
       // writeback
       while (last_complete.val != (uintptr_t)(tx->order - 1)) {
           // Check if we need to abort due to an adaptivity event
-          if (stm::tmbegin != begin)
-              stm::tmabort();
+          if (tmbegin != CTokenELABegin)
+              tmabort();
       }
 
       // since we have the token, we can validate before getting locks
       if (last_complete.val > tx->ts_cache)
-          validate(tx, last_complete.val);
+          CTokenELAValidate(tx, last_complete.val);
 
       // if we had writes, then aborted, then restarted, and then didn't have
       // writes, we could end up trying to lock a nonexistant write set.  This
@@ -126,14 +105,14 @@ namespace {
       tx->r_orecs.reset();
       tx->writes.reset();
       OnRWCommit(tx);
-      ResetToRO(tx, ReadRO, WriteRO, CommitRO);
+      ResetToRO(tx, CTokenELAReadRO, CTokenELAWriteRO, CTokenELACommitRO);
   }
 
   /**
    *  CTokenELA read (read-only transaction)
    */
   void*
-  CTokenELA::ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
+  CTokenELAReadRO(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
   {
       TX_GET_TX_INTERNAL;
       // read the location... this is safe since timestamps behave as in Wang's
@@ -149,14 +128,14 @@ namespace {
       // NB: this is a pretty serious tradeoff... it admits false aborts for
       //     the sake of preventing a 'check if locked' test
       if (ivt > tx->ts_cache)
-          stm::tmabort();
+          tmabort();
 
       // log orec
       tx->r_orecs.insert(o);
 
       // validate
       if (last_complete.val > tx->ts_cache)
-          validate(tx, last_complete.val);
+          CTokenELAValidate(tx, last_complete.val);
       return tmp;
   }
 
@@ -164,7 +143,7 @@ namespace {
    *  CTokenELA read (writing transaction)
    */
   void*
-  CTokenELA::ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
+  CTokenELAReadRW(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
   {
       TX_GET_TX_INTERNAL;
       // check the log for a RAW hazard, we expect to miss
@@ -173,7 +152,7 @@ namespace {
       REDO_RAW_CHECK(found, log, mask);
 
       // reuse the ReadRO barrier, which is adequate here---reduces LOC
-      void* val = ReadRO(TX_FIRST_ARG addr STM_MASK(mask));
+      void* val = CTokenELAReadRO(TX_FIRST_ARG addr STM_MASK(mask));
       REDO_RAW_CLEANUP(val, found, log, mask);
       return val;
   }
@@ -182,7 +161,7 @@ namespace {
    *  CTokenELA write (read-only context)
    */
   void
-  CTokenELA::WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  CTokenELAWriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // we don't have any writes yet, so we need to get an order here
@@ -190,14 +169,14 @@ namespace {
 
       // record the new value in a redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
-      stm::OnFirstWrite(tx, ReadRW, WriteRW, CommitRW);
+      OnFirstWrite(tx, CTokenELAReadRW, CTokenELAWriteRW, CTokenELACommitRW);
   }
 
   /**
    *  CTokenELA write (writing context)
    */
   void
-  CTokenELA::WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  CTokenELAWriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // record the new value in a redo log
@@ -208,7 +187,7 @@ namespace {
    *  CTokenELA unwinder:
    */
   void
-  CTokenELA::rollback(STM_ROLLBACK_SIG(tx, except, len))
+  CTokenELARollback(STM_ROLLBACK_SIG(tx, except, len))
   {
       PreRollback(tx);
 
@@ -231,9 +210,9 @@ namespace {
    *  CTokenELA in-flight irrevocability:
    */
   bool
-  CTokenELA::irrevoc(TxThread*)
+  CTokenELAIrrevoc(TxThread*)
   {
-      stm::UNRECOVERABLE("CTokenELA Irrevocability not yet supported");
+      UNRECOVERABLE("CTokenELA Irrevocability not yet supported");
       return false;
   }
 
@@ -241,7 +220,7 @@ namespace {
    *  CTokenELA validation
    */
   void
-  CTokenELA::validate(TxThread* tx, uintptr_t finish_cache)
+  CTokenELAValidate(TxThread* tx, uintptr_t finish_cache)
   {
       // check that all reads are valid
       //
@@ -251,7 +230,7 @@ namespace {
           uintptr_t ivt = (*i)->v.all;
           // if it has a timestamp of ts_cache or greater, abort
           if (ivt > tx->ts_cache)
-              stm::tmabort();
+              tmabort();
       }
       // now update the finish_cache to remember that at this time, we were
       // still valid
@@ -270,16 +249,14 @@ namespace {
    *    Also, all threads' order values must be -1
    */
   void
-  CTokenELA::onSwitchTo()
+  CTokenELAOnSwitchTo()
   {
       timestamp.val = MAXIMUM(timestamp.val, timestamp_max.val);
       last_complete.val = timestamp.val;
       for (uint32_t i = 0; i < threadcount.val; ++i)
           threads[i]->order = -1;
   }
-}
 
-namespace stm {
   /**
    *  CTokenELA initialization
    */
@@ -289,13 +266,13 @@ namespace stm {
       // set the name
       stms[CTokenELA].name      = "CTokenELA";
       // set the pointers
-      stms[CTokenELA].begin     = ::CTokenELA::begin;
-      stms[CTokenELA].commit    = ::CTokenELA::CommitRO;
-      stms[CTokenELA].read      = ::CTokenELA::ReadRO;
-      stms[CTokenELA].write     = ::CTokenELA::WriteRO;
-      stms[CTokenELA].rollback  = ::CTokenELA::rollback;
-      stms[CTokenELA].irrevoc   = ::CTokenELA::irrevoc;
-      stms[CTokenELA].switcher  = ::CTokenELA::onSwitchTo;
+      stms[CTokenELA].begin     = CTokenELABegin;
+      stms[CTokenELA].commit    = CTokenELACommitRO;
+      stms[CTokenELA].read      = CTokenELAReadRO;
+      stms[CTokenELA].write     = CTokenELAWriteRO;
+      stms[CTokenELA].rollback  = CTokenELARollback;
+      stms[CTokenELA].irrevoc   = CTokenELAIrrevoc;
+      stms[CTokenELA].switcher  = CTokenELAOnSwitchTo;
       stms[CTokenELA].privatization_safe = true;
   }
 }

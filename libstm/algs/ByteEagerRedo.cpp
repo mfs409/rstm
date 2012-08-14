@@ -15,55 +15,22 @@
  *    still use eager locking.
  */
 
-#include "../profiling.hpp"
 #include "algs.hpp"
-#include "../RedoRAWUtils.hpp"
 #include "../cm.hpp"
 
-using stm::TxThread;
-using stm::ByteLockList;
-using stm::bytelock_t;
-using stm::get_bytelock;
-using stm::WriteSetEntry;
-
-
-/**
- *  Declare the functions that we're going to implement, so that we can avoid
- *  circular dependencies.
- */
-namespace {
-  struct ByteEagerRedo
-  {
-      static void begin(TX_LONE_PARAMETER);
-      static TM_FASTCALL void* ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void* ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void CommitRO(TX_LONE_PARAMETER);
-      static TM_FASTCALL void CommitRW(TX_LONE_PARAMETER);
-
-      static void rollback(STM_ROLLBACK_SIG(,,));
-      static bool irrevoc(TxThread*);
-      static void onSwitchTo();
-  };
-
-  /**
-   *  These defines are for tuning backoff behavior
-   */
-#if defined(STM_CPU_SPARC)
-#  define READ_TIMEOUT        32
-#  define ACQUIRE_TIMEOUT     128
-#  define DRAIN_TIMEOUT       1024
-#else // STM_CPU_X86
-#  define READ_TIMEOUT        32
-#  define ACQUIRE_TIMEOUT     128
-#  define DRAIN_TIMEOUT       256
-#endif
+namespace stm
+{
+  TM_FASTCALL void* ByteEagerRedoReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
+  TM_FASTCALL void* ByteEagerRedoReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
+  TM_FASTCALL void ByteEagerRedoWriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+  TM_FASTCALL void ByteEagerRedoWriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+  TM_FASTCALL void ByteEagerRedoCommitRO(TX_LONE_PARAMETER);
+  TM_FASTCALL void ByteEagerRedoCommitRW(TX_LONE_PARAMETER);
 
   /**
    *  ByteEagerRedo begin:
    */
-  void ByteEagerRedo::begin(TX_LONE_PARAMETER)
+  void ByteEagerRedoBegin(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       tx->allocator.onTxBegin();
@@ -72,8 +39,7 @@ namespace {
   /**
    *  ByteEagerRedo commit (read-only):
    */
-  void
-  ByteEagerRedo::CommitRO(TX_LONE_PARAMETER)
+  void ByteEagerRedoCommitRO(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // read-only... release read locks
@@ -87,8 +53,7 @@ namespace {
   /**
    *  ByteEagerRedo commit (writing context):
    */
-  void
-  ByteEagerRedo::CommitRW(TX_LONE_PARAMETER)
+  void ByteEagerRedoCommitRW(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // replay redo log
@@ -106,14 +71,14 @@ namespace {
       tx->w_bytelocks.reset();
       tx->writes.reset();
       OnRWCommit(tx);
-      ResetToRO(tx, ReadRO, WriteRO, CommitRO);
+      ResetToRO(tx, ByteEagerRedoReadRO, ByteEagerRedoWriteRO,
+                ByteEagerRedoCommitRO);
   }
 
   /**
    *  ByteEagerRedo read (read-only transaction)
    */
-  void*
-  ByteEagerRedo::ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
+  void* ByteEagerRedoReadRO(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
   {
       TX_GET_TX_INTERNAL;
       uint32_t tries = 0;
@@ -137,8 +102,8 @@ namespace {
           // drop read lock, wait (with timeout) for lock release
           lock->reader[tx->id-1] = 0;
           while (lock->owner != 0) {
-              if (++tries > READ_TIMEOUT)
-                  stm::tmabort();
+              if (++tries > BYTELOCK_READ_TIMEOUT)
+                  tmabort();
           }
       }
   }
@@ -146,8 +111,7 @@ namespace {
   /**
    *  ByteEagerRedo read (writing transaction)
    */
-  void*
-  ByteEagerRedo::ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
+  void* ByteEagerRedoReadRW(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
   {
       TX_GET_TX_INTERNAL;
       uint32_t tries = 0;
@@ -183,8 +147,8 @@ namespace {
           // drop read lock, wait (with timeout) for lock release
           lock->reader[tx->id-1] = 0;
           while (lock->owner != 0) {
-              if (++tries > READ_TIMEOUT)
-                  stm::tmabort();
+              if (++tries > BYTELOCK_READ_TIMEOUT)
+                  tmabort();
           }
       }
   }
@@ -192,8 +156,7 @@ namespace {
   /**
    *  ByteEagerRedo write (read-only context)
    */
-  void
-  ByteEagerRedo::WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  void ByteEagerRedoWriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       uint32_t tries = 0;
@@ -201,8 +164,8 @@ namespace {
 
       // get the write lock, with timeout
       while (!bcas32(&(lock->owner), 0u, tx->id))
-          if (++tries > ACQUIRE_TIMEOUT)
-              stm::tmabort();
+          if (++tries > BYTELOCK_ACQUIRE_TIMEOUT)
+              tmabort();
 
       // log the lock, drop any read locks I have
       tx->w_bytelocks.insert(lock);
@@ -214,21 +177,21 @@ namespace {
       for (int i = 0; i < 15; ++i) {
           tries = 0;
           while (lock_alias[i] != 0)
-              if (++tries > DRAIN_TIMEOUT)
-                  stm::tmabort();
+              if (++tries > BYTELOCK_DRAIN_TIMEOUT)
+                  tmabort();
       }
 
       // record in redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
 
-      stm::OnFirstWrite(tx, ReadRW, WriteRW, CommitRW);
+      OnFirstWrite(tx, ByteEagerRedoReadRW, ByteEagerRedoWriteRW,
+                        ByteEagerRedoCommitRW);
   }
 
   /**
    *  ByteEagerRedo write (writing context)
    */
-  void
-  ByteEagerRedo::WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  void ByteEagerRedoWriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       uint32_t tries = 0;
@@ -242,8 +205,8 @@ namespace {
 
       // get the write lock, with timeout
       while (!bcas32(&(lock->owner), 0u, tx->id))
-          if (++tries > ACQUIRE_TIMEOUT)
-              stm::tmabort();
+          if (++tries > BYTELOCK_ACQUIRE_TIMEOUT)
+              tmabort();
 
       // log the lock, drop any read locks I have
       tx->w_bytelocks.insert(lock);
@@ -255,8 +218,8 @@ namespace {
       for (int i = 0; i < 15; ++i) {
           tries = 0;
           while (lock_alias[i] != 0)
-              if (++tries > DRAIN_TIMEOUT)
-                  stm::tmabort();
+              if (++tries > BYTELOCK_DRAIN_TIMEOUT)
+                  tmabort();
       }
 
       // record in redo log
@@ -266,8 +229,7 @@ namespace {
   /**
    *  ByteEagerRedo unwinder:
    */
-  void
-  ByteEagerRedo::rollback(STM_ROLLBACK_SIG(tx, except, len))
+  void ByteEagerRedoRollback(STM_ROLLBACK_SIG(tx, except, len))
   {
       PreRollback(tx);
 
@@ -291,14 +253,14 @@ namespace {
       exp_backoff(tx);
 
       PostRollback(tx);
-      ResetToRO(tx, ReadRO, WriteRO, CommitRO);
+      ResetToRO(tx, ByteEagerRedoReadRO, ByteEagerRedoWriteRO,
+                ByteEagerRedoCommitRO);
   }
 
   /**
    *  ByteEagerRedo in-flight irrevocability:
    */
-  bool
-  ByteEagerRedo::irrevoc(TxThread*)
+  bool ByteEagerRedoIrrevoc(TxThread*)
   {
       return false;
   }
@@ -306,12 +268,8 @@ namespace {
   /**
    *  Switch to ByteEagerRedo:
    */
-  void
-  ByteEagerRedo::onSwitchTo() {
-  }
-}
+  void ByteEagerRedoOnSwitchTo() { }
 
-namespace stm {
   /**
    *  ByteEagerRedo initialization
    */
@@ -322,13 +280,13 @@ namespace stm {
       stms[ByteEagerRedo].name      = "ByteEagerRedo";
 
       // set the pointers
-      stms[ByteEagerRedo].begin     = ::ByteEagerRedo::begin;
-      stms[ByteEagerRedo].commit    = ::ByteEagerRedo::CommitRO;
-      stms[ByteEagerRedo].read      = ::ByteEagerRedo::ReadRO;
-      stms[ByteEagerRedo].write     = ::ByteEagerRedo::WriteRO;
-      stms[ByteEagerRedo].rollback  = ::ByteEagerRedo::rollback;
-      stms[ByteEagerRedo].irrevoc   = ::ByteEagerRedo::irrevoc;
-      stms[ByteEagerRedo].switcher  = ::ByteEagerRedo::onSwitchTo;
+      stms[ByteEagerRedo].begin     = ByteEagerRedoBegin;
+      stms[ByteEagerRedo].commit    = ByteEagerRedoCommitRO;
+      stms[ByteEagerRedo].read      = ByteEagerRedoReadRO;
+      stms[ByteEagerRedo].write     = ByteEagerRedoWriteRO;
+      stms[ByteEagerRedo].rollback  = ByteEagerRedoRollback;
+      stms[ByteEagerRedo].irrevoc   = ByteEagerRedoIrrevoc;
+      stms[ByteEagerRedo].switcher  = ByteEagerRedoOnSwitchTo;
       stms[ByteEagerRedo].privatization_safe = true;
   }
 }

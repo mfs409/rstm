@@ -15,43 +15,21 @@
  *    that it uses TLRW-style ByteLocks instead of BitLocks.
  */
 
-#include "../profiling.hpp"
 #include "algs.hpp"
-#include "../RedoRAWUtils.hpp"
 
-using stm::TxThread;
-using stm::WriteSet;
-using stm::ByteLockList;
-using stm::bytelock_t;
-using stm::get_bytelock;
-using stm::WriteSetEntry;
-using stm::threads;
-
-
-/**
- *  Declare the functions that we're going to implement, so that we can avoid
- *  circular dependencies.
- */
-namespace {
-  struct ByteLazy
-  {
-      static void begin(TX_LONE_PARAMETER);
-      static TM_FASTCALL void* ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void* ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void CommitRO(TX_LONE_PARAMETER);
-      static TM_FASTCALL void CommitRW(TX_LONE_PARAMETER);
-
-      static void rollback(STM_ROLLBACK_SIG(,,));
-      static bool irrevoc(TxThread*);
-      static void onSwitchTo();
-  };
+namespace stm
+{
+  TM_FASTCALL void* ByteLazyReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
+  TM_FASTCALL void* ByteLazyReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
+  TM_FASTCALL void ByteLazyWriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+  TM_FASTCALL void ByteLazyWriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+  TM_FASTCALL void ByteLazyCommitRO(TX_LONE_PARAMETER);
+  TM_FASTCALL void ByteLazyCommitRW(TX_LONE_PARAMETER);
 
   /**
    *  ByteLazy begin:
    */
-  void ByteLazy::begin(TX_LONE_PARAMETER)
+  void ByteLazyBegin(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       tx->allocator.onTxBegin();
@@ -62,13 +40,12 @@ namespace {
   /**
    *  ByteLazy commit (read-only):
    */
-  void
-  ByteLazy::CommitRO(TX_LONE_PARAMETER)
+  void ByteLazyCommitRO(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // were there remote aborts?
       if (!tx->alive)
-          stm::tmabort();
+          tmabort();
       CFENCE;
 
       // release read locks
@@ -84,13 +61,12 @@ namespace {
    *  ByteLazy commit (writing context):
    *
    *    First, get a lock on every location in the write set.  While locking
-   *    locations, the tx will accumulate a list of all transactions with which
-   *    it conflicts.  Then the tx will force those transactions to abort.  If
-   *    the transaction is still alive at that point, it will redo its writes,
-   *    release locks, and clean up.
+   *    locations, the tx will accumulate a list of all transactions with
+   *    which it conflicts.  Then the tx will force those transactions to
+   *    abort.  If the transaction is still alive at that point, it will redo
+   *    its writes, release locks, and clean up.
    */
-  void
-  ByteLazy::CommitRW(TX_LONE_PARAMETER)
+  void ByteLazyCommitRW(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // try to lock every location in the write set
@@ -103,7 +79,7 @@ namespace {
           // abort if cannot acquire and haven't locked yet
           if (bl->owner == 0) {
               if (!bcas32(&bl->owner, (uintptr_t)0, tx->my_lock.all))
-                  stm::tmabort();
+                  tmabort();
 
               // log lock
               tx->w_bytelocks.insert(bl);
@@ -116,7 +92,7 @@ namespace {
                   p1[j] |= p2[j];
           }
           else if (bl->owner != tx->my_lock.all) {
-              stm::tmabort();
+              tmabort();
           }
       }
 
@@ -131,7 +107,7 @@ namespace {
       // were there remote aborts?
       CFENCE;
       if (!tx->alive)
-          stm::tmabort();
+          tmabort();
       CFENCE;
 
       // we committed... replay redo log
@@ -149,14 +125,13 @@ namespace {
       tx->writes.reset();
       tx->w_bytelocks.reset();
       OnRWCommit(tx);
-      ResetToRO(tx, ReadRO, WriteRO, CommitRO);
+      ResetToRO(tx, ByteLazyReadRO, ByteLazyWriteRO, ByteLazyCommitRO);
   }
 
   /**
    *  ByteLazy read (read-only transaction)
    */
-  void*
-  ByteLazy::ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
+  void* ByteLazyReadRO(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
   {
       TX_GET_TX_INTERNAL;
       // first test if we've got a read byte
@@ -171,14 +146,14 @@ namespace {
 
       // if there's a writer, it can't be me since I'm in-flight
       if (bl->owner != 0)
-          stm::tmabort();
+          tmabort();
 
       // order the read before checking for remote aborts
       void* val = *addr;
       CFENCE;
 
       if (!tx->alive)
-          stm::tmabort();
+          tmabort();
 
       return val;
   }
@@ -186,8 +161,7 @@ namespace {
   /**
    *  ByteLazy read (writing transaction)
    */
-  void*
-  ByteLazy::ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
+  void* ByteLazyReadRW(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
   {
       TX_GET_TX_INTERNAL;
       // These are used in REDO_RAW_CLEANUP, so they have to be scoped out
@@ -213,7 +187,7 @@ namespace {
 
       // if there's a writer, it can't be me since I'm in-flight
       if (bl->owner != 0)
-          stm::tmabort();
+          tmabort();
 
       // order the read before checking for remote aborts
       void* val = *addr;
@@ -221,7 +195,7 @@ namespace {
       CFENCE;
 
       if (!tx->alive)
-          stm::tmabort();
+          tmabort();
 
       return val;
   }
@@ -232,8 +206,7 @@ namespace {
    *    In this implementation, every write is a read during execution, so mark
    *    this location as if it was a read.
    */
-  void
-  ByteLazy::WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  void ByteLazyWriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // Record the new value in a redo log
@@ -248,16 +221,15 @@ namespace {
       }
 
       if (bl->owner)
-          stm::tmabort();
+          tmabort();
 
-      stm::OnFirstWrite(tx, ReadRW, WriteRW, CommitRW);
+      OnFirstWrite(tx, ByteLazyReadRW, ByteLazyWriteRW, ByteLazyCommitRW);
   }
 
   /**
    *  ByteLazy write (writing context)
    */
-  void
-  ByteLazy::WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  void ByteLazyWriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // Record the new value in a redo log
@@ -272,14 +244,13 @@ namespace {
       }
 
       if (bl->owner)
-          stm::tmabort();
+          tmabort();
   }
 
   /**
    *  ByteLazy unwinder:
    */
-  void
-  ByteLazy::rollback(STM_ROLLBACK_SIG(tx, except, len))
+  void ByteLazyRollback(STM_ROLLBACK_SIG(tx, except, len))
   {
       PreRollback(tx);
 
@@ -300,14 +271,13 @@ namespace {
       tx->w_bytelocks.reset();
 
       PostRollback(tx);
-      ResetToRO(tx, ReadRO, WriteRO, CommitRO);
+      ResetToRO(tx, ByteLazyReadRO, ByteLazyWriteRO, ByteLazyCommitRO);
   }
 
   /**
    *  ByteLazy in-flight irrevocability:
    */
-  bool
-  ByteLazy::irrevoc(TxThread*)
+  bool ByteLazyIrrevoc(TxThread*)
   {
       return false;
   }
@@ -315,12 +285,8 @@ namespace {
   /**
    *  Switch to ByteLazy:
    */
-  void
-  ByteLazy::onSwitchTo() {
-  }
-}
+  void ByteLazyOnSwitchTo() { }
 
-namespace stm {
   /**
    *  ByteLazy initialization
    */
@@ -331,13 +297,13 @@ namespace stm {
       stms[ByteLazy].name      = "ByteLazy";
 
       // set the pointers
-      stms[ByteLazy].begin     = ::ByteLazy::begin;
-      stms[ByteLazy].commit    = ::ByteLazy::CommitRO;
-      stms[ByteLazy].read      = ::ByteLazy::ReadRO;
-      stms[ByteLazy].write     = ::ByteLazy::WriteRO;
-      stms[ByteLazy].rollback  = ::ByteLazy::rollback;
-      stms[ByteLazy].irrevoc   = ::ByteLazy::irrevoc;
-      stms[ByteLazy].switcher  = ::ByteLazy::onSwitchTo;
+      stms[ByteLazy].begin     = ByteLazyBegin;
+      stms[ByteLazy].commit    = ByteLazyCommitRO;
+      stms[ByteLazy].read      = ByteLazyReadRO;
+      stms[ByteLazy].write     = ByteLazyWriteRO;
+      stms[ByteLazy].rollback  = ByteLazyRollback;
+      stms[ByteLazy].irrevoc   = ByteLazyIrrevoc;
+      stms[ByteLazy].switcher  = ByteLazyOnSwitchTo;
       stms[ByteLazy].privatization_safe = true;
   }
 }

@@ -15,10 +15,21 @@ namespace stm
   template <>
   void initTM<OrecEagerHour>()
   {
-      OrecEager_Generic<HourglassCM>::initialize(OrecEagerHour, "OrecEagerHour");
+       // set the name
+      stms[OrecEagerHour].name      = "OrecEagerHour";
+
+      // set the pointers
+      stms[OrecEagerHour].begin     = OrecEagerGenericBegin<HourglassCM>;
+      stms[OrecEagerHour].commit    = OrecEagerGenericCommit<HourglassCM>;
+      stms[OrecEagerHour].rollback  = OrecEagerGenericRollback<HourglassCM>;
+      stms[OrecEagerHour].read      = OrecEagerGenericRead<HourglassCM>;
+      stms[OrecEagerHour].write     = OrecEagerGenericWrite<HourglassCM>;
+      stms[OrecEagerHour].irrevoc   = OrecEagerGenericIrrevoc<HourglassCM>;
+      stms[OrecEagerHour].switcher  = OrecEagerGenericOnSwitchTo<HourglassCM>;
+      stms[OrecEagerHour].privatization_safe = false;
   }
 }
 
 #ifdef STM_ONESHOT_ALG_OrecEagerHour
-DECLARE_AS_ONESHOT_SIMPLE(OrecEager_Generic<HourglassCM>)
+DECLARE_AS_ONESHOT_SIMPLE(OrecEagerGeneric<HourglassCM>)
 #endif

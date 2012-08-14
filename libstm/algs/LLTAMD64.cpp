@@ -13,53 +13,32 @@
  */
 
 /**
- *  LLT_amd64 Implementation
+ *  LLTAMD64 Implementation
  *
- *    This STM very closely resembles the GV1 variant of TL2.  That is, it uses
- *    orecs and lazy acquire.  Its clock requires everyone to increment it to
- *    commit writes, but this allows for read-set validation to be skipped at
- *    commit time.  Most importantly, there is no in-flight validation: if a
- *    timestamp is greater than when the transaction sampled the clock at begin
- *    time, the transaction aborts.
+ *    This STM very closely resembles the GV1 variant of TL2.  That is, it
+ *    uses orecs and lazy acquire.  Its clock requires everyone to increment
+ *    it to commit writes, but this allows for read-set validation to be
+ *    skipped at commit time.  Most importantly, there is no in-flight
+ *    validation: if a timestamp is greater than when the transaction sampled
+ *    the clock at begin time, the transaction aborts.
  */
 
-#include "../profiling.hpp"
 #include "algs.hpp"
-#include "../RedoRAWUtils.hpp"
 
-using stm::TxThread;
-using stm::WriteSet;
-using stm::OrecList;
-using stm::WriteSetEntry;
-using stm::orec_t;
-using stm::get_orec;
-
-
-/**
- *  Declare the functions that we're going to implement, so that we can avoid
- *  circular dependencies.
- */
-namespace {
-  struct LLT_amd64
-  {
-      static void begin(TX_LONE_PARAMETER);
-      static TM_FASTCALL void* ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void* ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void CommitRO(TX_LONE_PARAMETER);
-      static TM_FASTCALL void CommitRW(TX_LONE_PARAMETER);
-
-      static void rollback(STM_ROLLBACK_SIG(,,));
-      static bool irrevoc(TxThread*);
-      static void onSwitchTo();
-      static NOINLINE void validate(TxThread*);
-  };
+namespace stm
+{
+  TM_FASTCALL void* LLTAMD64ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
+  TM_FASTCALL void* LLTAMD64ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
+  TM_FASTCALL void LLTAMD64WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+  TM_FASTCALL void LLTAMD64WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+  TM_FASTCALL void LLTAMD64CommitRO(TX_LONE_PARAMETER);
+  TM_FASTCALL void LLTAMD64CommitRW(TX_LONE_PARAMETER);
+  NOINLINE void LLTAMD64Validate(TxThread*);
 
   /**
-   *  LLT_amd64 begin:
+   *  LLTAMD64 begin:
    */
-  void LLT_amd64::begin(TX_LONE_PARAMETER)
+  void LLTAMD64Begin(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       tx->allocator.onTxBegin();
@@ -68,10 +47,10 @@ namespace {
   }
 
   /**
-   *  LLT_amd64 commit (read-only):
+   *  LLTAMD64 commit (read-only):
    */
   void
-  LLT_amd64::CommitRO(TX_LONE_PARAMETER)
+  LLTAMD64CommitRO(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // read-only, so just reset lists
@@ -80,13 +59,13 @@ namespace {
   }
 
   /**
-   *  LLT_amd64 commit (writing context):
+   *  LLTAMD64 commit (writing context):
    *
    *    Get all locks, validate, do writeback.  Use the counter to avoid some
    *    validations.
    */
   void
-  LLT_amd64::CommitRW(TX_LONE_PARAMETER)
+  LLTAMD64CommitRW(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // acquire locks
@@ -99,14 +78,14 @@ namespace {
           if (ivt <= tx->start_time) {
               // abort if cannot acquire
               if (!bcasptr(&o->v.all, ivt, tx->my_lock.all))
-                  stm::tmabort();
+                  tmabort();
               // save old version to o->p, remember that we hold the lock
               o->p = ivt;
               tx->locks.insert(o);
           }
           // else if we don't hold the lock abort
           else if (ivt != tx->my_lock.all) {
-              stm::tmabort();
+              tmabort();
           }
       }
 
@@ -114,7 +93,7 @@ namespace {
       uintptr_t end_time = tickp();
 
       // validate
-      validate(tx);
+      LLTAMD64Validate(tx);
 
       // run the redo log
       tx->writes.writeback();
@@ -129,16 +108,16 @@ namespace {
       tx->writes.reset();
       tx->locks.reset();
       OnRWCommit(tx);
-      ResetToRO(tx, ReadRO, WriteRO, CommitRO);
+      ResetToRO(tx, LLTAMD64ReadRO, LLTAMD64WriteRO, LLTAMD64CommitRO);
   }
 
   /**
-   *  LLT_amd64 read (read-only transaction)
+   *  LLTAMD64 read (read-only transaction)
    *
-   *    We use "check twice" timestamps in LLT_amd64
+   *    We use "check twice" timestamps in LLTAMD64
    */
   void*
-  LLT_amd64::ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
+  LLTAMD64ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
   {
       TX_GET_TX_INTERNAL;
       // get the orec addr
@@ -157,15 +136,15 @@ namespace {
           return tmp;
       }
       // unreachable
-      stm::tmabort();
+      tmabort();
       return NULL;
   }
 
   /**
-   *  LLT_amd64 read (writing transaction)
+   *  LLTAMD64 read (writing transaction)
    */
   void*
-  LLT_amd64::ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
+  LLTAMD64ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
   {
       TX_GET_TX_INTERNAL;
       // check the log for a RAW hazard, we expect to miss
@@ -191,28 +170,28 @@ namespace {
           tx->r_orecs.insert(o);
           return tmp;
       }
-      stm::tmabort();
+      tmabort();
       // unreachable
       return NULL;
   }
 
   /**
-   *  LLT_amd64 write (read-only context)
+   *  LLTAMD64 write (read-only context)
    */
   void
-  LLT_amd64::WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  LLTAMD64WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // add to redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
-      stm::OnFirstWrite(tx, ReadRW, WriteRW, CommitRW);
+      OnFirstWrite(tx, LLTAMD64ReadRW, LLTAMD64WriteRW, LLTAMD64CommitRW);
   }
 
   /**
-   *  LLT_amd64 write (writing context)
+   *  LLTAMD64 write (writing context)
    */
   void
-  LLT_amd64::WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  LLTAMD64WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // add to redo log
@@ -220,10 +199,10 @@ namespace {
   }
 
   /**
-   *  LLT_amd64 unwinder:
+   *  LLTAMD64 unwinder:
    */
   void
-  LLT_amd64::rollback(STM_ROLLBACK_SIG(tx, except, len))
+  LLTAMD64Rollback(STM_ROLLBACK_SIG(tx, except, len))
   {
       PreRollback(tx);
 
@@ -241,69 +220,66 @@ namespace {
       tx->writes.reset();
       tx->locks.reset();
       PostRollback(tx);
-      ResetToRO(tx, ReadRO, WriteRO, CommitRO);
+      ResetToRO(tx, LLTAMD64ReadRO, LLTAMD64WriteRO, LLTAMD64CommitRO);
   }
 
   /**
-   *  LLT_amd64 in-flight irrevocability:
+   *  LLTAMD64 in-flight irrevocability:
    */
   bool
-  LLT_amd64::irrevoc(TxThread*)
+  LLTAMD64Irrevoc(TxThread*)
   {
       return false;
   }
 
   /**
-   *  LLT_amd64 validation
+   *  LLTAMD64 validation
    */
-  void
-  LLT_amd64::validate(TxThread* tx)
+  void LLTAMD64Validate(TxThread* tx)
   {
       // validate
       foreach (OrecList, i, tx->r_orecs) {
           uintptr_t ivt = (*i)->v.all;
           // if unlocked and newer than start time, abort
           if ((ivt > tx->start_time) && (ivt != tx->my_lock.all))
-              stm::tmabort();
+              tmabort();
       }
   }
 
   /**
-   *  Switch to LLT_amd64:
+   *  Switch to LLTAMD64:
    *
    *    The timestamp must be >= the maximum value of any orec.  Some algs use
    *    timestamp as a zero-one mutex.  If they do, then they back up the
    *    timestamp first, in timestamp_max.
    */
   void
-  LLT_amd64::onSwitchTo()
+  LLTAMD64OnSwitchTo()
   {
       // timestamp.val = MAXIMUM(timestamp.val, timestamp_max.val);
   }
-}
 
-namespace stm {
   /**
-   *  LLT_amd64 initialization
+   *  LLTAMD64 initialization
    */
   template<>
-  void initTM<LLT_amd64>()
+  void initTM<LLTAMD64>()
   {
       // set the name
-      stms[LLT_amd64].name      = "LLT_amd64";
+      stms[LLTAMD64].name      = "LLTAMD64";
 
       // set the pointers
-      stms[LLT_amd64].begin     = ::LLT_amd64::begin;
-      stms[LLT_amd64].commit    = ::LLT_amd64::CommitRO;
-      stms[LLT_amd64].read      = ::LLT_amd64::ReadRO;
-      stms[LLT_amd64].write     = ::LLT_amd64::WriteRO;
-      stms[LLT_amd64].rollback  = ::LLT_amd64::rollback;
-      stms[LLT_amd64].irrevoc   = ::LLT_amd64::irrevoc;
-      stms[LLT_amd64].switcher  = ::LLT_amd64::onSwitchTo;
-      stms[LLT_amd64].privatization_safe = false;
+      stms[LLTAMD64].begin     = LLTAMD64Begin;
+      stms[LLTAMD64].commit    = LLTAMD64CommitRO;
+      stms[LLTAMD64].read      = LLTAMD64ReadRO;
+      stms[LLTAMD64].write     = LLTAMD64WriteRO;
+      stms[LLTAMD64].rollback  = LLTAMD64Rollback;
+      stms[LLTAMD64].irrevoc   = LLTAMD64Irrevoc;
+      stms[LLTAMD64].switcher  = LLTAMD64OnSwitchTo;
+      stms[LLTAMD64].privatization_safe = false;
   }
 }
 
-#ifdef STM_ONESHOT_ALG_LLT_amd64
-DECLARE_AS_ONESHOT_NORMAL(LLT_amd64)
+#ifdef STM_ONESHOT_ALG_LLTAMD64
+DECLARE_AS_ONESHOT_NORMAL(LLTAMD64)
 #endif

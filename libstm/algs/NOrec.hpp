@@ -22,39 +22,28 @@
 
 #include "../cm.hpp"
 #include "algs.hpp"
-#include "../RedoRAWUtils.hpp"
 
-// Don't just import everything from stm. This helps us find bugs.
-using stm::TxThread;
-using stm::timestamp;
-using stm::WriteSetEntry;
-using stm::ValueList;
-using stm::ValueListEntry;
-
-namespace {
-
+namespace stm
+{
+  // [mfs] Why this?
   const uintptr_t VALIDATION_FAILED = 1;
-  NOINLINE uintptr_t validate(TxThread*);
-  bool irrevoc(TxThread*);
-  void onSwitchTo();
 
   template <class CM>
-  struct NOrec_Generic
-  {
-      static void begin(TX_LONE_PARAMETER);
-      // [mfs] Why do we have this function?
-      static TM_FASTCALL void commit(TxThread*);
-      static TM_FASTCALL void CommitRO(TX_LONE_PARAMETER);
-      static TM_FASTCALL void CommitRW(TX_LONE_PARAMETER);
-      static TM_FASTCALL void* ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void* ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static void rollback(STM_ROLLBACK_SIG(,,));
-      static void initialize(int id, const char* name);
-  };
+  TM_FASTCALL void NOrecGenericCommitRO(TX_LONE_PARAMETER);
+  template <class CM>
+  TM_FASTCALL void NOrecGenericCommitRW(TX_LONE_PARAMETER);
+  template <class CM>
+  TM_FASTCALL void* NOrecGenericReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
+  template <class CM>
+  TM_FASTCALL void* NOrecGenericReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
+  template <class CM>
+  TM_FASTCALL void NOrecGenericWriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+  template <class CM>
+  TM_FASTCALL void NOrecGenericWriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
 
-  uintptr_t validate(TxThread* tx)
+  template <class CM>
+  NOINLINE
+  uintptr_t NOrecGenericValidate(TxThread* tx)
   {
       while (true) {
           // read the lock until it is even
@@ -80,11 +69,11 @@ namespace {
       }
   }
 
-  bool
-  irrevoc(TxThread* tx)
+  template <class CM>
+  bool NOrecGenericIrrevoc(TxThread* tx)
   {
       while (!bcasptr(&timestamp.val, tx->start_time, tx->start_time + 1))
-          if ((tx->start_time = validate(tx)) == VALIDATION_FAILED)
+          if ((tx->start_time = NOrecGenericValidate<CM>(tx)) == VALIDATION_FAILED)
               return false;
 
       // redo writes
@@ -98,36 +87,17 @@ namespace {
       return true;
   }
 
-  void
-  onSwitchTo() {
-      // We just need to be sure that the timestamp is not odd, or else we will
-      // block.  For safety, increment the timestamp to make it even, in the event
-      // that it is odd.
+  template <class CM>
+  void NOrecGenericOnSwitchTo() {
+      // We just need to be sure that the timestamp is not odd, or else we
+      // will block.  For safety, increment the timestamp to make it even, in
+      // the event that it is odd.
       if (timestamp.val & 1)
           ++timestamp.val;
   }
 
-
-  template <typename CM>
-  void
-  NOrec_Generic<CM>::initialize(int id, const char* name)
-  {
-      // set the name
-      stm::stms[id].name = name;
-
-      // set the pointers
-      stm::stms[id].begin     = NOrec_Generic<CM>::begin;
-      stm::stms[id].commit    = NOrec_Generic<CM>::CommitRO;
-      stm::stms[id].read      = NOrec_Generic<CM>::ReadRO;
-      stm::stms[id].write     = NOrec_Generic<CM>::WriteRO;
-      stm::stms[id].irrevoc   = irrevoc;
-      stm::stms[id].switcher  = onSwitchTo;
-      stm::stms[id].privatization_safe = true;
-      stm::stms[id].rollback  = NOrec_Generic<CM>::rollback;
-  }
-
   template <class CM>
-  void NOrec_Generic<CM>::begin(TX_LONE_PARAMETER)
+  void NOrecGenericBegin(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // Originally, NOrec required us to wait until the timestamp is odd
@@ -146,38 +116,7 @@ namespace {
 
   template <class CM>
   void
-  NOrec_Generic<CM>::commit(TxThread* tx)
-  {
-      // From a valid state, the transaction increments the seqlock.  Then it
-      // does writeback and increments the seqlock again
-
-      // read-only is trivially successful at last read
-      if (!tx->writes.size()) {
-          CM::onCommit(tx);
-          tx->vlist.reset();
-          OnROCommit(tx);
-          return;
-      }
-
-      // get the lock and validate (use RingSTM obstruction-free technique)
-      while (!bcasptr(&timestamp.val, tx->start_time, tx->start_time + 1))
-          if ((tx->start_time = validate(tx)) == VALIDATION_FAILED)
-              stm::tmabort();
-
-      tx->writes.writeback();
-
-      // Release the sequence lock, then clean up
-      CFENCE;
-      timestamp.val = tx->start_time + 2;
-      CM::onCommit(tx);
-      tx->vlist.reset();
-      tx->writes.reset();
-      OnRWCommit(tx);
-  }
-
-  template <class CM>
-  void
-  NOrec_Generic<CM>::CommitRO(TX_LONE_PARAMETER)
+  NOrecGenericCommitRO(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // Since all reads were consistent, and no writes were done, the read-only
@@ -189,7 +128,7 @@ namespace {
 
   template <class CM>
   void
-  NOrec_Generic<CM>::CommitRW(TX_LONE_PARAMETER)
+  NOrecGenericCommitRW(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // From a valid state, the transaction increments the seqlock.  Then it does
@@ -197,8 +136,8 @@ namespace {
 
       // get the lock and validate (use RingSTM obstruction-free technique)
       while (!bcasptr(&timestamp.val, tx->start_time, tx->start_time + 1))
-          if ((tx->start_time = validate(tx)) == VALIDATION_FAILED)
-              stm::tmabort();
+          if ((tx->start_time = NOrecGenericValidate<CM>(tx)) == VALIDATION_FAILED)
+              tmabort();
 
       tx->writes.writeback();
 
@@ -214,12 +153,12 @@ namespace {
 
       // This switches the thread back to RO mode.
       OnRWCommit(tx);
-      ResetToRO(tx, ReadRO, WriteRO, CommitRO);
+      ResetToRO(tx, NOrecGenericReadRO<CM>, NOrecGenericWriteRO<CM>, NOrecGenericCommitRO<CM>);
   }
 
   template <class CM>
   void*
-  NOrec_Generic<CM>::ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
+  NOrecGenericReadRO(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
   {
       TX_GET_TX_INTERNAL;
       // A read is valid iff it occurs during a period where the seqlock does
@@ -233,8 +172,8 @@ namespace {
       // if the timestamp has changed since the last read, we must validate and
       // restart this read
       while (tx->start_time != timestamp.val) {
-          if ((tx->start_time = validate(tx)) == VALIDATION_FAILED)
-              stm::tmabort();
+          if ((tx->start_time = NOrecGenericValidate<CM>(tx)) == VALIDATION_FAILED)
+              tmabort();
           tmp = *addr;
           CFENCE;
       }
@@ -247,7 +186,7 @@ namespace {
 
   template <class CM>
   void*
-  NOrec_Generic<CM>::ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
+  NOrecGenericReadRW(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
   {
       TX_GET_TX_INTERNAL;
       // check the log for a RAW hazard, we expect to miss
@@ -262,24 +201,24 @@ namespace {
       // bytes that we "actually" need, which is computed as bytes in mask but
       // not in log.mask. This is only correct because we know that a failed
       // find also reset the log.mask to 0 (that's part of the find interface).
-      void* val = ReadRO(TX_FIRST_ARG addr STM_MASK(mask & ~log.mask));
+      void* val = NOrecGenericReadRO<CM>(TX_FIRST_ARG addr STM_MASK(mask & ~log.mask));
       REDO_RAW_CLEANUP(val, found, log, mask);
       return val;
   }
 
   template <class CM>
   void
-  NOrec_Generic<CM>::WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  NOrecGenericWriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // buffer the write, and switch to a writing context
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
-      stm::OnFirstWrite(tx, ReadRW, WriteRW, CommitRW);
+      OnFirstWrite(tx, NOrecGenericReadRW<CM>, NOrecGenericWriteRW<CM>, NOrecGenericCommitRW<CM>);
   }
 
   template <class CM>
   void
-  NOrec_Generic<CM>::WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  NOrecGenericWriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // just buffer the write
@@ -288,9 +227,9 @@ namespace {
 
   template <class CM>
   void
-  NOrec_Generic<CM>::rollback(STM_ROLLBACK_SIG(tx, except, len))
+  NOrecGenericRollback(STM_ROLLBACK_SIG(tx, except, len))
   {
-      stm::PreRollback(tx);
+      PreRollback(tx);
 
       // notify CM
       CM::onAbort(tx);
@@ -303,8 +242,9 @@ namespace {
       tx->vlist.reset();
       tx->writes.reset();
       PostRollback(tx);
-      ResetToRO(tx, ReadRO, WriteRO, CommitRO);
+      ResetToRO(tx, NOrecGenericReadRO<CM>, NOrecGenericWriteRO<CM>, NOrecGenericCommitRO<CM>);
   }
-} // (anonymous namespace)
+
+}
 
 #endif // NOREC_HPP__

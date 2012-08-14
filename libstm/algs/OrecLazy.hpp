@@ -18,59 +18,26 @@
  *    paper.  More details can be found in the OrecEager implementation.
  */
 
-#include "../profiling.hpp"
+
 #include "../cm.hpp"
 #include "algs.hpp"
-#include "../RedoRAWUtils.hpp"
 
-using stm::TxThread;
-using stm::get_orec;
-using stm::WriteSetEntry;
-using stm::OrecList;
-using stm::WriteSet;
-using stm::orec_t;
-using stm::timestamp;
-using stm::timestamp_max;
-using stm::id_version_t;
-
-
-namespace {
+namespace stm
+{
   template <class CM>
-  struct OrecLazy_Generic
-  {
-      static void begin(TX_LONE_PARAMETER);
-      static TM_FASTCALL void* ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void* ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void CommitRO(TX_LONE_PARAMETER);
-      static TM_FASTCALL void CommitRW(TX_LONE_PARAMETER);
-
-      static void rollback(STM_ROLLBACK_SIG(,,));
-      static void Initialize(int id, const char* name);
-  };
-
-  void onSwitchTo();
-  bool irrevoc(TxThread*);
-  NOINLINE void validate(TxThread*);
-
+  TM_FASTCALL void* OrecLazyGenericReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
   template <class CM>
-  void
-  OrecLazy_Generic<CM>::Initialize(int id, const char* name)
-  {
-      // set the name
-      stm::stms[id].name      = name;
-
-      // set the pointers
-      stm::stms[id].begin     = OrecLazy_Generic<CM>::begin;
-      stm::stms[id].commit    = OrecLazy_Generic<CM>::CommitRO;
-      stm::stms[id].read      = OrecLazy_Generic<CM>::ReadRO;
-      stm::stms[id].write     = OrecLazy_Generic<CM>::WriteRO;
-      stm::stms[id].rollback  = OrecLazy_Generic<CM>::rollback;
-      stm::stms[id].irrevoc   = irrevoc;
-      stm::stms[id].switcher  = onSwitchTo;
-      stm::stms[id].privatization_safe = false;
-  }
+  TM_FASTCALL void* OrecLazyGenericReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
+  template <class CM>
+  TM_FASTCALL void OrecLazyGenericWriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+  template <class CM>
+  TM_FASTCALL void OrecLazyGenericWriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+  template <class CM>
+  TM_FASTCALL void OrecLazyGenericCommitRO(TX_LONE_PARAMETER);
+  template <class CM>
+  TM_FASTCALL void OrecLazyGenericCommitRW(TX_LONE_PARAMETER);
+  template <class CM>
+  NOINLINE void OrecLazyGenericValidate(TxThread*);
 
   /**
    *  OrecLazy begin:
@@ -78,7 +45,7 @@ namespace {
    *    Sample the timestamp and prepare local vars
    */
   template <class CM>
-  void OrecLazy_Generic<CM>::begin(TX_LONE_PARAMETER)
+  void OrecLazyGenericBegin(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       tx->allocator.onTxBegin();
@@ -93,7 +60,7 @@ namespace {
    */
   template <class CM>
   void
-  OrecLazy_Generic<CM>::CommitRO(TX_LONE_PARAMETER)
+  OrecLazyGenericCommitRO(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // notify CM
@@ -111,7 +78,7 @@ namespace {
    */
   template <class CM>
   void
-  OrecLazy_Generic<CM>::CommitRW(TX_LONE_PARAMETER)
+  OrecLazyGenericCommitRW(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // acquire locks
@@ -124,14 +91,14 @@ namespace {
           if (ivt <= tx->start_time) {
               // abort if cannot acquire
               if (!bcasptr(&o->v.all, ivt, tx->my_lock.all))
-                  stm::tmabort();
+                  tmabort();
               // save old version to o->p, remember that we hold the lock
               o->p = ivt;
               tx->locks.insert(o);
           }
           // else if we don't hold the lock abort
           else if (ivt != tx->my_lock.all) {
-              stm::tmabort();
+              tmabort();
           }
       }
 
@@ -140,7 +107,7 @@ namespace {
           uintptr_t ivt = (*i)->v.all;
           // if unlocked and newer than start time, abort
           if ((ivt > tx->start_time) && (ivt != tx->my_lock.all))
-              stm::tmabort();
+              tmabort();
       }
 
       // run the redo log
@@ -159,7 +126,7 @@ namespace {
       tx->writes.reset();
       tx->locks.reset();
       OnRWCommit(tx);
-      ResetToRO(tx, ReadRO, WriteRO, CommitRO);
+      ResetToRO(tx, OrecLazyGenericReadRO<CM>, OrecLazyGenericWriteRO<CM>, OrecLazyGenericCommitRO<CM>);
   }
 
   /**
@@ -170,7 +137,7 @@ namespace {
    */
   template <class CM>
   void*
-  OrecLazy_Generic<CM>::ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
+  OrecLazyGenericReadRO(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
   {
       TX_GET_TX_INTERNAL;
       // get the orec addr
@@ -198,7 +165,7 @@ namespace {
 
           // scale timestamp if ivt is too new, then try again
           uintptr_t newts = timestamp.val;
-          validate(tx);
+          OrecLazyGenericValidate<CM>(tx);
           tx->start_time = newts;
       }
   }
@@ -210,7 +177,7 @@ namespace {
    */
   template <class CM>
   void*
-  OrecLazy_Generic<CM>::ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
+  OrecLazyGenericReadRW(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
   {
       TX_GET_TX_INTERNAL;
       // check the log for a RAW hazard, we expect to miss
@@ -219,7 +186,7 @@ namespace {
       REDO_RAW_CHECK(found, log, mask);
 
       // reuse the ReadRO barrier, which is adequate here---reduces LOC
-      void* val = ReadRO(TX_FIRST_ARG addr STM_MASK(mask));
+      void* val = OrecLazyGenericReadRO<CM>(TX_FIRST_ARG addr STM_MASK(mask));
       REDO_RAW_CLEANUP(val, found, log, mask);
       return val;
   }
@@ -231,12 +198,12 @@ namespace {
    */
   template <class CM>
   void
-  OrecLazy_Generic<CM>::WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  OrecLazyGenericWriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // add to redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
-      stm::OnFirstWrite(tx, ReadRW, WriteRW, CommitRW);
+      OnFirstWrite(tx, OrecLazyGenericReadRW<CM>, OrecLazyGenericWriteRW<CM>, OrecLazyGenericCommitRW<CM>);
   }
 
   /**
@@ -246,7 +213,7 @@ namespace {
    */
   template <class CM>
   void
-  OrecLazy_Generic<CM>::WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  OrecLazyGenericWriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // add to redo log
@@ -261,7 +228,7 @@ namespace {
    */
   template <class CM>
   void
-  OrecLazy_Generic<CM>::rollback(STM_ROLLBACK_SIG(tx, except, len))
+  OrecLazyGenericRollback(STM_ROLLBACK_SIG(tx, except, len))
   {
       PreRollback(tx);
 
@@ -282,7 +249,7 @@ namespace {
       tx->writes.reset();
       tx->locks.reset();
       PostRollback(tx);
-      ResetToRO(tx, ReadRO, WriteRO, CommitRO);
+      ResetToRO(tx, OrecLazyGenericReadRO<CM>, OrecLazyGenericWriteRO<CM>, OrecLazyGenericCommitRO<CM>);
   }
 
   /**
@@ -290,15 +257,16 @@ namespace {
    *
    *    Either commit the transaction or return false.
    */
-   bool irrevoc(TxThread*)
-   {
-       return false;
-       // NB: In a prior release, we actually had a full OrecLazy commit
-       //     here.  Any contributor who is interested in improving this code
-       //     should note that such an approach is overkill: by the time this
-       //     runs, there are no concurrent transactions, so in effect, all
-       //     that is needed is to validate, writeback, and return true.
-   }
+  template <class CM>
+  bool OrecLazyGenericIrrevoc(TxThread*)
+  {
+      return false;
+      // NB: In a prior release, we actually had a full OrecLazy commit
+      //     here.  Any contributor who is interested in improving this code
+      //     should note that such an approach is overkill: by the time this
+      //     runs, there are no concurrent transactions, so in effect, all
+      //     that is needed is to validate, writeback, and return true.
+  }
 
   /**
    *  OrecLazy validation:
@@ -307,12 +275,13 @@ namespace {
    *    locks... This makes the code very simple, but it is still better to not
    *    inline it.
    */
-  void
-  validate(TxThread* tx) {
+  template<class CM>
+  void OrecLazyGenericValidate(TxThread* tx)
+  {
       foreach (OrecList, i, tx->r_orecs)
           // abort if orec locked, or if unlocked but timestamp too new
           if ((*i)->v.all > tx->start_time)
-              stm::tmabort();
+              tmabort();
   }
 
   /**
@@ -322,8 +291,9 @@ namespace {
    *    timestamp as a zero-one mutex.  If they do, then they back up the
    *    timestamp first, in timestamp_max.
    */
-  void
-  onSwitchTo() {
+  template <class CM>
+  void OrecLazyGenericOnSwitchTo()
+  {
       timestamp.val = MAXIMUM(timestamp.val, timestamp_max.val);
   }
 }

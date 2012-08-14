@@ -15,10 +15,20 @@ namespace stm
   template <>
   void initTM<OrEAUHA>()
   {
-      OrEAU_Generic<HyperAggressiveCM>::initialize(OrEAUHA, "OrEAUHA");
+      stms[OrEAUHA].name = "OrEAUHA";
+
+      // set the pointers
+      stms[OrEAUHA].begin     = OrEAUGenericBegin<HyperAggressiveCM>;
+      stms[OrEAUHA].commit    = OrEAUGenericCommitRO<HyperAggressiveCM>;
+      stms[OrEAUHA].read      = OrEAUGenericReadRO<HyperAggressiveCM>;
+      stms[OrEAUHA].write     = OrEAUGenericWriteRO<HyperAggressiveCM>;
+      stms[OrEAUHA].irrevoc   = OrEAUGenericIrrevoc<HyperAggressiveCM>;
+      stms[OrEAUHA].switcher  = OrEAUGenericOnSwitchTo<HyperAggressiveCM>;
+      stms[OrEAUHA].privatization_safe = false;
+      stms[OrEAUHA].rollback  = OrEAUGenericRollback<HyperAggressiveCM>;
   }
 }
 
 #ifdef STM_ONESHOT_ALG_OrEAUHA
-DECLARE_AS_ONESHOT_NORMAL(OrEAU_Generic<HyperAggressiveCM>)
+DECLARE_AS_ONESHOT_NORMAL(OrEAUGeneric<HyperAggressiveCM>)
 #endif

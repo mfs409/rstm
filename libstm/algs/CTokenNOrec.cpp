@@ -18,48 +18,27 @@
  *    avoiding atomic operations for acquiring orecs.
  */
 
-#include "../profiling.hpp"
 #include "algs.hpp"
-#include "../RedoRAWUtils.hpp"
 #include "../Diagnostics.hpp"
-
-using stm::TxThread;
-using stm::threads;
-using stm::threadcount;
-using stm::last_complete;
-using stm::timestamp;
-using stm::timestamp_max;
-using stm::WriteSet;
-using stm::WriteSetEntry;
-
-using stm::ValueList;
-using stm::ValueListEntry;
-
 
 /**
  *  Declare the functions that we're going to implement, so that we can avoid
  *  circular dependencies.
  */
-namespace {
-  struct CTokenNOrec {
-      static void begin(TX_LONE_PARAMETER);
-      static TM_FASTCALL void* ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void* ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void CommitRO(TX_LONE_PARAMETER);
-      static TM_FASTCALL void CommitRW(TX_LONE_PARAMETER);
-
-      static void rollback(STM_ROLLBACK_SIG(,,));
-      static bool irrevoc(TxThread*);
-      static void onSwitchTo();
-      static NOINLINE void validate(TxThread* tx, uintptr_t finish_cache);
-  };
+namespace stm
+{
+  TM_FASTCALL void* CTokenNOrecReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
+  TM_FASTCALL void* CTokenNOrecReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
+  TM_FASTCALL void CTokenNOrecWriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+  TM_FASTCALL void CTokenNOrecWriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+  TM_FASTCALL void CTokenNOrecCommitRO(TX_LONE_PARAMETER);
+  TM_FASTCALL void CTokenNOrecCommitRW(TX_LONE_PARAMETER);
+  NOINLINE    void CTokenNOrecValidate(TxThread* tx, uintptr_t finish_cache);
 
   /**
    *  CTokenNOrec begin:
    */
-  void CTokenNOrec::begin(TX_LONE_PARAMETER)
+  void CTokenNOrecBegin(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       tx->allocator.onTxBegin();
@@ -71,7 +50,7 @@ namespace {
    *  CTokenNOrec commit (read-only):
    */
   void
-  CTokenNOrec::CommitRO(TX_LONE_PARAMETER)
+  CTokenNOrecCommitRO(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // reset lists and we are done
@@ -85,15 +64,15 @@ namespace {
    *  NB:  Only valid if using pointer-based adaptivity
    */
   void
-  CTokenNOrec::CommitRW(TX_LONE_PARAMETER)
+  CTokenNOrecCommitRW(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // wait until it is our turn to commit, then validate, acquire, and do
       // writeback
       while (last_complete.val != (uintptr_t)(tx->order - 1)) {
           // Check if we need to abort due to an adaptivity event
-          if (stm::tmbegin != begin)
-              stm::tmabort();
+          if (tmbegin != CTokenNOrecBegin)
+              tmabort();
       }
 
       // since we have the token, we can validate before getting locks
@@ -102,7 +81,7 @@ namespace {
       //       tx->ts_cache)" to prevent unnecessary validations by
       //       single-threaded code?
       if (last_complete.val > tx->ts_cache)
-          validate(tx, last_complete.val);
+          CTokenNOrecValidate(tx, last_complete.val);
 
       // if we had writes, then aborted, then restarted, and then didn't have
       // writes, we could end up trying to lock a nonexistant write set.  This
@@ -125,14 +104,15 @@ namespace {
       tx->vlist.reset();
       tx->writes.reset();
       OnRWCommit(tx);
-      ResetToRO(tx, ReadRO, WriteRO, CommitRO);
+      ResetToRO(tx, CTokenNOrecReadRO, CTokenNOrecWriteRO,
+                CTokenNOrecCommitRO);
   }
 
   /**
    *  CTokenNOrec read (read-only transaction)
    */
   void*
-  CTokenNOrec::ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
+  CTokenNOrecReadRO(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
   {
       TX_GET_TX_INTERNAL;
       // read the location
@@ -142,7 +122,7 @@ namespace {
 
       // validate
       //if (last_complete.val > tx->ts_cache)
-      validate(tx, last_complete.val);
+      CTokenNOrecValidate(tx, last_complete.val);
 
       return tmp;
   }
@@ -151,7 +131,7 @@ namespace {
    *  CTokenNOrec read (writing transaction)
    */
   void*
-  CTokenNOrec::ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
+  CTokenNOrecReadRW(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
   {
       TX_GET_TX_INTERNAL;
       // check the log for a RAW hazard, we expect to miss
@@ -160,7 +140,7 @@ namespace {
       REDO_RAW_CHECK(found, log, mask);
 
       // reuse the ReadRO barrier, which is adequate here---reduces LOC
-      void* val = ReadRO(TX_FIRST_ARG addr STM_MASK(mask));
+      void* val = CTokenNOrecReadRO(TX_FIRST_ARG addr STM_MASK(mask));
       REDO_RAW_CLEANUP(val, found, log, mask);
       return val;
   }
@@ -169,7 +149,7 @@ namespace {
    *  CTokenNOrec write (read-only context)
    */
   void
-  CTokenNOrec::WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  CTokenNOrecWriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // we don't have any writes yet, so we need to get an order here
@@ -177,14 +157,15 @@ namespace {
 
       // record the new value in a redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
-      stm::OnFirstWrite(tx, ReadRW, WriteRW, CommitRW);
+      OnFirstWrite(tx, CTokenNOrecReadRW, CTokenNOrecWriteRW,
+                   CTokenNOrecCommitRW);
   }
 
   /**
    *  CTokenNOrec write (writing context)
    */
   void
-  CTokenNOrec::WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  CTokenNOrecWriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // record the new value in a redo log
@@ -195,7 +176,7 @@ namespace {
    *  CTokenNOrec unwinder:
    */
   void
-  CTokenNOrec::rollback(STM_ROLLBACK_SIG(tx, except, len))
+  CTokenNOrecRollback(STM_ROLLBACK_SIG(tx, except, len))
   {
       PreRollback(tx);
 
@@ -218,9 +199,9 @@ namespace {
    *  CTokenNOrec in-flight irrevocability:
    */
   bool
-  CTokenNOrec::irrevoc(TxThread*)
+  CTokenNOrecIrrevoc(TxThread*)
   {
-      stm::UNRECOVERABLE("CTokenNOrec Irrevocability not yet supported");
+      UNRECOVERABLE("CTokenNOrec Irrevocability not yet supported");
       return false;
   }
 
@@ -228,13 +209,13 @@ namespace {
    *  CTokenNOrec validation
    */
   void
-  CTokenNOrec::validate(TxThread* tx, uintptr_t finish_cache)
+  CTokenNOrecValidate(TxThread* tx, uintptr_t finish_cache)
   {
       // check that all reads are valid
       foreach (ValueList, i, tx->vlist) {
           bool valid = STM_LOG_VALUE_IS_VALID(i, tx);
           if (!valid)
-              stm::tmabort();
+              tmabort();
       }
 
       // now update the finish_cache to remember that at this time, we were
@@ -254,16 +235,14 @@ namespace {
    *    Also, all threads' order values must be -1
    */
   void
-  CTokenNOrec::onSwitchTo()
+  CTokenNOrecOnSwitchTo()
   {
       timestamp.val = MAXIMUM(timestamp.val, timestamp_max.val);
       last_complete.val = timestamp.val;
       for (uint32_t i = 0; i < threadcount.val; ++i)
           threads[i]->order = -1;
   }
-}
 
-namespace stm {
   /**
    *  CTokenNOrec initialization
    */
@@ -273,13 +252,13 @@ namespace stm {
       // set the name
       stms[CTokenNOrec].name      = "CTokenNOrec";
       // set the pointers
-      stms[CTokenNOrec].begin     = ::CTokenNOrec::begin;
-      stms[CTokenNOrec].commit    = ::CTokenNOrec::CommitRO;
-      stms[CTokenNOrec].read      = ::CTokenNOrec::ReadRO;
-      stms[CTokenNOrec].write     = ::CTokenNOrec::WriteRO;
-      stms[CTokenNOrec].rollback  = ::CTokenNOrec::rollback;
-      stms[CTokenNOrec].irrevoc   = ::CTokenNOrec::irrevoc;
-      stms[CTokenNOrec].switcher  = ::CTokenNOrec::onSwitchTo;
+      stms[CTokenNOrec].begin     = CTokenNOrecBegin;
+      stms[CTokenNOrec].commit    = CTokenNOrecCommitRO;
+      stms[CTokenNOrec].read      = CTokenNOrecReadRO;
+      stms[CTokenNOrec].write     = CTokenNOrecWriteRO;
+      stms[CTokenNOrec].rollback  = CTokenNOrecRollback;
+      stms[CTokenNOrec].irrevoc   = CTokenNOrecIrrevoc;
+      stms[CTokenNOrec].switcher  = CTokenNOrecOnSwitchTo;
       stms[CTokenNOrec].privatization_safe = true;
   }
 }

@@ -16,36 +16,19 @@
  *    reads.
  */
 
-#include "../profiling.hpp"
 #include "algs.hpp"
 #include "../Diagnostics.hpp"
 
-using stm::TxThread;
-using stm::timestamp;
-using stm::timestamp_max;
-using stm::UndoLogEntry;
-
-/**
- *  Declare the functions that we're going to implement, so that we can avoid
- *  circular dependencies.
- */
-namespace {
-  struct Serial
-  {
-      static void begin(TX_LONE_PARAMETER);
-      static TM_FASTCALL void* read(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void write(TX_FIRST_PARAMETER STM_WRITE_SIG(,,  ));
-      static TM_FASTCALL void commit(TX_LONE_PARAMETER);
-
-      static void rollback(STM_ROLLBACK_SIG(,,));
-      static bool irrevoc(TxThread*);
-      static void onSwitchTo();
-  };
+namespace stm
+{
+  TM_FASTCALL void* SerialRead(TX_FIRST_PARAMETER STM_READ_SIG(,));
+  TM_FASTCALL void SerialWrite(TX_FIRST_PARAMETER STM_WRITE_SIG(,,  ));
+  TM_FASTCALL void SerialCommit(TX_LONE_PARAMETER);
 
   /**
    *  Serial begin:
    */
-  void Serial::begin(TX_LONE_PARAMETER)
+  void SerialBegin(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // get the lock and notify the allocator
@@ -56,7 +39,7 @@ namespace {
   /**
    *  Serial commit
    */
-  void Serial::commit(TX_LONE_PARAMETER)
+  void SerialCommit(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // release the lock, finalize mm ops, and log the commit
@@ -73,7 +56,7 @@ namespace {
    *  Serial read
    */
   void*
-  Serial::read(TX_FIRST_PARAMETER_ANON STM_READ_SIG(addr,))
+  SerialRead(TX_FIRST_PARAMETER_ANON STM_READ_SIG(addr,))
   {
       return *addr;
   }
@@ -82,7 +65,7 @@ namespace {
    *  Serial write
    */
   void
-  Serial::write(TX_FIRST_PARAMETER STM_WRITE_SIG( addr,val,mask))
+  SerialWrite(TX_FIRST_PARAMETER STM_WRITE_SIG( addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // add to undo log, do an in-place update
@@ -94,7 +77,7 @@ namespace {
    *  Serial unwinder:
    */
   void
-  Serial::rollback(STM_ROLLBACK_SIG(tx, except, len))
+  SerialRollback(STM_ROLLBACK_SIG(tx, except, len))
   {
       PreRollback(tx);
 
@@ -130,9 +113,9 @@ namespace {
    *        no global coordination.
    */
   bool
-  Serial::irrevoc(TxThread*)
+  SerialIrrevoc(TxThread*)
   {
-      stm::UNRECOVERABLE("Serial::irrevoc should not be called!");
+      UNRECOVERABLE("SerialIrrevoc should not be called!");
       return false;
   }
 
@@ -142,15 +125,12 @@ namespace {
    *    We need a zero timestamp, so we need to save its max value
    */
   void
-  Serial::onSwitchTo()
+  SerialOnSwitchTo()
   {
       timestamp_max.val = MAXIMUM(timestamp.val, timestamp_max.val);
       timestamp.val = 0;
   }
-}
 
-namespace stm
-{
   /**
    *  As mentioned above, Serial needs a custom override to work with
    *  irrevocability.
@@ -171,13 +151,13 @@ namespace stm
       stms[Serial].name      = "Serial";
 
       // set the pointers
-      stms[Serial].begin     = ::Serial::begin;
-      stms[Serial].commit    = ::Serial::commit;
-      stms[Serial].read      = ::Serial::read;
-      stms[Serial].write     = ::Serial::write;
-      stms[Serial].rollback  = ::Serial::rollback;
-      stms[Serial].irrevoc   = ::Serial::irrevoc;
-      stms[Serial].switcher  = ::Serial::onSwitchTo;
+      stms[Serial].begin     = SerialBegin;
+      stms[Serial].commit    = SerialCommit;
+      stms[Serial].read      = SerialRead;
+      stms[Serial].write     = SerialWrite;
+      stms[Serial].rollback  = SerialRollback;
+      stms[Serial].irrevoc   = SerialIrrevoc;
+      stms[Serial].switcher  = SerialOnSwitchTo;
       stms[Serial].privatization_safe = true;
   }
 }

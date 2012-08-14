@@ -13,55 +13,26 @@
  *
  *  CohortsLazy with inplace write when tx is the last one in a cohort.
  */
-#include "../profiling.hpp"
 #include "algs.hpp"
-#include "../RedoRAWUtils.hpp"
 #include "../Diagnostics.hpp"
 
-using stm::TxThread;
-using stm::threads;
-using stm::threadcount;
-using stm::last_complete;
-using stm::timestamp;
-using stm::timestamp_max;
-using stm::WriteSet;
-using stm::WriteSetEntry;
-
-using stm::ValueList;
-using stm::ValueListEntry;
-using stm::gatekeeper;
-using stm::last_order;
-
-/**
- *  Declare the functions that we're going to implement, so that we can avoid
- *  circular dependencies.
- */
-namespace
+namespace stm
 {
   // [mfs] These should each probably be a pad_word_t, to keep them on
   //       separate cache lines
-  volatile uintptr_t inplace = 0;
   volatile uintptr_t counter = 0;
 
-  struct CohortsLNI2
-  {
-      static void begin(TX_LONE_PARAMETER);
-      static TM_FASTCALL void* ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void* ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void CommitRO(TX_LONE_PARAMETER);
-      static TM_FASTCALL void CommitRW(TX_LONE_PARAMETER);
+  TM_FASTCALL void* CohortsLNI2ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
+  TM_FASTCALL void* CohortsLNI2ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
+  TM_FASTCALL void CohortsLNI2WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+  TM_FASTCALL void CohortsLNI2WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+  TM_FASTCALL void CohortsLNI2CommitRO(TX_LONE_PARAMETER);
+  TM_FASTCALL void CohortsLNI2CommitRW(TX_LONE_PARAMETER);
 
-      static TM_FASTCALL void commit_turbo(TX_LONE_PARAMETER);
-      static TM_FASTCALL void* read_turbo(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void write_turbo(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-
-      static void rollback(STM_ROLLBACK_SIG(,,));
-      static bool irrevoc(TxThread*);
-      static void onSwitchTo();
-      static NOINLINE void validate(TxThread* tx);
-  };
+  TM_FASTCALL void CohortsLNI2CommitTurbo(TX_LONE_PARAMETER);
+  TM_FASTCALL void* CohortsLNI2ReadTurbo(TX_FIRST_PARAMETER STM_READ_SIG(,));
+  TM_FASTCALL void CohortsLNI2WriteTurbo(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+  NOINLINE void CohortsLNI2Validate(TxThread* tx);
 
   /**
    *  CohortsLNI2 begin:
@@ -70,7 +41,7 @@ namespace
    *  tx is allowed to start until all the transactions finishe their
    *  commits.
    */
-  void CohortsLNI2::begin(TX_LONE_PARAMETER)
+  void CohortsLNI2Begin(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       tx->allocator.onTxBegin();
@@ -102,7 +73,7 @@ namespace
   /**
    *  CohortsLNI2 commit (read-only):
    */
-  void CohortsLNI2::CommitRO(TX_LONE_PARAMETER)
+  void CohortsLNI2CommitRO(TX_LONE_PARAMETER)
   {
       // [mfs] Do we need a read-write fence to ensure all reads are done
       //       before we write to tx->status?
@@ -117,9 +88,9 @@ namespace
   }
 
   /**
-   *  CohortsLNI2 commit_turbo (for write in place tx use):
+   *  CohortsLNI2 CommitTurbo (for write in place tx use):
    */
-  void CohortsLNI2::commit_turbo(TX_LONE_PARAMETER)
+  void CohortsLNI2CommitTurbo(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
 
@@ -138,7 +109,7 @@ namespace
       tx->vlist.reset();
       tx->writes.reset();
       OnRWCommit(tx);
-      ResetToRO(tx, ReadRO, WriteRO, CommitRO);
+      ResetToRO(tx, CohortsLNI2ReadRO, CohortsLNI2WriteRO, CohortsLNI2CommitRO);
 
       // Wait for my turn
       //
@@ -163,7 +134,7 @@ namespace
   /**
    *  CohortsLNI2 commit (writing context):
    */
-  void CohortsLNI2::CommitRW(TX_LONE_PARAMETER)
+  void CohortsLNI2CommitRW(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
 
@@ -201,7 +172,7 @@ namespace
       // If I'm the first one in this cohort and no inplace write happened,
       // I will not do validation, else validate
       if (inplace == 1 || tx->order != last_order)
-          validate(tx);
+          CohortsLNI2Validate(tx);
 
       // Do write back
       tx->writes.writeback();
@@ -233,13 +204,13 @@ namespace
       tx->vlist.reset();
       tx->writes.reset();
       OnRWCommit(tx);
-      ResetToRO(tx, ReadRO, WriteRO, CommitRO);
+      ResetToRO(tx, CohortsLNI2ReadRO, CohortsLNI2WriteRO, CohortsLNI2CommitRO);
   }
 
   /**
    *  CohortsLNI2 read (read-only transaction)
    */
-  void* CohortsLNI2::ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
+  void* CohortsLNI2ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
   {
       TX_GET_TX_INTERNAL;
       void* tmp = *addr;
@@ -248,9 +219,9 @@ namespace
   }
 
   /**
-   *  CohortsLNI2 read_turbo (for write in place tx use)
+   *  CohortsLNI2 ReadTurbo (for write in place tx use)
    */
-  void* CohortsLNI2::read_turbo(TX_FIRST_PARAMETER_ANON STM_READ_SIG(addr,))
+  void* CohortsLNI2ReadTurbo(TX_FIRST_PARAMETER_ANON STM_READ_SIG(addr,))
   {
       return *addr;
   }
@@ -258,7 +229,7 @@ namespace
   /**
    *  CohortsLNI2 read (writing transaction)
    */
-  void* CohortsLNI2::ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
+  void* CohortsLNI2ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
   {
       TX_GET_TX_INTERNAL;
       // check the log for a RAW hazard, we expect to miss
@@ -275,7 +246,7 @@ namespace
   /**
    *  CohortsLNI2 write (read-only context): for first write
    */
-  void CohortsLNI2::WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  void CohortsLNI2WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // [mfs] this code is not in the best location.  Consider the following
@@ -306,18 +277,18 @@ namespace
           // [mfs] ultimately this should use a macro that employs the mask
           *addr = val;
           // switch to turbo mode
-          stm::OnFirstWrite(tx, read_turbo, write_turbo, commit_turbo);
+          OnFirstWrite(tx, CohortsLNI2ReadTurbo, CohortsLNI2WriteTurbo, CohortsLNI2CommitTurbo);
           return;
       }
 
       // record the new value in a redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
-      stm::OnFirstWrite(tx, ReadRW, WriteRW, CommitRW);
+      OnFirstWrite(tx, CohortsLNI2ReadRW, CohortsLNI2WriteRW, CohortsLNI2CommitRW);
   }
   /**
-   *  CohortsLNI2 write_turbo: for write in place tx
+   *  CohortsLNI2 WriteTurbo: for write in place tx
    */
-  void CohortsLNI2::write_turbo(TX_FIRST_PARAMETER_ANON STM_WRITE_SIG(addr,val,mask))
+  void CohortsLNI2WriteTurbo(TX_FIRST_PARAMETER_ANON STM_WRITE_SIG(addr,val,mask))
   {
       // [mfs] ultimately this should use a macro that employs the mask
       *addr = val;
@@ -326,7 +297,7 @@ namespace
   /**
    *  CohortsLNI2 write (writing context)
    */
-  void CohortsLNI2::WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  void CohortsLNI2WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
 
@@ -349,7 +320,7 @@ namespace
           CFENCE;
           *addr = val;
           // go turbo
-          stm::GoTurbo(tx, read_turbo, write_turbo, commit_turbo);
+          GoTurbo(tx, CohortsLNI2ReadTurbo, CohortsLNI2WriteTurbo, CohortsLNI2CommitTurbo);
           return;
       }
 
@@ -363,7 +334,7 @@ namespace
   /**
    *  CohortsLNI2 unwinder:
    */
-  void CohortsLNI2::rollback(STM_ROLLBACK_SIG(tx, except, len))
+  void CohortsLNI2Rollback(STM_ROLLBACK_SIG(tx, except, len))
   {
       PreRollback(tx);
 
@@ -382,16 +353,16 @@ namespace
   /**
    *  CohortsLNI2 in-flight irrevocability:
    */
-  bool CohortsLNI2::irrevoc(TxThread*)
+  bool CohortsLNI2Irrevoc(TxThread*)
   {
-      stm::UNRECOVERABLE("CohortsLNI2 Irrevocability not yet supported");
+      UNRECOVERABLE("CohortsLNI2 Irrevocability not yet supported");
       return false;
   }
 
   /**
    *  CohortsLNI2 validation for commit: check that all reads are valid
    */
-  void CohortsLNI2::validate(TxThread* tx)
+  void CohortsLNI2Validate(TxThread* tx)
   {
       // [mfs] this is a pretty complex loop... since it is only called once,
       //       why not have validate return a boolean, and then drop out of
@@ -420,7 +391,7 @@ namespace
                   gatekeeper = 0;
                   counter = 0;
               }
-              stm::tmabort();
+              tmabort();
           }
       }
   }
@@ -428,7 +399,7 @@ namespace
   /**
    *  Switch to CohortsLNI2:
    */
-  void CohortsLNI2::onSwitchTo()
+  void CohortsLNI2OnSwitchTo()
   {
       timestamp.val = MAXIMUM(timestamp.val, timestamp_max.val);
       last_complete.val = timestamp.val;
@@ -437,10 +408,7 @@ namespace
           threads[i]->status = COHORTS_COMMITTED;
       }
   }
-}
 
-namespace stm
-{
   /**
    *  CohortsLNI2 initialization
    */
@@ -450,13 +418,13 @@ namespace stm
       // set the name
       stms[CohortsLNI2].name      = "CohortsLNI2";
       // set the pointers
-      stms[CohortsLNI2].begin     = ::CohortsLNI2::begin;
-      stms[CohortsLNI2].commit    = ::CohortsLNI2::CommitRO;
-      stms[CohortsLNI2].read      = ::CohortsLNI2::ReadRO;
-      stms[CohortsLNI2].write     = ::CohortsLNI2::WriteRO;
-      stms[CohortsLNI2].rollback  = ::CohortsLNI2::rollback;
-      stms[CohortsLNI2].irrevoc   = ::CohortsLNI2::irrevoc;
-      stms[CohortsLNI2].switcher  = ::CohortsLNI2::onSwitchTo;
+      stms[CohortsLNI2].begin     = CohortsLNI2Begin;
+      stms[CohortsLNI2].commit    = CohortsLNI2CommitRO;
+      stms[CohortsLNI2].read      = CohortsLNI2ReadRO;
+      stms[CohortsLNI2].write     = CohortsLNI2WriteRO;
+      stms[CohortsLNI2].rollback  = CohortsLNI2Rollback;
+      stms[CohortsLNI2].irrevoc   = CohortsLNI2Irrevoc;
+      stms[CohortsLNI2].switcher  = CohortsLNI2OnSwitchTo;
       stms[CohortsLNI2].privatization_safe = true;
   }
 }

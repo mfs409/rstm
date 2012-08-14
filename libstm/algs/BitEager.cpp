@@ -109,7 +109,7 @@ namespace stm
           lock->readers.unsetbit(tx->id-1);
           while (lock->owner != 0)
               if (++tries > BITLOCK_READ_TIMEOUT)
-                  stm::tmabort();
+                  tmabort();
       }
   }
 
@@ -151,7 +151,7 @@ namespace stm
           lock->readers.unsetbit(tx->id-1);
           while (lock->owner != 0)
               if (++tries > BITLOCK_READ_TIMEOUT)
-                  stm::tmabort();
+                  tmabort();
       }
   }
 
@@ -171,7 +171,7 @@ namespace stm
       // get the write lock, with timeout
       while (!bcasptr(&(lock->owner), 0u, tx->id))
           if (++tries > BITLOCK_ACQUIRE_TIMEOUT)
-              stm::tmabort();
+              tmabort();
 
       // log the lock, drop any read locks I have
       tx->w_bitlocks.insert(lock);
@@ -183,14 +183,14 @@ namespace stm
           tries = 0;
           while (lock->readers.bits[b])
               if (++tries > BITLOCK_DRAIN_TIMEOUT)
-                  stm::tmabort();
+                  tmabort();
       }
 
       // add to undo log, do in-place write
       tx->undo_log.insert(UndoLogEntry(STM_UNDO_LOG_ENTRY(addr, *addr, mask)));
       STM_DO_MASKED_WRITE(addr, val, mask);
 
-      stm::OnFirstWrite(tx, BitEagerReadRW, BitEagerWriteRW, BitEagerCommitRW);
+      OnFirstWrite(tx, BitEagerReadRW, BitEagerWriteRW, BitEagerCommitRW);
   }
 
   /**
@@ -215,7 +215,7 @@ namespace stm
       // get the write lock, with timeout
       while (!bcasptr(&(lock->owner), 0u, tx->id))
           if (++tries > BITLOCK_ACQUIRE_TIMEOUT)
-              stm::tmabort();
+              tmabort();
 
       // log the lock, drop any read locks I have
       tx->w_bitlocks.insert(lock);
@@ -230,7 +230,7 @@ namespace stm
           tries = 0;
           while (lock->readers.bits[b])
               if (++tries > BITLOCK_DRAIN_TIMEOUT)
-                  stm::tmabort();
+                  tmabort();
       }
 
       // add to undo log, do in-place write

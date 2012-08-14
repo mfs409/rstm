@@ -26,7 +26,7 @@
 #ifndef PROFILEAPP_HPP__
 #define PROFILEAPP_HPP__
 
-#include "../profiling.hpp"
+
 #include "algs.hpp"
 #include "../RedoRAWUtils.hpp"
 #include "../Diagnostics.hpp"
@@ -205,7 +205,7 @@ namespace stm
       // do a buffered write
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
       ++profiles[0].write_waw;
-      stm::OnFirstWrite(tx, ProfileAppReadRW<COUNTMODE>,
+      OnFirstWrite(tx, ProfileAppReadRW<COUNTMODE>,
                         ProfileAppWriteRW<COUNTMODE>,
                         ProfileAppCommitRW<COUNTMODE>);
   }
@@ -232,7 +232,7 @@ namespace stm
   template <int COUNTMODE>
   void ProfileAppRollback(STM_ROLLBACK_SIG(,,))
   {
-      stm::UNRECOVERABLE("ProfileApp should never incur an abort");
+      UNRECOVERABLE("ProfileApp should never incur an abort");
   }
 
   /**
@@ -242,7 +242,7 @@ namespace stm
   bool ProfileAppIrrevoc(TxThread*)
   {
       // NB: there is no reason why we can't support this, we just don't yet.
-      stm::UNRECOVERABLE("ProfileApp does not support irrevocability");
+      UNRECOVERABLE("ProfileApp does not support irrevocability");
       return false;
   }
 

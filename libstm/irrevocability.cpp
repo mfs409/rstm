@@ -16,12 +16,7 @@
 #include "algs/tml_inline.hpp"
 #include "Registration.hpp"
 
-using stm::TxThread;
-using stm::stms;
-using stm::curr_policy;
-using stm::CGL;
-
-namespace
+namespace stm
 {
   /**
    *  Handler for rollback attempts while irrevocable. Useful for trapping
@@ -86,10 +81,7 @@ namespace
       stm::UNRECOVERABLE("Irrevocability does not work with ONESHOT mode");
 #endif
   }
-}
 
-namespace stm
-{
   /**
    *  The 'Serial' algorithm requires a custom override for irrevocability,
    *  which we implement here.

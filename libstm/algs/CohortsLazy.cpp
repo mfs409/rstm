@@ -17,44 +17,18 @@
  * "Lazy" isn't a good name for this... if I understand correctly, this is
  * Cohorts with a distributed mechanism for tracking the state of the cohort.
  */
-#include "../profiling.hpp"
 #include "algs.hpp"
-#include "../RedoRAWUtils.hpp"
 #include "../Diagnostics.hpp"
 
-using stm::TxThread;
-using stm::threads;
-using stm::threadcount;
-using stm::last_complete;
-using stm::timestamp;
-using stm::timestamp_max;
-using stm::WriteSet;
-using stm::OrecList;
-using stm::WriteSetEntry;
-using stm::orec_t;
-using stm::get_orec;
-using stm::gatekeeper;
-using stm::last_order;
-
-/**
- *  Declare the functions that we're going to implement, so that we can avoid
- *  circular dependencies.
- */
-namespace {
-  struct CohortsLazy {
-      static void begin(TX_LONE_PARAMETER);
-      static TM_FASTCALL void* ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void* ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
-      static TM_FASTCALL void WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-      static TM_FASTCALL void CommitRO(TX_LONE_PARAMETER);
-      static TM_FASTCALL void CommitRW(TX_LONE_PARAMETER);
-
-      static void rollback(STM_ROLLBACK_SIG(,,));
-      static bool irrevoc(TxThread*);
-      static void onSwitchTo();
-      static NOINLINE void validate(TxThread* tx);
-  };
+namespace stm
+{
+  TM_FASTCALL void* CohortsLazyReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
+  TM_FASTCALL void* CohortsLazyReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
+  TM_FASTCALL void CohortsLazyWriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+  TM_FASTCALL void CohortsLazyWriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+  TM_FASTCALL void CohortsLazyCommitRO(TX_LONE_PARAMETER);
+  TM_FASTCALL void CohortsLazyCommitRW(TX_LONE_PARAMETER);
+  NOINLINE void CohortsLazyValidate(TxThread* tx);
 
   /**
    *  CohortsLazy begin:
@@ -63,7 +37,7 @@ namespace {
    *  tx is allowed to start until all the transactions finishes their
    *  commits.
    */
-  void CohortsLazy::begin(TX_LONE_PARAMETER)
+  void CohortsLazyBegin(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
     S1:
@@ -91,7 +65,7 @@ namespace {
    *  CohortsLazy commit (read-only):
    */
   void
-  CohortsLazy::CommitRO(TX_LONE_PARAMETER)
+  CohortsLazyCommitRO(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // mark self status
@@ -107,7 +81,7 @@ namespace {
    *
    */
   void
-  CohortsLazy::CommitRW(TX_LONE_PARAMETER)
+  CohortsLazyCommitRW(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // Mark a global flag, no one is allowed to begin now
@@ -140,7 +114,7 @@ namespace {
 
       // If I'm the first one in this cohort, no validation, else validate
       if (tx->order != last_order)
-          validate(tx);
+          CohortsLazyValidate(tx);
 
       // mark orec, do write back
       foreach (WriteSet, i, tx->writes) {
@@ -170,14 +144,14 @@ namespace {
       tx->r_orecs.reset();
       tx->writes.reset();
       OnRWCommit(tx);
-      ResetToRO(tx, ReadRO, WriteRO, CommitRO);
+      ResetToRO(tx, CohortsLazyReadRO, CohortsLazyWriteRO, CohortsLazyCommitRO);
   }
 
   /**
    *  CohortsLazy read (read-only transaction)
    */
   void*
-  CohortsLazy::ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
+  CohortsLazyReadRO(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
   {
       TX_GET_TX_INTERNAL;
       // log orec
@@ -189,7 +163,7 @@ namespace {
    *  CohortsLazy read (writing transaction)
    */
   void*
-  CohortsLazy::ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
+  CohortsLazyReadRW(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
   {
       TX_GET_TX_INTERNAL;
       // check the log for a RAW hazard, we expect to miss
@@ -209,19 +183,19 @@ namespace {
    *  CohortsLazy write (read-only context): for first write
    */
   void
-  CohortsLazy::WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  CohortsLazyWriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // record the new value in a redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
-      stm::OnFirstWrite(tx, ReadRW, WriteRW, CommitRW);
+      OnFirstWrite(tx, CohortsLazyReadRW, CohortsLazyWriteRW, CohortsLazyCommitRW);
   }
 
   /**
    *  CohortsLazy write (writing context)
    */
   void
-  CohortsLazy::WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  CohortsLazyWriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // record the new value in a redo log
@@ -232,7 +206,7 @@ namespace {
    *  CohortsLazy unwinder:
    */
   void
-  CohortsLazy::rollback(STM_ROLLBACK_SIG(tx, except, len))
+  CohortsLazyRollback(STM_ROLLBACK_SIG(tx, except, len))
   {
       PreRollback(tx);
 
@@ -252,9 +226,9 @@ namespace {
    *  CohortsLazy in-flight irrevocability:
    */
   bool
-  CohortsLazy::irrevoc(TxThread*)
+  CohortsLazyIrrevoc(TxThread*)
   {
-      stm::UNRECOVERABLE("CohortsLazy Irrevocability not yet supported");
+      UNRECOVERABLE("CohortsLazy Irrevocability not yet supported");
       return false;
   }
 
@@ -262,7 +236,7 @@ namespace {
    *  CohortsLazy validation for commit: check that all reads are valid
    */
   void
-  CohortsLazy::validate(TxThread* tx)
+  CohortsLazyValidate(TxThread* tx)
   {
       // [mfs] use the luke trick on this loop
       foreach (OrecList, i, tx->r_orecs) {
@@ -286,7 +260,7 @@ namespace {
                   last_order = tx->order + 1;
                   gatekeeper = 0;
               }
-              stm::tmabort();
+              tmabort();
           }
       }
   }
@@ -300,7 +274,7 @@ namespace {
    *
    */
   void
-  CohortsLazy::onSwitchTo()
+  CohortsLazyOnSwitchTo()
   {
       timestamp.val = MAXIMUM(timestamp.val, timestamp_max.val);
       last_complete.val = timestamp.val;
@@ -309,9 +283,7 @@ namespace {
           threads[i]->status = COHORTS_COMMITTED;
       }
   }
-}
 
-namespace stm {
   /**
    *  CohortsLazy initialization
    */
@@ -321,13 +293,13 @@ namespace stm {
       // set the name
       stms[CohortsLazy].name      = "CohortsLazy";
       // set the pointers
-      stms[CohortsLazy].begin     = ::CohortsLazy::begin;
-      stms[CohortsLazy].commit    = ::CohortsLazy::CommitRO;
-      stms[CohortsLazy].read      = ::CohortsLazy::ReadRO;
-      stms[CohortsLazy].write     = ::CohortsLazy::WriteRO;
-      stms[CohortsLazy].rollback  = ::CohortsLazy::rollback;
-      stms[CohortsLazy].irrevoc   = ::CohortsLazy::irrevoc;
-      stms[CohortsLazy].switcher  = ::CohortsLazy::onSwitchTo;
+      stms[CohortsLazy].begin     = CohortsLazyBegin;
+      stms[CohortsLazy].commit    = CohortsLazyCommitRO;
+      stms[CohortsLazy].read      = CohortsLazyReadRO;
+      stms[CohortsLazy].write     = CohortsLazyWriteRO;
+      stms[CohortsLazy].rollback  = CohortsLazyRollback;
+      stms[CohortsLazy].irrevoc   = CohortsLazyIrrevoc;
+      stms[CohortsLazy].switcher  = CohortsLazyOnSwitchTo;
       stms[CohortsLazy].privatization_safe = true;
   }
 }
