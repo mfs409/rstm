@@ -19,16 +19,13 @@
 
 namespace stm
 {
-  // [mfs] padding?
-  volatile uintptr_t inplace = 0;
-
+  pad_word_t inplace = {0,{0}};
   pad_word_t cohortcounter = {0, {0}};
 
-  // [mfs] These need to be padded
   // # of reads/writes/aborts before seal a cohort
-  int32_t WRITE_EARLYSEAL = -1;
-  int32_t READ_EARLYSEAL = -1;
-  int32_t ABORT_EARLYSEAL = -1;
+  pad_word_t_int WRITE_EARLYSEAL = {-1,{0}};
+  pad_word_t_int READ_EARLYSEAL = {-1,{0}};
+  pad_word_t_int ABORT_EARLYSEAL = {-1,{0}};
   pad_word_t sealed = {0,{0}};
 
 
@@ -87,8 +84,8 @@ namespace stm
   pad_word_t started = {0, {0}};
   pad_word_t cpending = {0, {0}};
   pad_word_t committed = {0, {0}};
-  volatile int32_t last_order = 1;
-  volatile uint32_t gatekeeper = 0;
+  pad_word_t_int last_order = {1,{0}};
+  pad_word_t gatekeeper = {0,{0}};
   filter_t* global_filter = (filter_t*)FILTER_ALLOC(sizeof(filter_t));
   filter_t* temp_filter = (filter_t*)FILTER_ALLOC(sizeof(filter_t));
   AddressList addrs = AddressList (64);

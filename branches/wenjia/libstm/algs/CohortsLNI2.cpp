@@ -48,7 +48,7 @@ namespace stm
 
     S1:
       // wait if I'm blocked
-      while (gatekeeper == 1);
+      while (gatekeeper.val == 1);
 
       // set started
       //
@@ -58,7 +58,7 @@ namespace stm
       atomicswapptr(&tx->status, COHORTS_STARTED);
 
       // double check no one is ready to commit
-      if (gatekeeper == 1 || inplace == 1) {
+      if (gatekeeper.val == 1 || inplace.val == 1) {
           // [mfs] verify that no fences are needed here
           tx->status = COHORTS_COMMITTED;
           goto S1;
@@ -120,12 +120,12 @@ namespace stm
       last_complete.val = tx->order;
 
       // I must be the last one, so release gatekeeper lock
-      last_order = tx->order + 1;
-      gatekeeper = 0;
+      last_order.val = tx->order + 1;
+      gatekeeper.val = 0;
       counter = 0;
 
-      // Reset inplace write flag
-      inplace = 0;
+      // Reset inplace.val write flag
+      inplace.val = 0;
 
       // Mark self status
       tx->status = COHORTS_COMMITTED;
@@ -139,7 +139,7 @@ namespace stm
       TX_GET_TX_INTERNAL;
 
       // Mark a global flag, no one is allowed to begin now
-      gatekeeper = 1;
+      gatekeeper.val = 1;
 
       // Get an order
       tx->order = 1 + faiptr(&timestamp.val);
@@ -156,7 +156,7 @@ namespace stm
           // [mfs] simplify with &1 instead of ==?
           for (uint32_t i = 0; i < threadcount.val; ++i)
               left += (threads[i]->status == COHORTS_STARTED);
-          // if only one tx left, set global flag, inplace allowed
+          // if only one tx left, set global flag, inplace.val allowed
           //
           // [mfs] this is dangerous: it is possible for me to write 1, and
           //       then you to write 0 if you finish the loop first, but
@@ -169,9 +169,9 @@ namespace stm
       // [mfs] I think a queue would be faster here...
       while (last_complete.val != (uintptr_t)(tx->order - 1));
 
-      // If I'm the first one in this cohort and no inplace write happened,
+      // If I'm the first one in this cohort and no inplace.val write happened,
       // I will not do validation, else validate
-      if (inplace == 1 || tx->order != last_order)
+      if (inplace.val == 1 || tx->order != last_order.val)
           CohortsLNI2Validate(tx);
 
       // Do write back
@@ -195,8 +195,8 @@ namespace stm
 
       // If I'm the last one, release gatekeeper lock
       if (lastone) {
-          last_order = tx->order + 1;
-          gatekeeper = 0;
+          last_order.val = tx->order + 1;
+          gatekeeper.val = 0;
           counter = 0;
       }
 
@@ -271,8 +271,8 @@ namespace stm
           // set in place write flag
           //
           // [mfs] I don't see why this is atomic
-          atomicswapptr(&inplace, 1);
-          // write inplace
+          atomicswapptr(&inplace.val, 1);
+          // write inplace.val
           //
           // [mfs] ultimately this should use a macro that employs the mask
           *addr = val;
@@ -308,7 +308,7 @@ namespace stm
           // setup inplace write flag
           //
           // [mfs] again, not sure why this is atomic
-          atomicswapptr(&inplace, 1);
+          atomicswapptr(&inplace.val, 1);
           // write previous write set back
           //
           // [mfs] I changed this to use the writeback(TX_LONE_PARAMETER) method, but it might
@@ -316,8 +316,6 @@ namespace stm
           //       it handles stack writes.
           tx->writes.writeback();
 
-          // [mfs] I don't see why this fence is needed
-          CFENCE;
           *addr = val;
           // go turbo
           GoTurbo(tx, CohortsLNI2ReadTurbo, CohortsLNI2WriteTurbo, CohortsLNI2CommitTurbo);
@@ -387,8 +385,8 @@ namespace stm
 
               // If I'm the last one, release gatekeeper lock
               if (l) {
-                  last_order = tx->order + 1;
-                  gatekeeper = 0;
+                  last_order.val = tx->order + 1;
+                  gatekeeper.val = 0;
                   counter = 0;
               }
               tmabort();

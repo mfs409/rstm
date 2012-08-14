@@ -56,7 +56,7 @@ namespace stm
 
       // [NB] we must double check no one is ready to commit yet
       // and no one entered in place write phase(turbo mode)
-      if (cpending.val > committed.val || inplace == 1){
+      if (cpending.val > committed.val || inplace.val == 1){
           faaptr(&started.val, -1);
           goto S1;
       }
@@ -101,7 +101,7 @@ namespace stm
       while (last_complete.val != (uintptr_t)(tx->order - 1));
 
       // reset in place write flag
-      inplace = 0;
+      inplace.val = 0;
 
       // increase total number of tx committed
       committed.val++;
@@ -131,7 +131,7 @@ namespace stm
 
       // If in place write occurred, all tx validate reads
       // Otherwise, only first one skips validation
-      if (inplace == 1 || tx->order != last_order)
+      if (inplace.val == 1 || tx->order != last_order.val)
           CohortsEagerValidate(tx);
 
       // Last one doesn't needs to mark orec
@@ -148,7 +148,7 @@ namespace stm
           tx->writes.writeback();
 
       // update last_order
-      last_order = started.val + 1;
+      last_order.val = started.val + 1;
 
       // increase total tx committed
       committed.val++;
@@ -215,7 +215,7 @@ namespace stm
       // If everyone else is ready to commit, do in place write
       if (cpending.val + 1 == started.val) {
           // set up flag indicating in place write starts
-          inplace = 1;
+          inplace.val = 1;
           WBR;
           // double check is necessary
           if (cpending.val + 1 == started.val) {
@@ -232,7 +232,7 @@ namespace stm
               return;
           }
           // reset flag
-          inplace = 0;
+          inplace.val = 0;
       }
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
       OnFirstWrite(tx, CohortsEagerReadRW, CohortsEagerWriteRW, CohortsEagerCommitRW);
@@ -326,7 +326,7 @@ namespace stm
   CohortsEagerOnSwitchTo()
   {
       last_complete.val = 0;
-      inplace = 0;
+      inplace.val = 0;
   }
 
   /**

@@ -51,7 +51,7 @@ namespace stm
 
       // [NB] we must double check no one is ready to commit yet
       // and no one entered in place write phase(turbo mode)
-      if (cpending.val > committed.val || inplace == 1){
+      if (cpending.val > committed.val || inplace.val == 1){
           faaptr(&started.val, -1);
           goto S1;
       }
@@ -97,7 +97,7 @@ namespace stm
       global_filter->clear();
 
       // reset in place write flag
-      inplace = 0;
+      inplace.val = 0;
 
       // increase # of committed
       committed.val ++;
@@ -128,7 +128,7 @@ namespace stm
 
       // If in place write occurred, all tx validate reads
       // Otherwise, only first one skips validation
-      if (inplace == 1 || tx->order != last_order)
+      if (inplace.val == 1 || tx->order != last_order.val)
           if (!CohortsEFValidate(tx)) {
               committed.val ++;
               CFENCE;
@@ -146,7 +146,7 @@ namespace stm
 
       // If the last one in the cohort, save the order and clear the filter
       if ((uint32_t)tx->order == started.val) {
-          last_order = started.val + 1;
+          last_order.val = started.val + 1;
           global_filter->clear();
       }
 
@@ -214,7 +214,7 @@ namespace stm
       // If everyone else is ready to commit, do in place write
       if (cpending.val + 1 == started.val) {
           // set up flag indicating in place write starts
-          atomicswapptr(&inplace, 1);
+          atomicswapptr(&inplace.val, 1);
           // double check is necessary
           if (cpending.val + 1 == started.val) {
               // in place write
@@ -226,7 +226,7 @@ namespace stm
               return;
           }
           // reset flag
-          inplace = 0;
+          inplace.val = 0;
       }
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
       tx->wf->add(addr);
@@ -297,7 +297,7 @@ namespace stm
       if (global_filter->intersect(tx->rf)) {
           // I'm the last one in the cohort, save the order and clear the filter
           if ((uint32_t)tx->order == started.val) {
-              last_order = started.val + 1;
+              last_order.val = started.val + 1;
               global_filter->clear();
           }
           return false;

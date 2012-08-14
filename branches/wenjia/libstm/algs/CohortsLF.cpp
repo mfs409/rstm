@@ -39,7 +39,7 @@ namespace stm
       TX_GET_TX_INTERNAL;
     S1:
       // wait if I'm blocked
-      while(gatekeeper == 1)
+      while(gatekeeper.val == 1)
           spin64();
 
       // set started
@@ -47,7 +47,7 @@ namespace stm
       WBR;
 
       // double check no one is ready to commit
-      if (gatekeeper == 1){
+      if (gatekeeper.val == 1){
           tx->status = COHORTS_COMMITTED;
           goto S1;
       }
@@ -80,7 +80,7 @@ namespace stm
   {
       TX_GET_TX_INTERNAL;
       // Mark a global flag, no one is allowed to begin now
-      gatekeeper = 1;
+      gatekeeper.val = 1;
 
       // Mark self pending to commit
       tx->status = COHORTS_CPENDING;
@@ -99,7 +99,7 @@ namespace stm
       while (last_complete.val != (uintptr_t)(tx->order - 1));
 
       // If I'm the first one in this cohort, no validation, else validate
-      if (tx->order != last_order)
+      if (tx->order != last_order.val)
           CohortsLFValidate(tx);
 
       // do write back
@@ -122,9 +122,9 @@ namespace stm
 
       // If I'm the last one, release gatekeeper lock and clear global filter
       if (lastone) {
-          last_order = tx->order + 1;
+          last_order.val= tx->order + 1;
           global_filter->clear();
-          gatekeeper = 0;
+          gatekeeper.val = 0;
       }
 
       // commit all frees, reset all lists
@@ -244,9 +244,9 @@ namespace stm
 
           // If I'm the last one, release gatekeeper lock
           if (l) {
-              last_order = tx->order + 1;
+              last_order.val = tx->order + 1;
               global_filter->clear();
-              gatekeeper = 0;
+              gatekeeper.val = 0;
           }
           tmabort();
       }

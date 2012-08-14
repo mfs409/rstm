@@ -28,6 +28,12 @@ namespace stm
       char pad[CACHELINE_BYTES-sizeof(uintptr_t)];
   };
 
+  struct pad_word_t_int
+  {
+      volatile intptr_t val;
+      char pad[CACHELINE_BYTES-sizeof(intptr_t)];
+  };
+
 #ifndef STM_CHECKPOINT_ASM
   /**
    *  A scope_t is an opaque type used by an API to unwind.

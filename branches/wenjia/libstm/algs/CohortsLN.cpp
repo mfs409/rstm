@@ -46,14 +46,14 @@ namespace stm
       TX_GET_TX_INTERNAL;
     S1:
       // wait if I'm blocked
-      while(gatekeeper == 1);
+      while(gatekeeper.val == 1);
 
       // set started
       tx->status = COHORTS_STARTED;
       WBR;
 
       // double check no one is ready to commit
-      if (gatekeeper == 1){
+      if (gatekeeper.val == 1){
           tx->status = COHORTS_COMMITTED;
           goto S1;
       }
@@ -89,7 +89,7 @@ namespace stm
   {
       TX_GET_TX_INTERNAL;
     // Mark a global flag, no one is allowed to begin now
-      gatekeeper = 1;
+      gatekeeper.val = 1;
 
       // Mark self status pending to commit
       tx->status = COHORTS_CPENDING;
@@ -121,9 +121,9 @@ namespace stm
               for (uint32_t i = 0; lastone != false && i < threadcount.val; ++i)
                   lastone &= (threads[i]->status != COHORTS_CPENDING);
 
-              // If I'm the last one, release gatekeeper lock
+              // If I'm the last one, release gatekeeper.val lock
               if (lastone)
-                  gatekeeper = 0;
+                  gatekeeper.val = 0;
 
               tmabort();
           }
@@ -146,9 +146,9 @@ namespace stm
       for (uint32_t i = 0; lastone != false && i < threadcount.val; ++i)
           lastone &= (threads[i]->status != COHORTS_CPENDING);
 
-      // If I'm the last one, release gatekeeper lock
+      // If I'm the last one, release gatekeeper.val lock
       if (lastone) {
-          gatekeeper = 0;
+          gatekeeper.val = 0;
       }
 
       // clean up
