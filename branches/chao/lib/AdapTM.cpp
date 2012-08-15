@@ -431,7 +431,7 @@ namespace stm
 			printf("cgl's tm_alloc\n");
 			cgl::tm_alloc(s);
 			break;
-/		case AdapTM:
+		case AdapTM:
 			printf("adaptm's tm_alloc\n");
 			stm::tm_alloc(s);
 			break;
@@ -844,7 +844,7 @@ namespace stm
 
 	      
               found = true;
-	      alg_index = i;
+	      alg_index = (TM_NAMES)i;
               break;
           }
       }
