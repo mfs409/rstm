@@ -335,27 +335,10 @@ namespace stm
   {
       timestamp.val = MAXIMUM(timestamp.val, timestamp_max.val);
   }
-
-  /**
-   *  OrecEagerRedo initialization
-   */
-  template<>
-  void initTM<OrecEagerRedo>()
-  {
-      // set the name
-      stms[OrecEagerRedo].name      = "OrecEagerRedo";
-
-      // set the pointers
-      stms[OrecEagerRedo].begin     = OrecEagerRedoBegin;
-      stms[OrecEagerRedo].commit    = OrecEagerRedoCommitRO;
-      stms[OrecEagerRedo].read      = OrecEagerRedoReadRO;
-      stms[OrecEagerRedo].write     = OrecEagerRedoWriteRO;
-      stms[OrecEagerRedo].rollback  = OrecEagerRedoRollback;
-      stms[OrecEagerRedo].irrevoc   = OrecEagerRedoIrrevoc;
-      stms[OrecEagerRedo].switcher  = OrecEagerRedoOnSwitchTo;
-      stms[OrecEagerRedo].privatization_safe = false;
-  }
 }
+
+DECLARE_SIMPLE_METHODS_FROM_NORMAL(OrecEagerRedo)
+REGISTER_FGADAPT_ALG(OrecEagerRedo, "OrecEagerRedo", false)
 
 #ifdef STM_ONESHOT_ALG_OrecEagerRedo
 DECLARE_AS_ONESHOT_NORMAL(OrecEagerRedo)

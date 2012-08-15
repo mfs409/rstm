@@ -244,27 +244,10 @@ namespace stm
       last_init.val = timestamp.val;
       last_complete.val = last_init.val;
   }
-
-  /**
-   *  RingSW initialization
-   */
-  template<>
-  void initTM<RingSW>()
-  {
-      // set the name
-      stms[RingSW].name      = "RingSW";
-
-      // set the pointers
-      stms[RingSW].begin     = RingSWBegin;
-      stms[RingSW].commit    = RingSWCommitRO;
-      stms[RingSW].read      = RingSWReadRO;
-      stms[RingSW].write     = RingSWWriteRO;
-      stms[RingSW].rollback  = RingSWRollback;
-      stms[RingSW].irrevoc   = RingSWIrrevoc;
-      stms[RingSW].switcher  = RingSWOnSwitchTo;
-      stms[RingSW].privatization_safe = true;
-  }
 }
+
+DECLARE_SIMPLE_METHODS_FROM_NORMAL(RingSW)
+REGISTER_FGADAPT_ALG(RingSW, "RingSW", true)
 
 #ifdef STM_ONESHOT_ALG_RingSW
 DECLARE_AS_ONESHOT_NORMAL(RingSW)

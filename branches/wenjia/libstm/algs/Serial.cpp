@@ -140,27 +140,9 @@ namespace stm
       // just drop the undo log and we're good
       tx->undo_log.reset();
   }
-
-  /**
-   *  Serial initialization
-   */
-  template<>
-  void initTM<Serial>()
-  {
-      // set the name
-      stms[Serial].name      = "Serial";
-
-      // set the pointers
-      stms[Serial].begin     = SerialBegin;
-      stms[Serial].commit    = SerialCommit;
-      stms[Serial].read      = SerialRead;
-      stms[Serial].write     = SerialWrite;
-      stms[Serial].rollback  = SerialRollback;
-      stms[Serial].irrevoc   = SerialIrrevoc;
-      stms[Serial].switcher  = SerialOnSwitchTo;
-      stms[Serial].privatization_safe = true;
-  }
 }
+
+REGISTER_REGULAR_ALG(Serial, "Serial", true)
 
 #ifdef STM_ONESHOT_ALG_Serial
 DECLARE_AS_ONESHOT_SIMPLE(Serial)

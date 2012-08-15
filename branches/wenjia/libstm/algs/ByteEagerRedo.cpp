@@ -269,27 +269,10 @@ namespace stm
    *  Switch to ByteEagerRedo:
    */
   void ByteEagerRedoOnSwitchTo() { }
-
-  /**
-   *  ByteEagerRedo initialization
-   */
-  template<>
-  void initTM<ByteEagerRedo>()
-  {
-      // set the name
-      stms[ByteEagerRedo].name      = "ByteEagerRedo";
-
-      // set the pointers
-      stms[ByteEagerRedo].begin     = ByteEagerRedoBegin;
-      stms[ByteEagerRedo].commit    = ByteEagerRedoCommitRO;
-      stms[ByteEagerRedo].read      = ByteEagerRedoReadRO;
-      stms[ByteEagerRedo].write     = ByteEagerRedoWriteRO;
-      stms[ByteEagerRedo].rollback  = ByteEagerRedoRollback;
-      stms[ByteEagerRedo].irrevoc   = ByteEagerRedoIrrevoc;
-      stms[ByteEagerRedo].switcher  = ByteEagerRedoOnSwitchTo;
-      stms[ByteEagerRedo].privatization_safe = true;
-  }
 }
+
+DECLARE_SIMPLE_METHODS_FROM_NORMAL(ByteEagerRedo)
+REGISTER_FGADAPT_ALG(ByteEagerRedo, "ByteEagerRedo", true)
 
 #ifdef STM_ONESHOT_ALG_ByteEagerRedo
 DECLARE_AS_ONESHOT_NORMAL(ByteEagerRedo)

@@ -553,27 +553,10 @@ namespace stm
   {
       timestamp.val = MAXIMUM(timestamp.val, timestamp_max.val);
   }
-
-  /**
-   *  OrecFair initialization
-   */
-  template<>
-  void initTM<OrecFair>()
-  {
-      // set the name
-      stms[OrecFair].name      = "OrecFair";
-
-      // set the pointers
-      stms[OrecFair].begin     = OrecFairBegin;
-      stms[OrecFair].commit    = OrecFairCommitRO;
-      stms[OrecFair].read      = OrecFairReadRO;
-      stms[OrecFair].write     = OrecFairWriteRO;
-      stms[OrecFair].rollback  = OrecFairRollback;
-      stms[OrecFair].irrevoc   = OrecFairIrrevoc;
-      stms[OrecFair].switcher  = OrecFairOnSwitchTo;
-      stms[OrecFair].privatization_safe = false;
-  }
 }
+
+DECLARE_SIMPLE_METHODS_FROM_NORMAL(OrecFair)
+REGISTER_FGADAPT_ALG(OrecFair, "OrecFair", false)
 
 #ifdef STM_ONESHOT_ALG_OrecFair
 DECLARE_AS_ONESHOT_NORMAL(OrecFair)

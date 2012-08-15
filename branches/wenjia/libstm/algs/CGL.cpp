@@ -108,25 +108,9 @@ namespace stm
       tx->begin_wait = tatas_acquire(&timestamp.val);
       tx->allocator.onTxBegin();
   }
-
-  /**
-   *  CGL initialization
-   */
-  template<>
-  void initTM<CGL>()
-  {
-      // set the name
-      stms[CGL].name      = "CGL";
-      stms[CGL].begin     = CGLBegin;
-      stms[CGL].commit    = CGLCommit;
-      stms[CGL].read      = CGLRead;
-      stms[CGL].write     = CGLWrite;
-      stms[CGL].rollback  = CGLRollback;
-      stms[CGL].irrevoc   = CGLIrrevoc;
-      stms[CGL].switcher  = CGLOnSwitchTo;
-      stms[CGL].privatization_safe = true;
-  }
 }
+
+REGISTER_REGULAR_ALG(CGL, "CGL", true)
 
 #ifdef STM_ONESHOT_ALG_CGL
 DECLARE_AS_ONESHOT_SIMPLE(CGL)

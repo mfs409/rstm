@@ -77,6 +77,7 @@ namespace stm
    *    locks
    */
   template <class CM>
+  TM_FASTCALL
   void
   OrecEagerGenericCommit(TX_LONE_PARAMETER)
   {
@@ -123,6 +124,7 @@ namespace stm
    *    Must check orec twice, and may need to validate
    */
   template <class CM>
+  TM_FASTCALL
   void*
   OrecEagerGenericRead(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
   {
@@ -169,6 +171,7 @@ namespace stm
    *    Lock the orec, log the old value, do the write
    */
   template <class CM>
+  TM_FASTCALL
   void
   OrecEagerGenericWrite(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
@@ -219,8 +222,7 @@ namespace stm
    *    Run the redo log, possibly bump timestamp
    */
   template <class CM>
-  void
-  OrecEagerGenericRollback(STM_ROLLBACK_SIG(tx, except, len))
+  void OrecEagerGenericRollback(STM_ROLLBACK_SIG(tx, except, len))
   {
       // common rollback code
       PreRollback(tx);

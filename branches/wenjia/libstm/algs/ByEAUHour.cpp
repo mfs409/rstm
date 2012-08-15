@@ -10,23 +10,8 @@
 
 #include "ByEAU.hpp"
 
-namespace stm
-{
-  template <>
-  void initTM<ByEAUHour>()
-  {
-      // set the name
-      stms[ByEAUHour].name      = "ByEAUHour";
-      stms[ByEAUHour].begin     = ByEAUGenericBegin<HourglassCM>;
-      stms[ByEAUHour].commit    = ByEAUGenericCommitRO<HourglassCM>;
-      stms[ByEAUHour].read      = ByEAUGenericReadRO<HourglassCM>;
-      stms[ByEAUHour].write     = ByEAUGenericWriteRO<HourglassCM>;
-      stms[ByEAUHour].rollback  = ByEAUGenericRollback<HourglassCM>;
-      stms[ByEAUHour].irrevoc   = ByEAUGenericIrrevoc<HourglassCM>;
-      stms[ByEAUHour].switcher  = ByEAUGenericOnSwitchTo<HourglassCM>;
-      stms[ByEAUHour].privatization_safe = true;
-  }
-}
+DECLARE_SIMPLE_METHODS_FROM_TEMPLATE(ByEAU, ByEAUHour, HourglassCM)
+REGISTER_TEMPLATE_ALG(ByEAU, ByEAUHour, "ByEAUHour", true, HourglassCM)
 
 #ifdef STM_ONESHOT_ALG_ByEAUHour
 DECLARE_AS_ONESHOT_NORMAL(ByEAUGeneric<HourglassCM>)

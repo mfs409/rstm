@@ -289,27 +289,10 @@ namespace stm
    */
   void BitLazyOnSwitchTo() {
   }
-
-  /**
-   *  BitLazy initialization
-   */
-  template<>
-  void initTM<BitLazy>()
-  {
-      // set the name
-      stms[BitLazy].name      = "BitLazy";
-
-      // set the pointers
-      stms[BitLazy].begin     = BitLazyBegin;
-      stms[BitLazy].commit    = BitLazyCommitRO;
-      stms[BitLazy].read      = BitLazyReadRO;
-      stms[BitLazy].write     = BitLazyWriteRO;
-      stms[BitLazy].rollback  = BitLazyRollback;
-      stms[BitLazy].irrevoc   = BitLazyIrrevoc;
-      stms[BitLazy].switcher  = BitLazyOnSwitchTo;
-      stms[BitLazy].privatization_safe = true;
-  }
 }
+
+DECLARE_SIMPLE_METHODS_FROM_NORMAL(BitLazy)
+REGISTER_FGADAPT_ALG(BitLazy, "BitLazy", true)
 
 #ifdef STM_ONESHOT_ALG_BitLazy
 DECLARE_AS_ONESHOT_NORMAL(BitLazy)

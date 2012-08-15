@@ -328,27 +328,11 @@ namespace stm
       last_complete.val = 0;
       inplace.val = 0;
   }
-
-  /**
-   *  CohortsEager initialization
-   */
-  template<>
-  void initTM<CohortsEager>()
-  {
-      // set the name
-      stms[CohortsEager].name      = "CohortsEager";
-      // set the pointers
-      stms[CohortsEager].begin     = CohortsEagerBegin;
-      stms[CohortsEager].commit    = CohortsEagerCommitRO;
-      stms[CohortsEager].read      = CohortsEagerReadRO;
-      stms[CohortsEager].write     = CohortsEagerWriteRO;
-      stms[CohortsEager].rollback  = CohortsEagerRollback;
-      stms[CohortsEager].irrevoc   = CohortsEagerIrrevoc;
-      stms[CohortsEager].switcher  = CohortsEagerOnSwitchTo;
-      stms[CohortsEager].privatization_safe = true;
-  }
 }
 
+
+DECLARE_SIMPLE_METHODS_FROM_TURBO(CohortsEager)
+REGISTER_FGADAPT_ALG(CohortsEager, "CohortsEager", true)
 
 #ifdef STM_ONESHOT_ALG_CohortsEager
 DECLARE_AS_ONESHOT_TURBO(CohortsEager)

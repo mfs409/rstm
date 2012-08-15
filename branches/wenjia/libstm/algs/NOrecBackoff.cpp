@@ -10,25 +10,8 @@
 
 #include "NOrec.hpp"
 
-namespace stm
-{
-  template <>
-  void initTM<NOrecBackoff>()
-  {
-      // set the name
-      stms[NOrecBackoff].name = "NOrecBackoff";
-
-      // set the pointers
-      stms[NOrecBackoff].begin     = NOrecGenericBegin<BackoffCM>;
-      stms[NOrecBackoff].commit    = NOrecGenericCommitRO<BackoffCM>;
-      stms[NOrecBackoff].read      = NOrecGenericReadRO<BackoffCM>;
-      stms[NOrecBackoff].write     = NOrecGenericWriteRO<BackoffCM>;
-      stms[NOrecBackoff].irrevoc   = NOrecGenericIrrevoc<BackoffCM>;
-      stms[NOrecBackoff].switcher  = NOrecGenericOnSwitchTo<BackoffCM>;
-      stms[NOrecBackoff].privatization_safe = true;
-      stms[NOrecBackoff].rollback  = NOrecGenericRollback<BackoffCM>;
-  }
-}
+DECLARE_SIMPLE_METHODS_FROM_TEMPLATE(NOrec, NOrecBackoff, BackoffCM)
+REGISTER_TEMPLATE_ALG(NOrec, NOrecBackoff, "NOrecBackoff", true, BackoffCM)
 
 #ifdef STM_ONESHOT_ALG_NOrecBackoff
 DECLARE_AS_ONESHOT_NORMAL(NOrecGeneric<BackoffCM>)

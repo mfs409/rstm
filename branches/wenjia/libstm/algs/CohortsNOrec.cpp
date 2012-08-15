@@ -223,27 +223,11 @@ namespace stm
   {
       last_complete.val = 0;
   }
-
-  /**
-   *  CohortsNOrec initialization
-   */
-  template<>
-  void initTM<CohortsNOrec>()
-  {
-      // set the name
-      stms[CohortsNOrec].name      = "CohortsNOrec";
-      // set the pointers
-      stms[CohortsNOrec].begin     = CohortsNOrecBegin;
-      stms[CohortsNOrec].commit    = CohortsNOrecCommitRO;
-      stms[CohortsNOrec].read      = CohortsNOrecReadRO;
-      stms[CohortsNOrec].write     = CohortsNOrecWriteRO;
-      stms[CohortsNOrec].rollback  = CohortsNOrecRollback;
-      stms[CohortsNOrec].irrevoc   = CohortsNOrecIrrevoc;
-      stms[CohortsNOrec].switcher  = CohortsNOrecOnSwitchTo;
-      stms[CohortsNOrec].privatization_safe = true;
-  }
 }
 
+
+DECLARE_SIMPLE_METHODS_FROM_NORMAL(CohortsNOrec)
+REGISTER_FGADAPT_ALG(CohortsNOrec, "CohortsNOrec", true)
 
 #ifdef STM_ONESHOT_ALG_CohortsNOrec
 DECLARE_AS_ONESHOT_NORMAL(CohortsNOrec)

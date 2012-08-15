@@ -59,6 +59,7 @@ namespace stm
    *    We just reset local fields and we're done
    */
   template <class CM>
+  TM_FASTCALL
   void
   OrecLazyGenericCommitRO(TX_LONE_PARAMETER)
   {
@@ -77,6 +78,7 @@ namespace stm
    *    increment the timestamp, and then release all locks.
    */
   template <class CM>
+  TM_FASTCALL
   void
   OrecLazyGenericCommitRW(TX_LONE_PARAMETER)
   {
@@ -136,6 +138,7 @@ namespace stm
    *    orec and return
    */
   template <class CM>
+  TM_FASTCALL
   void*
   OrecLazyGenericReadRO(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
   {
@@ -176,6 +179,7 @@ namespace stm
    *    Just like read-only context, but must check the write set first
    */
   template <class CM>
+  TM_FASTCALL
   void*
   OrecLazyGenericReadRW(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
   {
@@ -197,6 +201,7 @@ namespace stm
    *    Buffer the write, and switch to a writing context
    */
   template <class CM>
+  TM_FASTCALL
   void
   OrecLazyGenericWriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
@@ -212,6 +217,7 @@ namespace stm
    *    Just buffer the write
    */
   template <class CM>
+  TM_FASTCALL
   void
   OrecLazyGenericWriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
@@ -227,8 +233,7 @@ namespace stm
    *    operation), and then reset local lists.
    */
   template <class CM>
-  void
-  OrecLazyGenericRollback(STM_ROLLBACK_SIG(tx, except, len))
+  void OrecLazyGenericRollback(STM_ROLLBACK_SIG(tx, except, len))
   {
       PreRollback(tx);
 

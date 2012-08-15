@@ -278,27 +278,10 @@ namespace stm
       if (timestamp.val & 1)
           ++timestamp.val;
   }
-
-  /**
-   *  NOrecPrio initialization
-   */
-  template<>
-  void initTM<NOrecPrio>()
-  {
-      // set the name
-      stms[NOrecPrio].name      = "NOrecPrio";
-
-      // set the pointers
-      stms[NOrecPrio].begin    = NOrecPrioBegin;
-      stms[NOrecPrio].commit   = NOrecPrioCommitRO;
-      stms[NOrecPrio].read     = NOrecPrioReadRO;
-      stms[NOrecPrio].write    = NOrecPrioWriteRO;
-      stms[NOrecPrio].rollback = NOrecPrioRollback;
-      stms[NOrecPrio].irrevoc  = NOrecPrioIrrevoc;
-      stms[NOrecPrio].switcher = NOrecPrioOnSwitchTo;
-      stms[NOrecPrio].privatization_safe = true;
-  }
 }
+
+DECLARE_SIMPLE_METHODS_FROM_NORMAL(NOrecPrio)
+REGISTER_FGADAPT_ALG(NOrecPrio, "NOrecPrio", true)
 
 #ifdef STM_ONESHOT_ALG_NOrecPrio
 DECLARE_AS_ONESHOT_NORMAL(NOrecPrio)

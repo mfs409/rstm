@@ -10,26 +10,9 @@
 
 #include "OrecLazy.hpp"
 
-namespace stm
-{
-    template <>
-    void initTM<OrecLazyHB>()
-    {
-      // set the name
-      stms[OrecLazyHB].name      = "OrecLazyHB";
-
-      // set the pointers
-      stms[OrecLazyHB].begin     = OrecLazyGenericBegin<HourglassBackoffCM>;
-      stms[OrecLazyHB].commit    = OrecLazyGenericCommitRO<HourglassBackoffCM>;
-      stms[OrecLazyHB].rollback  = OrecLazyGenericRollback<HourglassBackoffCM>;
-      stms[OrecLazyHB].read      = OrecLazyGenericReadRO<HourglassBackoffCM>;
-      stms[OrecLazyHB].write     = OrecLazyGenericWriteRO<HourglassBackoffCM>;
-      stms[OrecLazyHB].irrevoc   = OrecLazyGenericIrrevoc<HourglassBackoffCM>;
-      stms[OrecLazyHB].switcher  = OrecLazyGenericOnSwitchTo<HourglassBackoffCM>;
-      stms[OrecLazyHB].privatization_safe = false;
-    }
-}
+DECLARE_SIMPLE_METHODS_FROM_TEMPLATE(OrecLazy, OrecLazyHB, HourglassBackoffCM)
+REGISTER_TEMPLATE_ALG(OrecLazy, OrecLazyHB, "OrecLazyHB", false, HourglassBackoffCM)
 
 #ifdef STM_ONESHOT_ALG_OrecLazyHB
-DECLARE_AS_ONESHOT_NORMAL(OrecLazyGeneric<HourglassBackoffCM>)
+DECLARE_AS_ONESHOT_NORMAL(OrecLazyGeneric<HourglassHourglassBackoffCM>)
 #endif

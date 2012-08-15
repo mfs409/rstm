@@ -61,6 +61,7 @@ namespace stm
    *  OrEAU commit (read-only):
    */
   template <class CM>
+  TM_FASTCALL
   void
   OrEAUGenericCommitRO(TX_LONE_PARAMETER)
   {
@@ -74,6 +75,7 @@ namespace stm
    *  OrEAU commit (writing context):
    */
   template <class CM>
+  TM_FASTCALL
   void
   OrEAUGenericCommitRW(TX_LONE_PARAMETER)
   {
@@ -111,6 +113,7 @@ namespace stm
    *  OrEAU read (read-only transaction)
    */
   template <class CM>
+  TM_FASTCALL
   void*
   OrEAUGenericReadRO(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
   {
@@ -159,6 +162,7 @@ namespace stm
    *  OrEAU read (writing transaction)
    */
   template <class CM>
+  TM_FASTCALL
   void*
   OrEAUGenericReadRW(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
   {
@@ -212,6 +216,7 @@ namespace stm
    *  OrEAU write (read-only context)
    */
   template <class CM>
+  TM_FASTCALL
   void
   OrEAUGenericWriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
@@ -260,6 +265,7 @@ namespace stm
    *  OrEAU write (writing context)
    */
   template <class CM>
+  TM_FASTCALL
   void
   OrEAUGenericWriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
@@ -314,8 +320,7 @@ namespace stm
    *  OrEAU unwinder:
    */
   template <class CM>
-  void
-  OrEAUGenericRollback(STM_ROLLBACK_SIG(tx, except, len))
+  void OrEAUGenericRollback(STM_ROLLBACK_SIG(tx, except, len))
   {
       PreRollback(tx);
       // run the undo log

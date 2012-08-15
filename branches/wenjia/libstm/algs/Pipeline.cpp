@@ -288,27 +288,10 @@ namespace stm
       for (uint32_t i = 0; i < threadcount.val; ++i)
           threads[i]->order = -1;
   }
-
-  /**
-   *  Pipeline initialization
-   */
-  template<>
-  void initTM<Pipeline>()
-  {
-      // set the name
-      stms[Pipeline].name      = "Pipeline";
-
-      // set the pointers
-      stms[Pipeline].begin     = PipelineBegin;
-      stms[Pipeline].commit    = PipelineCommitRO;
-      stms[Pipeline].read      = PipelineReadRO;
-      stms[Pipeline].write     = PipelineWriteRO;
-      stms[Pipeline].rollback  = PipelineRollback;
-      stms[Pipeline].irrevoc   = PipelineIrrevoc;
-      stms[Pipeline].switcher  = PipelineOnSwitchTo;
-      stms[Pipeline].privatization_safe = true;
-  }
 }
+
+DECLARE_SIMPLE_METHODS_FROM_NORMAL(Pipeline)
+REGISTER_FGADAPT_ALG(Pipeline, "Pipeline", true)
 
 #ifdef STM_ONESHOT_ALG_Pipeline
 DECLARE_AS_ONESHOT_NORMAL(Pipeline)

@@ -268,27 +268,10 @@ namespace stm
   {
       timestamp.val = MAXIMUM(timestamp.val, timestamp_max.val);
   }
-
-  /**
-   *  CohortsNoorder initialization
-   */
-  template<>
-  void initTM<CohortsNoorder>()
-  {
-      // set the name
-      stms[CohortsNoorder].name      = "CohortsNoorder";
-
-      // set the pointers
-      stms[CohortsNoorder].begin     = CohortsNoorderBegin;
-      stms[CohortsNoorder].commit    = CohortsNoorderCommitRO;
-      stms[CohortsNoorder].read      = CohortsNoorderReadRO;
-      stms[CohortsNoorder].write     = CohortsNoorderWriteRO;
-      stms[CohortsNoorder].rollback  = CohortsNoorderRollback;
-      stms[CohortsNoorder].irrevoc   = CohortsNoorderIrrevoc;
-      stms[CohortsNoorder].switcher  = CohortsNoorderOnSwitchTo;
-      stms[CohortsNoorder].privatization_safe = false;
-  }
 }
+
+DECLARE_SIMPLE_METHODS_FROM_NORMAL(CohortsNoorder)
+REGISTER_FGADAPT_ALG(CohortsNoorder, "CohortsNoorder", false)
 
 #ifdef STM_ONESHOT_ALG_CohortsNoorder
 DECLARE_AS_ONESHOT_NORMAL(CohortsNoorder)

@@ -371,27 +371,10 @@ namespace stm
       for (uint32_t i = 0; i < threadcount.val; ++i)
           threads[i]->order = -1;
   }
-
-  /**
-   *  CTokenTurboELA initialization
-   */
-  template<>
-  void initTM<CTokenTurboELA>()
-  {
-      // set the name
-      stms[CTokenTurboELA].name      = "CTokenTurboELA";
-
-      // set the pointers
-      stms[CTokenTurboELA].begin     = CTokenTurboELABegin;
-      stms[CTokenTurboELA].commit    = CTokenTurboELACommitRO;
-      stms[CTokenTurboELA].read      = CTokenTurboELAReadRO;
-      stms[CTokenTurboELA].write     = CTokenTurboELAWriteRO;
-      stms[CTokenTurboELA].rollback  = CTokenTurboELARollback;
-      stms[CTokenTurboELA].irrevoc   = CTokenTurboELAIrrevoc;
-      stms[CTokenTurboELA].switcher  = CTokenTurboELAOnSwitchTo;
-      stms[CTokenTurboELA].privatization_safe = true;
-  }
 }
+
+DECLARE_SIMPLE_METHODS_FROM_TURBO(CTokenTurboELA)
+REGISTER_FGADAPT_ALG(CTokenTurboELA, "CTokenTurboELA", true)
 
 #ifdef STM_ONESHOT_ALG_CTokenTurboELA
 DECLARE_AS_ONESHOT_TURBO(CTokenTurboELA)

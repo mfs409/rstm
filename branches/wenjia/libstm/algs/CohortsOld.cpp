@@ -394,27 +394,11 @@ namespace stm
       for (uint32_t i = 0; i < 9; i++)
           locks[i] = 0;
   }
-
-  /**
-   *  CohortsOld initialization
-   */
-  template<>
-  void initTM<CohortsOld>()
-  {
-      // set the name
-      stms[CohortsOld].name      = "CohortsOld";
-      // set the pointers
-      stms[CohortsOld].begin     = CohortsOldBegin;
-      stms[CohortsOld].commit    = CohortsOldCommitRO;
-      stms[CohortsOld].read      = CohortsOldReadRO;
-      stms[CohortsOld].write     = CohortsOldWriteRO;
-      stms[CohortsOld].rollback  = CohortsOldRollback;
-      stms[CohortsOld].irrevoc   = CohortsOldIrrevoc;
-      stms[CohortsOld].switcher  = CohortsOldOnSwitchTo;
-      stms[CohortsOld].privatization_safe = true;
-  }
 }
 
+
+DECLARE_SIMPLE_METHODS_FROM_NORMAL(CohortsOld)
+REGISTER_FGADAPT_ALG(CohortsOld, "CohortsOld", true)
 
 #ifdef STM_ONESHOT_ALG_CohortsOld
 DECLARE_AS_ONESHOT_NORMAL(CohortsOld)

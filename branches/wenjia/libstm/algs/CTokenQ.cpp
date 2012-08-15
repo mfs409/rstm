@@ -243,27 +243,11 @@ namespace stm
       last_complete.val = 0;
       timestamp.val = 0;
   }
-
-  /**
-   *  CTokenQ initialization
-   */
-  template<>
-  void initTM<CTokenQ>()
-  {
-      // set the name
-      stms[CTokenQ].name      = "CTokenQ";
-      // set the pointers
-      stms[CTokenQ].begin     = CTokenQBegin;
-      stms[CTokenQ].commit    = CTokenQCommitRO;
-      stms[CTokenQ].read      = CTokenQReadRO;
-      stms[CTokenQ].write     = CTokenQWriteRO;
-      stms[CTokenQ].rollback  = CTokenQRollback;
-      stms[CTokenQ].irrevoc   = CTokenQIrrevoc;
-      stms[CTokenQ].switcher  = CTokenQOnSwitchTo;
-      stms[CTokenQ].privatization_safe = true;
-  }
 }
 
+
+DECLARE_SIMPLE_METHODS_FROM_NORMAL(CTokenQ)
+REGISTER_FGADAPT_ALG(CTokenQ, "CTokenQ", true)
 
 #ifdef STM_ONESHOT_ALG_CTokenQ
 DECLARE_AS_ONESHOT_NORMAL(CTokenQ)

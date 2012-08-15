@@ -289,27 +289,10 @@ namespace stm
    *    need to do anything here.
    */
   void NanoELAAMD64OnSwitchTo() { }
-
-  /**
-   *  NanoELAAMD64 initialization
-   */
-  template<>
-  void initTM<NanoELAAMD64>()
-  {
-      // set the name
-      stms[NanoELAAMD64].name      = "NanoELAAMD64";
-
-      // set the pointers
-      stms[NanoELAAMD64].begin     = NanoELAAMD64Begin;
-      stms[NanoELAAMD64].commit    = NanoELAAMD64CommitRO;
-      stms[NanoELAAMD64].read      = NanoELAAMD64ReadRO;
-      stms[NanoELAAMD64].write     = NanoELAAMD64WriteRO;
-      stms[NanoELAAMD64].rollback  = NanoELAAMD64Rollback;
-      stms[NanoELAAMD64].irrevoc   = NanoELAAMD64Irrevoc;
-      stms[NanoELAAMD64].switcher  = NanoELAAMD64OnSwitchTo;
-      stms[NanoELAAMD64].privatization_safe = true;
-  }
 }
+
+DECLARE_SIMPLE_METHODS_FROM_NORMAL(NanoELAAMD64)
+REGISTER_FGADAPT_ALG(NanoELAAMD64, "NanoELAAMD64", true)
 
 #ifdef STM_ONESHOT_ALG_NanoELAAMD64
 DECLARE_AS_ONESHOT_NORMAL(NanoELAAMD64)

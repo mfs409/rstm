@@ -92,7 +92,7 @@ namespace stm
    *  code, and the linker will find the corresponding instantiation.
    */
   template <int I>
-  void initTM();
+  void registerTM();
 }
 
 #endif // REGISTRATION_HPP__

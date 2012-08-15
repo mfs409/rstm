@@ -10,25 +10,8 @@
 
 #include "NOrec.hpp"
 
-namespace stm
-{
-  template <>
-  void initTM<NOrecHour>()
-  {
-      // set the name
-      stms[NOrecHour].name = "NOrecHour";
-
-      // set the pointers
-      stms[NOrecHour].begin     = NOrecGenericBegin<HourglassCM>;
-      stms[NOrecHour].commit    = NOrecGenericCommitRO<HourglassCM>;
-      stms[NOrecHour].read      = NOrecGenericReadRO<HourglassCM>;
-      stms[NOrecHour].write     = NOrecGenericWriteRO<HourglassCM>;
-      stms[NOrecHour].irrevoc   = NOrecGenericIrrevoc<HourglassCM>;
-      stms[NOrecHour].switcher  = NOrecGenericOnSwitchTo<HourglassCM>;
-      stms[NOrecHour].privatization_safe = true;
-      stms[NOrecHour].rollback  = NOrecGenericRollback<HourglassCM>;
-  }
-}
+DECLARE_SIMPLE_METHODS_FROM_TEMPLATE(NOrec, NOrecHour, HourglassCM)
+REGISTER_TEMPLATE_ALG(NOrec, NOrecHour, "NOrecHour", true, HourglassCM)
 
 #ifdef STM_ONESHOT_ALG_NOrecHour
 DECLARE_AS_ONESHOT_NORMAL(NOrecGeneric<HourglassCM>)

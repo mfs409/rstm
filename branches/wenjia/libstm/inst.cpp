@@ -22,7 +22,7 @@
 
 namespace stm
 {
-#ifndef STM_ONESHOT_MODE
+#if !defined(STM_ONESHOT_MODE) || !defined(STM_FINEGRAINADAPT_OFF)
   void install_algorithm_local(int new_alg)
   {
       // set my read/write/commit pointers

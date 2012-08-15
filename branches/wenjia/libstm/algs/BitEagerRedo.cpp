@@ -290,27 +290,10 @@ namespace stm
    *    which should be all zeros.
    */
   void BitEagerRedoOnSwitchTo() { }
-
-  /**
-   *  BitEagerRedo initialization
-   */
-  template<>
-  void initTM<BitEagerRedo>()
-  {
-      // set the name
-      stms[BitEagerRedo].name      = "BitEagerRedo";
-
-      // set the pointers
-      stms[BitEagerRedo].begin     = BitEagerRedoBegin;
-      stms[BitEagerRedo].commit    = BitEagerRedoCommitRO;
-      stms[BitEagerRedo].read      = BitEagerRedoReadRO;
-      stms[BitEagerRedo].write     = BitEagerRedoWriteRO;
-      stms[BitEagerRedo].rollback  = BitEagerRedoRollback;
-      stms[BitEagerRedo].irrevoc   = BitEagerRedoIrrevoc;
-      stms[BitEagerRedo].switcher  = BitEagerRedoOnSwitchTo;
-      stms[BitEagerRedo].privatization_safe = true;
-  }
 }
+
+DECLARE_SIMPLE_METHODS_FROM_NORMAL(BitEagerRedo)
+REGISTER_FGADAPT_ALG(BitEagerRedo, "BitEagerRedo", true)
 
 #ifdef STM_ONESHOT_ALG_BitEagerRedo
 DECLARE_AS_ONESHOT_NORMAL(BitEagerRedo)

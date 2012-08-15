@@ -339,27 +339,10 @@ namespace stm
       timestamp.val = MAXIMUM(timestamp.val, timestamp_max.val);
       last_complete.val = timestamp.val;
   }
-
-  /**
-   *  CTokenTurbo initialization
-   */
-  template<>
-  void initTM<CTokenTurbo>()
-  {
-      // set the name
-      stms[CTokenTurbo].name      = "CTokenTurbo";
-
-      // set the pointers
-      stms[CTokenTurbo].begin     = CTokenTurboBegin;
-      stms[CTokenTurbo].commit    = CTokenTurboCommitRO;
-      stms[CTokenTurbo].read      = CTokenTurboReadRO;
-      stms[CTokenTurbo].write     = CTokenTurboWriteRO;
-      stms[CTokenTurbo].rollback  = CTokenTurboRollback;
-      stms[CTokenTurbo].irrevoc   = CTokenTurboIrrevoc;
-      stms[CTokenTurbo].switcher  = CTokenTurboOnSwitchTo;
-      stms[CTokenTurbo].privatization_safe = true;
-  }
 }
+
+DECLARE_SIMPLE_METHODS_FROM_TURBO(CTokenTurbo)
+REGISTER_FGADAPT_ALG(CTokenTurbo, "CTokenTurbo", true)
 
 #ifdef STM_ONESHOT_ALG_CTokenTurbo
 DECLARE_AS_ONESHOT_TURBO(CTokenTurbo)

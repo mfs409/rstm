@@ -375,27 +375,10 @@ namespace stm
       fakenode.next = NULL;
       q = &fakenode;
   }
-
-  /**
-   *  CTokenTurboQ initialization
-   */
-  template<>
-  void initTM<CTokenTurboQ>()
-  {
-      // set the name
-      stms[CTokenTurboQ].name      = "CTokenTurboQ";
-
-      // set the pointers
-      stms[CTokenTurboQ].begin     = CTokenTurboQBegin;
-      stms[CTokenTurboQ].commit    = CTokenTurboQCommitRO;
-      stms[CTokenTurboQ].read      = CTokenTurboQReadRO;
-      stms[CTokenTurboQ].write     = CTokenTurboQWriteRO;
-      stms[CTokenTurboQ].rollback  = CTokenTurboQRollback;
-      stms[CTokenTurboQ].irrevoc   = CTokenTurboQIrrevoc;
-      stms[CTokenTurboQ].switcher  = CTokenTurboQOnSwitchTo;
-      stms[CTokenTurboQ].privatization_safe = true;
-  }
 }
+
+DECLARE_SIMPLE_METHODS_FROM_TURBO(CTokenTurboQ)
+REGISTER_FGADAPT_ALG(CTokenTurboQ, "CTokenTurboQ", true)
 
 #ifdef STM_ONESHOT_ALG_CTokenTurboQ
 DECLARE_AS_ONESHOT_TURBO(CTokenTurboQ)

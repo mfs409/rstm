@@ -10,25 +10,8 @@
 
 #include "NOrec.hpp"
 
-namespace stm
-{
-  template <>
-  void initTM<NOrec>()
-  {
-      // set the name
-      stms[NOrec].name = "NOrec";
-
-      // set the pointers
-      stms[NOrec].begin     = NOrecGenericBegin<HyperAggressiveCM>;
-      stms[NOrec].commit    = NOrecGenericCommitRO<HyperAggressiveCM>;
-      stms[NOrec].read      = NOrecGenericReadRO<HyperAggressiveCM>;
-      stms[NOrec].write     = NOrecGenericWriteRO<HyperAggressiveCM>;
-      stms[NOrec].irrevoc   = NOrecGenericIrrevoc<HyperAggressiveCM>;
-      stms[NOrec].switcher  = NOrecGenericOnSwitchTo<HyperAggressiveCM>;
-      stms[NOrec].privatization_safe = true;
-      stms[NOrec].rollback  = NOrecGenericRollback<HyperAggressiveCM>;
-  }
-}
+DECLARE_SIMPLE_METHODS_FROM_TEMPLATE(NOrec, NOrec, HyperAggressiveCM)
+REGISTER_TEMPLATE_ALG(NOrec, NOrec, "NOrec", true, HyperAggressiveCM)
 
 #ifdef STM_ONESHOT_ALG_NOrec
 DECLARE_AS_ONESHOT_NORMAL(NOrecGeneric<HyperAggressiveCM>)

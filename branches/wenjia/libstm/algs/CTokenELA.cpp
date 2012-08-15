@@ -256,27 +256,10 @@ namespace stm
       for (uint32_t i = 0; i < threadcount.val; ++i)
           threads[i]->order = -1;
   }
-
-  /**
-   *  CTokenELA initialization
-   */
-  template<>
-  void initTM<CTokenELA>()
-  {
-      // set the name
-      stms[CTokenELA].name      = "CTokenELA";
-      // set the pointers
-      stms[CTokenELA].begin     = CTokenELABegin;
-      stms[CTokenELA].commit    = CTokenELACommitRO;
-      stms[CTokenELA].read      = CTokenELAReadRO;
-      stms[CTokenELA].write     = CTokenELAWriteRO;
-      stms[CTokenELA].rollback  = CTokenELARollback;
-      stms[CTokenELA].irrevoc   = CTokenELAIrrevoc;
-      stms[CTokenELA].switcher  = CTokenELAOnSwitchTo;
-      stms[CTokenELA].privatization_safe = true;
-  }
 }
 
+DECLARE_SIMPLE_METHODS_FROM_NORMAL(CTokenELA)
+REGISTER_FGADAPT_ALG(CTokenELA, "CTokenELA", true)
 
 #ifdef STM_ONESHOT_ALG_CTokenELA
 DECLARE_AS_ONESHOT_NORMAL(CTokenELA)

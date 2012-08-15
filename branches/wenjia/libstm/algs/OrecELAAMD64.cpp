@@ -299,25 +299,11 @@ namespace stm
   void OrecELAAMD64OnSwitchTo()
   {
   }
-
-  template <>
-  void initTM<OrecELAAMD64>()
-  {
-      // set the name
-      stms[OrecELAAMD64].name      = "OrecELAAMD64";
-
-      // set the pointers
-      stms[OrecELAAMD64].begin     = OrecELAAMD64Begin;
-      stms[OrecELAAMD64].commit    = OrecELAAMD64CommitRO;
-      stms[OrecELAAMD64].read      = OrecELAAMD64ReadRO;
-      stms[OrecELAAMD64].write     = OrecELAAMD64WriteRO;
-      stms[OrecELAAMD64].rollback  = OrecELAAMD64Rollback;
-      stms[OrecELAAMD64].irrevoc   = OrecELAAMD64Irrevoc;
-      stms[OrecELAAMD64].switcher  = OrecELAAMD64OnSwitchTo;
-      stms[OrecELAAMD64].privatization_safe = true;
-  }
 }
 
+
+DECLARE_SIMPLE_METHODS_FROM_NORMAL(OrecELAAMD64)
+REGISTER_FGADAPT_ALG(OrecELAAMD64, "OrecELAAMD64", true)
 
 #ifdef STM_ONESHOT_ALG_OrecELAAMD64
 DECLARE_AS_ONESHOT_NORMAL(OrecELAAMD64<HyperAggressiveCM>)

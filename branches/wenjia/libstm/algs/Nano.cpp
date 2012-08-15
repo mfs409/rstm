@@ -262,27 +262,10 @@ namespace stm
    */
   void NanoOnSwitchTo() {
   }
-
-  /**
-   *  Nano initialization
-   */
-  template<>
-  void initTM<Nano>()
-  {
-      // set the name
-      stms[Nano].name      = "Nano";
-
-      // set the pointers
-      stms[Nano].begin     = NanoBegin;
-      stms[Nano].commit    = NanoCommitRO;
-      stms[Nano].read      = NanoReadRO;
-      stms[Nano].write     = NanoWriteRO;
-      stms[Nano].rollback  = NanoRollback;
-      stms[Nano].irrevoc   = NanoIrrevoc;
-      stms[Nano].switcher  = NanoOnSwitchTo;
-      stms[Nano].privatization_safe = false;
-  }
 }
+
+DECLARE_SIMPLE_METHODS_FROM_NORMAL(Nano)
+REGISTER_FGADAPT_ALG(Nano, "Nano", false)
 
 #ifdef STM_ONESHOT_ALG_Nano
 DECLARE_AS_ONESHOT_NORMAL(Nano)

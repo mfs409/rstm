@@ -283,27 +283,11 @@ namespace stm
           threads[i]->status = COHORTS_COMMITTED;
       }
   }
-
-  /**
-   *  CohortsLazy initialization
-   */
-  template<>
-  void initTM<CohortsLazy>()
-  {
-      // set the name
-      stms[CohortsLazy].name      = "CohortsLazy";
-      // set the pointers
-      stms[CohortsLazy].begin     = CohortsLazyBegin;
-      stms[CohortsLazy].commit    = CohortsLazyCommitRO;
-      stms[CohortsLazy].read      = CohortsLazyReadRO;
-      stms[CohortsLazy].write     = CohortsLazyWriteRO;
-      stms[CohortsLazy].rollback  = CohortsLazyRollback;
-      stms[CohortsLazy].irrevoc   = CohortsLazyIrrevoc;
-      stms[CohortsLazy].switcher  = CohortsLazyOnSwitchTo;
-      stms[CohortsLazy].privatization_safe = true;
-  }
 }
 
+
+DECLARE_SIMPLE_METHODS_FROM_NORMAL(CohortsLazy)
+REGISTER_FGADAPT_ALG(CohortsLazy, "CohortsLazy", true)
 
 #ifdef STM_ONESHOT_ALG_CohortsLazy
 DECLARE_AS_ONESHOT_NORMAL(CohortsLazy)

@@ -10,23 +10,8 @@
 
 #include "ByEAU.hpp"
 
-namespace stm
-{
-  template<>
-  void initTM<ByEAUHA>()
-  {
-      // set the name
-      stms[ByEAUHA].name      = "ByEAUHA";
-      stms[ByEAUHA].begin     = ByEAUGenericBegin<HyperAggressiveCM>;
-      stms[ByEAUHA].commit    = ByEAUGenericCommitRO<HyperAggressiveCM>;
-      stms[ByEAUHA].read      = ByEAUGenericReadRO<HyperAggressiveCM>;
-      stms[ByEAUHA].write     = ByEAUGenericWriteRO<HyperAggressiveCM>;
-      stms[ByEAUHA].rollback  = ByEAUGenericRollback<HyperAggressiveCM>;
-      stms[ByEAUHA].irrevoc   = ByEAUGenericIrrevoc<HyperAggressiveCM>;
-      stms[ByEAUHA].switcher  = ByEAUGenericOnSwitchTo<HyperAggressiveCM>;
-      stms[ByEAUHA].privatization_safe = true;
-  }
-}
+DECLARE_SIMPLE_METHODS_FROM_TEMPLATE(ByEAU, ByEAUHA, HyperAggressiveCM)
+REGISTER_TEMPLATE_ALG(ByEAU, ByEAUHA, "ByEAUHA", true, HyperAggressiveCM)
 
 #ifdef STM_ONESHOT_ALG_ByEAUHA
 DECLARE_AS_ONESHOT_NORMAL(ByEAUGeneric<HyperAggressiveCM>)

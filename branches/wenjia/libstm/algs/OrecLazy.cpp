@@ -10,25 +10,8 @@
 
 #include "OrecLazy.hpp"
 
-namespace stm
-{
-    template <>
-    void initTM<OrecLazy>()
-    {
-      // set the name
-      stms[OrecLazy].name      = "OrecLazy";
-
-      // set the pointers
-      stms[OrecLazy].begin     = OrecLazyGenericBegin<HyperAggressiveCM>;
-      stms[OrecLazy].commit    = OrecLazyGenericCommitRO<HyperAggressiveCM>;
-      stms[OrecLazy].rollback  = OrecLazyGenericRollback<HyperAggressiveCM>;
-      stms[OrecLazy].read      = OrecLazyGenericReadRO<HyperAggressiveCM>;
-      stms[OrecLazy].write     = OrecLazyGenericWriteRO<HyperAggressiveCM>;
-      stms[OrecLazy].irrevoc   = OrecLazyGenericIrrevoc<HyperAggressiveCM>;
-      stms[OrecLazy].switcher  = OrecLazyGenericOnSwitchTo<HyperAggressiveCM>;
-      stms[OrecLazy].privatization_safe = false;
-    }
-}
+DECLARE_SIMPLE_METHODS_FROM_TEMPLATE(OrecLazy, OrecLazy, HyperAggressiveCM)
+REGISTER_TEMPLATE_ALG(OrecLazy, OrecLazy, "OrecLazy", false, HyperAggressiveCM)
 
 #ifdef STM_ONESHOT_ALG_OrecLazy
 DECLARE_AS_ONESHOT_NORMAL(OrecLazyGeneric<HyperAggressiveCM>)

@@ -10,23 +10,8 @@
 
 #include "ByEAU.hpp"
 
-namespace stm
-{
-  template <>
-  void initTM<ByEAUBackoff>()
-  {
-      // set the name
-      stms[ByEAUBackoff].name      = "ByEAUBackoff";
-      stms[ByEAUBackoff].begin     = ByEAUGenericBegin<BackoffCM>;
-      stms[ByEAUBackoff].commit    = ByEAUGenericCommitRO<BackoffCM>;
-      stms[ByEAUBackoff].read      = ByEAUGenericReadRO<BackoffCM>;
-      stms[ByEAUBackoff].write     = ByEAUGenericWriteRO<BackoffCM>;
-      stms[ByEAUBackoff].rollback  = ByEAUGenericRollback<BackoffCM>;
-      stms[ByEAUBackoff].irrevoc   = ByEAUGenericIrrevoc<BackoffCM>;
-      stms[ByEAUBackoff].switcher  = ByEAUGenericOnSwitchTo<BackoffCM>;
-      stms[ByEAUBackoff].privatization_safe = true;
-  }
-}
+DECLARE_SIMPLE_METHODS_FROM_TEMPLATE(ByEAU, ByEAUBackoff, BackoffCM)
+REGISTER_TEMPLATE_ALG(ByEAU, ByEAUBackoff, "ByEAUBackoff", true, BackoffCM)
 
 #ifdef STM_ONESHOT_ALG_ByEAUBackoff
 DECLARE_AS_ONESHOT_NORMAL(ByEAUGeneric<BackoffCM>)
