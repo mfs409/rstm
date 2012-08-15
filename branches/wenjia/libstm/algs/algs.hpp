@@ -32,6 +32,8 @@
 #define COHORTS_CPENDING  2
 #define COHORTS_NOTDONE   3
 #define COHORTS_DONE      4
+#define COHORTS_TURBO     5
+#define COHORTS_NOTURBO   6
 const uintptr_t VALIDATION_FAILED = 1;
 
 namespace stm

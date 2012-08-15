@@ -33,7 +33,7 @@ namespace stm
   TM_FASTCALL void CohortsEagerCommitRO(TX_LONE_PARAMETER);
   TM_FASTCALL void CohortsEagerCommitRW(TX_LONE_PARAMETER);
   TM_FASTCALL void CohortsEagerCommitTurbo(TX_LONE_PARAMETER);
-  NOINLINE void CohortsEagerValidate(TxThread* tx);
+  TM_FASTCALL void CohortsEagerValidate(TxThread* tx);
 
   /**
    *  CohortsEager begin:

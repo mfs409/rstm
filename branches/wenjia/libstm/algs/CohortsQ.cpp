@@ -9,7 +9,7 @@
  */
 
 /**
- *  Cohorts3 Implementation
+ *  CohortsQ Implementation
  *
  *  CohortsNOrec with a queue to handle order
  */
@@ -19,22 +19,22 @@
 
 namespace stm
 {
-  NOINLINE bool Cohorts3Validate(TxThread* tx);
-  TM_FASTCALL void* Cohorts3ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
-  TM_FASTCALL void* Cohorts3ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
-  TM_FASTCALL void Cohorts3WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-  TM_FASTCALL void Cohorts3WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-  TM_FASTCALL void Cohorts3CommitRO(TX_LONE_PARAMETER);
-  TM_FASTCALL void Cohorts3CommitRW(TX_LONE_PARAMETER);
+  TM_FASTCALL bool CohortsQValidate(TxThread* tx);
+  TM_FASTCALL void* CohortsQReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
+  TM_FASTCALL void* CohortsQReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
+  TM_FASTCALL void CohortsQWriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+  TM_FASTCALL void CohortsQWriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+  TM_FASTCALL void CohortsQCommitRO(TX_LONE_PARAMETER);
+  TM_FASTCALL void CohortsQCommitRW(TX_LONE_PARAMETER);
 
   /**
-   *  Cohorts3 begin:
-   *  Cohorts3 has a strict policy for transactions to begin. At first,
+   *  CohortsQ begin:
+   *  CohortsQ has a strict policy for transactions to begin. At first,
    *  every tx can start, until one of the tx is ready to commit. Then no
    *  tx is allowed to start until all the transactions finishes their
    *  commits.
    */
-  void Cohorts3Begin(TX_LONE_PARAMETER)
+  void CohortsQBegin(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       tx->allocator.onTxBegin();
@@ -57,10 +57,10 @@ namespace stm
   }
 
   /**
-   *  Cohorts3 commit (read-only):
+   *  CohortsQ commit (read-only):
    */
   void
-  Cohorts3CommitRO(TX_LONE_PARAMETER)
+  CohortsQCommitRO(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // decrease total number of tx started
@@ -72,13 +72,13 @@ namespace stm
   }
 
   /**
-   *  Cohorts3 commit (writing context):
+   *  CohortsQ commit (writing context):
    *
    *  RW commit is operated in turns. Transactions will be allowed to commit
    *  in an order which is given at the beginning of commit.
    */
   void
-  Cohorts3CommitRW(TX_LONE_PARAMETER)
+  CohortsQCommitRW(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // add myself to the queue
@@ -94,7 +94,7 @@ namespace stm
           // wait for my turn
           while (tx->turn.next->val != COHORTS_DONE);
           // validate reads
-          if (!Cohorts3Validate(tx)) {
+          if (!CohortsQValidate(tx)) {
               // mark self done
               tx->turn.val = COHORTS_DONE;
               // reset q if last one
@@ -122,14 +122,14 @@ namespace stm
       tx->vlist.reset();
       tx->writes.reset();
       OnRWCommit(tx);
-      ResetToRO(tx, Cohorts3ReadRO, Cohorts3WriteRO, Cohorts3CommitRO);
+      ResetToRO(tx, CohortsQReadRO, CohortsQWriteRO, CohortsQCommitRO);
   }
 
   /**
-   *  Cohorts3 read (read-only transaction)
+   *  CohortsQ read (read-only transaction)
    */
   void*
-  Cohorts3ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
+  CohortsQReadRO(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
   {
       TX_GET_TX_INTERNAL;
       void * tmp = *addr;
@@ -138,10 +138,10 @@ namespace stm
   }
 
   /**
-   *  Cohorts3 read (writing transaction)
+   *  CohortsQ read (writing transaction)
    */
   void*
-  Cohorts3ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
+  CohortsQReadRW(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
   {
       TX_GET_TX_INTERNAL;
       // check the log for a RAW hazard, we expect to miss
@@ -156,22 +156,22 @@ namespace stm
   }
 
   /**
-   *  Cohorts3 write (read-only context): for first write
+   *  CohortsQ write (read-only context): for first write
    */
   void
-  Cohorts3WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  CohortsQWriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // record the new value in a redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
-      OnFirstWrite(tx, Cohorts3ReadRW, Cohorts3WriteRW, Cohorts3CommitRW);
+      OnFirstWrite(tx, CohortsQReadRW, CohortsQWriteRW, CohortsQCommitRW);
   }
 
   /**
-   *  Cohorts3 write (writing context)
+   *  CohortsQ write (writing context)
    */
   void
-  Cohorts3WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  CohortsQWriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // record the new value in a redo log
@@ -179,10 +179,10 @@ namespace stm
   }
 
   /**
-   *  Cohorts3 unwinder:
+   *  CohortsQ unwinder:
    */
   void
-  Cohorts3Rollback(STM_ROLLBACK_SIG(tx, except, len))
+  CohortsQRollback(STM_ROLLBACK_SIG(tx, except, len))
   {
       PreRollback(tx);
 
@@ -199,20 +199,20 @@ namespace stm
   }
 
   /**
-   *  Cohorts3 in-flight irrevocability:
+   *  CohortsQ in-flight irrevocability:
    */
   bool
-  Cohorts3Irrevoc(TxThread*)
+  CohortsQIrrevoc(TxThread*)
   {
-      UNRECOVERABLE("Cohorts3 Irrevocability not yet supported");
+      UNRECOVERABLE("CohortsQ Irrevocability not yet supported");
       return false;
   }
 
   /**
-   *  Cohorts3 validation for commit
+   *  CohortsQ validation for commit
    */
   bool
-  Cohorts3Validate(TxThread* tx)
+  CohortsQValidate(TxThread* tx)
   {
       foreach (ValueList, i, tx->vlist) {
           bool valid = STM_LOG_VALUE_IS_VALID(i, tx);
@@ -223,7 +223,7 @@ namespace stm
 
 
   /**
-   *  Switch to Cohorts3:
+   *  Switch to CohortsQ:
    *
    *    The timestamp must be >= the maximum value of any orec.  Some algs use
    *    timestamp as a zero-one mutex.  If they do, then they back up the
@@ -231,30 +231,30 @@ namespace stm
    *
    */
   void
-  Cohorts3OnSwitchTo()
+  CohortsQOnSwitchTo()
   {
   }
 
   /**
-   *  Cohorts3 initialization
+   *  CohortsQ initialization
    */
   template<>
-  void initTM<Cohorts3>()
+  void initTM<CohortsQ>()
   {
       // set the name
-      stms[Cohorts3].name      = "Cohorts3";
+      stms[CohortsQ].name      = "CohortsQ";
       // set the pointers
-      stms[Cohorts3].begin     = Cohorts3Begin;
-      stms[Cohorts3].commit    = Cohorts3CommitRO;
-      stms[Cohorts3].read      = Cohorts3ReadRO;
-      stms[Cohorts3].write     = Cohorts3WriteRO;
-      stms[Cohorts3].rollback  = Cohorts3Rollback;
-      stms[Cohorts3].irrevoc   = Cohorts3Irrevoc;
-      stms[Cohorts3].switcher  = Cohorts3OnSwitchTo;
-      stms[Cohorts3].privatization_safe = true;
+      stms[CohortsQ].begin     = CohortsQBegin;
+      stms[CohortsQ].commit    = CohortsQCommitRO;
+      stms[CohortsQ].read      = CohortsQReadRO;
+      stms[CohortsQ].write     = CohortsQWriteRO;
+      stms[CohortsQ].rollback  = CohortsQRollback;
+      stms[CohortsQ].irrevoc   = CohortsQIrrevoc;
+      stms[CohortsQ].switcher  = CohortsQOnSwitchTo;
+      stms[CohortsQ].privatization_safe = true;
   }
 }
 
-#ifdef STM_ONESHOT_ALG_Cohorts3
-DECLARE_AS_ONESHOT_NORMAL(Cohorts3)
+#ifdef STM_ONESHOT_ALG_CohortsQ
+DECLARE_AS_ONESHOT_NORMAL(CohortsQ)
 #endif

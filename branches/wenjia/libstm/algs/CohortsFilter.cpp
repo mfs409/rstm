@@ -29,7 +29,7 @@
 
 namespace stm
 {
-  NOINLINE bool CohortsFilterValidate(TxThread* tx);
+  TM_FASTCALL bool CohortsFilterValidate(TxThread* tx);
   TM_FASTCALL void* CohortsFilterReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
   TM_FASTCALL void* CohortsFilterReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
   TM_FASTCALL void CohortsFilterWriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));

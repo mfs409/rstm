@@ -25,10 +25,7 @@
 
 namespace stm
 {
-  // [mfs] need padding?
-  volatile uint32_t cohort_gate = 0;
-
-  NOINLINE bool Cohorts2Validate(TxThread* tx);
+  TM_FASTCALL bool Cohorts2Validate(TxThread* tx);
   TM_FASTCALL void* Cohorts2ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
   TM_FASTCALL void* Cohorts2ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
   TM_FASTCALL void Cohorts2WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
@@ -49,9 +46,9 @@ namespace stm
       tx->allocator.onTxBegin();
 
       while (true) {
-          uint32_t c = cohort_gate;
+          uint32_t c = gatekeeper.val;
           if (!(c & 0x0000FF00)) {
-              if (bcas32(&cohort_gate, c, c + 1))
+              if (bcas32(&gatekeeper.val, c, c + 1))
                   break;
           }
       }
@@ -68,7 +65,7 @@ namespace stm
   {
       TX_GET_TX_INTERNAL;
       // decrease total number of tx started
-      faa32(&cohort_gate, -1);
+      faa32(&gatekeeper.val, -1);
 
       // clean up
       tx->r_orecs.reset();
@@ -86,7 +83,7 @@ namespace stm
   {
       TX_GET_TX_INTERNAL;
       // increment # ready, decrement # started
-      uint32_t old = faa32(&cohort_gate, 255);
+      uint32_t old = faa32(&gatekeeper.val, 255);
 
       // compute my unique order
       // ts_cache stores order of last tx in last cohort
@@ -103,7 +100,7 @@ namespace stm
               // mark self as done
               last_complete.val = tx->order;
               // decrement #
-              faa32(&cohort_gate, -256);
+              faa32(&gatekeeper.val, -256);
               tmabort();
           }
 
@@ -118,7 +115,7 @@ namespace stm
           }
 
       // Wait until all tx are ready to commit
-      while (cohort_gate & 0x000000FF);
+      while (gatekeeper.val & 0x000000FF);
 
       // do write back
       foreach (WriteSet, i, tx->writes)
@@ -128,7 +125,7 @@ namespace stm
       last_complete.val = tx->order;
 
       // decrement # pending
-      faa32(&cohort_gate, -256);
+      faa32(&gatekeeper.val, -256);
 
       // commit all frees, reset all lists
       tx->r_orecs.reset();
@@ -247,6 +244,7 @@ namespace stm
   {
       timestamp.val = MAXIMUM(timestamp.val, timestamp_max.val);
       last_complete.val = 0;
+      gatekeeper.val = 0;
   }
 
   /**

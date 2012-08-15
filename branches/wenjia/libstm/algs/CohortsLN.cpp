@@ -23,9 +23,7 @@
 
 namespace stm
 {
-  // [mfs] Migrate this?
-  const uintptr_t VALIDATION_FAILED = 1;
-
+  // seems inlined version is faster..
   NOINLINE uintptr_t CohortsLNValidate(TxThread* tx);
   TM_FASTCALL void* CohortsLNReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
   TM_FASTCALL void* CohortsLNReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));

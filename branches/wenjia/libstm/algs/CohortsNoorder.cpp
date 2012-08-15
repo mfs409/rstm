@@ -38,7 +38,6 @@ namespace stm
   TM_FASTCALL void CohortsNoorderCommitRO(TX_LONE_PARAMETER);
   TM_FASTCALL void CohortsNoorderCommitRW(TX_LONE_PARAMETER);
   NOINLINE void CohortsNoorderValidate(TxThread*);
-  NOINLINE void CohortsNoorderTxAbortWrapper(TxThread* tx);
 
   /**
    *  CohortsNoorder begin:
@@ -79,9 +78,9 @@ namespace stm
       // decrease total number of tx
       faaptr(&started.val, -1);
 
-    // read-only, so just reset lists
-    tx->r_orecs.reset();
-    OnROCommit(tx);
+      // read-only, so just reset lists
+      tx->r_orecs.reset();
+      OnROCommit(tx);
   }
 
   /**
@@ -104,15 +103,22 @@ namespace stm
           // lock all orecs, unless already locked
           if (ivt <= tx->start_time) {
               // abort if cannot acquire
-              if (!bcasptr(&o->v.all, ivt, tx->my_lock.all))
-                  CohortsNoorderTxAbortWrapper(tx);
+              if (!bcasptr(&o->v.all, ivt, tx->my_lock.all)) {
+                  // Increase total number of committed tx
+                  faiptr(&committed.val);
+                  // abort
+                  tmabort();
+              }
               // save old version to o->p, remember that we hold the lock
               o->p = ivt;
               tx->locks.insert(o);
           }
           // else if we don't hold the lock abort
           else if (ivt != tx->my_lock.all) {
-              CohortsNoorderTxAbortWrapper(tx);
+              // Increase total number of committed tx
+              faiptr(&committed.val);
+              // abort
+              tmabort();
           }
       }
 
@@ -241,22 +247,13 @@ namespace stm
       foreach (OrecList, i, tx->r_orecs) {
           uintptr_t ivt = (*i)->v.all;
           // if unlocked and newer than start time, abort
-          if ((ivt > tx->start_time) && (ivt != tx->my_lock.all))
-              CohortsNoorderTxAbortWrapper(tx);
+          if ((ivt > tx->start_time) && (ivt != tx->my_lock.all)) {
+              // Increase total number of committed tx
+              faiptr(&committed.val);
+              // abort
+              tmabort();
+          }
       }
-  }
-
-  /**
-   *   Cohorts Tx Abort Wrapper
-   */
-  void
-  CohortsNoorderTxAbortWrapper(TxThread*)
-  {
-      // Increase total number of committed tx
-      faiptr(&committed.val);
-
-      // abort
-      tmabort();
   }
 
   /**

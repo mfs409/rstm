@@ -20,7 +20,7 @@
 
 namespace stm
 {
-  NOINLINE bool CohortsENQValidate(TxThread* tx);
+  TM_FASTCALL bool CohortsENQValidate(TxThread* tx);
   TM_FASTCALL void* CohortsENQReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
   TM_FASTCALL void* CohortsENQReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
   TM_FASTCALL void* CohortsENQReadTurbo(TX_FIRST_PARAMETER STM_READ_SIG(,));

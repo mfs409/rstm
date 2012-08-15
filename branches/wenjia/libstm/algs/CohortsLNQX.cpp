@@ -11,15 +11,17 @@
 /**
  *  CohortsLNQX Implementation
  *
- *  CohortsLazy with inplace write when tx is the last one in a cohort.
- *  Early Seal CohortsLNI2Q
+ *  CohortsLazy Norec Queue
+ *  Early Seal
+ *
  */
 #include "algs.hpp"
 #include "../Diagnostics.hpp"
 
 namespace stm
 {
-  NOINLINE bool CohortsLNQXValidate(TxThread* tx);
+  // inline or not should depends on configurations
+  TM_FASTCALL bool CohortsLNQXValidate(TxThread* tx);
   TM_FASTCALL void* CohortsLNQXReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
   TM_FASTCALL void* CohortsLNQXReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
   TM_FASTCALL void CohortsLNQXWriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));

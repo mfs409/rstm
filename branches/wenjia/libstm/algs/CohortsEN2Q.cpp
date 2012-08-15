@@ -19,13 +19,9 @@
 #include "algs.hpp"
 #include "../Diagnostics.hpp"
 
-// [mfs] Can we move these out?
-#define TURBO   5
-#define RESET   0
-
 namespace stm
 {
-  NOINLINE bool CohortsEN2QValidate(TxThread* tx);
+  TM_FASTCALL bool CohortsEN2QValidate(TxThread* tx);
   void Begin(TX_LONE_PARAMETER);
   TM_FASTCALL void* CohortsEN2QReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
   TM_FASTCALL void* CohortsEN2QReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
@@ -62,7 +58,7 @@ namespace stm
       }
 
       // reset tx->status;
-      tx->status = RESET;
+      tx->status = COHORTS_NOTURBO;
 
       // reset local turn val
       tx->turn.val = COHORTS_NOTDONE;
@@ -121,7 +117,7 @@ namespace stm
       // If I'm the next to the last, notify the last txn to go turbo
       if (temp == 1)
           for (uint32_t i = 0; i < threadcount.val; i++)
-              threads[i]->status = TURBO;
+              threads[i]->status = COHORTS_TURBO;
 
       // Wait for my turn
       if (tx->turn.next != NULL)
@@ -174,7 +170,7 @@ namespace stm
       void *tmp = *addr;
       STM_LOG_VALUE(tx, addr, tmp, mask);
       // test if I can go turbo
-      if (tx->status == TURBO)
+      if (tx->status == COHORTS_TURBO)
           GoTurbo(tx, CohortsEN2QReadTurbo, CohortsEN2QWriteTurbo, CohortsEN2QCommitTurbo);
       return tmp;
   }
@@ -195,7 +191,7 @@ namespace stm
       STM_LOG_VALUE(tx, addr, tmp, mask);
       REDO_RAW_CLEANUP(tmp, found, log, mask);
       // test if I can go turbo
-      if (tx->status == TURBO) {
+      if (tx->status == COHORTS_TURBO) {
           tx->writes.writeback();
           GoTurbo(tx, CohortsEN2QReadTurbo, CohortsEN2QWriteTurbo, CohortsEN2QCommitTurbo);
       }
@@ -209,7 +205,7 @@ namespace stm
   CohortsEN2QWriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
-      if (tx->status == TURBO) {
+      if (tx->status == COHORTS_TURBO) {
           // in place write
           *addr = val;
           // go turbo mode
@@ -236,7 +232,7 @@ namespace stm
   CohortsEN2QWriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
-      if (tx->status == TURBO) {
+      if (tx->status == COHORTS_TURBO) {
           // write previous write set back
           foreach (WriteSet, i, tx->writes)
               *i->addr = i->val;

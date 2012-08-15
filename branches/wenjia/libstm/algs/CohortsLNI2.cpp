@@ -18,10 +18,6 @@
 
 namespace stm
 {
-  // [mfs] These should each probably be a pad_word_t, to keep them on
-  //       separate cache lines
-  volatile uintptr_t counter = 0;
-
   TM_FASTCALL void* CohortsLNI2ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
   TM_FASTCALL void* CohortsLNI2ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
   TM_FASTCALL void CohortsLNI2WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
@@ -32,7 +28,7 @@ namespace stm
   TM_FASTCALL void CohortsLNI2CommitTurbo(TX_LONE_PARAMETER);
   TM_FASTCALL void* CohortsLNI2ReadTurbo(TX_FIRST_PARAMETER STM_READ_SIG(,));
   TM_FASTCALL void CohortsLNI2WriteTurbo(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-  NOINLINE void CohortsLNI2Validate(TxThread* tx);
+  TM_FASTCALL void CohortsLNI2Validate(TxThread* tx);
 
   /**
    *  CohortsLNI2 begin:
@@ -63,11 +59,6 @@ namespace stm
           tx->status = COHORTS_COMMITTED;
           goto S1;
       }
-
-      // get time of last finished txn
-      //
-      // [mfs] this appears to be an unused variable
-      tx->ts_cache = last_complete.val;
   }
 
   /**
@@ -94,9 +85,6 @@ namespace stm
   {
       TX_GET_TX_INTERNAL;
 
-      // [mfs] it looks like we aren't using the queue technique... should
-      //       we?  IIRC, the queue replaces the gatekeeper field.
-
       // Mark self pending to commit
       tx->status = COHORTS_CPENDING;
 
@@ -122,7 +110,7 @@ namespace stm
       // I must be the last one, so release gatekeeper lock
       last_order.val = tx->order + 1;
       gatekeeper.val = 0;
-      counter = 0;
+      cohortcounter.val = 0;
 
       // Reset inplace.val write flag
       inplace.val = 0;
@@ -153,20 +141,17 @@ namespace stm
       uint32_t left = 1;
       while (left != 0) {
           left = 0;
-          // [mfs] simplify with &1 instead of ==?
           for (uint32_t i = 0; i < threadcount.val; ++i)
-              left += (threads[i]->status == COHORTS_STARTED);
+              left += (threads[i]->status & 1);
           // if only one tx left, set global flag, inplace.val allowed
           //
           // [mfs] this is dangerous: it is possible for me to write 1, and
           //       then you to write 0 if you finish the loop first, but
           //       delay before reaching this line
-          counter = (left == 1);
+          cohortcounter.val = (left == 1);
       }
 
       // wait for my turn to validate and do writeback
-      //
-      // [mfs] I think a queue would be faster here...
       while (last_complete.val != (uintptr_t)(tx->order - 1));
 
       // If I'm the first one in this cohort and no inplace.val write happened,
@@ -197,7 +182,7 @@ namespace stm
       if (lastone) {
           last_order.val = tx->order + 1;
           gatekeeper.val = 0;
-          counter = 0;
+          cohortcounter.val = 0;
       }
 
       // commit all frees, reset all lists
@@ -267,11 +252,9 @@ namespace stm
       // will require some sort of special attention.  But the tradeoff is more
       // potential to switch (not just first write), and without so much
       // redundant checking.
-      if (counter == 1) {
+      if (cohortcounter.val == 1) {
           // set in place write flag
-          //
-          // [mfs] I don't see why this is atomic
-          atomicswapptr(&inplace.val, 1);
+          inplace.val = 1;
           // write inplace.val
           //
           // [mfs] ultimately this should use a macro that employs the mask
@@ -304,11 +287,9 @@ namespace stm
       // check if I can go turbo
       //
       // [mfs] this should be marked unlikely
-      if (counter == 1) {
+      if (cohortcounter.val == 1) {
           // setup inplace write flag
-          //
-          // [mfs] again, not sure why this is atomic
-          atomicswapptr(&inplace.val, 1);
+          inplace.val = 1;
           // write previous write set back
           //
           // [mfs] I changed this to use the writeback(TX_LONE_PARAMETER) method, but it might
@@ -373,10 +354,7 @@ namespace stm
 
               // Mark self as done
               last_complete.val = tx->order;
-              // [mfs] The next WBR is commented out... why?  It seems
-              //       important!
-              //
-              // WBR;
+              WBR;
 
               // Am I the last one?
               bool l = true;
@@ -387,7 +365,7 @@ namespace stm
               if (l) {
                   last_order.val = tx->order + 1;
                   gatekeeper.val = 0;
-                  counter = 0;
+                  cohortcounter.val = 0;
               }
               tmabort();
           }

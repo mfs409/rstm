@@ -16,7 +16,7 @@
 ALGNAMES = CGL BitEager BitEagerRedo BitLazy ByEAR ByEAUHA ByEAUBackoff	      \
            ByEAUHour ByEAUFCM ByteEager ByteEagerRedo ByteLazy CTokenQ CToken \
            CTokenELA CTokenNOrec CTokenTurbo CTokenTurboELA CTokenTurboQ      \
-           Cohorts Cohorts2 Cohorts3 CohortsEF CohortsEN CohortsEN2	      \
+           Cohorts Cohorts2 CohortsQ CohortsEF CohortsEN CohortsEN2	      \
            CohortsEN2Q CohortsENQ CohortsEager CohortsFilter CohortsLF	      \
            CohortsLI CohortsLN CohortsLNI CohortsLazy CohortsNOrec	      \
            CohortsNoorder CohortsOld Fastlane1 Fastlane2 FastlaneSwitch LLT   \

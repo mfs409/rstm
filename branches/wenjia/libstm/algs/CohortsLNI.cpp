@@ -27,7 +27,7 @@ namespace stm
   TM_FASTCALL void CohortsLNICommitTurbo(TX_LONE_PARAMETER);
   TM_FASTCALL void* CohortsLNIReadTurbo(TX_FIRST_PARAMETER STM_READ_SIG(,));
   TM_FASTCALL void CohortsLNIWriteTurbo(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-  NOINLINE void CohortsLNIValidate(TxThread* tx);
+  TM_FASTCALL void CohortsLNIValidate(TxThread* tx);
 
   /**
    *  CohortsLNI begin:
