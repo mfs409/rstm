@@ -279,7 +279,7 @@ namespace stm
   /**
    *  CohortsLNIQX unwinder:
    */
-  void CohortsLNIQXrollback(STM_ROLLBACK_SIG(tx, except, len))
+  void CohortsLNIQXRollback(STM_ROLLBACK_SIG(tx, except, len))
   {
       PreRollback(tx);
 
@@ -298,7 +298,7 @@ namespace stm
   /**
    *  CohortsLNIQX in-flight irrevocability:
    */
-  bool CohortsLNIQXirrevoc(TxThread*)
+  bool CohortsLNIQXIrrevoc(TxThread*)
   {
       UNRECOVERABLE("CohortsLNIQX Irrevocability not yet supported");
       return false;
@@ -320,7 +320,7 @@ namespace stm
   /**
    *  Switch to CohortsLNIQX:
    */
-  void CohortsLNIQXonSwitchTo()
+  void CohortsLNIQXOnSwitchTo()
   {
       // when switching algs, mark all tx committed status
       for (uint32_t i = 0; i < threadcount.val; ++i) {
