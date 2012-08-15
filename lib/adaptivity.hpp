@@ -82,10 +82,11 @@ namespace stm
     {                                                                   \
         template <> void initTM<ALG>()                                  \
         {                                                               \
-            registerTMAlg(ALG, NS::tm_begin, NS::tm_end, NS::tm_read,   \
+/*            registerTMAlg(ALG, NS::tm_begin, NS::tm_end, NS::tm_read, \
                           NS::tm_write, NS::rollback,                   \
                           NS::tm_getalgname, NS::tm_alloc,              \
-                          NS::tm_free);                                 \
+                          NS::tm_free);
+*/                                 					\
         }                                                               \
     }
 

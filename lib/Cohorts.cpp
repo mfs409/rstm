@@ -23,6 +23,7 @@
 #include "Macros.hpp"
 #include "tx.hpp"
 #include "adaptivity.hpp"
+#include "alg.hpp"
 
 // define atomic operations
 #define CAS __sync_val_compare_and_swap

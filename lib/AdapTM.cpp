@@ -17,6 +17,7 @@
 #include "locks.hpp"
 #include "metadata.hpp"
 #include "adaptivity.hpp"
+#include "alg.hpp"
 
 /**
  * This STM is implemented differently than all others.  We don't give it a
@@ -100,8 +101,9 @@ namespace stm
   // for CM
   pad_word_t fcm_timestamp = {0};
   pad_word_t epochs[MAX_THREADS] = {{0}};
-
+  TM_NAMES alg_index;
   // forward all calls to the function pointers
+/*
   void tm_begin(void* buf) { tm_begin_(buf); }
   void tm_end() { tm_end_(); }
   void* tm_alloc(size_t s) { return tm_alloc_(s); }
@@ -110,9 +112,668 @@ namespace stm
   void* tm_read(void** addr) { return tm_read_(addr); }
   TM_FASTCALL
   void tm_write(void** addr, void* val) { tm_write_(addr, val); }
+*/
+
+
+  void tm_begin(void * buf)
+  {
+     printf("alg_index = %d", alg_index);
+     if(alg_index >= 0)
+     {
+         printf("running tm_begin of alg_index %d", alg_index);
+	 switch((TM_NAMES)alg_index)
+	 {
+		case NOrec:
+			printf("norec's tm_begin");
+			norec::tm_begin(buf);
+			break;
+		case TML:
+			printf("tml's tm_begin");
+			tml::tm_begin(buf);
+			break;
+		case CohortsEager:
+			printf("cohortseager's tm_begin");
+			cohortseager::tm_begin(buf);
+			break;
+		case Cohorts:
+			printf("Cohorts's tm_begin");
+			cohorts::tm_begin(buf);
+			break;
+		case CTokenTurbo:
+			printf("ctokenturbo's tm_begin");
+			ctokenturbo::tm_begin(buf);
+			break;
+		case CToken:
+			printf("ctoken's tm_begin");
+			ctoken::tm_begin(buf);
+			break;
+/*		case LLT:
+			printf("llt's tm_begin");
+			llt::tm_begin(buf);
+			break;
+		case OrecEagerRedo:
+			printf("oreceagerredo's tm_begin");
+			oreceagerredo::tm_begin(buf);
+			break;
+		case OrecELA:
+			printf("orecela's tm_begin");
+			orecela::tm_begin(buf);
+			break;
+		case OrecALA:
+			printf("orecala's tm_begin");
+			oreclazy::tm_begin(buf);
+			break;
+		case OrecLazy:
+			printf("oreclazy's tm_begin");
+			oreclazy::tm_begin(buf);
+			break;
+		case OrecEager:
+			printf("oreceager's tm_begin");
+			oreceager::tm_begin(buf);
+			break;
+		case NOrecHB:
+			printf("norechb's tm_begin");
+			norechb::tm_begin(buf);
+			break;
+		case OrecLazyBackoff:
+			printf("oreclazybackoff's tm_begin");
+			oreclazybackoff::tm_begin(buf);
+			break;
+		case OrecLazyHB:
+			printf("oreclazyhb's tm_begin");
+			oreclazyhb::tm_begin(buf);
+			break;
+		case OrecLazyHour:
+			printf("oreclazyhour's tm_begin");
+			oreclazyhour::tm_begin(buf);
+			break;
+		case NOrecBackoff:
+			printf("norecbackoff's tm_begin");
+			norecbackoff::tm_begin(buf);
+			break;
+		case NOrecHour:
+			printf("norechour's tm_begin\n");
+			norechour::tm_begin(buf);
+			break;
+		case OrecEagerHour:
+			printf("oreceagerhour's tm_begin\n");
+			oreceagerhour::tm_begin(buf);
+			break;
+		case OrecEagerHB:
+			printf("oreceagerhb's tm_begin\n");
+			oreceagerhb::tm_begin(buf);
+			break;
+		case OrecEagerBackoff:
+			printf("oreceagerbackoff's tm_begin\n");
+			oreceagerbackoff::tm_begin(buf);
+			break;
+*/
+		case CGL:
+			printf("cgl's tm_begin\n");
+			cgl::tm_begin(buf);
+			break;
+		case AdapTM:
+			printf("adaptm's tm_begin\n");
+			stm::tm_begin(buf);
+			break;
+		default:
+			assert(0);
+			break;
+         };
+     }else
+     { assert(0); tm_begin_(buf); };
+  }
+
+  void tm_end()
+  {
+	printf("alg_index = %d", alg_index);
+    	if(alg_index >= 0)
+  	{
+       		printf("running tm_end of alg_index %d", alg_index);
+	 	switch((TM_NAMES)alg_index)
+	 	{
+		case NOrec:
+			printf("norec's tm_end");
+			norec::tm_end();
+			break;
+		case TML:
+			printf("tml's tm_end");
+			tml::tm_end();
+			break;
+		case CohortsEager:
+			printf("cohortseager's tm_end");
+			cohortseager::tm_end();
+			break;
+		case Cohorts:
+			printf("Cohorts's tm_end");
+			cohorts::tm_end();
+			break;
+		case CTokenTurbo:
+			printf("ctokenturbo's tm_end");
+			ctokenturbo::tm_end();
+			break;
+		case CToken:
+			printf("ctoken's tm_end");
+			ctoken::tm_end();
+			break;
+/*		case LLT:
+			printf("llt's tm_begin");
+			llt::tm_begin(buf);
+			break;
+		case OrecEagerRedo:
+			printf("oreceagerredo's tm_begin");
+			oreceagerredo::tm_begin(buf);
+			break;
+		case OrecELA:
+			printf("orecela's tm_begin");
+			orecela::tm_begin(buf);
+			break;
+		case OrecALA:
+			printf("orecala's tm_begin");
+			oreclazy::tm_begin(buf);
+			break;
+		case OrecLazy:
+			printf("oreclazy's tm_begin");
+			oreclazy::tm_begin(buf);
+			break;
+		case OrecEager:
+			printf("oreceager's tm_begin");
+			oreceager::tm_begin(buf);
+			break;
+		case NOrecHB:
+			printf("norechb's tm_begin");
+			norechb::tm_begin(buf);
+			break;
+		case OrecLazyBackoff:
+			printf("oreclazybackoff's tm_begin");
+			oreclazybackoff::tm_begin(buf);
+			break;
+		case OrecLazyHB:
+			printf("oreclazyhb's tm_begin");
+			oreclazyhb::tm_begin(buf);
+			break;
+		case OrecLazyHour:
+			printf("oreclazyhour's tm_begin");
+			oreclazyhour::tm_begin(buf);
+			break;
+		case NOrecBackoff:
+			printf("norecbackoff's tm_begin");
+			norecbackoff::tm_begin(buf);
+			break;
+		case NOrecHour:
+			printf("norechour's tm_begin\n");
+			norechour::tm_begin(buf);
+			break;
+		case OrecEagerHour:
+			printf("oreceagerhour's tm_begin\n");
+			oreceagerhour::tm_begin(buf);
+			break;
+		case OrecEagerHB:
+			printf("oreceagerhb's tm_begin\n");
+			oreceagerhb::tm_begin(buf);
+			break;
+		case OrecEagerBackoff:
+			printf("oreceagerbackoff's tm_begin\n");
+			oreceagerbackoff::tm_begin(buf);
+			break;
+*/
+		case CGL:
+			printf("cgl's tm_end\n");
+			cgl::tm_end();
+			break;
+		case AdapTM:
+			printf("adaptm's tm_end\n");
+			stm::tm_end();
+			break;
+		default:
+			assert(0);
+			break;
+         	};
+
+    	}else
+    	{ assert(0); tm_end_(); }
+  }
+  
+  void* tm_alloc(size_t s)
+  {
+	printf("alg_index = %d", alg_index);
+	if(alg_index >= 0)
+    	{
+        	printf("running tm_alloc of alg_index %d", alg_index);
+	 	switch((TM_NAMES)alg_index)
+	 	{
+		case NOrec:
+			printf("norec's tm_alloc");
+			norec::tm_alloc(s);
+			break;
+		case TML:
+			printf("tml's tm_alloc");
+			tml::tm_alloc(s);
+			break;
+		case CohortsEager:
+			printf("cohortseager's tm_alloc");
+			cohortseager::tm_alloc(s);
+			break;
+		case Cohorts:
+			printf("Cohorts's tm_alloc");
+			cohorts::tm_alloc(s);
+			break;
+		case CTokenTurbo:
+			printf("ctokenturbo's tm_alloc");
+			ctokenturbo::tm_alloc(s);
+			break;
+		case CToken:
+			printf("ctoken's tm_alloc");
+			ctoken::tm_alloc(s);
+			break;
+/*		case LLT:
+			printf("llt's tm_begin");
+			llt::tm_begin(buf);
+			break;
+		case OrecEagerRedo:
+			printf("oreceagerredo's tm_begin");
+			oreceagerredo::tm_begin(buf);
+			break;
+		case OrecELA:
+			printf("orecela's tm_begin");
+			orecela::tm_begin(buf);
+			break;
+		case OrecALA:
+			printf("orecala's tm_begin");
+			oreclazy::tm_begin(buf);
+			break;
+		case OrecLazy:
+			printf("oreclazy's tm_begin");
+			oreclazy::tm_begin(buf);
+			break;
+		case OrecEager:
+			printf("oreceager's tm_begin");
+			oreceager::tm_begin(buf);
+			break;
+		case NOrecHB:
+			printf("norechb's tm_begin");
+			norechb::tm_begin(buf);
+			break;
+		case OrecLazyBackoff:
+			printf("oreclazybackoff's tm_begin");
+			oreclazybackoff::tm_begin(buf);
+			break;
+		case OrecLazyHB:
+			printf("oreclazyhb's tm_begin");
+			oreclazyhb::tm_begin(buf);
+			break;
+		case OrecLazyHour:
+			printf("oreclazyhour's tm_begin");
+			oreclazyhour::tm_begin(buf);
+			break;
+		case NOrecBackoff:
+			printf("norecbackoff's tm_begin");
+			norecbackoff::tm_begin(buf);
+			break;
+		case NOrecHour:
+			printf("norechour's tm_begin\n");
+			norechour::tm_begin(buf);
+			break;
+		case OrecEagerHour:
+			printf("oreceagerhour's tm_begin\n");
+			oreceagerhour::tm_begin(buf);
+			break;
+		case OrecEagerHB:
+			printf("oreceagerhb's tm_begin\n");
+			oreceagerhb::tm_begin(buf);
+			break;
+		case OrecEagerBackoff:
+			printf("oreceagerbackoff's tm_begin\n");
+			oreceagerbackoff::tm_begin(buf);
+			break;
+*/
+		case CGL:
+			printf("cgl's tm_alloc\n");
+			cgl::tm_alloc(s);
+			break;
+/		case AdapTM:
+			printf("adaptm's tm_alloc\n");
+			stm::tm_alloc(s);
+			break;
+		default:
+			assert(0);
+			break;
+         	};
+	}else
+    	{ assert(0); return tm_alloc_(s); }
+  }
+
+  void tm_free(void* p)
+  {
+	printf("alg_index = %d", alg_index);
+    	if(alg_index >= 0)
+    	{
+      		printf("running tm_free of alg_index %d", alg_index);
+		switch((TM_NAMES)alg_index)
+	 	{
+		case NOrec:
+			printf("norec's tm_free");
+			norec::tm_free(p);
+			break;
+		case TML:
+			printf("tml's tm_free");
+			tml::tm_free(p);
+			break;
+		case CohortsEager:
+			printf("cohortseager's tm_free");
+			cohortseager::tm_free(p);
+			break;
+		case Cohorts:
+			printf("Cohorts's tm_free");
+			cohorts::tm_free(p);
+			break;
+		case CTokenTurbo:
+			printf("ctokenturbo's tm_free");
+			ctokenturbo::tm_free(p);
+			break;
+		case CToken:
+			printf("ctoken's tm_free");
+			ctoken::tm_free(p);
+			break;
+/*		case LLT:
+			printf("llt's tm_begin");
+			llt::tm_begin(buf);
+			break;
+		case OrecEagerRedo:
+			printf("oreceagerredo's tm_begin");
+			oreceagerredo::tm_begin(buf);
+			break;
+		case OrecELA:
+			printf("orecela's tm_begin");
+			orecela::tm_begin(buf);
+			break;
+		case OrecALA:
+			printf("orecala's tm_begin");
+			oreclazy::tm_begin(buf);
+			break;
+		case OrecLazy:
+			printf("oreclazy's tm_begin");
+			oreclazy::tm_begin(buf);
+			break;
+		case OrecEager:
+			printf("oreceager's tm_begin");
+			oreceager::tm_begin(buf);
+			break;
+		case NOrecHB:
+			printf("norechb's tm_begin");
+			norechb::tm_begin(buf);
+			break;
+		case OrecLazyBackoff:
+			printf("oreclazybackoff's tm_begin");
+			oreclazybackoff::tm_begin(buf);
+			break;
+		case OrecLazyHB:
+			printf("oreclazyhb's tm_begin");
+			oreclazyhb::tm_begin(buf);
+			break;
+		case OrecLazyHour:
+			printf("oreclazyhour's tm_begin");
+			oreclazyhour::tm_begin(buf);
+			break;
+		case NOrecBackoff:
+			printf("norecbackoff's tm_begin");
+			norecbackoff::tm_begin(buf);
+			break;
+		case NOrecHour:
+			printf("norechour's tm_begin\n");
+			norechour::tm_begin(buf);
+			break;
+		case OrecEagerHour:
+			printf("oreceagerhour's tm_begin\n");
+			oreceagerhour::tm_begin(buf);
+			break;
+		case OrecEagerHB:
+			printf("oreceagerhb's tm_begin\n");
+			oreceagerhb::tm_begin(buf);
+			break;
+		case OrecEagerBackoff:
+			printf("oreceagerbackoff's tm_begin\n");
+			oreceagerbackoff::tm_begin(buf);
+			break;
+*/
+		case CGL:
+			printf("cgl's tm_free\n");
+			cgl::tm_free(p);
+			break;
+		case AdapTM:
+			printf("adaptm's tm_free\n");
+			stm::tm_free(p);
+			break;
+		default:
+			assert(0);
+			break;
+         	};
+    	}else
+    	{ assert(0); tm_free_(p); } 
+  }
+  
+  TM_FASTCALL
+  void* tm_read(void** addr) 
+  {
+	printf("alg_index = %d", alg_index);
+	if(alg_index >= 0)
+	{
+		printf("running tm_read of alg_index %d", alg_index);
+		switch((TM_NAMES)alg_index)
+	 	{
+		case NOrec:
+			printf("norec's tm_read");
+			norec::tm_read(addr);
+			break;
+		case TML:
+			printf("tml's tm_read");
+			tml::tm_read(addr);
+			break;
+		case CohortsEager:
+			printf("cohortseager's tm_read");
+			cohortseager::tm_read(addr);
+			break;
+		case Cohorts:
+			printf("Cohorts's tm_read");
+			cohorts::tm_read(addr);
+			break;
+		case CTokenTurbo:
+			printf("ctokenturbo's tm_read");
+			ctokenturbo::tm_read(addr);
+			break;
+		case CToken:
+			printf("ctoken's tm_read");
+			ctoken::tm_read(addr);
+			break;
+/*		case LLT:
+			printf("llt's tm_begin");
+			llt::tm_begin(buf);
+			break;
+		case OrecEagerRedo:
+			printf("oreceagerredo's tm_begin");
+			oreceagerredo::tm_begin(buf);
+			break;
+		case OrecELA:
+			printf("orecela's tm_begin");
+			orecela::tm_begin(buf);
+			break;
+		case OrecALA:
+			printf("orecala's tm_begin");
+			oreclazy::tm_begin(buf);
+			break;
+		case OrecLazy:
+			printf("oreclazy's tm_begin");
+			oreclazy::tm_begin(buf);
+			break;
+		case OrecEager:
+			printf("oreceager's tm_begin");
+			oreceager::tm_begin(buf);
+			break;
+		case NOrecHB:
+			printf("norechb's tm_begin");
+			norechb::tm_begin(buf);
+			break;
+		case OrecLazyBackoff:
+			printf("oreclazybackoff's tm_begin");
+			oreclazybackoff::tm_begin(buf);
+			break;
+		case OrecLazyHB:
+			printf("oreclazyhb's tm_begin");
+			oreclazyhb::tm_begin(buf);
+			break;
+		case OrecLazyHour:
+			printf("oreclazyhour's tm_begin");
+			oreclazyhour::tm_begin(buf);
+			break;
+		case NOrecBackoff:
+			printf("norecbackoff's tm_begin");
+			norecbackoff::tm_begin(buf);
+			break;
+		case NOrecHour:
+			printf("norechour's tm_begin\n");
+			norechour::tm_begin(buf);
+			break;
+		case OrecEagerHour:
+			printf("oreceagerhour's tm_begin\n");
+			oreceagerhour::tm_begin(buf);
+			break;
+		case OrecEagerHB:
+			printf("oreceagerhb's tm_begin\n");
+			oreceagerhb::tm_begin(buf);
+			break;
+		case OrecEagerBackoff:
+			printf("oreceagerbackoff's tm_begin\n");
+			oreceagerbackoff::tm_begin(buf);
+			break;
+*/
+		case CGL:
+			printf("cgl's tm_read\n");
+			cgl::tm_read(addr);
+			break;
+		case AdapTM:
+			printf("adaptm's tm_read\n");
+			stm::tm_read(addr);
+			break;
+		default:
+			assert(0);
+			break;
+         	};
+	}else
+	{ assert(0); return tm_read_(addr); }
+  }
+
+  TM_FASTCALL
+  void tm_write(void** addr, void* val)
+  {
+	printf("alg_index = %d", alg_index);
+ 	if(alg_index >= 0)
+	{
+		printf("running tm_write of alg_index %d", alg_index);
+		switch((TM_NAMES)alg_index)
+	 	{
+		case NOrec:
+			printf("norec's tm_write");
+			norec::tm_write(addr, val);
+			break;
+		case TML:
+			printf("tml's tm_write");
+			tml::tm_write(addr, val);
+			break;
+		case CohortsEager:
+			printf("cohortseager's tm_write");
+			cohortseager::tm_write(addr, val);
+			break;
+		case Cohorts:
+			printf("Cohorts's tm_write");
+			cohorts::tm_write(addr, val);
+			break;
+		case CTokenTurbo:
+			printf("ctokenturbo's tm_write");
+			ctokenturbo::tm_write(addr, val);
+			break;
+		case CToken:
+			printf("ctoken's tm_write");
+			ctoken::tm_write(addr, val);
+			break;
+/*		case LLT:
+			printf("llt's tm_begin");
+			llt::tm_begin(buf);
+			break;
+		case OrecEagerRedo:
+			printf("oreceagerredo's tm_begin");
+			oreceagerredo::tm_begin(buf);
+			break;
+		case OrecELA:
+			printf("orecela's tm_begin");
+			orecela::tm_begin(buf);
+			break;
+		case OrecALA:
+			printf("orecala's tm_begin");
+			oreclazy::tm_begin(buf);
+			break;
+		case OrecLazy:
+			printf("oreclazy's tm_begin");
+			oreclazy::tm_begin(buf);
+			break;
+		case OrecEager:
+			printf("oreceager's tm_begin");
+			oreceager::tm_begin(buf);
+			break;
+		case NOrecHB:
+			printf("norechb's tm_begin");
+			norechb::tm_begin(buf);
+			break;
+		case OrecLazyBackoff:
+			printf("oreclazybackoff's tm_begin");
+			oreclazybackoff::tm_begin(buf);
+			break;
+		case OrecLazyHB:
+			printf("oreclazyhb's tm_begin");
+			oreclazyhb::tm_begin(buf);
+			break;
+		case OrecLazyHour:
+			printf("oreclazyhour's tm_begin");
+			oreclazyhour::tm_begin(buf);
+			break;
+		case NOrecBackoff:
+			printf("norecbackoff's tm_begin");
+			norecbackoff::tm_begin(buf);
+			break;
+		case NOrecHour:
+			printf("norechour's tm_begin\n");
+			norechour::tm_begin(buf);
+			break;
+		case OrecEagerHour:
+			printf("oreceagerhour's tm_begin\n");
+			oreceagerhour::tm_begin(buf);
+			break;
+		case OrecEagerHB:
+			printf("oreceagerhb's tm_begin\n");
+			oreceagerhb::tm_begin(buf);
+			break;
+		case OrecEagerBackoff:
+			printf("oreceagerbackoff's tm_begin\n");
+			oreceagerbackoff::tm_begin(buf);
+			break;
+*/
+		case CGL:
+			printf("cgl's tm_write\n");
+			cgl::tm_write(addr, val);
+			break;
+		case AdapTM:
+			printf("adaptm's tm_write\n");
+			stm::tm_write(addr, val);
+			break;
+		default:
+			assert(0);
+			break;
+         	};
+	}else
+	{ assert(0); tm_write_(addr, val); }
+  } 
 
   /**
-   *  Template Metaprogramming trick for initializing all STM algorithms.
+   *  Template Metapro:qgramming trick for initializing all STM algorithms.
    *
    *  This is either a very gross trick, or a very cool one.  We have ALG_MAX
    *  algorithms, and they all need to be initialized.  Each has a unique
@@ -162,12 +823,16 @@ namespace stm
       if (configstring)
           cfg = configstring;
       else
+      {
           printf("STM_CONFIG environment variable not found... using %s\n", cfg);
+      	  alg_index = stm::NOrec;
+      }
 
       bool found = false;
       for (int i = 0; i < TM_NAMES_MAX; ++i) {
           const char* name = tm_info[i].tm_getalgname();
           if (0 == strcmp(cfg, name)) {
+
               rollback_ = tm_info[i].rollback;
               tm_begin_ = tm_info[i].tm_begin;
               tm_end_ = tm_info[i].tm_end;
@@ -176,7 +841,10 @@ namespace stm
               tm_free_ = tm_info[i].tm_free;
               tm_read_ = tm_info[i].tm_read;
               tm_write_ = tm_info[i].tm_write;
+
+	      
               found = true;
+	      alg_index = i;
               break;
           }
       }

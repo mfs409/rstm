@@ -56,7 +56,9 @@ LIBS = $(patsubst %, $(ODIR)/lib%.a, $(STMALGS))
 # and a different set of .o files (but note that AdapTM itself is in STMALGS)
 #
 ADAPTHEADER = $(ODIR)/tmnames.autobuild.h
-ADAPTNAMES  = WBMMPolicy Common CommonLazy CommonOrec adaptivity
+ADAPTER = $(ODIR)/tmnames.autobuild.cpp
+
+ADAPTNAMES  = WBMMPolicy Common CommonLazy CommonOrec adaptivity tmnames.autobuild
 ADAPTOFILES = $(patsubst %, $(ODIR)/%.o, $(ADAPTNAMES))
 ADAPTLIB    = $(ODIR)/libAdapTM.a
 .PRECIOUS: $(ADAPTOFILES)
@@ -94,6 +96,13 @@ $(ADAPTLIB): $(ADAPTOFILES) $(ALGOFILES)
 $(ADAPTHEADER): $(MKFOLDER)/algs.mk
 	@echo "namespace stm {" > $@
 	@echo $(STMALGS) TM_NAMES_MAX | sed -e 's/ /, /g' -e 's/^/enum TM_NAMES {/' -e 's/MAX/MAX};/' >> $@
+	@echo "extern char* TM_NAMES_STRING[];" >> $@
+	@echo "}" >> $@
+
+$(ADAPTER): $(MKFOLDER)/algs.mk
+	@echo "#include \"tmnames.autobuild.h\"" > $@
+	@echo "namespace stm {" >> $@
+	@echo $(STMALGS) TM_NAMES_MAX | sed -e 'y/ABCDEFGHIJKLMNOPQRSTUVWXYZ/abcdefghijklmnopqrstuvwxyz/' -e 's/ /", "/g' -e 's/^/char* TM_NAMES_STRING[] = {"/g' -e 's/max/max"};/' >> $@
 	@echo "}" >> $@
 
 #

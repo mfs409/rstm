@@ -8,14 +8,7 @@
  *          Please see the file LICENSE.RSTM for licensing information
  */
 
-#include <stdint.h>
-#include <iostream>
-#include <cstdlib>
-#include "tx.hpp"
-#include "platform.hpp"
-#include "locks.hpp"
-#include "metadata.hpp"
-#include "adaptivity.hpp"
+#include "alg.hpp"
 
 using namespace stm;
 
