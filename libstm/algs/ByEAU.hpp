@@ -315,8 +315,7 @@ namespace stm
    *    release locks, notify the CM, and clean up.
    */
   template <class CM>
-  void
-  ByEAUGenericRollback(STM_ROLLBACK_SIG(tx, except, len))
+  void ByEAUGenericRollback(STM_ROLLBACK_SIG(tx, except, len))
   {
       PreRollback(tx);
 

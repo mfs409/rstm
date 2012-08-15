@@ -74,6 +74,9 @@ namespace stm
           // Read the global version to tx_version
           MY.tx_version = global_version.val;
           // go read-only mode
+          //
+          // [mfs] I don't think this is valid in CGA mode, since it marks
+          //       the transaction TURBO...
           GoTurbo(tx, PessimisticTMReadRO, PessimisticTMWriteReadOnly,
                   PessimisticTMCommitReadOnly);
       }
@@ -329,28 +332,14 @@ namespace stm
   {
       writer_lock.val = 0;
       global_version.val = 1;
-  }
-
-  /**
-   *  PessimisticTM initialization
-   */
-  template<>
-  void initTM<PessimisticTM>()
-  {
-      // set the name
-      stms[PessimisticTM].name      = "PessimisticTM";
-      // set the pointers
-      stms[PessimisticTM].begin     = PessimisticTMBegin;
-      stms[PessimisticTM].commit    = PessimisticTMCommitRO;
-      stms[PessimisticTM].read      = PessimisticTMReadRO;
-      stms[PessimisticTM].write     = PessimisticTMWriteRO;
-      stms[PessimisticTM].rollback  = PessimisticTMRollback;
-      stms[PessimisticTM].irrevoc   = PessimisticTMIrrevoc;
-      stms[PessimisticTM].switcher  = PessimisticTMOnSwitchTo;
-      stms[PessimisticTM].privatization_safe = true;
+      // [mfs] I don't think this algorithm works when we are in non-FGA
+      //       mode... verify and perhaps warn?
   }
 }
 
+
+DECLARE_SIMPLE_METHODS_FROM_NORMAL(PessimisticTM)
+REGISTER_FGADAPT_ALG(PessimisticTM, "PessimisticTM", true)
 
 #ifdef STM_ONESHOT_ALG_PessimisticTM
 DECLARE_AS_ONESHOT_NORMAL(PessimisticTM)

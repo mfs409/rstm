@@ -258,27 +258,10 @@ namespace stm
   {
       // timestamp.val = MAXIMUM(timestamp.val, timestamp_max.val);
   }
-
-  /**
-   *  LLTAMD64 initialization
-   */
-  template<>
-  void initTM<LLTAMD64>()
-  {
-      // set the name
-      stms[LLTAMD64].name      = "LLTAMD64";
-
-      // set the pointers
-      stms[LLTAMD64].begin     = LLTAMD64Begin;
-      stms[LLTAMD64].commit    = LLTAMD64CommitRO;
-      stms[LLTAMD64].read      = LLTAMD64ReadRO;
-      stms[LLTAMD64].write     = LLTAMD64WriteRO;
-      stms[LLTAMD64].rollback  = LLTAMD64Rollback;
-      stms[LLTAMD64].irrevoc   = LLTAMD64Irrevoc;
-      stms[LLTAMD64].switcher  = LLTAMD64OnSwitchTo;
-      stms[LLTAMD64].privatization_safe = false;
-  }
 }
+
+DECLARE_SIMPLE_METHODS_FROM_NORMAL(LLTAMD64)
+REGISTER_FGADAPT_ALG(LLTAMD64, "LLTAMD64", false)
 
 #ifdef STM_ONESHOT_ALG_LLTAMD64
 DECLARE_AS_ONESHOT_NORMAL(LLTAMD64)

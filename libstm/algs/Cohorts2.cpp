@@ -246,26 +246,10 @@ namespace stm
       last_complete.val = 0;
       gatekeeper.val = 0;
   }
-
-  /**
-   *  Cohorts2 initialization
-   */
-  template<>
-  void initTM<Cohorts2>()
-  {
-      // set the name
-      stms[Cohorts2].name      = "Cohorts2";
-      // set the pointers
-      stms[Cohorts2].begin     = Cohorts2Begin;
-      stms[Cohorts2].commit    = Cohorts2CommitRO;
-      stms[Cohorts2].read      = Cohorts2ReadRO;
-      stms[Cohorts2].write     = Cohorts2WriteRO;
-      stms[Cohorts2].rollback  = Cohorts2Rollback;
-      stms[Cohorts2].irrevoc   = Cohorts2Irrevoc;
-      stms[Cohorts2].switcher  = Cohorts2OnSwitchTo;
-      stms[Cohorts2].privatization_safe = true;
-  }
 }
+
+DECLARE_SIMPLE_METHODS_FROM_NORMAL(Cohorts2)
+REGISTER_FGADAPT_ALG(Cohorts2, "Cohorts2", true)
 
 #ifdef STM_ONESHOT_ALG_Cohorts2
 DECLARE_AS_ONESHOT_NORMAL(Cohorts2)

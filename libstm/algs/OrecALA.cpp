@@ -311,27 +311,10 @@ namespace stm
       timestamp.val = MAXIMUM(timestamp.val, timestamp_max.val);
       last_complete.val = timestamp.val;
   }
-
-  /**
-   *  OrecALA initialization
-   */
-  template<>
-  void initTM<OrecALA>()
-  {
-      // set the name
-      stms[OrecALA].name     = "OrecALA";
-
-      // set the pointers
-      stms[OrecALA].begin    = OrecALABegin;
-      stms[OrecALA].commit   = OrecALACommitRO;
-      stms[OrecALA].read     = OrecALAReadRO;
-      stms[OrecALA].write    = OrecALAWriteRO;
-      stms[OrecALA].rollback = OrecALARollback;
-      stms[OrecALA].irrevoc  = OrecALAIrrevoc;
-      stms[OrecALA].switcher = OrecALAOnSwitchTo;
-      stms[OrecALA].privatization_safe = true;
-  }
 }
+
+DECLARE_SIMPLE_METHODS_FROM_NORMAL(OrecALA)
+REGISTER_FGADAPT_ALG(OrecALA, "OrecALA", true)
 
 #ifdef STM_ONESHOT_ALG_OrecALA
 DECLARE_AS_ONESHOT_NORMAL(OrecALA)

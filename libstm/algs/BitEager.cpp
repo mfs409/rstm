@@ -283,26 +283,10 @@ namespace stm
    */
   void BitEagerOnSwitchTo() { }
 
-  /**
-   *  BitEager initialization
-   */
-  template<>
-  void initTM<BitEager>()
-  {
-      // set the name
-      stms[BitEager].name      = "BitEager";
-
-      // set the pointers
-      stms[BitEager].begin     = BitEagerBegin;
-      stms[BitEager].commit    = BitEagerCommitRO;
-      stms[BitEager].read      = BitEagerReadRO;
-      stms[BitEager].write     = BitEagerWriteRO;
-      stms[BitEager].rollback  = BitEagerRollback;
-      stms[BitEager].irrevoc   = BitEagerIrrevoc;
-      stms[BitEager].switcher  = BitEagerOnSwitchTo;
-      stms[BitEager].privatization_safe = true;
-  }
 }
+
+DECLARE_SIMPLE_METHODS_FROM_NORMAL(BitEager)
+REGISTER_FGADAPT_ALG(BitEager, "BitEager", true)
 
 #ifdef STM_ONESHOT_ALG_BitEager
 DECLARE_AS_ONESHOT_NORMAL(BitEager)

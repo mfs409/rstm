@@ -144,7 +144,7 @@ namespace stm
       pmu_t         pmu;               // for accessing the hardware PMU
 
       /*** FOR ONESHOT-STYLE COMPILATION */
-#ifdef STM_ONESHOT_MODE
+#if defined(STM_ONESHOT_MODE) || defined(STM_FINEGRAINADAPT_OFF)
       uint32_t      mode; // MODE_TURBO, MODE_WRITE, or MODE_RO
 #else
       // a new gross hack: we need any single thread to be able to change

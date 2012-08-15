@@ -234,26 +234,10 @@ namespace stm
   CohortsQOnSwitchTo()
   {
   }
-
-  /**
-   *  CohortsQ initialization
-   */
-  template<>
-  void initTM<CohortsQ>()
-  {
-      // set the name
-      stms[CohortsQ].name      = "CohortsQ";
-      // set the pointers
-      stms[CohortsQ].begin     = CohortsQBegin;
-      stms[CohortsQ].commit    = CohortsQCommitRO;
-      stms[CohortsQ].read      = CohortsQReadRO;
-      stms[CohortsQ].write     = CohortsQWriteRO;
-      stms[CohortsQ].rollback  = CohortsQRollback;
-      stms[CohortsQ].irrevoc   = CohortsQIrrevoc;
-      stms[CohortsQ].switcher  = CohortsQOnSwitchTo;
-      stms[CohortsQ].privatization_safe = true;
-  }
 }
+
+DECLARE_SIMPLE_METHODS_FROM_NORMAL(CohortsQ)
+REGISTER_FGADAPT_ALG(CohortsQ, "CohortsQ", true)
 
 #ifdef STM_ONESHOT_ALG_CohortsQ
 DECLARE_AS_ONESHOT_NORMAL(CohortsQ)

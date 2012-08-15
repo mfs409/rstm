@@ -48,17 +48,17 @@ namespace stm
    *  or MAX (0)
    */
   template <int COUNTMODE>
-  TM_FASTCALL void* ProfileAppReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
+  TM_FASTCALL void* ProfileAppGenericReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
   template <int COUNTMODE>
-  TM_FASTCALL void* ProfileAppReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
+  TM_FASTCALL void* ProfileAppGenericReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
   template <int COUNTMODE>
-  TM_FASTCALL void ProfileAppWriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+  TM_FASTCALL void ProfileAppGenericWriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
   template <int COUNTMODE>
-  TM_FASTCALL void ProfileAppWriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+  TM_FASTCALL void ProfileAppGenericWriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
   template <int COUNTMODE>
-  TM_FASTCALL void ProfileAppCommitRO(TX_LONE_PARAMETER);
+  TM_FASTCALL void ProfileAppGenericCommitRO(TX_LONE_PARAMETER);
   template <int COUNTMODE>
-  TM_FASTCALL void ProfileAppCommitRW(TX_LONE_PARAMETER);
+  TM_FASTCALL void ProfileAppGenericCommitRW(TX_LONE_PARAMETER);
 
   /**
    *  Helper MACRO
@@ -71,7 +71,7 @@ namespace stm
    *    Start measuring tx runtime
    */
   template <int COUNTMODE>
-  void ProfileAppBegin(TX_LONE_PARAMETER)
+  void ProfileAppGenericBegin(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       tx->allocator.onTxBegin();
@@ -85,7 +85,7 @@ namespace stm
    */
   template <int COUNTMODE>
   TM_FASTCALL
-  void ProfileAppCommitRO(TX_LONE_PARAMETER)
+  void ProfileAppGenericCommitRO(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // NB: statically optimized version of RW code for RO case
@@ -115,7 +115,7 @@ namespace stm
    */
   template <int COUNTMODE>
   TM_FASTCALL
-  void ProfileAppCommitRW(TX_LONE_PARAMETER)
+  void ProfileAppGenericCommitRW(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // run the redo log
@@ -154,8 +154,8 @@ namespace stm
 
       // finish cleaning up
       OnRWCommit(tx);
-      ResetToRO(tx, ProfileAppReadRO<COUNTMODE>, ProfileAppWriteRO<COUNTMODE>,
-                ProfileAppCommitRO<COUNTMODE>);
+      ResetToRO(tx, ProfileAppGenericReadRO<COUNTMODE>, ProfileAppGenericWriteRO<COUNTMODE>,
+                ProfileAppGenericCommitRO<COUNTMODE>);
   }
 
   /**
@@ -163,7 +163,7 @@ namespace stm
    */
   template <int COUNTMODE>
   TM_FASTCALL
-  void* ProfileAppReadRO(TX_FIRST_PARAMETER_ANON STM_READ_SIG(addr,))
+  void* ProfileAppGenericReadRO(TX_FIRST_PARAMETER_ANON STM_READ_SIG(addr,))
   {
       // count the read
       ++profiles[0].read_ro;
@@ -176,7 +176,7 @@ namespace stm
    */
   template <int COUNTMODE>
   TM_FASTCALL
-  void* ProfileAppReadRW(TX_FIRST_PARAMETER STM_READ_SIG( addr,mask))
+  void* ProfileAppGenericReadRW(TX_FIRST_PARAMETER STM_READ_SIG( addr,mask))
   {
       TX_GET_TX_INTERNAL;
       // check the log for a RAW hazard, we expect to miss
@@ -199,15 +199,15 @@ namespace stm
    */
   template <int COUNTMODE>
   TM_FASTCALL
-  void ProfileAppWriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  void ProfileAppGenericWriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // do a buffered write
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
       ++profiles[0].write_waw;
-      OnFirstWrite(tx, ProfileAppReadRW<COUNTMODE>,
-                        ProfileAppWriteRW<COUNTMODE>,
-                        ProfileAppCommitRW<COUNTMODE>);
+      OnFirstWrite(tx, ProfileAppGenericReadRW<COUNTMODE>,
+                        ProfileAppGenericWriteRW<COUNTMODE>,
+                        ProfileAppGenericCommitRW<COUNTMODE>);
   }
 
   /**
@@ -215,7 +215,7 @@ namespace stm
    */
   template <int COUNTMODE>
   TM_FASTCALL
-  void ProfileAppWriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  void ProfileAppGenericWriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // do a buffered write
@@ -230,7 +230,7 @@ namespace stm
    *    abort, retry, or restart.
    */
   template <int COUNTMODE>
-  void ProfileAppRollback(STM_ROLLBACK_SIG(,,))
+  void ProfileAppGenericRollback(STM_ROLLBACK_SIG(,,))
   {
       UNRECOVERABLE("ProfileApp should never incur an abort");
   }
@@ -239,7 +239,7 @@ namespace stm
    *  ProfileApp in-flight irrevocability:
    */
   template <int COUNTMODE>
-  bool ProfileAppIrrevoc(TxThread*)
+  bool ProfileAppGenericIrrevoc(TxThread*)
   {
       // NB: there is no reason why we can't support this, we just don't yet.
       UNRECOVERABLE("ProfileApp does not support irrevocability");
@@ -253,7 +253,7 @@ namespace stm
    *    allocated for doing our logging
    */
   template <int COUNTMODE>
-  void ProfileAppOnSwitchTo()
+  void ProfileAppGenericOnSwitchTo()
   {
       if (app_profiles != NULL)
           return;

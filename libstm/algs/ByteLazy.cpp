@@ -286,27 +286,10 @@ namespace stm
    *  Switch to ByteLazy:
    */
   void ByteLazyOnSwitchTo() { }
-
-  /**
-   *  ByteLazy initialization
-   */
-  template<>
-  void initTM<ByteLazy>()
-  {
-      // set the name
-      stms[ByteLazy].name      = "ByteLazy";
-
-      // set the pointers
-      stms[ByteLazy].begin     = ByteLazyBegin;
-      stms[ByteLazy].commit    = ByteLazyCommitRO;
-      stms[ByteLazy].read      = ByteLazyReadRO;
-      stms[ByteLazy].write     = ByteLazyWriteRO;
-      stms[ByteLazy].rollback  = ByteLazyRollback;
-      stms[ByteLazy].irrevoc   = ByteLazyIrrevoc;
-      stms[ByteLazy].switcher  = ByteLazyOnSwitchTo;
-      stms[ByteLazy].privatization_safe = true;
-  }
 }
+
+DECLARE_SIMPLE_METHODS_FROM_NORMAL(ByteLazy)
+REGISTER_FGADAPT_ALG(ByteLazy, "ByteLazy", true)
 
 #ifdef STM_ONESHOT_ALG_ByteLazy
 DECLARE_AS_ONESHOT_NORMAL(ByteLazy)

@@ -271,27 +271,11 @@ namespace stm
       }
       global_filter->clear();
   }
-
-  /**
-   *  CohortsLF initialization
-   */
-  template<>
-  void initTM<CohortsLF>()
-  {
-      // set the name
-      stms[CohortsLF].name      = "CohortsLF";
-      // set the pointers
-      stms[CohortsLF].begin     = CohortsLFBegin;
-      stms[CohortsLF].commit    = CohortsLFCommitRO;
-      stms[CohortsLF].read      = CohortsLFReadRO;
-      stms[CohortsLF].write     = CohortsLFWriteRO;
-      stms[CohortsLF].rollback  = CohortsLFRollback;
-      stms[CohortsLF].irrevoc   = CohortsLFIrrevoc;
-      stms[CohortsLF].switcher  = CohortsLFOnSwitchTo;
-      stms[CohortsLF].privatization_safe = true;
-  }
 }
 
+
+DECLARE_SIMPLE_METHODS_FROM_NORMAL(CohortsLF)
+REGISTER_FGADAPT_ALG(CohortsLF, "CohortsLF", true)
 
 #ifdef STM_ONESHOT_ALG_CohortsLF
 DECLARE_AS_ONESHOT_NORMAL(CohortsLF)

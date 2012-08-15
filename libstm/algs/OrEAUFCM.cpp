@@ -10,25 +10,8 @@
 
 #include "OrEAU.hpp"
 
-namespace stm
-{
-  template <>
-  void initTM<OrEAUFCM>()
-  {
-      stms[OrEAUFCM].name = "OrEAUFCM";
-
-      // set the pointers
-      stms[OrEAUFCM].begin     = OrEAUGenericBegin<FCM>;
-      stms[OrEAUFCM].commit    = OrEAUGenericCommitRO<FCM>;
-      stms[OrEAUFCM].read      = OrEAUGenericReadRO<FCM>;
-      stms[OrEAUFCM].write     = OrEAUGenericWriteRO<FCM>;
-      stms[OrEAUFCM].irrevoc   = OrEAUGenericIrrevoc<FCM>;
-      stms[OrEAUFCM].switcher  = OrEAUGenericOnSwitchTo<FCM>;
-      stms[OrEAUFCM].privatization_safe = false;
-      stms[OrEAUFCM].rollback  = OrEAUGenericRollback<FCM>;
-  }
-
-}
+DECLARE_SIMPLE_METHODS_FROM_TEMPLATE(OrEAU, OrEAUFCM, FCM)
+REGISTER_TEMPLATE_ALG(OrEAU, OrEAUFCM, "OrEAUFCM", false, FCM)
 
 #ifdef STM_ONESHOT_ALG_OrEAUFCM
 DECLARE_AS_ONESHOT_NORMAL(OrEAUGeneric<FCM>)

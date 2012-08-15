@@ -186,27 +186,10 @@ namespace stm
       if (timestamp.val & 1)
           ++timestamp.val;
   }
-
-  /**
-   *  TMLLazy initialization
-   */
-  template<>
-  void initTM<TMLLazy>()
-  {
-      // set the name
-      stms[TMLLazy].name     = "TMLLazy";
-
-      // set the pointers
-      stms[TMLLazy].begin    = TMLLazyBegin;
-      stms[TMLLazy].commit   = TMLLazyCommitRO;
-      stms[TMLLazy].read     = TMLLazyReadRO;
-      stms[TMLLazy].write    = TMLLazyWriteRO;
-      stms[TMLLazy].rollback = TMLLazyRollback;
-      stms[TMLLazy].irrevoc  = TMLLazyIrrevoc;
-      stms[TMLLazy].switcher = TMLLazyOnSwitchTo;
-      stms[TMLLazy].privatization_safe = true;
-  }
 }
+
+DECLARE_SIMPLE_METHODS_FROM_NORMAL(TMLLazy)
+REGISTER_FGADAPT_ALG(TMLLazy, "TMLLazy", true)
 
 #ifdef STM_ONESHOT_ALG_TMLLazy
 DECLARE_AS_ONESHOT_NORMAL(TMLLazy)

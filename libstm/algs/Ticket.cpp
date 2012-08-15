@@ -95,27 +95,9 @@ namespace stm
   void
   TicketOnSwitchTo() {
   }
-
-  /**
-   *  Ticket initialization
-   */
-  template<>
-  void initTM<Ticket>()
-  {
-      // set the name
-      stms[Ticket].name      = "Ticket";
-
-      // set the pointers
-      stms[Ticket].begin     = TicketBegin;
-      stms[Ticket].commit    = TicketCommit;
-      stms[Ticket].read      = TicketRead;
-      stms[Ticket].write     = TicketWrite;
-      stms[Ticket].rollback  = TicketRollback;
-      stms[Ticket].irrevoc   = TicketIrrevoc;
-      stms[Ticket].switcher  = TicketOnSwitchTo;
-      stms[Ticket].privatization_safe = true;
-  }
 }
+
+REGISTER_REGULAR_ALG(Ticket, "Ticket", true)
 
 #ifdef STM_ONESHOT_ALG_Ticket
 DECLARE_AS_ONESHOT_SIMPLE(Ticket)

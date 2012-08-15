@@ -322,31 +322,9 @@ namespace stm
   {
       timestamp.val = MAXIMUM(timestamp.val, timestamp_max.val);
   }
-
-  /**
-   *  Every STM must provide an 'initialize' function that specifies how the
-   *  algorithm is to be used when adaptivity is off.
-   *
-   *  Some of this is a bit ugly right now, but when we fix the way adaptive
-   *  policies work it will clean itself.
-   */
-  template<>
-  void initTM<Swiss>()
-  {
-      // set the name
-      stms[Swiss].name      = "Swiss";
-
-      // set the pointers
-      stms[Swiss].begin     = SwissBegin;
-      stms[Swiss].commit    = SwissCommit;
-      stms[Swiss].read      = SwissRead;
-      stms[Swiss].write     = SwissWrite;
-      stms[Swiss].rollback  = SwissRollback;
-      stms[Swiss].irrevoc   = SwissIrrevoc;
-      stms[Swiss].switcher  = SwissOnSwitchTo;
-      stms[Swiss].privatization_safe = false;
-  }
 }
+
+REGISTER_REGULAR_ALG(Swiss, "Swiss", false)
 
 #ifdef STM_ONESHOT_ALG_Swiss
 DECLARE_AS_ONESHOT_SIMPLE(Swiss)

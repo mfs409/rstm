@@ -242,26 +242,10 @@ namespace stm
       for (uint32_t i = 0; i < threadcount.val; ++i)
           threads[i]->order = -1;
   }
-
-  /**
-   *  Wealth initialization
-   */
-  template<>
-  void initTM<Wealth>()
-  {
-      // set the name
-      stms[Wealth].name      = "Wealth";
-      // set the pointers
-      stms[Wealth].begin     = WealthBegin;
-      stms[Wealth].commit    = WealthCommitRO;
-      stms[Wealth].read      = WealthReadRO;
-      stms[Wealth].write     = WealthWriteRO;
-      stms[Wealth].rollback  = WealthRollback;
-      stms[Wealth].irrevoc   = WealthIrrevoc;
-      stms[Wealth].switcher  = WealthOnSwitchTo;
-      stms[Wealth].privatization_safe = true;
-  }
 }
+
+DECLARE_SIMPLE_METHODS_FROM_NORMAL(Wealth)
+REGISTER_FGADAPT_ALG(Wealth, "Wealth", true)
 
 #ifdef STM_ONESHOT_ALG_Wealth
 DECLARE_AS_ONESHOT_NORMAL(Wealth)

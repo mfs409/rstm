@@ -310,27 +310,10 @@ namespace stm
    *  Switch to ByEAR:
    */
   void ByEAROnSwitchTo() { }
-
-  /**
-   *  ByEAR initialization
-   */
-  template<>
-  void initTM<ByEAR>()
-  {
-      // set the name
-      stms[ByEAR].name      = "ByEAR";
-
-      // set the pointers
-      stms[ByEAR].begin     = ByEARBegin;
-      stms[ByEAR].commit    = ByEARCommitRO;
-      stms[ByEAR].read      = ByEARReadRO;
-      stms[ByEAR].write     = ByEARWriteRO;
-      stms[ByEAR].rollback  = ByEARRollback;
-      stms[ByEAR].irrevoc   = ByEARIrrevoc;
-      stms[ByEAR].switcher  = ByEAROnSwitchTo;
-      stms[ByEAR].privatization_safe = true;
-  }
 }
+
+DECLARE_SIMPLE_METHODS_FROM_NORMAL(ByEAR)
+REGISTER_FGADAPT_ALG(ByEAR, "ByEAR", true)
 
 #ifdef STM_ONESHOT_ALG_ByEAR
 DECLARE_AS_ONESHOT_NORMAL(ByEAR)

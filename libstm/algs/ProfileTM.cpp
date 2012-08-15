@@ -275,27 +275,10 @@ namespace stm
       last_init.val = 0;
       last_complete.val = 0;
   }
-
-  /**
-   *  ProfileTM initialization
-   */
-  template<>
-  void initTM<ProfileTM>()
-  {
-      // set the name
-      stms[ProfileTM].name      = "ProfileTM";
-
-      // set the pointers
-      stms[ProfileTM].begin     = ProfileTMBegin;
-      stms[ProfileTM].commit    = ProfileTMCommitRO;
-      stms[ProfileTM].read      = ProfileTMReadRO;
-      stms[ProfileTM].write     = ProfileTMWriteRO;
-      stms[ProfileTM].rollback  = ProfileTMRollback;
-      stms[ProfileTM].irrevoc   = ProfileTMIrrevoc;
-      stms[ProfileTM].switcher  = ProfileTMOnSwitchTo;
-      stms[ProfileTM].privatization_safe = true;
-  }
 }
+
+DECLARE_SIMPLE_METHODS_FROM_NORMAL(ProfileTM)
+REGISTER_FGADAPT_ALG(ProfileTM, "ProfileTM", true)
 
 #ifdef STM_ONESHOT_ALG_ProfileTM
 DECLARE_AS_ONESHOT_NORMAL(ProfileTM)

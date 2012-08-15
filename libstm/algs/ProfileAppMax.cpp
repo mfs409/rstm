@@ -10,26 +10,8 @@
 
 #include "ProfileApp.hpp"
 
-namespace stm
-{
-  /**
-   *  ProfileAppMax initialization
-   */
-  template<>
-  void initTM<ProfileAppMax>()
-  {
-      // set the name
-      stms[ProfileAppMax].name      = "ProfileAppMax";
-      stms[ProfileAppMax].begin     = ProfileAppBegin<__MAXIMUM>;
-      stms[ProfileAppMax].commit    = ProfileAppCommitRO<__MAXIMUM>;
-      stms[ProfileAppMax].read      = ProfileAppReadRO<__MAXIMUM>;
-      stms[ProfileAppMax].write     = ProfileAppWriteRO<__MAXIMUM>;
-      stms[ProfileAppMax].rollback  = ProfileAppRollback<__MAXIMUM>;
-      stms[ProfileAppMax].irrevoc   = ProfileAppIrrevoc<__MAXIMUM>;
-      stms[ProfileAppMax].switcher  = ProfileAppOnSwitchTo<__MAXIMUM>;
-      stms[ProfileAppMax].privatization_safe = true;
-  }
-}
+DECLARE_SIMPLE_METHODS_FROM_TEMPLATE(ProfileApp, ProfileAppMax, __MAXIMUM)
+REGISTER_TEMPLATE_ALG(ProfileApp, ProfileAppMax, "ProfileAppMax", true, __MAXIMUM)
 
 #ifdef STM_ONESHOT_ALG_ProfileAppMax
 DECLARE_AS_ONESHOT_NORMAL(ProfileApp<__MAXIMUM>)

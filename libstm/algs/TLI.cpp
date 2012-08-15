@@ -214,27 +214,10 @@ namespace stm
       if (timestamp.val & 1)
           ++timestamp.val;
   }
-
-  /**
-   *  TLI initialization
-   */
-  template<>
-  void initTM<TLI>()
-  {
-      // set the name
-      stms[TLI].name      = "TLI";
-
-      // set the pointers
-      stms[TLI].begin     = TLIBegin;
-      stms[TLI].commit    = TLICommitRO;
-      stms[TLI].read      = TLIReadRO;
-      stms[TLI].write     = TLIWriteRO;
-      stms[TLI].rollback  = TLIRollback;
-      stms[TLI].irrevoc   = TLIIrrevoc;
-      stms[TLI].switcher  = TLIOnSwitchTo;
-      stms[TLI].privatization_safe = true;
-  }
 }
+
+DECLARE_SIMPLE_METHODS_FROM_NORMAL(TLI)
+REGISTER_FGADAPT_ALG(TLI, "TLI", true)
 
 #ifdef STM_ONESHOT_ALG_TLI
 DECLARE_AS_ONESHOT_NORMAL(TLI)

@@ -18,6 +18,9 @@
 
 /**
  * [mfs] Be sure to address all performance concerns raised in fastlane.cpp
+ *
+ * [mfs] This looks to add ELA and switching to FastLane... should we have
+ *       FastlaneELA?  FastLaneSwitchELA?
  */
 
 #include "algs.hpp"
@@ -251,6 +254,9 @@ namespace stm
       CFENCE;
 
       // possibly validate before returning
+      //
+      // [mfs] Is this a full quadratic validation?  That seems like
+      //       overkill... why can't we just poll the timestamp?
       foreach(OrecList, i, tx->r_orecs) {
           uintptr_t ivt_inner = (*i)->v.all;
           if (ivt_inner > tx->start_time)
@@ -421,27 +427,10 @@ namespace stm
   {
       cntr = 0;
   }
-
-  /**
-   *  FastlaneSwitch initialization
-   */
-  template<>
-  void initTM<FastlaneSwitch>()
-  {
-      // set the name
-      stms[FastlaneSwitch].name      = "FastlaneSwitch";
-      // set the pointers
-      stms[FastlaneSwitch].begin     = FastlaneSwitchBegin;
-      stms[FastlaneSwitch].commit    = FastlaneSwitchCommitRO;
-      stms[FastlaneSwitch].read      = FastlaneSwitchReadRO;
-      stms[FastlaneSwitch].write     = FastlaneSwitchWriteRO;
-      stms[FastlaneSwitch].rollback  = FastlaneSwitchRollback;
-      stms[FastlaneSwitch].irrevoc   = FastlaneSwitchIrrevoc;
-      stms[FastlaneSwitch].switcher  = FastlaneSwitchOnSwitchTo;
-      stms[FastlaneSwitch].privatization_safe = true;
-  }
 }
 
+DECLARE_SIMPLE_METHODS_FROM_TURBO(FastlaneSwitch)
+REGISTER_FGADAPT_ALG(FastlaneSwitch, "FastlaneSwitch", true)
 
 #ifdef STM_ONESHOT_ALG_FastlaneSwitch
 DECLARE_AS_ONESHOT_TURBO(FastlaneSwitch)

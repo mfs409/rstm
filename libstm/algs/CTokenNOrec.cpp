@@ -242,27 +242,10 @@ namespace stm
       for (uint32_t i = 0; i < threadcount.val; ++i)
           threads[i]->order = -1;
   }
-
-  /**
-   *  CTokenNOrec initialization
-   */
-  template<>
-  void initTM<CTokenNOrec>()
-  {
-      // set the name
-      stms[CTokenNOrec].name      = "CTokenNOrec";
-      // set the pointers
-      stms[CTokenNOrec].begin     = CTokenNOrecBegin;
-      stms[CTokenNOrec].commit    = CTokenNOrecCommitRO;
-      stms[CTokenNOrec].read      = CTokenNOrecReadRO;
-      stms[CTokenNOrec].write     = CTokenNOrecWriteRO;
-      stms[CTokenNOrec].rollback  = CTokenNOrecRollback;
-      stms[CTokenNOrec].irrevoc   = CTokenNOrecIrrevoc;
-      stms[CTokenNOrec].switcher  = CTokenNOrecOnSwitchTo;
-      stms[CTokenNOrec].privatization_safe = true;
-  }
 }
 
+DECLARE_SIMPLE_METHODS_FROM_NORMAL(CTokenNOrec)
+REGISTER_FGADAPT_ALG(CTokenNOrec, "CTokenNOrec", true)
 
 #ifdef STM_ONESHOT_ALG_CTokenNOrec
 DECLARE_AS_ONESHOT_NORMAL(CTokenNOrec)

@@ -115,8 +115,8 @@ namespace stm
   }
 
   template <class CM>
-  void
-  NOrecGenericCommitRO(TX_LONE_PARAMETER)
+  TM_FASTCALL
+  void NOrecGenericCommitRO(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // Since all reads were consistent, and no writes were done, the read-only
@@ -127,8 +127,8 @@ namespace stm
   }
 
   template <class CM>
-  void
-  NOrecGenericCommitRW(TX_LONE_PARAMETER)
+  TM_FASTCALL
+  void NOrecGenericCommitRW(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // From a valid state, the transaction increments the seqlock.  Then it does
@@ -157,8 +157,8 @@ namespace stm
   }
 
   template <class CM>
-  void*
-  NOrecGenericReadRO(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
+  TM_FASTCALL
+  void* NOrecGenericReadRO(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
   {
       TX_GET_TX_INTERNAL;
       // A read is valid iff it occurs during a period where the seqlock does
@@ -185,8 +185,8 @@ namespace stm
   }
 
   template <class CM>
-  void*
-  NOrecGenericReadRW(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
+  TM_FASTCALL
+  void* NOrecGenericReadRW(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
   {
       TX_GET_TX_INTERNAL;
       // check the log for a RAW hazard, we expect to miss
@@ -207,8 +207,8 @@ namespace stm
   }
 
   template <class CM>
-  void
-  NOrecGenericWriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  TM_FASTCALL
+  void NOrecGenericWriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // buffer the write, and switch to a writing context
@@ -217,8 +217,8 @@ namespace stm
   }
 
   template <class CM>
-  void
-  NOrecGenericWriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  TM_FASTCALL
+  void NOrecGenericWriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // just buffer the write
@@ -226,8 +226,7 @@ namespace stm
   }
 
   template <class CM>
-  void
-  NOrecGenericRollback(STM_ROLLBACK_SIG(tx, except, len))
+  void NOrecGenericRollback(STM_ROLLBACK_SIG(tx, except, len))
   {
       PreRollback(tx);
 

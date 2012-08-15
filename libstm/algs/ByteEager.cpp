@@ -262,27 +262,10 @@ namespace stm
    *  Switch to ByteEager:
    */
   void ByteEagerOnSwitchTo() { }
-
-  /**
-   *  ByteEager initialization
-   */
-  template<>
-  void initTM<ByteEager>()
-  {
-      // set the name
-      stms[ByteEager].name      = "ByteEager";
-
-      // set the pointers
-      stms[ByteEager].begin     = ByteEagerBegin;
-      stms[ByteEager].commit    = ByteEagerCommitRO;
-      stms[ByteEager].read      = ByteEagerReadRO;
-      stms[ByteEager].write     = ByteEagerWriteRO;
-      stms[ByteEager].rollback  = ByteEagerRollback;
-      stms[ByteEager].irrevoc   = ByteEagerIrrevoc;
-      stms[ByteEager].switcher  = ByteEagerOnSwitchTo;
-      stms[ByteEager].privatization_safe = true;
-  }
 }
+
+DECLARE_SIMPLE_METHODS_FROM_NORMAL(ByteEager)
+REGISTER_FGADAPT_ALG(ByteEager, "ByteEager", true)
 
 #ifdef STM_ONESHOT_ALG_ByteEager
 DECLARE_AS_ONESHOT_NORMAL(ByteEager)

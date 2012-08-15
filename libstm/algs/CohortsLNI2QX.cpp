@@ -301,7 +301,7 @@ namespace stm
   /**
    *  CohortsLNI2QX unwinder:
    */
-  void CohortsLNI2QXrollback(STM_ROLLBACK_SIG(tx, except, len))
+  void CohortsLNI2QXRollback(STM_ROLLBACK_SIG(tx, except, len))
   {
       PreRollback(tx);
 
@@ -320,7 +320,7 @@ namespace stm
   /**
    *  CohortsLNI2QX in-flight irrevocability:
    */
-  bool CohortsLNI2QXirrevoc(TxThread*)
+  bool CohortsLNI2QXIrrevoc(TxThread*)
   {
       UNRECOVERABLE("CohortsLNI2QX Irrevocability not yet supported");
       return false;
@@ -342,7 +342,7 @@ namespace stm
   /**
    *  Switch to CohortsLNI2QX:
    */
-  void CohortsLNI2QXonSwitchTo()
+  void CohortsLNI2QXOnSwitchTo()
   {
       // when switching algs, mark all tx committed status
       for (uint32_t i = 0; i < threadcount.val; ++i) {
@@ -394,27 +394,10 @@ namespace stm
       printf("Use STM_READS = %d, STM_WRITES = %d, STM_ABORTS = %d\n",
              READ_EARLYSEAL.val, WRITE_EARLYSEAL.val, ABORT_EARLYSEAL.val);
   }
-
-  /**
-   *  CohortsLNI2QX initialization
-   */
-  template<>
-  void initTM<CohortsLNI2QX>()
-  {
-      // set the name
-      stms[CohortsLNI2QX].name      = "CohortsLNI2QX";
-      // set the pointers
-      stms[CohortsLNI2QX].begin     = CohortsLNI2QXBegin;
-      stms[CohortsLNI2QX].commit    = CohortsLNI2QXCommitRO;
-      stms[CohortsLNI2QX].read      = CohortsLNI2QXReadRO;
-      stms[CohortsLNI2QX].write     = CohortsLNI2QXWriteRO;
-      stms[CohortsLNI2QX].rollback  = CohortsLNI2QXrollback;
-      stms[CohortsLNI2QX].irrevoc   = CohortsLNI2QXirrevoc;
-      stms[CohortsLNI2QX].switcher  = CohortsLNI2QXonSwitchTo;
-      stms[CohortsLNI2QX].privatization_safe = true;
-  }
 }
 
+DECLARE_SIMPLE_METHODS_FROM_TURBO(CohortsLNI2QX)
+REGISTER_FGADAPT_ALG(CohortsLNI2QX, "CohortsLNI2QX", true)
 
 #ifdef STM_ONESHOT_ALG_CohortsLNI2QX
 DECLARE_AS_ONESHOT_TURBO(CohortsLNI2QX)

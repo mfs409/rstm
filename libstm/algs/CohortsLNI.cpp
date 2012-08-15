@@ -359,27 +359,11 @@ namespace stm
           threads[i]->status = COHORTS_COMMITTED;
       }
   }
-
-  /**
-   *  CohortsLNI initialization
-   */
-  template<>
-  void initTM<CohortsLNI>()
-  {
-      // set the name
-      stms[CohortsLNI].name      = "CohortsLNI";
-      // set the pointers
-      stms[CohortsLNI].begin     = CohortsLNIBegin;
-      stms[CohortsLNI].commit    = CohortsLNICommitRO;
-      stms[CohortsLNI].read      = CohortsLNIReadRO;
-      stms[CohortsLNI].write     = CohortsLNIWriteRO;
-      stms[CohortsLNI].rollback  = CohortsLNIRollback;
-      stms[CohortsLNI].irrevoc   = CohortsLNIIrrevoc;
-      stms[CohortsLNI].switcher  = CohortsLNIOnSwitchTo;
-      stms[CohortsLNI].privatization_safe = true;
-  }
 }
 
+
+DECLARE_SIMPLE_METHODS_FROM_TURBO(CohortsLNI)
+REGISTER_FGADAPT_ALG(CohortsLNI, "CohortsLNI", true)
 
 #ifdef STM_ONESHOT_ALG_CohortsLNI
 DECLARE_AS_ONESHOT_TURBO(CohortsLNI)

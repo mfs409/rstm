@@ -223,6 +223,21 @@ sub toxic {
     else { die $option . "is invalid" }
 }
 
+sub adaptivity {
+    my $option = shift;
+    if ($option =~ "no") {
+        push(@LINES, "# FINE GRAINED ADAPTIVITY = OFF"); # put a note in the makefile
+        $PLATFORM .= "fgadaptoff_";
+        push(@LINES, "CXXFLAGS += -DSTM_FINEGRAINADAPT_OFF");
+    }
+    elsif ($option =~ "yes") {
+        push(@LINES, "# FINE GRAINED ADAPTIVITY = ON");  # put a note in the makefile
+        $PLATFORM .= "fgadapton_";
+        push(@LINES, "CXXFLAGS += -DSTM_FINEGRAINADAPT_ON");
+    }
+    else { die $option . "is invalid" }
+}
+
 sub oneshot {
     my $option = shift;
     if ($option =~ "no") {
@@ -236,14 +251,21 @@ sub oneshot {
         push(@LINES, "CXXFLAGS += -DSTM_ONESHOT_ALG_$option");
     }
 }
+
+
 # [mfs] I found this option somewhere, but I don't know what it is for, so I
 # didn't set it up.
 #
 # #CXXFLAGS += -DSTM_USE_WORD_LOGGING_VALUELIST
 
+#
 # hack: this is a global variable used by query
+#
 my @options = ();
+
+#
 # get user input
+#
 sub query {
     print "\n" . shift() . ":\n";
     for my $o (@options) { print "  " . $o . "\n" }
@@ -253,7 +275,9 @@ sub query {
     return $answer;
 }
 
+#
 # here's our nasty queries
+#
 @options = qw(gcc gcctm);
 compiler(&query("Choose a compiler"));
 @options = qw(linux solaris);
@@ -271,6 +295,8 @@ descriptor(&query("Choose a descriptor access mechanism"));
 @options = qw(off on);
 pmu(&query("Do you want PMU support"));
 toxic(&query("Do you want to count Toxic Transactions"));
+@options = qw(yes no);
+adaptivity(&query("Do you want to allow some algorithms to use fine-grained adaptivity"));
 @options = ("no", "<enter the name of the algorithm to use (case sensitive)");
 oneshot(&query("Do you want to use oneshot mode instead of function pointer adaptivity?"));
 

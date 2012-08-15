@@ -240,26 +240,10 @@ namespace stm
   {
       last_complete.val = 0;
   }
-
-  /**
-   *  Cohorts initialization
-   */
-  template<>
-  void initTM<Cohorts>()
-  {
-      // set the name
-      stms[Cohorts].name      = "Cohorts";
-      // set the pointers
-      stms[Cohorts].begin     = CohortsBegin;
-      stms[Cohorts].commit    = CohortsCommitRO;
-      stms[Cohorts].read      = CohortsReadRO;
-      stms[Cohorts].write     = CohortsWriteRO;
-      stms[Cohorts].rollback  = CohortsRollback;
-      stms[Cohorts].irrevoc   = CohortsIrrevoc;
-      stms[Cohorts].switcher  = CohortsOnSwitchTo;
-      stms[Cohorts].privatization_safe = true;
-  }
 }
+
+DECLARE_SIMPLE_METHODS_FROM_NORMAL(Cohorts)
+REGISTER_FGADAPT_ALG(Cohorts, "Cohorts", true)
 
 #ifdef STM_ONESHOT_ALG_Cohorts
 DECLARE_AS_ONESHOT_NORMAL(Cohorts)

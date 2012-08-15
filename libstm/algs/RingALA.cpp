@@ -267,27 +267,10 @@ namespace stm
       last_init.val = timestamp.val;
       last_complete.val = last_init.val;
   }
-
-  /**
-   *  RingALA initialization
-   */
-  template<>
-  void initTM<RingALA>()
-  {
-      // set the name
-      stms[RingALA].name      = "RingALA";
-
-      // set the pointers
-      stms[RingALA].begin     = RingALABegin;
-      stms[RingALA].commit    = RingALACommitRO;
-      stms[RingALA].read      = RingALAReadRO;
-      stms[RingALA].write     = RingALAWriteRO;
-      stms[RingALA].rollback  = RingALARollback;
-      stms[RingALA].irrevoc   = RingALAIrrevoc;
-      stms[RingALA].switcher  = RingALAOnSwitchTo;
-      stms[RingALA].privatization_safe = true;
-  }
 }
+
+DECLARE_SIMPLE_METHODS_FROM_NORMAL(RingALA)
+REGISTER_FGADAPT_ALG(RingALA, "RingALA", true)
 
 #ifdef STM_ONESHOT_ALG_RingALA
 DECLARE_AS_ONESHOT_NORMAL(RingALA)

@@ -98,27 +98,9 @@ namespace stm
   void
   MCSOnSwitchTo() {
   }
-
-  /**
-   *  MCS initialization
-   */
-  template<>
-  void initTM<MCS>()
-  {
-      // set the name
-      stms[MCS].name      = "MCS";
-
-      // set the pointers
-      stms[MCS].begin     = MCSBegin;
-      stms[MCS].commit    = MCSCommit;
-      stms[MCS].read      = MCSRead;
-      stms[MCS].write     = MCSWrite;
-      stms[MCS].rollback  = MCSRollback;
-      stms[MCS].irrevoc   = MCSIrrevoc;
-      stms[MCS].switcher  = MCSOnSwitchTo;
-      stms[MCS].privatization_safe = true;
-  }
 }
+
+REGISTER_REGULAR_ALG(MCS, "MCS", true)
 
 #ifdef STM_ONESHOT_ALG_MCS
 DECLARE_AS_ONESHOT_SIMPLE(MCS)

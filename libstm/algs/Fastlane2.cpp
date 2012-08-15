@@ -302,27 +302,11 @@ namespace stm
   {
       timestamp.val = 0;
   }
-
-  /**
-   *  Fastlane2 initialization
-   */
-  template<>
-  void initTM<Fastlane2>()
-  {
-      // set the name
-      stms[Fastlane2].name      = "Fastlane2";
-      // set the pointers
-      stms[Fastlane2].begin     = Fastlane2Begin;
-      stms[Fastlane2].commit    = Fastlane2CommitRO;
-      stms[Fastlane2].read      = Fastlane2ReadRO;
-      stms[Fastlane2].write     = Fastlane2WriteRO;
-      stms[Fastlane2].rollback  = Fastlane2Rollback;
-      stms[Fastlane2].irrevoc   = Fastlane2Irrevoc;
-      stms[Fastlane2].switcher  = Fastlane2OnSwitchTo;
-      stms[Fastlane2].privatization_safe = true;
-  }
 }
 
+
+DECLARE_SIMPLE_METHODS_FROM_TURBO(Fastlane2)
+REGISTER_FGADAPT_ALG(Fastlane2, "Fastlane2", true)
 
 #ifdef STM_ONESHOT_ALG_Fastlane2
 DECLARE_AS_ONESHOT_TURBO(Fastlane2)

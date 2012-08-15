@@ -259,27 +259,11 @@ namespace stm
       last_complete.val = 0;
       global_filter->clear();
   }
-
-  /**
-   *  CohortsFilter initialization
-   */
-  template<>
-  void initTM<CohortsFilter>()
-  {
-      // set the name
-      stms[CohortsFilter].name      = "CohortsFilter";
-      // set the pointers
-      stms[CohortsFilter].begin     = CohortsFilterBegin;
-      stms[CohortsFilter].commit    = CohortsFilterCommitRO;
-      stms[CohortsFilter].read      = CohortsFilterReadRO;
-      stms[CohortsFilter].write     = CohortsFilterWriteRO;
-      stms[CohortsFilter].rollback  = CohortsFilterRollback;
-      stms[CohortsFilter].irrevoc   = CohortsFilterIrrevoc;
-      stms[CohortsFilter].switcher  = CohortsFilterOnSwitchTo;
-      stms[CohortsFilter].privatization_safe = true;
-  }
 }
 
+
+DECLARE_SIMPLE_METHODS_FROM_NORMAL(CohortsFilter)
+REGISTER_FGADAPT_ALG(CohortsFilter, "CohortsFilter", true)
 
 #ifdef STM_ONESHOT_ALG_CohortsFilter
 DECLARE_AS_ONESHOT_NORMAL(CohortsFilter)

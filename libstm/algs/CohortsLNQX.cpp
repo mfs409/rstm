@@ -334,27 +334,11 @@ namespace stm
       printf("Use STM_READS = %d, STM_WRITES = %d, STM_ABORTS = %d\n",
              READ_EARLYSEAL.val, WRITE_EARLYSEAL.val, ABORT_EARLYSEAL.val);
   }
-
-  /**
-   *  CohortsLNQX initialization
-   */
-  template<>
-  void initTM<CohortsLNQX>()
-  {
-      // set the name
-      stms[CohortsLNQX].name      = "CohortsLNQX";
-      // set the pointers
-      stms[CohortsLNQX].begin     = CohortsLNQXBegin;
-      stms[CohortsLNQX].commit    = CohortsLNQXCommitRO;
-      stms[CohortsLNQX].read      = CohortsLNQXReadRO;
-      stms[CohortsLNQX].write     = CohortsLNQXWriteRO;
-      stms[CohortsLNQX].rollback  = CohortsLNQXRollback;
-      stms[CohortsLNQX].irrevoc   = CohortsLNQXIrrevoc;
-      stms[CohortsLNQX].switcher  = CohortsLNQXOnSwitchTo;
-      stms[CohortsLNQX].privatization_safe = true;
-  }
 }
 
+
+DECLARE_SIMPLE_METHODS_FROM_TURBO(CohortsLNQX)
+REGISTER_FGADAPT_ALG(CohortsLNQX, "CohortsLNQX", true)
 
 #ifdef STM_ONESHOT_ALG_CohortsLNQX
 DECLARE_AS_ONESHOT_TURBO(CohortsLNQX)

@@ -75,7 +75,7 @@ namespace stm
       }
 
       // set my pointers
-#ifdef STM_ONESHOT_MODE
+#if defined(STM_ONESHOT_MODE) || defined(STM_FINEGRAINADAPT_OFF)
       mode = MODE_RO;  // the default
 #else
       my_tmread = (void**)&tmread;
@@ -311,7 +311,7 @@ namespace stm
       /*** default case: init the Ith tm, then recurse to I+1 */
       static void init()
       {
-          initTM<(stm::ALGS)I>();
+          registerTM<(stm::ALGS)I>();
           MetaInitializer<(stm::ALGS)I+1>::init();
       }
   };

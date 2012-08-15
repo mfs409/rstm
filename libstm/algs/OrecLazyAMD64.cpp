@@ -284,25 +284,8 @@ namespace stm
   }
 }
 
-namespace stm
-{
-  template <>
-  void initTM<OrecLazyAMD64>()
-  {
-      // set the name
-      stms[OrecLazyAMD64].name      = "OrecLazyAMD64";
-
-      // set the pointers
-      stms[OrecLazyAMD64].begin     = OrecLazyAMD64Begin;
-      stms[OrecLazyAMD64].commit    = OrecLazyAMD64CommitRO;
-      stms[OrecLazyAMD64].read      = OrecLazyAMD64ReadRO;
-      stms[OrecLazyAMD64].write     = OrecLazyAMD64WriteRO;
-      stms[OrecLazyAMD64].rollback  = OrecLazyAMD64Rollback;
-      stms[OrecLazyAMD64].irrevoc   = OrecLazyAMD64Irrevoc;
-      stms[OrecLazyAMD64].switcher  = OrecLazyAMD64OnSwitchTo;
-      stms[OrecLazyAMD64].privatization_safe = false;
-  }
-}
+DECLARE_SIMPLE_METHODS_FROM_NORMAL(OrecLazyAMD64)
+REGISTER_FGADAPT_ALG(OrecLazyAMD64, "OrecLazyAMD64", false)
 
 #ifdef STM_ONESHOT_ALG_OrecLazyAMD64
 DECLARE_AS_ONESHOT_NORMAL(OrecLazyAMD64<HyperAggressiveCM>)

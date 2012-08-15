@@ -297,27 +297,11 @@ namespace stm
   CohortsEN2QOnSwitchTo()
   {
   }
-
-  /**
-   *  CohortsEN2Q initialization
-   */
-  template<>
-  void initTM<CohortsEN2Q>()
-  {
-      // set the name
-      stms[CohortsEN2Q].name      = "CohortsEN2Q";
-      // set the pointers
-      stms[CohortsEN2Q].begin     = CohortsEN2QBegin;
-      stms[CohortsEN2Q].commit    = CohortsEN2QCommitRO;
-      stms[CohortsEN2Q].read      = CohortsEN2QReadRO;
-      stms[CohortsEN2Q].write     = CohortsEN2QWriteRO;
-      stms[CohortsEN2Q].rollback  = CohortsEN2QRollback;
-      stms[CohortsEN2Q].irrevoc   = CohortsEN2QIrrevoc;
-      stms[CohortsEN2Q].switcher  = CohortsEN2QOnSwitchTo;
-      stms[CohortsEN2Q].privatization_safe = true;
-  }
 }
 
+
+DECLARE_SIMPLE_METHODS_FROM_TURBO(CohortsEN2Q)
+REGISTER_FGADAPT_ALG(CohortsEN2Q, "CohortsEN2Q", true)
 
 #ifdef STM_ONESHOT_ALG_CohortsEN2Q
 DECLARE_AS_ONESHOT_TURBO(CohortsEN2Q)

@@ -308,26 +308,7 @@ namespace stm
   void OrecEagerAMD64OnSwitchTo() { }
 }
 
-namespace stm
-{
-  template <>
-  void initTM<OrecEagerAMD64>()
-  {
-      // set the name
-      stms[OrecEagerAMD64].name      = "OrecEagerAMD64";
-
-      // set the pointers
-      stms[OrecEagerAMD64].begin     = OrecEagerAMD64Begin;
-      stms[OrecEagerAMD64].commit    = OrecEagerAMD64Commit;
-      stms[OrecEagerAMD64].rollback  = OrecEagerAMD64Rollback;
-
-      stms[OrecEagerAMD64].read      = OrecEagerAMD64Read;
-      stms[OrecEagerAMD64].write     = OrecEagerAMD64Write;
-      stms[OrecEagerAMD64].irrevoc   = OrecEagerAMD64Irrevoc;
-      stms[OrecEagerAMD64].switcher  = OrecEagerAMD64OnSwitchTo;
-      stms[OrecEagerAMD64].privatization_safe = false;
-  }
-}
+REGISTER_REGULAR_ALG(OrecEagerAMD64, "OrecEagerAMD64", false)
 
 #ifdef STM_ONESHOT_ALG_OrecEagerAMD64
 DECLARE_AS_ONESHOT_SIMPLE(OrecEagerAMD64<HyperAggressiveCM>)

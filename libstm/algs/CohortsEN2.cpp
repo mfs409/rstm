@@ -292,27 +292,11 @@ namespace stm
   {
       last_complete.val = 0;
   }
-
-  /**
-   *  CohortsEN2 initialization
-   */
-  template<>
-  void initTM<CohortsEN2>()
-  {
-      // set the name
-      stms[CohortsEN2].name      = "CohortsEN2";
-      // set the pointers
-      stms[CohortsEN2].begin     = CohortsEN2Begin;
-      stms[CohortsEN2].commit    = CohortsEN2CommitRO;
-      stms[CohortsEN2].read      = CohortsEN2ReadRO;
-      stms[CohortsEN2].write     = CohortsEN2WriteRO;
-      stms[CohortsEN2].rollback  = CohortsEN2Rollback;
-      stms[CohortsEN2].irrevoc   = CohortsEN2Irrevoc;
-      stms[CohortsEN2].switcher  = CohortsEN2OnSwitchTo;
-      stms[CohortsEN2].privatization_safe = true;
-  }
 }
 
+
+DECLARE_SIMPLE_METHODS_FROM_TURBO(CohortsEN2)
+REGISTER_FGADAPT_ALG(CohortsEN2, "CohortsEN2", true)
 
 #ifdef STM_ONESHOT_ALG_CohortsEN2
 DECLARE_AS_ONESHOT_TURBO(CohortsEN2)

@@ -146,24 +146,9 @@ namespace stm
       if (timestamp.val & 1)
           ++timestamp.val;
   }
-
-  template<>
-  void initTM<TML>()
-  {
-      // set the name
-      stms[TML].name      = "TML";
-
-      // set the pointers
-      stms[TML].begin     = TMLBegin;
-      stms[TML].commit    = TMLCommit;
-      stms[TML].read      = TMLRead;
-      stms[TML].write     = TMLWrite;
-      stms[TML].rollback  = TMLRollback;
-      stms[TML].irrevoc   = TMLIrrevoc;
-      stms[TML].switcher  = TMLOnSwitchTo;
-      stms[TML].privatization_safe = true;
-  }
 }
+
+REGISTER_REGULAR_ALG(TML, "TML", true)
 
 #ifdef STM_ONESHOT_ALG_TML
 DECLARE_AS_ONESHOT_SIMPLE(TML)

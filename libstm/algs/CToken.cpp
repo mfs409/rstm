@@ -251,27 +251,10 @@ namespace stm
       for (uint32_t i = 0; i < threadcount.val; ++i)
           threads[i]->order = -1;
   }
-
-  /**
-   *  CToken initialization
-   */
-  template<>
-  void initTM<CToken>()
-  {
-      // set the name
-      stms[CToken].name      = "CToken";
-      // set the pointers
-      stms[CToken].begin     = CTokenBegin;
-      stms[CToken].commit    = CTokenCommitRO;
-      stms[CToken].read      = CTokenReadRO;
-      stms[CToken].write     = CTokenWriteRO;
-      stms[CToken].rollback  = CTokenRollback;
-      stms[CToken].irrevoc   = CTokenIrrevoc;
-      stms[CToken].switcher  = CTokenOnSwitchTo;
-      stms[CToken].privatization_safe = true;
-  }
 }
 
+DECLARE_SIMPLE_METHODS_FROM_NORMAL(CToken)
+REGISTER_FGADAPT_ALG(CToken, "CToken", true)
 
 #ifdef STM_ONESHOT_ALG_CToken
 DECLARE_AS_ONESHOT_NORMAL(CToken)

@@ -255,27 +255,10 @@ namespace stm
   {
       timestamp.val = MAXIMUM(timestamp.val, timestamp_max.val);
   }
-
-  /**
-   *  LLT initialization
-   */
-  template<>
-  void initTM<LLT>()
-  {
-      // set the name
-      stms[LLT].name      = "LLT";
-
-      // set the pointers
-      stms[LLT].begin     = LLTBegin;
-      stms[LLT].commit    = LLTCommitRO;
-      stms[LLT].read      = LLTReadRO;
-      stms[LLT].write     = LLTWriteRO;
-      stms[LLT].rollback  = LLTRollback;
-      stms[LLT].irrevoc   = LLTIrrevoc;
-      stms[LLT].switcher  = LLTOnSwitchTo;
-      stms[LLT].privatization_safe = false;
-  }
 }
+
+DECLARE_SIMPLE_METHODS_FROM_NORMAL(LLT)
+REGISTER_FGADAPT_ALG(LLT, "LLT", false)
 
 #ifdef STM_ONESHOT_ALG_LLT
 DECLARE_AS_ONESHOT_NORMAL(LLT)

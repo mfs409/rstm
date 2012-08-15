@@ -317,27 +317,11 @@ namespace stm
       last_complete.val = 0;
       inplace.val = 0;
   }
-
-  /**
-   *  CohortsEN initialization
-   */
-  template<>
-  void initTM<CohortsEN>()
-  {
-      // set the name
-      stms[CohortsEN].name      = "CohortsEN";
-      // set the pointers
-      stms[CohortsEN].begin     = CohortsENBegin;
-      stms[CohortsEN].commit    = CohortsENCommitRO;
-      stms[CohortsEN].read      = CohortsENReadRO;
-      stms[CohortsEN].write     = CohortsENWriteRO;
-      stms[CohortsEN].rollback  = CohortsENRollback;
-      stms[CohortsEN].irrevoc   = CohortsENIrrevoc;
-      stms[CohortsEN].switcher  = CohortsENOnSwitchTo;
-      stms[CohortsEN].privatization_safe = true;
-  }
 }
 
+
+DECLARE_SIMPLE_METHODS_FROM_TURBO(CohortsEN)
+REGISTER_FGADAPT_ALG(CohortsEN, "CohortsEN", true)
 
 #ifdef STM_ONESHOT_ALG_CohortsEN
 DECLARE_AS_ONESHOT_TURBO(CohortsEN)
