@@ -63,13 +63,17 @@ namespace stm
       CFENCE;
 
       // set per-thread pointers
+
+      /*
       for (unsigned i = 0; i < threadcount.val; ++i) {
           threads[i]->tmread     = stms[new_alg].read;
           threads[i]->tmwrite    = stms[new_alg].write;
           threads[i]->tmcommit   = stms[new_alg].commit;
           threads[i]->consec_aborts  = 0;
       }
-
+      */
+	
+//	threads[]
       TxThread::tmrollback = stms[new_alg].rollback;
       TxThread::tmirrevoc  = stms[new_alg].irrevoc;
       curr_policy.ALG_ID   = new_alg;
