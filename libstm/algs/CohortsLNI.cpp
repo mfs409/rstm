@@ -44,13 +44,10 @@ namespace stm
 
     S1:
       // wait if I'm blocked
-      while (gatekeeper.val == 1);
+      while (gatekeeper.val == 1 || inplace.val == 1);
 
       // set started
-      //
       atomicswapptr(&tx->status, COHORTS_STARTED);
-      //      tx->status = COHORTS_STARTED;
-      //WBR;
 
       // double check no one is ready to commit
       if (gatekeeper.val == 1 || inplace.val == 1){
@@ -249,7 +246,7 @@ namespace stm
           atomicswapptr(&inplace.val, 1);
 
           // double check
-          for (uint32_t i = 0; i < threadcount.val && count < 0; ++i)
+          for (uint32_t i = 0; i < threadcount.val; ++i)
               count -= (threads[i]->status == COHORTS_STARTED);
           if (count == 0) {
               // write inplace.val

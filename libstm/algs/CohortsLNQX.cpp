@@ -167,9 +167,6 @@ namespace stm
       TX_GET_TX_INTERNAL;
 
       tx->cohort_reads++;
-      // test if we need to do a early seal based on write number
-      if (tx->cohort_reads == READ_EARLYSEAL.val)
-          atomicswap32(&sealed.val, 1);
 
       void* tmp = *addr;
       STM_LOG_VALUE(tx, addr, tmp, mask);
@@ -194,6 +191,11 @@ namespace stm
       WriteSetEntry log(STM_WRITE_SET_ENTRY(addr, NULL, mask));
       bool found = tx->writes.find(log);
       REDO_RAW_CHECK(found, log, mask);
+
+      tx->cohort_reads++;
+      // test if we need to do a early seal based on write number
+      if (tx->cohort_reads == READ_EARLYSEAL.val)
+          atomicswap32(&sealed.val, 1);
 
       void* tmp = *addr;
       STM_LOG_VALUE(tx, addr, tmp, mask);
