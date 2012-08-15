@@ -25,7 +25,7 @@ namespace stm
   TM_FASTCALL void CohortsLFWriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
   TM_FASTCALL void CohortsLFCommitRO(TX_LONE_PARAMETER);
   TM_FASTCALL void CohortsLFCommitRW(TX_LONE_PARAMETER);
-  NOINLINE void CohortsLFValidate(TxThread* tx);
+  TM_FASTCALL void CohortsLFValidate(TxThread* tx);
 
   /**
    *  CohortsLF begin:

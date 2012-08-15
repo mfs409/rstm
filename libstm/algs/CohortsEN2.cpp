@@ -18,13 +18,9 @@
 #include "algs.hpp"
 #include "../Diagnostics.hpp"
 
-// [mfs] We shouldn't need these anymore...
-#define TURBO 5
-#define RESET 0
-
 namespace stm
 {
-  NOINLINE bool CohortsEN2Validate(TxThread* tx);
+  TM_FASTCALL bool CohortsEN2Validate(TxThread* tx);
   TM_FASTCALL void* CohortsEN2ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
   TM_FASTCALL void* CohortsEN2ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
   TM_FASTCALL void* CohortsEN2ReadTurbo(TX_FIRST_PARAMETER STM_READ_SIG(,));
@@ -60,7 +56,7 @@ namespace stm
       }
 
       // reset tx->status;
-      tx->status = RESET;
+      tx->status = COHORTS_NOTURBO;
   }
 
   /**
@@ -122,7 +118,7 @@ namespace stm
       // If I'm the next to the last, notify the last txn to go turbo
       if (tx->order == (intptr_t)started.val - 1)
           for (uint32_t i = 0; i < threadcount.val; i++)
-              threads[i]->status = TURBO;
+              threads[i]->status = COHORTS_TURBO;
 
       // Wait for my turn
       while (last_complete.val != (uintptr_t)(tx->order - 1));
@@ -201,7 +197,7 @@ namespace stm
   CohortsEN2WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
-      if (tx->status == TURBO) {
+      if (tx->status == COHORTS_TURBO) {
           // in place write
           *addr = val;
           // go turbo mode
@@ -229,7 +225,7 @@ namespace stm
   CohortsEN2WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
-      if (tx->status == TURBO) {
+      if (tx->status == COHORTS_TURBO) {
           // write previous write set back
           foreach (WriteSet, i, tx->writes)
               *i->addr = i->val;

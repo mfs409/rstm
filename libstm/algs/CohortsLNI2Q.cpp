@@ -18,7 +18,7 @@
 
 namespace stm
 {
-  NOINLINE bool CohortsLNI2QValidate(TxThread* tx);
+  TM_FASTCALL bool CohortsLNI2QValidate(TxThread* tx);
   TM_FASTCALL void* CohortsLNI2QReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
   TM_FASTCALL void* CohortsLNI2QReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
   TM_FASTCALL void CohortsLNI2QWriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));

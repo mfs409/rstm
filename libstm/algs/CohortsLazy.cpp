@@ -28,7 +28,7 @@ namespace stm
   TM_FASTCALL void CohortsLazyWriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
   TM_FASTCALL void CohortsLazyCommitRO(TX_LONE_PARAMETER);
   TM_FASTCALL void CohortsLazyCommitRW(TX_LONE_PARAMETER);
-  NOINLINE void CohortsLazyValidate(TxThread* tx);
+  TM_FASTCALL void CohortsLazyValidate(TxThread* tx);
 
   /**
    *  CohortsLazy begin:

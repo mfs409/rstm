@@ -19,7 +19,7 @@
 
 namespace stm
 {
-  NOINLINE bool CohortsNOrecValidate(TxThread* tx);
+  TM_FASTCALL bool CohortsNOrecValidate(TxThread* tx);
   TM_FASTCALL void* CohortsNOrecReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
   TM_FASTCALL void* CohortsNOrecReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
   TM_FASTCALL void CohortsNOrecWriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
