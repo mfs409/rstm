@@ -157,8 +157,11 @@ run(uintptr_t id)
 
     // wait until read of start timer finishes, then start transactions
     barrier(1);
-
+#if defined STM_CHECKPOINT_ASM
+    volatile uint32_t count = 0;
+#else
     uint32_t count = 0;
+#endif
     uint32_t seed = id; // not everyone needs a seed, but we have to support it
     if (!CFG.execute) {
         // run txns until alarm fires
@@ -170,12 +173,16 @@ run(uintptr_t id)
     }
     else {
         // run fixed number of txns
-        for (uint32_t e = 0; e < CFG.execute; e++) {
-            bench_test(id, &seed);
-            ++count;
-            nontxnwork(); // some nontx work between txns?
+#if defined STM_CHECKPOINT_ASM
+        for (volatile uint32_t e = 0; e < CFG.execute; e++) {
+#else
+            for (uint32_t e = 0; e < CFG.execute; e++) {
+#endif
+                bench_test(id, &seed);
+                ++count;
+                nontxnwork(); // some nontx work between txns?
+            }
         }
-    }
 
     // wait until all txns finish, then get time
     barrier(2);
@@ -185,6 +192,7 @@ run(uintptr_t id)
     // add this thread's count to an accumulator
     faa32(&CFG.txcount, count);
 }
+
 
 /**
  *  pthread wrapper for running the experiments
