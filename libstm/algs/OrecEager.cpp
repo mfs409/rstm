@@ -10,6 +10,7 @@
 
 #include "OrecEager.hpp"
 
+DECLARE_SIMPLE_METHODS_FROM_SIMPLE_TEMPLATE(OrecEager, OrecEager, HyperAggressiveCM)
 REGISTER_SIMPLE_TEMPLATE_ALG(OrecEager, OrecEager, "OrecEager", false, HyperAggressiveCM)
 
 #ifdef STM_ONESHOT_ALG_OrecEager

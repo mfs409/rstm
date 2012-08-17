@@ -74,14 +74,12 @@ namespace stm
           spin64();
       }
 
-      // set my pointers
-#if defined(STM_ONESHOT_MODE) || defined(STM_FINEGRAINADAPT_OFF)
-      mode = MODE_RO;  // the default
-#else
-      my_tmread = (void**)&tmread;
-      my_tmwrite = (void**)&tmwrite;
-      my_tmcommit = (void**)&tmcommit;
-#endif
+      // initialize this thread's instrumentation fields...
+      //
+      // [mfs] We should ultimately have an inst_t that is managed through
+      //       defines, so that we don't need to have an #ifdef for INST in
+      //       txthread.hpp
+      initializeThreadInst(this);
 
       // We need to be very careful here.  Some algorithms (at least TLI and
       // NOrecPrio) like to let a thread look at another thread's TxThread

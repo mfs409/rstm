@@ -10,6 +10,7 @@
 
 #include "OrecEager.hpp"
 
+DECLARE_SIMPLE_METHODS_FROM_SIMPLE_TEMPLATE(OrecEager, OrecEagerHour, HourglassCM)
 REGISTER_SIMPLE_TEMPLATE_ALG(OrecEager, OrecEagerHour, "OrecEagerHour", false, HourglassCM)
 
 #ifdef STM_ONESHOT_ALG_OrecEagerHour

@@ -14,7 +14,7 @@ my $PLATFORM = ""; # the build folder
 sub compiler {
     my $option=shift;
     if ($option =~ "gcctm") {
-        push(@LINES, "# COMPILER = GCCTM"); # put a note in the makefile
+        push(@LINES, "# COMPILER = GCCTM"); 
         $PLATFORM .= "gcctm_"; # include gcctm in the platform description
         push(@LINES, "CC = gcc"); # use gcc for c and asm code
         push(@LINES, "CXX = g++"); # use g++ for c++ code
@@ -29,7 +29,7 @@ sub compiler {
         push(@LINES, "LIB_OVERRIDE = true"); # not sure we still need this...
     }
     elsif ($option =~ "gcc") {
-        push(@LINES, "# COMPILER = GCC"); # put a note in the makefile
+        push(@LINES, "# COMPILER = GCC"); 
         $PLATFORM .= "gcc_"; # include gcc in the platform description
         push(@LINES, "CC = gcc"); # use gcc for c and asm code
         push(@LINES, "CXX = g++"); # use g++ for c++ code
@@ -47,13 +47,13 @@ sub compiler {
 sub os {
     my $option = shift;
     if ($option =~ "linux") {
-        push(@LINES, "# OS = LINUX"); # put a note in the makefile
+        push(@LINES, "# OS = LINUX"); 
         $PLATFORM .= "linux_";
         push(@LINES, "ASFLAGS  += -DSTM_OS_LINUX");
         push(@LINES, "CXXFLAGS += -DSTM_OS_LINUX");
     }
     elsif ($option =~ "solaris") {
-        push(@LINES, "# OS = SOLARIS"); # put a note in the makefile
+        push(@LINES, "# OS = SOLARIS"); 
         $PLATFORM .= "solaris_";
         push(@LINES, "ASFLAGS  += -DSTM_OS_SOLARIS");
         push(@LINES, "CXXFLAGS += -DSTM_OS_SOLARIS");
@@ -67,7 +67,7 @@ sub os {
 sub cpu {
     my $option = shift;
     if ($option =~ "ia32") {
-        push(@LINES, "# CPU = IA32"); # put a note in the makefile
+        push(@LINES, "# CPU = IA32"); 
         $PLATFORM .= "ia32_";
         push(@LINES, "ASFLAGS += -DSTM_CPU_X86");
         push(@LINES, "CXXFLAGS += -DSTM_CPU_X86");
@@ -78,7 +78,7 @@ sub cpu {
         push(@LINES, "CXXFLAGS += -march=native -mtune=native -msse2 -mfpmath=sse -DSTM_USE_SSE");
     }
     elsif ($option =~ "amd64") {
-        push(@LINES, "# CPU = AMD64"); # put a note in the makefile
+        push(@LINES, "# CPU = AMD64"); 
         $PLATFORM .= "amd64_";
         push(@LINES, "ASFLAGS += -DSTM_CPU_X86");
         push(@LINES, "CXXFLAGS += -DSTM_CPU_X86");
@@ -89,7 +89,7 @@ sub cpu {
         push(@LINES, "CXXFLAGS += -march=native -mtune=native -msse2 -mfpmath=sse -DSTM_USE_SSE");
     }
     elsif ($option =~ "sparc32") {
-        push(@LINES, "# CPU = SPARC32"); # put a note in the makefile
+        push(@LINES, "# CPU = SPARC32"); 
         $PLATFORM .= "sparc32_";
         push(@LINES, "ASFLAGS += -DSTM_CPU_SPARC");
         push(@LINES, "CXXFLAGS += -DSTM_CPU_SPARC");
@@ -100,7 +100,7 @@ sub cpu {
         push(@LINES, "CXXFLAGS += -mcpu=native -mtune=native");
     }
     elsif ($option =~ "sparc64") {
-        push(@LINES, "# CPU = SPARC64"); # put a note in the makefile
+        push(@LINES, "# CPU = SPARC64"); 
         $PLATFORM .= "sparc64_";
         push(@LINES, "ASFLAGS += -DSTM_CPU_SPARC");
         push(@LINES, "CXXFLAGS += -DSTM_CPU_SPARC");
@@ -111,7 +111,7 @@ sub cpu {
         push(@LINES, "CXXFLAGS += -mcpu=native -mtune=native");
     }
     elsif ($option =~ "armv7") {
-        push(@LINES, "# CPU = ARMV7"); # put a note in the makefile
+        push(@LINES, "# CPU = ARMV7"); 
         $PLATFORM .= "armv7_";
         push(@LINES, "ASFLAGS += -m32 -DSTM_BITS_32");
         push(@LINES, "CFLAGS += -m32");
@@ -128,12 +128,12 @@ sub cpu {
 sub optimization {
     my $option = shift;
     if ($option =~ "opt") {
-        push(@LINES, "# OPTIMIZATION = O3"); # put a note in the makefile
+        push(@LINES, "# OPTIMIZATION = O3"); 
         $PLATFORM .= "opt_";
         push(@LINES, "CXXFLAGS += -O3");
     }
     elsif ($option =~ "dbg") {
-        push(@LINES, "# OPTIMIZATION = O0"); # put a note in the makefile
+        push(@LINES, "# OPTIMIZATION = O0"); 
         $PLATFORM .= "dbg_";
         push(@LINES, "CXXFLAGS += -O0");
     }
@@ -144,17 +144,17 @@ sub optimization {
 sub adapt {
     my $option = shift;
     if ($option =~ "none") {
-        push(@LINES, "# ADAPT = NONE"); # put a note in the makefile
+        push(@LINES, "# ADAPT = NONE"); 
         $PLATFORM .= "noadapt_";
         push(@LINES, "CXXFLAGS += -DSTM_PROFILETMTRIGGER_NONE");
     }
     elsif ($option =~ "pathology") {
-        push(@LINES, "# ADAPT = PATHOLOGY"); # put a note in the makefile
+        push(@LINES, "# ADAPT = PATHOLOGY"); 
         $PLATFORM .= "pathologyadapt_";
         push(@LINES, "CXXFLAGS += -DSTM_PROFILETMTRIGGER_PATHOLOGY");
     }
     elsif ($option =~ "all") {
-        push(@LINES, "# ADAPT = ALL"); # put a note in the makefile
+        push(@LINES, "# ADAPT = ALL"); 
         $PLATFORM .= "alladapt_";
         push(@LINES, "CXXFLAGS += -DSTM_PROFILETMTRIGGER_ALL");
     }
@@ -164,14 +164,15 @@ sub adapt {
 sub checkpt {
     my $option = shift;
     if ($option =~ "asm") {
-        push(@LINES, "# CHECKPOINT = ASM"); # put a note in the makefile
+        push(@LINES, "# CHECKPOINT = ASM"); 
         $PLATFORM .= "chkptasm_";
         push(@LINES, "CHECKPOINT = asm");
         push(@LINES, "CXXFLAGS += -DSTM_CHECKPOINT_ASM");
     }
     elsif ($option =~ "sjlj") {
-        push(@LINES, "# CHECKPOINT = SJLJ"); # put a note in the makefile
+        push(@LINES, "# CHECKPOINT = SJLJ"); 
         $PLATFORM .= "chkptsjlj_";
+        push(@LINES, "CXXFLAGS += -DSTM_CHECKPOINT_SJLJ");
     }
     else { die $option . "is invalid" }
 }
@@ -179,11 +180,12 @@ sub checkpt {
 sub descriptor {
     my $option = shift;
     if ($option =~ "tls") {
-        push(@LINES, "# DESCRIPTOR = TLS"); # put a note in the makefile
+        push(@LINES, "# DESCRIPTOR = TLS"); 
         $PLATFORM .= "descriptls_";
+        push(@LINES, "CXXFLAGS += -DSTM_API_NOTLSPARAM");
     }
     elsif ($option =~ "extraparameter") {
-        push(@LINES, "# DESCRIPTOR = EXTRA PARAMETER"); # put a note in the makefile
+        push(@LINES, "# DESCRIPTOR = EXTRA PARAMETER"); 
         $PLATFORM .= "descripextra_";
         push(@LINES, "CXXFLAGS += -DSTM_API_TLSPARAM");
     }
@@ -193,7 +195,7 @@ sub descriptor {
 sub pmu {
     my $option = shift;
     if ($option =~ "on") {
-        push(@LINES, "# PMU = ON"); # put a note in the makefile
+        push(@LINES, "# PMU = ON"); 
         $PLATFORM .= "pmuon_";
         push(@LINES, "PAPI_DIR=/path/to/papi-4.4.0-32/");
         print ("Note: be sure to edit the output file to specify PAPI_DIR correctly!\n");
@@ -203,8 +205,9 @@ sub pmu {
         push(@LINES, "CXXFLAGS += -I$(PAPI_DIR)/include");
     }
     elsif ($option =~ "off") {
-        push(@LINES, "# PMU = OFF"); # put a note in the makefile
+        push(@LINES, "# PMU = OFF"); 
         $PLATFORM .= "pmuoff_";
+        push(@LINES, "CXXFLAGS += -DSTM_NO_PMU");
     }
     else { die $option . "is invalid" }
 }
@@ -212,46 +215,42 @@ sub pmu {
 sub toxic {
     my $option = shift;
     if ($option =~ "on") {
-        push(@LINES, "# TOXIC = ON"); # put a note in the makefile
+        push(@LINES, "# TOXIC = ON"); 
         $PLATFORM .= "toxicon_";
         push(@LINES, "CXXFLAGS += -DSTM_COUNTCONSEC_YES");
     }
     elsif ($option =~ "off") {
-        push(@LINES, "# TOXIC = OFF"); # put a note in the makefile
+        push(@LINES, "# TOXIC = OFF"); 
         $PLATFORM .= "toxicoff_";
+        push(@LINES, "CXXFLAGS += -DSTM_COUNTCONSEC_NO");
     }
     else { die $option . "is invalid" }
 }
 
-sub adaptivity {
+sub instrumentation {
     my $option = shift;
-    if ($option =~ "no") {
-        push(@LINES, "# FINE GRAINED ADAPTIVITY = OFF"); # put a note in the makefile
-        $PLATFORM .= "fgadaptoff_";
-        push(@LINES, "CXXFLAGS += -DSTM_FINEGRAINADAPT_OFF");
+    if ($option =~ "fgadapt") {
+        push(@LINES, "# INSTRUMENTATION = FINE GRAINED ADAPTIVITY"); 
+        $PLATFORM .= "fgadapt_";
+        push(@LINES, "CXXFLAGS += -DSTM_INST_FINEGRAINADAPT");
     }
-    elsif ($option =~ "yes") {
-        push(@LINES, "# FINE GRAINED ADAPTIVITY = ON");  # put a note in the makefile
-        $PLATFORM .= "fgadapton_";
-        push(@LINES, "CXXFLAGS += -DSTM_FINEGRAINADAPT_ON");
+    elsif ($option =~ "cgadapt") {
+        push(@LINES, "# INSTRUMENTATION = COARSE GRAINED ADAPTIVITY");  
+        $PLATFORM .= "cgadapt_";
+        push(@LINES, "CXXFLAGS += -DSTM_INST_COARSEGRAINADAPT");
     }
-    else { die $option . "is invalid" }
-}
-
-sub oneshot {
-    my $option = shift;
-    if ($option =~ "no") {
-        push(@LINES, "# ONESHOT = OFF"); # put a note in the makefile
-        $PLATFORM .= "fptr_";
+    elsif ($option =~ "switch") {
+        push(@LINES, "# INSTRUMENTATION = SWITCH-BASED ADAPTIVITY");  
+        $PLATFORM .= "switchadapt_";
+        push(@LINES, "CXXFLAGS += -DSTM_INST_SWITCHADAPT");
     }
     else {
-        push(@LINES, "# ONESHOT = $option"); # put a note in the makefile
+        push(@LINES, "# INSTRUMENTATION = ONESHOT ($option)"); 
         $PLATFORM .= "oneshot${option}_";
-        push(@LINES, "CXXFLAGS += -DSTM_ONESHOT_MODE");
+        push(@LINES, "CXXFLAGS += -DSTM_INST_ONESHOT");
         push(@LINES, "CXXFLAGS += -DSTM_ONESHOT_ALG_$option");
     }
 }
-
 
 # [mfs] I found this option somewhere, but I don't know what it is for, so I
 # didn't set it up.
@@ -276,29 +275,41 @@ sub query {
 }
 
 #
-# here's our nasty queries
+# here are our nasty queries
 #
 @options = qw(gcc gcctm);
 compiler(&query("Choose a compiler"));
+
 @options = qw(linux solaris);
 os(&query("Choose an os"));
+
 @options = qw(ia32 amd64 sparc32 sparc64 armv7);
 cpu(&query("Choose a cpu"));
+
 @options = qw(opt dbg);
 optimization(&query("Choose an optimization level"));
+
 @options = qw(none pathology all);
 adapt(&query("Choose an adaptivity level"));
+
 @options = qw(sjlj asm);
 checkpt(&query("Choose a checkpoint mechanism"));
+
 @options = qw(tls extraparameter);
 descriptor(&query("Choose a descriptor access mechanism"));
+
 @options = qw(off on);
 pmu(&query("Do you want PMU support"));
+
 toxic(&query("Do you want to count Toxic Transactions"));
-@options = qw(yes no);
-adaptivity(&query("Do you want to allow some algorithms to use fine-grained adaptivity"));
-@options = ("no", "<enter the name of the algorithm to use (case sensitive)");
-oneshot(&query("Do you want to use oneshot mode instead of function pointer adaptivity?"));
+
+
+### [mfs] I think the rest of these shall be subsumed
+@options = ("fgadapt - fine-grained adaptivity: per-thread function pointers",
+            "cgadapt - coarse adaptivity: function pointers, but not per-thread",
+            "switch  - No function pointers: use a big switch statement for adapting",
+            "<algname> - Enter the name of the only algorithm to ever use");
+instrumentation(&query("How would you like to configure instrumentation?"));
 
 # get name of output file, dump output
 print "\nEnter the name of the output file :> ";

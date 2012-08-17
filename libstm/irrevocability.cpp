@@ -36,14 +36,17 @@ namespace stm
    */
   inline void unset_irrevocable_barriers()
   {
-#ifndef STM_ONESHOT_MODE
+#if defined(STM_INST_FINEGRAINADAPT)
       stm::tmread     = stms[curr_policy.ALG_ID].read;
       stm::tmwrite    = stms[curr_policy.ALG_ID].write;
       stm::tmcommit   = stms[curr_policy.ALG_ID].commit;
       stm::tmirrevoc  = stms[curr_policy.ALG_ID].irrevoc;
       stm::tmrollback = stms[curr_policy.ALG_ID].rollback;
+#elif defined(STM_INST_COARSEGRAINADAPT) || defined(STM_INST_SWITCHADAPT) || defined(STM_INST_ONESHOT)
+      stm::UNRECOVERABLE("Irrevocability is not yet supported for "
+                         "this Instrumentation mode");
 #else
-      stm::UNRECOVERABLE("Irrevocability does not work with ONESHOT mode");
+#error "Unable to determine Instrumentation mode"
 #endif
   }
 
@@ -71,14 +74,17 @@ namespace stm
    */
   inline void set_irrevocable_barriers()
   {
-#ifndef STM_ONESHOT_MODE
+#if defined(STM_INST_FINEGRAINADAPT)
       stm::tmread         = stms[CGL].read;
       stm::tmwrite        = stms[CGL].write;
       stm::tmcommit       = commit_irrevocable;
       stm::tmirrevoc = stms[CGL].irrevoc;
       stm::tmrollback       = rollback_irrevocable;
+#elif defined(STM_INST_COARSEGRAINADAPT) || defined(STM_INST_SWITCHADAPT) || defined(STM_INST_ONESHOT)
+      stm::UNRECOVERABLE("Irrevocability is not yet supported for "
+                         "this Instrumentation mode");
 #else
-      stm::UNRECOVERABLE("Irrevocability does not work with ONESHOT mode");
+#error "Unable to determine Instrumentation mode"
 #endif
   }
 
@@ -105,9 +111,14 @@ namespace stm
       //
       // NB: stm::is_irrevoc relies on how this works, so if it changes then
       //     please update that code as well.
-#ifndef STM_ONESHOT_MODE
+#if defined(STM_INST_FINEGRAINADAPT)
       if (tmirrevoc == stms[CGL].irrevoc)
           return;
+#elif defined(STM_INST_COARSEGRAINADAPT) || defined(STM_INST_SWITCHADAPT) || defined(STM_INST_ONESHOT)
+      stm::UNRECOVERABLE("Irrevocability is not yet supported for "
+                         "this Instrumentation mode");
+#else
+#error "Unable to determine Instrumentation mode"
 #endif
       if ((curr_policy.ALG_ID == MCS) || (curr_policy.ALG_ID == Ticket))
           return;
@@ -170,12 +181,14 @@ namespace stm
    */
   bool is_irrevoc(const TxThread& tx)
   {
-#ifndef STM_ONESHOT_MODE
+#if defined(STM_INST_FINEGRAINADAPT)
       if (tx.irrevocable || tmirrevoc == stms[CGL].irrevoc)
           return true;
+#elif defined(STM_INST_COARSEGRAINADAPT) || defined(STM_INST_SWITCHADAPT) || defined(STM_INST_ONESHOT)
+      stm::UNRECOVERABLE("Irrevocability is not yet supported for "
+                         "this Instrumentation mode");
 #else
-      if (tx.irrevocable)
-          return true;
+#error "Unable to determine Instrumentation mode"
 #endif
       if ((curr_policy.ALG_ID == MCS) || (curr_policy.ALG_ID  == Ticket))
           return true;
