@@ -514,8 +514,18 @@ namespace stm                                                           \
 
 # define REGISTER_SIMPLE_TEMPLATE_ALG(TCLASS, TOKEN, NAME, PRIV, TEMPLATE) \
     REGISTER_REGULAR_ALG(TOKEN, NAME, PRIV)
+
 #elif defined(STM_INST_SWITCHADAPT) || defined(STM_INST_ONESHOT)
-// [mfs] TODO: do we need to do anything here?  I don't think so...
+// [mfs] I think that in these cases, we don't need any registration at
+//       all... I might be wrong though, in that we probably want to still be
+//       able to print the privatization_safe message... right now the
+//       message will be erroneous.  If we eventually make stms[] only
+//       visible when adaptivity is on, then we will get errors.
+# define REGISTER_REGULAR_ALG(TOKEN, NAME, PRIV)
+# define REGISTER_TEMPLATE_ALG(TCLASS, TOKEN, NAME, PRIV, TEMPLATE)
+# define REGISTER_FGADAPT_ALG(TOKEN, NAME, PRIV)
+# define REGISTER_SIMPLE_TEMPLATE_ALG(TCLASS, TOKEN, NAME, PRIV, TEMPLATE)
+
 #else
 #  error "Invalid configuration option"
 #endif

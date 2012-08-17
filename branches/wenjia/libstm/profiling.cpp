@@ -58,10 +58,14 @@ namespace
    */
   void collect_profiles(TxThread* tx)
   {
+#if defined(STM_INST_FINEGRAINADAPT) || defined(STM_INST_COARSEGRAINADAPT)
       // prevent new txns from starting
       if (!bcasptr(&tmbegin, stms[curr_policy.ALG_ID].begin,
                    &begin_blocker))
           return;
+#elif defined(STM_INST_SWITCHADAPT) || defined(STM_INST_ONESHOT)
+      // todo
+#endif
 
       // wait for everyone to be out of a transaction (scope == NULL)
       for (unsigned i = 0; i < threadcount.val; ++i)
@@ -87,9 +91,13 @@ namespace
       //     optimization
 
       // prevent new txns from starting
+#if defined(STM_INST_FINEGRAINADAPT) || defined(STM_INST_COARSEGRAINADAPT)
       if (!bcasptr(&tmbegin, stms[curr_policy.ALG_ID].begin,
                    &begin_blocker))
           return;
+#elif defined(STM_INST_SWITCHADAPT) || defined(STM_INST_ONESHOT)
+      // todo
+#endif
 
       // wait for everyone to be out of a transaction (scope == NULL)
       for (unsigned i = 0; i < threadcount.val; ++i)
@@ -138,11 +146,15 @@ namespace stm
       //     to commit/abort.  But we do need this, in case tmbegin is
       //     /already/ begin_blocker on account of a call to set_policy or
       //     TxThread()
+#if defined(STM_INST_FINEGRAINADAPT) || defined(STM_INST_COARSEGRAINADAPT)
       while (!bcasptr(&tmbegin, stms[curr_policy.ALG_ID].begin,
                       &begin_blocker))
       {
           spin64();
       }
+#elif defined(STM_INST_SWITCHADAPT) || defined(STM_INST_ONESHOT)
+      // todo
+#endif
 
       // Use the policy to decide what algorithm to switch to
       uint32_t new_algorithm = pols[curr_policy.POL_ID].decider();

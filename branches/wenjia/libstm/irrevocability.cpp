@@ -62,7 +62,11 @@ namespace stm
       unset_irrevocable_barriers();
       // now allow other transactions to run
       CFENCE;
+#if defined(STM_INST_FINEGRAINADAPT) || defined(STM_INST_COARSEGRAINADAPT)
       stm::tmbegin = stms[curr_policy.ALG_ID].begin;
+#elif defined(STM_INST_SWITCHADAPT) || defined(STM_INST_ONESHOT)
+      // todo
+#endif
       // finally, call the standard commit cleanup routine
       OnROCommit(tx);
   }
@@ -145,9 +149,13 @@ namespace stm
       //  thread is running the 'wait for everyone' code that immediately
       //  follows this CAS.  Since we can't distinguish the three cases,
       //  we'll just abort all the time.  The impact should be minimal.
+#if defined(STM_INST_FINEGRAINADAPT) || defined(STM_INST_COARSEGRAINADAPT)
       if (!bcasptr(&stm::tmbegin, stms[curr_policy.ALG_ID].begin,
                    &begin_blocker))
           tmabort();
+#elif defined(STM_INST_SWITCHADAPT) || defined(STM_INST_ONESHOT)
+      // todo
+#endif
 
       // wait for everyone to be out of a transaction (scope == NULL)
       for (unsigned i = 0; i < threadcount.val; ++i)
