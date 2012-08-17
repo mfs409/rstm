@@ -10,8 +10,9 @@
 
 #include "OrecEager.hpp"
 
+DECLARE_SIMPLE_METHODS_FROM_SIMPLE_TEMPLATE(OrecEager, OrecEagerHB, HourglassBackoffCM)
 REGISTER_SIMPLE_TEMPLATE_ALG(OrecEager, OrecEagerHB, "OrecEagerHB", false, HourglassBackoffCM)
 
 #ifdef STM_ONESHOT_ALG_OrecEagerHB
-DECLARE_AS_ONESHOT_SIMPLE(OrecEagerGeneric<HourglassHourglassBackoffCM>)
+DECLARE_AS_ONESHOT_SIMPLE(OrecEagerGeneric<HourglassBackoffCM>)
 #endif

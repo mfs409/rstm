@@ -143,17 +143,19 @@ namespace stm
       uint64_t      total_nontxn_time; // time on non-transactional work
       pmu_t         pmu;               // for accessing the hardware PMU
 
-      /*** FOR ONESHOT-STYLE COMPILATION */
-#if defined(STM_ONESHOT_MODE) || defined(STM_FINEGRAINADAPT_OFF)
-      uint32_t      mode; // MODE_TURBO, MODE_WRITE, or MODE_RO
-#else
-      // a new gross hack: we need any single thread to be able to change
-      // other threads' pointers.  Thus we require that each thread tuck away
-      // pointers to its thread-local vars, so that they can be updated
-      // remotely... and unfortunately right now we need this to be pubic :(
+      /*** INSTRUMENTATION-RELATED FIELDS ***/
+#if defined(STM_INST_FINEGRAINADAPT)
+      // these are the addresses of the thread's function pointers, which
+      // allow another thread to change this thread's instrumentation (e.g.,
+      // on mode switch)
       void** my_tmcommit;
       void** my_tmread;
       void** my_tmwrite;
+#elif defined(STM_INST_COARSEGRAINADAPT) || defined(STM_INST_SWITCHADAPT) || defined(STM_INST_ONESHOT)
+      // the transaction state just depends on this field
+      uint32_t      mode; // MODE_TURBO, MODE_WRITE, or MODE_RO
+#else
+#error "Unable to determine instrumentation mode"
 #endif
 
       /**

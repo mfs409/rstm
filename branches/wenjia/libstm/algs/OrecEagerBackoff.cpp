@@ -10,6 +10,7 @@
 
 #include "OrecEager.hpp"
 
+DECLARE_SIMPLE_METHODS_FROM_SIMPLE_TEMPLATE(OrecEager, OrecEagerBackoff, BackoffCM)
 REGISTER_SIMPLE_TEMPLATE_ALG(OrecEager, OrecEagerBackoff, "OrecEagerBackoff", false, BackoffCM)
 
 #ifdef STM_ONESHOT_ALG_OrecEagerBackoff

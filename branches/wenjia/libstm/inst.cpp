@@ -22,7 +22,7 @@
 
 namespace stm
 {
-#if !defined(STM_ONESHOT_MODE) || !defined(STM_FINEGRAINADAPT_OFF)
+#if defined(STM_INST_FINEGRAINADAPT)
   void install_algorithm_local(int new_alg)
   {
       // set my read/write/commit pointers
@@ -30,8 +30,13 @@ namespace stm
       tmwrite    = stms[new_alg].write;
       tmcommit   = stms[new_alg].commit;
   }
-#else
+#elif defined(STM_INST_COARSEGRAINADAPT) || defined(STM_INST_SWITCHADAPT) || defined(STM_INST_ONESHOT)
+  // no local pointers, so no work to do...
+  //
+  // [mfs] Note that this might change if we had a per-thread ALG field...
   void install_algorithm_local(int) { }
+#else
+#error "Unable to determine Instrumentation mode"
 #endif
 
   /**
@@ -71,21 +76,35 @@ namespace stm
 
       // set per-thread pointers
       for (unsigned i = 0; i < threadcount.val; ++i) {
-#ifndef STM_ONESHOT_MODE
+#if defined(STM_INST_FINEGRAINADAPT)
           *(threads[i]->my_tmread)     = (void*)stms[new_alg].read;
           *(threads[i]->my_tmwrite)    = (void*)stms[new_alg].write;
           *(threads[i]->my_tmcommit)   = (void*)stms[new_alg].commit;
+#elif defined(STM_INST_COARSEGRAINADAPT) || defined(STM_INST_SWITCHADAPT) || defined(STM_INST_ONESHOT)
+          // nothing for now
+#else
+#error "Unable to determine Instrumentation mode"
 #endif
           threads[i]->consec_aborts  = 0;
       }
 
-#ifndef STM_ONESHOT_MODE
+#if defined(STM_INST_FINEGRAINADAPT) || defined(STM_INST_COARSEGRAINADAPT)
       tmirrevoc  = stms[new_alg].irrevoc;
       tmrollback = stms[new_alg].rollback;
+#elif defined(STM_INST_SWITCHADAPT) || defined(STM_INST_ONESHOT)
+      // nothing for now
+#else
+#error "Unable to determine Instrumentation mode"
 #endif
       curr_policy.ALG_ID   = new_alg;
       CFENCE;
+#if defined(STM_INST_FINEGRAINADAPT) || defined(STM_INST_COARSEGRAINADAPT)
       tmbegin    = stms[new_alg].begin;
+#elif defined(STM_INST_SWITCHADAPT) || defined(STM_INST_ONESHOT)
+      // nothing for now
+#else
+#error "Unable to determine Instrumentation mode"
+#endif
   }
 
 #ifndef STM_CHECKPOINT_ASM
@@ -122,22 +141,23 @@ namespace stm
   }
 #endif
 
-#ifndef STM_ONESHOT_MODEQQQ // [mfs] Need to take this out, but it's going to
-                            // hurt...
+#if defined(STM_INST_FINEGRAINADAPT) || defined(STM_INST_COARSEGRAINADAPT)
   /**
    *  The begin function pointer.  Note that we need tmbegin to equal
    *  begin_cgl initially, since "0" is the default algorithm
    */
   void (*volatile tmbegin)(TX_LONE_PARAMETER) = CGLBegin;
-#endif
 
   /**
    *  The tmrollback and tmirrevoc pointers
    */
-
-#ifndef STM_ONESHOT_MODE
   void (*tmrollback)(STM_ROLLBACK_SIG(,,));
+
   bool (*tmirrevoc)(TxThread*) = NULL;
+
+#elif defined(STM_INST_SWITCHADAPT) || defined(STM_INST_ONESHOT)
+#else
+#error "Unable to determine Instrumentation mode"
 #endif
 
   /**
@@ -156,13 +176,23 @@ namespace stm
       stm::tmabort();
   }
 
-#ifndef STM_ONESHOT_MODE
+#if defined(STM_INST_FINEGRAINADAPT)
   /**
-   * The function pointers:
+   * The thread-local read/write/commit function pointers:
    */
   THREAD_LOCAL_DECL_TYPE(TM_FASTCALL void(*tmcommit)(TX_LONE_PARAMETER));
   THREAD_LOCAL_DECL_TYPE(TM_FASTCALL void*(*tmread)(TX_FIRST_PARAMETER STM_READ_SIG(,)));
   THREAD_LOCAL_DECL_TYPE(TM_FASTCALL void(*tmwrite)(TX_FIRST_PARAMETER STM_WRITE_SIG(,,)));
+#elif defined(STM_INST_COARSEGRAINADAPT)
+  /**
+   * The read/write/commit function pointers:
+   */
+  TM_FASTCALL void(*tmcommit)(TX_LONE_PARAMETER);
+  TM_FASTCALL void*(*tmread)(TX_FIRST_PARAMETER STM_READ_SIG(,));
+  TM_FASTCALL void(*tmwrite)(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+#elif defined(STM_INST_SWITCHADAPT) || defined(STM_INST_ONESHOT)
+#else
+#error "Unable to determine Instrumentation mode"
 #endif
 
 #ifndef STM_CHECKPOINT_ASM
