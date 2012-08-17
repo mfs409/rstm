@@ -113,6 +113,10 @@ namespace stm
       TX_GET_TX_INTERNAL;
       // wait our turn, validate, writeback
       while (last_complete.val != ((uintptr_t)tx->order - 1)) {
+          // [mfs] These sorts of queries are spread throughout many of our
+          //       algorithms, and are terribly dangerous... they will
+          //       probably fail in unexpected ways for the
+          //       STM_INST_SWITCHADAPT and STM_INST_ONESHOT
           if (tmbegin != PipelineBegin)
               tmabort();
       }

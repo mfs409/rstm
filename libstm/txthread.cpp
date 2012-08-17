@@ -66,6 +66,7 @@ namespace stm
         last_val_time((uint64_t)-1),
         pmu()
   {
+#if defined(STM_INST_FINEGRAINADAPT) || defined(STM_INST_COARSEGRAINADAPT)
       // prevent new txns from starting.
       while (true) {
           int i = curr_policy.ALG_ID;
@@ -73,6 +74,9 @@ namespace stm
               break;
           spin64();
       }
+#elif defined(STM_INST_SWITCHADAPT) || defined(STM_INST_ONESHOT)
+      // todo
+#endif
 
       // initialize this thread's instrumentation fields...
       //
@@ -147,7 +151,11 @@ namespace stm
 
       // now we can let threads progress again
       CFENCE;
+#if defined(STM_INST_FINEGRAINADAPT) || defined(STM_INST_COARSEGRAINADAPT)
       tmbegin = stms[curr_policy.ALG_ID].begin;
+#elif defined(STM_INST_SWITCHADAPT) || defined(STM_INST_ONESHOT)
+      // todo
+#endif
   }
 
   /*** print a message and die */
@@ -253,8 +261,12 @@ namespace stm
           int i = curr_policy.ALG_ID;
           if (i == ProfileTM)
               continue;
+#if defined(STM_INST_FINEGRAINADAPT) || defined(STM_INST_COARSEGRAINADAPT)
           if (bcasptr(&tmbegin, stms[i].begin, &begin_blocker))
               break;
+#elif defined(STM_INST_SWITCHADAPT) || defined(STM_INST_ONESHOT)
+          // todo
+#endif
           spin64();
       }
 
@@ -328,9 +340,13 @@ namespace stm
       static volatile uint32_t mtx = 0;
 
       if (bcas32(&mtx, 0u, 1u)) {
+#if defined(STM_INST_FINEGRAINADAPT) || defined(STM_INST_COARSEGRAINADAPT)
           // manually register all behavior policies that we support.  We do
           // this via tail-recursive template metaprogramming
           MetaInitializer<0>::init();
+#elif defined(STM_INST_SWITCHADAPT) || defined(STM_INST_ONESHOT)
+          // todo
+#endif
 
           // guess a default configuration, then check env for a better option
           const char* cfg = "NOrec";
