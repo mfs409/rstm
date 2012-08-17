@@ -151,10 +151,14 @@ namespace stm
    */
   void declare_read_only();
 
-#ifndef STM_ONESHOT_MODE
+#if defined(STM_INST_FINEGRAINADAPT)
   /*** Per-thread commit, read, and write pointers */
   extern THREAD_LOCAL_DECL_TYPE(TM_FASTCALL void*(*tmread)(TX_FIRST_PARAMETER STM_READ_SIG(,)));
   extern THREAD_LOCAL_DECL_TYPE(TM_FASTCALL void(*tmwrite)(TX_FIRST_PARAMETER STM_WRITE_SIG(,,)));
+#elif defined(STM_INST_COARSEGRAINADAPT)
+  /*** Per-thread commit, read, and write pointers */
+  extern TM_FASTCALL void*(*tmread)(TX_FIRST_PARAMETER STM_READ_SIG(,));
+  extern TM_FASTCALL void(*tmwrite)(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
 #else
   TM_FASTCALL void* tmread(TX_FIRST_PARAMETER STM_READ_SIG(,));
   TM_FASTCALL void  tmwrite(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));

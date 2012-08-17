@@ -88,6 +88,13 @@ namespace stm
           threads[i]->consec_aborts  = 0;
       }
 
+#if defined(STM_INST_COARSEGRAINADAPT)
+      tmread     = stms[new_alg].read;
+      tmwrite    = stms[new_alg].write;
+      tmcommit   = stms[new_alg].commit;
+#endif
+
+
 #if defined(STM_INST_FINEGRAINADAPT) || defined(STM_INST_COARSEGRAINADAPT)
       tmirrevoc  = stms[new_alg].irrevoc;
       tmrollback = stms[new_alg].rollback;
