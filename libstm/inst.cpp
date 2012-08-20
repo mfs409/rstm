@@ -71,6 +71,10 @@ namespace stm
       // we do this by invoking the new alg's onSwitchTo_ method, which
       // is responsible for ensuring the invariants that are required of shared
       // and per-thread metadata while the alg is in use.
+      //
+      // [mfs] This is not currently compatible with SWITCH... we could fix
+      // either by letting SWITCH register algorithms, or by having a
+      // tmOnSwitch auto-generated function
       stms[new_alg].switcher();
       CFENCE;
 
@@ -93,7 +97,6 @@ namespace stm
       tmwrite    = stms[new_alg].write;
       tmcommit   = stms[new_alg].commit;
 #endif
-
 
 #if defined(STM_INST_FINEGRAINADAPT) || defined(STM_INST_COARSEGRAINADAPT)
       tmirrevoc  = stms[new_alg].irrevoc;
