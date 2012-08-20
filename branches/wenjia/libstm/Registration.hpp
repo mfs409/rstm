@@ -45,6 +45,7 @@ namespace stm
       /*** the name of this policy */
       const char* name;
 
+#if defined(STM_INST_FINEGRAINADAPT) || defined(STM_INST_COARSEGRAINADAPT)
       /**
        * the begin, commit, read, and write methods a tx uses when it
        * starts
@@ -53,6 +54,7 @@ namespace stm
       void  (*TM_FASTCALL commit)(TX_LONE_PARAMETER);
       void* (*TM_FASTCALL read)  (TX_FIRST_PARAMETER STM_READ_SIG(,));
       void  (*TM_FASTCALL write) (TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+#endif
 
       /**
        * rolls the transaction back without unwinding, returns the scope (which
@@ -60,8 +62,10 @@ namespace stm
        */
       void (* rollback)(STM_ROLLBACK_SIG(,,));
 
+#if defined(STM_INST_FINEGRAINADAPT) || defined(STM_INST_COARSEGRAINADAPT)
       /*** the restart, retry, and irrevoc methods to use */
       bool  (* irrevoc)(TxThread*);
+#endif
 
       /*** the code to run when switching to this alg */
       void  (* switcher) ();

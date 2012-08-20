@@ -516,15 +516,30 @@ namespace stm                                                           \
     REGISTER_REGULAR_ALG(TOKEN, NAME, PRIV)
 
 #elif defined(STM_INST_SWITCHADAPT) || defined(STM_INST_ONESHOT)
-// [mfs] I think that in these cases, we don't need any registration at
-//       all... I might be wrong though, in that we probably want to still be
-//       able to print the privatization_safe message... right now the
-//       message will be erroneous.  If we eventually make stms[] only
-//       visible when adaptivity is on, then we will get errors.
-# define REGISTER_REGULAR_ALG(TOKEN, NAME, PRIV)
-# define REGISTER_TEMPLATE_ALG(TCLASS, TOKEN, NAME, PRIV, TEMPLATE)
-# define REGISTER_FGADAPT_ALG(TOKEN, NAME, PRIV)
-# define REGISTER_SIMPLE_TEMPLATE_ALG(TCLASS, TOKEN, NAME, PRIV, TEMPLATE)
+// [mfs] Registration for SWITCH and ONESHOT is going to use the table for
+// now, so that we don't have to manually generate quite so many different
+// TOKEN##Name functions
+# define REGISTER_REGULAR_ALG(TOKEN, NAME, PRIV)        \
+    namespace stm                                       \
+    {                                                   \
+        template<>                                      \
+        void registerTM<TOKEN>()                        \
+        {                                               \
+            stms[TOKEN].name      = NAME;               \
+            stms[TOKEN].rollback  = TOKEN##Rollback;    \
+            stms[TOKEN].switcher  = TOKEN##OnSwitchTo;  \
+            stms[TOKEN].privatization_safe = PRIV;      \
+        }                                               \
+    }
+
+# define REGISTER_TEMPLATE_ALG(TCLASS, TOKEN, NAME, PRIV, TEMPLATE) \
+    REGISTER_REGULAR_ALG(TOKEN, NAME, PRIV)
+
+# define REGISTER_FGADAPT_ALG(TOKEN, NAME, PRIV)    \
+    REGISTER_REGULAR_ALG(TOKEN, NAME, PRIV)
+
+# define REGISTER_SIMPLE_TEMPLATE_ALG(TCLASS, TOKEN, NAME, PRIV, TEMPLATE) \
+    REGISTER_REGULAR_ALG(TOKEN, NAME, PRIV)
 
 #else
 #  error "Invalid configuration option"
@@ -541,6 +556,10 @@ namespace stm                                                           \
 #define DECLARE_AS_ONESHOT(CLASS)                                       \
     namespace stm                                                       \
     {                                                                   \
+        void tmbegin(TX_LONE_PARAMETER)                                 \
+        {                                                               \
+            CLASS##Begin(TX_LONE_ARG);                                  \
+        }                                                               \
         TM_FASTCALL void* tmread(TX_FIRST_PARAMETER STM_READ_SIG(addr,)) \
         {                                                               \
             return CLASS##Read(TX_FIRST_ARG addr STM_MASK(mask));       \
@@ -556,11 +575,11 @@ namespace stm                                                           \
         }                                                               \
         bool tmirrevoc(TxThread* tx)                                    \
         {                                                               \
-            return CLASS##irrevoc(tx);                                  \
+            return CLASS##Irrevoc(tx);                                  \
         }                                                               \
         void tmrollback(STM_ROLLBACK_SIG(tx,,))                         \
         {                                                               \
-            CLASS##rollback(tx);                                        \
+            CLASS##Rollback(tx);                                        \
         }                                                               \
     }
 #elif defined(STM_INST_FINEGRAINADAPT) || defined(STM_INST_COARSEGRAINADAPT) || defined(STM_INST_SWITCHADAPT)
