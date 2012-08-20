@@ -14,5 +14,5 @@ DECLARE_SIMPLE_METHODS_FROM_SIMPLE_TEMPLATE(OrecEager, OrecEager, HyperAggressiv
 REGISTER_SIMPLE_TEMPLATE_ALG(OrecEager, OrecEager, "OrecEager", false, HyperAggressiveCM)
 
 #ifdef STM_ONESHOT_ALG_OrecEager
-DECLARE_AS_ONESHOT_SIMPLE(OrecEagerGeneric<HyperAggressiveCM>)
+DECLARE_AS_ONESHOT(OrecEager)
 #endif

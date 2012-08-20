@@ -266,6 +266,7 @@ namespace stm
               break;
 #elif defined(STM_INST_SWITCHADAPT) || defined(STM_INST_ONESHOT)
           // todo
+          break; // [mfs] probably not correct...
 #endif
           spin64();
       }
@@ -345,7 +346,9 @@ namespace stm
           // this via tail-recursive template metaprogramming
           MetaInitializer<0>::init();
 #elif defined(STM_INST_SWITCHADAPT) || defined(STM_INST_ONESHOT)
-          // todo
+          // manually register all behavior policies that we support.  We do
+          // this via tail-recursive template metaprogramming
+          MetaInitializer<0>::init();
 #endif
 
           // guess a default configuration, then check env for a better option
