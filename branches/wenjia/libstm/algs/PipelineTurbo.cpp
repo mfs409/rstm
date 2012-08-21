@@ -382,5 +382,5 @@ DECLARE_SIMPLE_METHODS_FROM_TURBO(PipelineTurbo)
 REGISTER_FGADAPT_ALG(PipelineTurbo, "PipelineTurbo", true)
 
 #ifdef STM_ONESHOT_ALG_PipelineTurbo
-DECLARE_AS_ONESHOT_TURBO(PipelineTurbo)
+DECLARE_AS_ONESHOT(PipelineTurbo)
 #endif

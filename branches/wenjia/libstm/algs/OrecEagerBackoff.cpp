@@ -14,5 +14,5 @@ DECLARE_SIMPLE_METHODS_FROM_SIMPLE_TEMPLATE(OrecEager, OrecEagerBackoff, Backoff
 REGISTER_SIMPLE_TEMPLATE_ALG(OrecEager, OrecEagerBackoff, "OrecEagerBackoff", false, BackoffCM)
 
 #ifdef STM_ONESHOT_ALG_OrecEagerBackoff
-DECLARE_AS_ONESHOT_SIMPLE(OrecEagerGeneric<BackoffCM>)
+DECLARE_AS_ONESHOT(OrecEagerBackoff)
 #endif

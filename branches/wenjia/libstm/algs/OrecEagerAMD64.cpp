@@ -311,5 +311,5 @@ namespace stm
 REGISTER_REGULAR_ALG(OrecEagerAMD64, "OrecEagerAMD64", false)
 
 #ifdef STM_ONESHOT_ALG_OrecEagerAMD64
-DECLARE_AS_ONESHOT_SIMPLE(OrecEagerAMD64<HyperAggressiveCM>)
+DECLARE_AS_ONESHOT(OrecEagerAMD64)
 #endif

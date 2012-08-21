@@ -266,5 +266,5 @@ DECLARE_SIMPLE_METHODS_FROM_NORMAL(CohortsFilter)
 REGISTER_FGADAPT_ALG(CohortsFilter, "CohortsFilter", true)
 
 #ifdef STM_ONESHOT_ALG_CohortsFilter
-DECLARE_AS_ONESHOT_NORMAL(CohortsFilter)
+DECLARE_AS_ONESHOT(CohortsFilter)
 #endif

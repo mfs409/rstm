@@ -14,5 +14,5 @@ DECLARE_SIMPLE_METHODS_FROM_TEMPLATE(OrecLazy, OrecLazy, HyperAggressiveCM)
 REGISTER_TEMPLATE_ALG(OrecLazy, OrecLazy, "OrecLazy", false, HyperAggressiveCM)
 
 #ifdef STM_ONESHOT_ALG_OrecLazy
-DECLARE_AS_ONESHOT_NORMAL(OrecLazyGeneric<HyperAggressiveCM>)
+DECLARE_AS_ONESHOT(OrecLazy)
 #endif

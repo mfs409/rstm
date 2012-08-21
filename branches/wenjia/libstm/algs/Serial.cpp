@@ -145,5 +145,5 @@ namespace stm
 REGISTER_REGULAR_ALG(Serial, "Serial", true)
 
 #ifdef STM_ONESHOT_ALG_Serial
-DECLARE_AS_ONESHOT_SIMPLE(Serial)
+DECLARE_AS_ONESHOT(Serial)
 #endif

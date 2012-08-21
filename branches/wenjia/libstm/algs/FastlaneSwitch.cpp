@@ -433,5 +433,5 @@ DECLARE_SIMPLE_METHODS_FROM_TURBO(FastlaneSwitch)
 REGISTER_FGADAPT_ALG(FastlaneSwitch, "FastlaneSwitch", true)
 
 #ifdef STM_ONESHOT_ALG_FastlaneSwitch
-DECLARE_AS_ONESHOT_TURBO(FastlaneSwitch)
+DECLARE_AS_ONESHOT(FastlaneSwitch)
 #endif

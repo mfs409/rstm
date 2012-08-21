@@ -100,5 +100,5 @@ namespace stm
 REGISTER_REGULAR_ALG(Ticket, "Ticket", true)
 
 #ifdef STM_ONESHOT_ALG_Ticket
-DECLARE_AS_ONESHOT_SIMPLE(Ticket)
+DECLARE_AS_ONESHOT(Ticket)
 #endif

@@ -327,5 +327,5 @@ namespace stm
 REGISTER_REGULAR_ALG(Swiss, "Swiss", false)
 
 #ifdef STM_ONESHOT_ALG_Swiss
-DECLARE_AS_ONESHOT_SIMPLE(Swiss)
+DECLARE_AS_ONESHOT(Swiss)
 #endif

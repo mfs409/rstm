@@ -341,5 +341,5 @@ DECLARE_SIMPLE_METHODS_FROM_NORMAL(OrecEagerRedo)
 REGISTER_FGADAPT_ALG(OrecEagerRedo, "OrecEagerRedo", false)
 
 #ifdef STM_ONESHOT_ALG_OrecEagerRedo
-DECLARE_AS_ONESHOT_NORMAL(OrecEagerRedo)
+DECLARE_AS_ONESHOT(OrecEagerRedo)
 #endif
