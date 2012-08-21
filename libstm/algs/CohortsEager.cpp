@@ -335,5 +335,5 @@ DECLARE_SIMPLE_METHODS_FROM_TURBO(CohortsEager)
 REGISTER_FGADAPT_ALG(CohortsEager, "CohortsEager", true)
 
 #ifdef STM_ONESHOT_ALG_CohortsEager
-DECLARE_AS_ONESHOT_TURBO(CohortsEager)
+DECLARE_AS_ONESHOT(CohortsEager)
 #endif

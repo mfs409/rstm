@@ -14,5 +14,5 @@ DECLARE_SIMPLE_METHODS_FROM_TEMPLATE(NOrec, NOrec, HyperAggressiveCM)
 REGISTER_TEMPLATE_ALG(NOrec, NOrec, "NOrec", true, HyperAggressiveCM)
 
 #ifdef STM_ONESHOT_ALG_NOrec
-DECLARE_AS_ONESHOT_NORMAL(NOrecGeneric<HyperAggressiveCM>)
+DECLARE_AS_ONESHOT(NOrec)
 #endif

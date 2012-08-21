@@ -14,5 +14,5 @@ DECLARE_SIMPLE_METHODS_FROM_TEMPLATE(OrecLazy, OrecLazyHB, HourglassBackoffCM)
 REGISTER_TEMPLATE_ALG(OrecLazy, OrecLazyHB, "OrecLazyHB", false, HourglassBackoffCM)
 
 #ifdef STM_ONESHOT_ALG_OrecLazyHB
-DECLARE_AS_ONESHOT_NORMAL(OrecLazyGeneric<HourglassHourglassBackoffCM>)
+DECLARE_AS_ONESHOT(OrecLazyHB)
 #endif

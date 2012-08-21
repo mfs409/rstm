@@ -14,5 +14,5 @@ DECLARE_SIMPLE_METHODS_FROM_TEMPLATE(ProfileApp, ProfileAppMax, __MAXIMUM)
 REGISTER_TEMPLATE_ALG(ProfileApp, ProfileAppMax, "ProfileAppMax", true, __MAXIMUM)
 
 #ifdef STM_ONESHOT_ALG_ProfileAppMax
-DECLARE_AS_ONESHOT_NORMAL(ProfileApp<__MAXIMUM>)
+DECLARE_AS_ONESHOT(ProfileAppMax)
 #endif

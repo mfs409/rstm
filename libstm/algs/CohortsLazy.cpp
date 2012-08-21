@@ -290,5 +290,5 @@ DECLARE_SIMPLE_METHODS_FROM_NORMAL(CohortsLazy)
 REGISTER_FGADAPT_ALG(CohortsLazy, "CohortsLazy", true)
 
 #ifdef STM_ONESHOT_ALG_CohortsLazy
-DECLARE_AS_ONESHOT_NORMAL(CohortsLazy)
+DECLARE_AS_ONESHOT(CohortsLazy)
 #endif

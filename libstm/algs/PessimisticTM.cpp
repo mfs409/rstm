@@ -342,5 +342,5 @@ DECLARE_SIMPLE_METHODS_FROM_NORMAL(PessimisticTM)
 REGISTER_FGADAPT_ALG(PessimisticTM, "PessimisticTM", true)
 
 #ifdef STM_ONESHOT_ALG_PessimisticTM
-DECLARE_AS_ONESHOT_NORMAL(PessimisticTM)
+DECLARE_AS_ONESHOT(PessimisticTM)
 #endif

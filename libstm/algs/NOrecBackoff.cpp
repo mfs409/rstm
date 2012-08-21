@@ -14,5 +14,5 @@ DECLARE_SIMPLE_METHODS_FROM_TEMPLATE(NOrec, NOrecBackoff, BackoffCM)
 REGISTER_TEMPLATE_ALG(NOrec, NOrecBackoff, "NOrecBackoff", true, BackoffCM)
 
 #ifdef STM_ONESHOT_ALG_NOrecBackoff
-DECLARE_AS_ONESHOT_NORMAL(NOrecGeneric<BackoffCM>)
+DECLARE_AS_ONESHOT(NOrecBackoff)
 #endif

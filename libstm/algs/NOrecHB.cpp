@@ -14,5 +14,5 @@ DECLARE_SIMPLE_METHODS_FROM_TEMPLATE(NOrec, NOrecHB, HourglassBackoffCM)
 REGISTER_TEMPLATE_ALG(NOrec, NOrecHB, "NOrecHB", true, HourglassBackoffCM)
 
 #ifdef STM_ONESHOT_ALG_NOrecHB
-DECLARE_AS_ONESHOT_NORMAL(NOrecGeneric<HourglassHourglassBackoffCM>)
+DECLARE_AS_ONESHOT(NOrecHB)
 #endif

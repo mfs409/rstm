@@ -14,5 +14,5 @@ DECLARE_SIMPLE_METHODS_FROM_TEMPLATE(NOrec, NOrecHour, HourglassCM)
 REGISTER_TEMPLATE_ALG(NOrec, NOrecHour, "NOrecHour", true, HourglassCM)
 
 #ifdef STM_ONESHOT_ALG_NOrecHour
-DECLARE_AS_ONESHOT_NORMAL(NOrecGeneric<HourglassCM>)
+DECLARE_AS_ONESHOT(NOrecHour)
 #endif

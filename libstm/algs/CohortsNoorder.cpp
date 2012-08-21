@@ -274,5 +274,5 @@ DECLARE_SIMPLE_METHODS_FROM_NORMAL(CohortsNoorder)
 REGISTER_FGADAPT_ALG(CohortsNoorder, "CohortsNoorder", false)
 
 #ifdef STM_ONESHOT_ALG_CohortsNoorder
-DECLARE_AS_ONESHOT_NORMAL(CohortsNoorder)
+DECLARE_AS_ONESHOT(CohortsNoorder)
 #endif

@@ -275,5 +275,5 @@ DECLARE_SIMPLE_METHODS_FROM_NORMAL(ByteEagerRedo)
 REGISTER_FGADAPT_ALG(ByteEagerRedo, "ByteEagerRedo", true)
 
 #ifdef STM_ONESHOT_ALG_ByteEagerRedo
-DECLARE_AS_ONESHOT_NORMAL(ByteEagerRedo)
+DECLARE_AS_ONESHOT(ByteEagerRedo)
 #endif

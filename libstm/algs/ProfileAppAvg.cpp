@@ -14,5 +14,5 @@ DECLARE_SIMPLE_METHODS_FROM_TEMPLATE(ProfileApp, ProfileAppAvg, __AVERAGE)
 REGISTER_TEMPLATE_ALG(ProfileApp, ProfileAppAvg, "ProfileAppAvg", true, __AVERAGE)
 
 #ifdef STM_ONESHOT_ALG_ProfileAppAvg
-DECLARE_AS_ONESHOT_NORMAL(ProfileApp<__AVERAGE>)
+DECLARE_AS_ONESHOT(ProfileAppAvg)
 #endif
