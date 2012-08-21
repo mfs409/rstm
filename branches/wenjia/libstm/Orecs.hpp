@@ -26,7 +26,7 @@ namespace stm
       struct
       {
           // ensure msb is lock bit regardless of platform
-#if defined(STM_CPU_X86) /* little endian */
+#if defined(STM_CPU_X86) || defined(STM_CPU_ARMV7) /* little endian */
           uintptr_t id:(8*sizeof(uintptr_t))-1;
           uintptr_t lock:1;
 #else /* big endian (probably SPARC) */
