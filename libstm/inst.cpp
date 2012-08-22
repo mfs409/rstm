@@ -101,7 +101,9 @@ namespace stm
 #if defined(STM_INST_FINEGRAINADAPT) || defined(STM_INST_COARSEGRAINADAPT)
       tmirrevoc  = stms[new_alg].irrevoc;
       tmrollback = stms[new_alg].rollback;
-#elif defined(STM_INST_SWITCHADAPT) || defined(STM_INST_ONESHOT)
+#elif defined(STM_INST_SWITCHADAPT)
+      tmrollback = stms[new_alg].rollback;
+#elif defined(STM_INST_ONESHOT)
       // nothing for now
 #else
 #error "Unable to determine Instrumentation mode"
@@ -165,7 +167,10 @@ namespace stm
 
   bool (*tmirrevoc)(TxThread*) = NULL;
 
-#elif defined(STM_INST_SWITCHADAPT) || defined(STM_INST_ONESHOT)
+#elif defined(STM_INST_SWITCHADAPT)
+  void (*tmrollback)(STM_ROLLBACK_SIG(,,));
+#elif defined(STM_INST_ONESHOT)
+  // nothing to declare
 #else
 #error "Unable to determine Instrumentation mode"
 #endif

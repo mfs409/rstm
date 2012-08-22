@@ -121,9 +121,17 @@ namespace stm
   TM_FASTCALL void  tmcommit(TX_LONE_PARAMETER);
   TM_FASTCALL void* tmread(TX_FIRST_PARAMETER STM_READ_SIG(,));
   TM_FASTCALL void  tmwrite(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+
   bool tmirrevoc(TxThread*);
-  void tmrollback(STM_ROLLBACK_SIG(,,));
   void tmbegin(TX_LONE_PARAMETER);
+
+#if defined(STM_INST_SWITCHADAPT)
+  /*** Global pointer for how to rollback */
+  extern void (*tmrollback)(STM_ROLLBACK_SIG(,,));
+#else // defined(STM_INST_ONESHOT)
+  void tmrollback(STM_ROLLBACK_SIG(,,));
+#endif
+
 #else
 #error "Unable to determine Instrumentation mode"
 #endif
