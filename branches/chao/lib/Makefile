@@ -63,12 +63,16 @@ ADAPTOFILES = $(patsubst %, $(ODIR)/%.o, $(ADAPTNAMES))
 ADAPTLIB    = $(ODIR)/libAdapTM.a
 .PRECIOUS: $(ADAPTOFILES)
 
+ADAPTIVITYCPP = AdapTM.cpp
 #
 # Dependencies
 #
 DEPS = $(patsubst %, $(ODIR)/%.d, $(STMALGS) $(COMMONNAMES) $(ADAPTNAMES))
 -include $(DEPS)
 
+$(ADAPTIVITYCPP): $(MKFOLDER)/algs.mk AdapTM_gen.pl 
+	rm -fr $@
+	perl AdapTM_gen.pl $(STMALGS) > $@
 #
 # Rule for building individual .o files
 #
