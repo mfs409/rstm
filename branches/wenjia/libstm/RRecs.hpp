@@ -91,7 +91,7 @@ namespace stm
       if (!(oldval & mask))
           return;
       // NB:  this GCC-specific code
-#if (defined(STM_CPU_X86) || defined(STM_CPU_ARMV7)) && defined(STM_CC_GCC)
+#if (defined(STM_CPU_X86) || defined (STM_CPU_ARMV7)) && defined(STM_CC_GCC)
       __sync_fetch_and_and(&bits[bucket], unmask);
 #else
       while (true) {
@@ -112,7 +112,7 @@ namespace stm
           return false;
       // NB: We don't have suncc fetch_and_or, so there is an ifdef here that
       //     falls back to a costly CAS-based atomic or
-#if (defined(STM_CPU_X86) || defined(STM_CPU_ARMV7)) && defined(STM_CC_GCC) /* little endian */
+#if (defined(STM_CPU_X86) || defined (STM_CPU_ARMV7)) && defined(STM_CC_GCC) /* little endian */
       __sync_fetch_and_or(&bits[bucket], mask);
       return true;
 #else

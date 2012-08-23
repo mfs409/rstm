@@ -1,4 +1,4 @@
-  /**
+/**
  *  Copyright (C) 2011
  *  University of Rochester Department of Computer Science
  *    and
@@ -63,7 +63,6 @@ namespace stm
   {
       TX_GET_TX_INTERNAL;
       tx->r_orecs.reset();
-      tx->order = -1;
       OnROCommit(tx);
   }
 
@@ -77,23 +76,21 @@ namespace stm
   {
       TX_GET_TX_INTERNAL;
       // we need to transition to fast here, but not till our turn
-      while (last_complete.val != ((uintptr_t)tx->order - 1)) {
-          // check if an adaptivity event necessitates that we abort to change
-          // modes
-          if (tmbegin != CTokenTurboELABegin)
-              tmabort();
-      }
-      // validate
-      //
-      // [mfs] Should we use Luke's technique to get the branches out of the
-      //       loop?
-      foreach (OrecList, i, tx->r_orecs) {
-          // read this orec
-          uintptr_t ivt = (*i)->v.all;
-          // if it has a timestamp of ts_cache or greater, abort
-          if (ivt > tx->ts_cache)
-              tmabort();
-      }
+      // [wer210] This spin will cause trouble with adaptivity
+      while (last_complete.val != ((uintptr_t)tx->order - 1))
+          spin64();
+
+      // the oldest one skip the validation
+      if (tx->ts_cache != ((uintptr_t)tx->order - 1))
+          // validate
+          foreach (OrecList, i, tx->r_orecs) {
+              // read this orec
+              uintptr_t ivt = (*i)->v.all;
+              // if it has a timestamp of ts_cache or greater, abort
+              if (ivt > tx->ts_cache)
+                  tmabort();
+          }
+
       // writeback
       if (tx->writes.size() != 0) {
           // mark every location in the write set, and perform write-back
@@ -107,9 +104,6 @@ namespace stm
 
       CFENCE; // wbw between writeback and last_complete.val update
       last_complete.val = tx->order;
-
-      // set status to committed...
-      tx->order = -1;
 
       // commit all frees, reset all lists
       tx->r_orecs.reset();
@@ -128,9 +122,6 @@ namespace stm
       TX_GET_TX_INTERNAL;
       CFENCE; // wbw between writeback and last_complete.val update
       last_complete.val = tx->order;
-
-      // set status to committed...
-      tx->order = -1;
 
       // commit all frees, reset all lists
       tx->r_orecs.reset();
@@ -160,26 +151,19 @@ namespace stm
       // log orec
       tx->r_orecs.insert(o);
 
-      // possibly validate before returning.
-      //
-      // [mfs] Polling like this is necessary for privatization safety, but
-      //       otherwise we could cut it out, since we know we're RO and hence
-      //       not going to be able to switch to turbo mode
       if (last_complete.val > tx->ts_cache) {
-          // [mfs] Should outline this code since it is unlikely
-          uintptr_t finish_cache = last_complete.val;
-          // [mfs] again: use Luke's trick to reduce this cost.  We're not in a
-          //       critical section, so doing so can't hurt other transactions
-          foreach (OrecList, i, tx->r_orecs) {
-              // read this orec
-              uintptr_t ivt_inner = (*i)->v.all;
-              // if it has a timestamp of ts_cache or greater, abort
-              if (ivt_inner > tx->ts_cache)
-                  tmabort();
-          }
-          // now update the ts_cache to remember that at this time, we were
-          // still valid
-          tx->ts_cache = finish_cache;
+	uintptr_t finish_cache = last_complete.val;
+	// [mfs] consider using Luke's trick here
+	foreach (OrecList, i, tx->r_orecs) {
+	  // read this orec
+	  uintptr_t ivt = (*i)->v.all;
+	  // if it has a timestamp of ts_cache or greater, abort
+	  if (ivt > tx->ts_cache)
+	    stm::tmabort();
+	}
+	// now update the finish_cache to remember that at this time, we were
+	// still valid
+	tx->ts_cache = finish_cache;
       }
       return tmp;
   }
@@ -238,7 +222,8 @@ namespace stm
       // record the new value in a redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
 
-      OnFirstWrite(tx, CTokenTurboELAReadRW, CTokenTurboELAWriteRW, CTokenTurboELACommitRW);
+      OnFirstWrite(tx, CTokenTurboELAReadRW, CTokenTurboELAWriteRW,
+                   CTokenTurboELACommitRW);
 
       // go turbo?
       //
@@ -361,15 +346,12 @@ namespace stm
    *
    *    Also, last_complete must equal timestamp
    *
-   *    Also, all threads' order values must be -1
    */
   void
   CTokenTurboELAOnSwitchTo()
   {
       timestamp.val = MAXIMUM(timestamp.val, timestamp_max.val);
       last_complete.val = timestamp.val;
-      for (uint32_t i = 0; i < threadcount.val; ++i)
-          threads[i]->order = -1;
   }
 }
 

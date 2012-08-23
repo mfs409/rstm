@@ -81,7 +81,7 @@ namespace stm
 #if defined(STM_CPU_SPARC)
       reader[id] = 1; WBR;
 #else
-      atomicswap8(&reader[id], 1u);
+      atomicswap8(&reader[id], 1);
 #endif
   }
 }
