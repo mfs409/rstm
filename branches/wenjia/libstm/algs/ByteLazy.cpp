@@ -98,11 +98,11 @@ namespace stm
 
       // take me out of the accumulator
       accumulator[tx->id-1] = 0;
-
+      
       // kill the readers
       for (unsigned char c = 0; c < 60; ++c)
-          if (accumulator[c] == 1)
-              cas32(&threads[c]->alive, 1u, 0u);
+          if (accumulator[c] == 1 && threads[c] != NULL)
+	    cas32(&threads[c]->alive, 1u, 0u);
 
       // were there remote aborts?
       CFENCE;
