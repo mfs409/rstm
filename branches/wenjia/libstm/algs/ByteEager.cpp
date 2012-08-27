@@ -166,7 +166,7 @@ namespace stm
       // wait (with timeout) for readers to drain out
       // (read 4 bytelocks at a time)
       volatile uint32_t* lock_alias = (volatile uint32_t*)&lock->reader[0];
-      for (int i = 0; i < 15; ++i) {
+      for (int i = 0; i < CACHELINE_BYTES / 4 - 1; ++i) {
           tries = 0;
           while (lock_alias[i] != 0)
               if (++tries > BYTELOCK_DRAIN_TIMEOUT)
@@ -209,7 +209,7 @@ namespace stm
       // wait (with timeout) for readers to drain out
       // (read 4 bytelocks at a time)
       volatile uint32_t* lock_alias = (volatile uint32_t*)&lock->reader[0];
-      for (int i = 0; i < 15; ++i) {
+      for (int i = 0; i < CACHELINE_BYTES / 4 -1; ++i) {
           tries = 0;
           while (lock_alias[i] != 0)
               if (++tries > BYTELOCK_DRAIN_TIMEOUT)
