@@ -1,3 +1,4 @@
+
 #
 #  Copyright (C) 2012
 #  University of Rochester Department of Computer Science
@@ -46,9 +47,6 @@ endif
 #
 CXXFLAGS += -MMD -I$(ODIR)
 
-$(ADAPTIVITYCPP): $(MKFOLDER)/algs.mk AdapTM_gen.pl
-	rm -fr $@
-	perl AdapTM_gen.pl $(ALGNAMES) > $@
 #
 # All the cpp files are listed here
 #
