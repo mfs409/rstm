@@ -46,6 +46,9 @@ endif
 #
 CXXFLAGS += -MMD -I$(ODIR)
 
+$(ADAPTIVITYCPP): $(MKFOLDER)/algs.mk AdapTM_gen.pl
+	rm -fr $@
+	perl AdapTM_gen.pl $(ALGNAMES) > $@
 #
 # All the cpp files are listed here
 #
