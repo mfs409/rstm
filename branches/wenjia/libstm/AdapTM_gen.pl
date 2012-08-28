@@ -140,8 +140,8 @@ print "
 pop(@argument);
 foreach $_ (@argument) {	
 	print "\tcase $_:\n";
-	s/([A-Z])/\L$1/gi;
-	print "\t\t${_}::tm_begin(buf);\n";
+	s/([A-Z])/\U$1/gi;
+	print "\t\tstm::${_}Begin(buf);\n";
 	print "\t\tbreak;\n";
 }
 
@@ -175,8 +175,8 @@ print "
 pop(@argument);
 foreach $_ (@argument) {	
 	print "\tcase $_:\n";
-	s/([A-Z])/\L$1/gi;
-	print "\t\t${_}::tm_end(buf);\n";
+	s/([A-Z])/\U$1/gi;
+	print "\t\tstm::${_}End(buf);\n";
 	print "\t\tbreak;\n";
 }
 
@@ -208,8 +208,8 @@ print "
 pop(@argument);
 foreach $_ (@argument) {	
 	print "\tcase $_:\n";
-	s/([A-Z])/\L$1/gi;
-	print "\t\t${_}::tm_alloc(s);\n";
+	s/([A-Z])/\U$1/gi;
+	print "\t\tstm::${_}Alloc(s);\n";
 	print "\t\tbreak;\n";
 }
 
@@ -240,8 +240,8 @@ print "
 pop(@argument);
 foreach $_ (@argument) {	
 	print "\tcase $_:\n";
-	s/([A-Z])/\L$1/gi;
-	print "\t\t${_}::tm_free(p);\n";
+	s/([A-Z])/\U$1/gi;
+	print "\t\tstm::${_}Free(p);\n";
 	print "\t\tbreak;\n";
 }
 
@@ -273,8 +273,8 @@ print "
 pop(@argument);
 foreach $_ (@argument) {	
 	print "\tcase $_:\n";
-	s/([A-Z])/\L$1/gi;
-	print "\t\t${_}::tm_read(addr);\n";
+	s/([A-Z])/\U$1/gi;
+	print "\t\tstm::${_}Read(addr);\n";
 	print "\t\tbreak;\n";
 }
 
@@ -306,8 +306,8 @@ print "
 pop(@argument);
 foreach $_ (@argument) {	
 	print "\tcase $_:\n";
-	s/([A-Z])/\L$1/gi;
-	print "\t\t${_}::tm_write(addr, val);\n";
+	s/([A-Z])/\U$1/gi;
+	print "\t\tstm::${_}Write(addr, val);\n";
 	print "\t\tbreak;\n";
 }
 
