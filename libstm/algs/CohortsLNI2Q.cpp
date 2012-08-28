@@ -103,9 +103,6 @@ namespace stm
       struct cohorts_node_t* pred;
 
       // add myself to the queue
-      //do {
-      //    tx->turn.next = q;
-      //} while (!bcasptr(&q, tx->turn.next, &(tx->turn)));
       pred = __sync_lock_test_and_set(&q, &(tx->turn));
 
       // Mark self pending to commit
@@ -124,26 +121,12 @@ namespace stm
       //           just forbit one possible inplace write.
       cohortcounter.val = (left == 1);
 
-      /*
-      // Not first one? wait for your turn
-      if (tx->turn.next != NULL)
-          while (tx->turn.next->val != COHORTS_DONE);
-      else {
-          // First one in a cohort waits until all tx are ready to commit
-          for (uint32_t i = 0; i < threadcount.val; ++i)
-              while (threads[i]->status == COHORTS_STARTED);
-
-          // do a quick filter comparison here?!?
-      }
-      */
       if (pred != NULL)
           while (pred->val != COHORTS_DONE);
       else {
           // First one in a cohort waits until all tx are ready to commit
           for (uint32_t i = 0; i < threadcount.val; ++i)
               while (threads[i]->status == COHORTS_STARTED);
-
-          // do a quick filter comparison here?!?
       }
 
       // Everyone must validate read
@@ -221,28 +204,10 @@ namespace stm
   void CohortsLNI2QWriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
-      // [mfs] this code is not in the best location.  Consider the following
-      // alternative:
-      //
-      // - when a thread reaches the commit function, it seals the cohort
-      // - then it counts the number of transactions in the cohort
-      // - then it waits for all of them to finish
-      // - while waiting, it eventually knows when there is exactly one left.
-      // - at that point, it can set a flag to indicate that the last one is
-      //   in-flight.
-      // - all transactions can check that flag on every read/write
-      //
-      // There are a few challenges.  First, the current code waits on the
-      // first thread, then the next, then the next...  Obviously that won't do
-      // anymore.  Second, there can be a "flicker" when a thread sets a flag,
-      // then reads the gatekeeper, then backs out.  Lastly, RO transactions
-      // will require some sort of special attention.  But the tradeoff is more
-      // potential to switch (not just first write), and without so much
-      // redundant checking.
       if (cohortcounter.val == 1) {
           *addr = val;
           // switch to turbo mode
-          OnFirstWrite(tx, CohortsLNI2QReadTurbo, CohortsLNI2QWriteTurbo, CohortsLNI2QCommitTurbo);
+          GoTurbo(tx, CohortsLNI2QReadTurbo, CohortsLNI2QWriteTurbo, CohortsLNI2QCommitTurbo);
           return;
       }
 
@@ -266,9 +231,6 @@ namespace stm
   {
       TX_GET_TX_INTERNAL;
       // record the new value in a redo log
-      //
-      // [mfs] we might get better instruction scheduling if we put this code
-      //       first, and then did the check.
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
 
       // check if I can go turbo
