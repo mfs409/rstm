@@ -114,11 +114,15 @@ namespace stm
 
       // run the redo log
       tx->writes.writeback();
-
+#ifdef STM_CPU_ARMV7      
+      CFENCE;
+#endif
       // release locks
       foreach (OrecList, i, tx->locks)
           (*i)->v.all = tx->end_time;
-
+#ifdef STM_CPU_ARMV7      
+      CFENCE;
+#endif
       // now ensure that transactions depart from stm_end in the order that
       // they incremend the timestamp.  This avoids the "deferred update"
       // half of the privatization problem.
@@ -258,6 +262,9 @@ namespace stm
       tx->writes.reset();
       tx->locks.reset();
 
+#ifdef STM_CPU_ARMV7      
+      CFENCE;
+#endif
       // if we aborted after incrementing the timestamp, then we have to
       // participate in the global cleanup order to support our solution to
       // the deferred update half of the privatization problem.
