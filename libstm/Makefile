@@ -20,6 +20,15 @@ include $(MKFOLDER)/info.mk
 include ./algs/algs.mk
 
 #
+# We use a perl script to autogenerate a cpp file.  This is the script name
+# and the path to the perl interpreter, as well as the base name of the
+# desired output file
+#
+ADAPTMSCRIPT = AdapTM_gen.pl
+PERL = perl
+ADAPTM = AdapTM
+
+#
 # Output folder: we build in-tree, unless this is overridden.  Note that the
 # folder is built at parse time, so that we don't have to depend on it
 # existing, but we need to handle parses of this file when a library wasn't
@@ -42,7 +51,7 @@ CXXFLAGS += -MMD -I$(ODIR)
 #
 CXXNAMES = algs cbr inst irrevocability policies profiling static txthread \
            types Toxic PMU WBMMPolicy BitLocks ByteLocks Orecs RRecs	   \
-           Registration AdapTM $(ALGNAMES)
+           Registration $(ADAPTM) $(ALGNAMES)
 
 ifeq ($(CHECKPOINT),asm)
 CXXNAMES += checkpoint
@@ -89,6 +98,14 @@ $(ODIR)/%.o: algs/%.cpp
 $(ODIR)/%.o: %.S
 	@echo [CC] $< "-->" $@
 	@$(CC) $(ASFLAGS) -c -o $@ $<
+
+$(ODIR)/$(ADAPTM).cpp: ./algs/algs.mk $(ADAPTMSCRIPT)
+	@echo [PERL] $@
+	@$(PERL) $(ADAPTMSCRIPT) $(ALGNAMES) > $@
+
+$(ODIR)/%.o: $(ODIR)/%.cpp
+	@echo [CC] $< "-->" $@
+	@$(CXX) $(CXXFLAGS) -c -o $@ $<
 
 #
 # Rule for building the library
