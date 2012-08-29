@@ -20,7 +20,7 @@ namespace stm
    *  select one at will.  The selected one is in curr_policy.
    */
   pol_t      pols[POL_MAX];
-  behavior_t curr_policy;
+  behavior_t curr_policy = {0, 0, 0, false, false, 0, 0};
 
   /*** the qtable for CBR policies */
   MiniVector<qtable_t>* qtbl[MAX_THREADS+1]  = {NULL};

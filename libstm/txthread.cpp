@@ -75,7 +75,15 @@ namespace stm
           spin64();
       }
 #elif defined(STM_INST_SWITCHADAPT) || defined(STM_INST_ONESHOT)
-      // todo
+      // [mfs] We *really* need to block all transactions at this point.
+      //       However, as long as we don't have in-flight algorithm switching,
+      //       we can get by just by grabbing a lock here.  The purpose of the
+      //       lock is to ensure that we construct one TxThread at a time.
+      //       That's a bit of overkill, as all we're really doing is
+      //       protecting the increment of threadcount.val below.  But it's
+      //       good enough for now.
+      static volatile uint32_t mtx = 0;
+      while (!bcas32(&mtx, 0, 1)) spin64();
 #endif
 
       // initialize this thread's instrumentation fields...
@@ -154,7 +162,7 @@ namespace stm
 #if defined(STM_INST_FINEGRAINADAPT) || defined(STM_INST_COARSEGRAINADAPT)
       tmbegin = stms[curr_policy.ALG_ID].begin;
 #elif defined(STM_INST_SWITCHADAPT) || defined(STM_INST_ONESHOT)
-      // todo
+      mtx = 0;
 #endif
   }
 
