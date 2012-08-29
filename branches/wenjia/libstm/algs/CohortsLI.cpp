@@ -264,7 +264,7 @@ namespace stm
               // write inplace
               CohortsLIWriteTurbo(TX_FIRST_ARG addr, val);
               // go turbo
-              OnFirstWrite(tx, CohortsLIReadTurbo, CohortsLIWriteTurbo, CohortsLICommitTurbo);
+              GoTurbo(tx, CohortsLIReadTurbo, CohortsLIWriteTurbo, CohortsLICommitTurbo);
               return;
           }
           // reset flag

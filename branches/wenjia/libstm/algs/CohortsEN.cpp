@@ -211,7 +211,7 @@ namespace stm
               // in place write
               *addr = val;
               // go turbo mode
-              OnFirstWrite(tx, CohortsENReadTurbo, CohortsENWriteTurbo, CohortsENCommitTurbo);
+              GoTurbo(tx, CohortsENReadTurbo, CohortsENWriteTurbo, CohortsENCommitTurbo);
               return;
           }
           // reset flag
@@ -250,7 +250,7 @@ namespace stm
               // in place write
               *addr = val;
               // go turbo mode
-              OnFirstWrite(tx, ReadTurbo, WriteTurbo, CommitTurbo);
+              GoTurbo(tx, ReadTurbo, WriteTurbo, CommitTurbo);
               return;
           }
           // reset flag
