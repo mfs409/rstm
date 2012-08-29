@@ -285,6 +285,9 @@ namespace stm
 #ifdef STM_API_ITM
 #  define TM_BEGIN_FAST_INITIALIZATION()
 #  define TM_END_FAST_INITIALIZATION()
+#elif defined STM_INST_ONESHOT
+#  define TM_BEGIN_FAST_INITIALIZATION() TM_BEGIN(atomic)
+#  define TM_END_FAST_INITIALIZATION()   TM_END
 #else
 #  define TM_BEGIN_FAST_INITIALIZATION()                \
     const char* __config_string__ = TM_GET_ALGNAME();   \
