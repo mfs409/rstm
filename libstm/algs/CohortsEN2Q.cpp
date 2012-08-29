@@ -209,7 +209,7 @@ namespace stm
           // in place write
           *addr = val;
           // go turbo mode
-          OnFirstWrite(tx, CohortsEN2QReadTurbo, CohortsEN2QWriteTurbo, CohortsEN2QCommitTurbo);
+          GoTurbo(tx, CohortsEN2QReadTurbo, CohortsEN2QWriteTurbo, CohortsEN2QCommitTurbo);
           return;
       }
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
@@ -240,7 +240,7 @@ namespace stm
           // in place write
           *addr = val;
           // go turbo mode
-          OnFirstWrite(tx, CohortsEN2QReadTurbo, CohortsEN2QWriteTurbo, CohortsEN2QCommitTurbo);
+          GoTurbo(tx, CohortsEN2QReadTurbo, CohortsEN2QWriteTurbo, CohortsEN2QCommitTurbo);
           return;
       }
       // record the new value in a redo log

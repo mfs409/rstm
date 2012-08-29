@@ -260,7 +260,7 @@ namespace stm
           // [mfs] ultimately this should use a macro that employs the mask
           *addr = val;
           // switch to turbo mode
-          OnFirstWrite(tx, CohortsLNI2ReadTurbo, CohortsLNI2WriteTurbo, CohortsLNI2CommitTurbo);
+          GoTurbo(tx, CohortsLNI2ReadTurbo, CohortsLNI2WriteTurbo, CohortsLNI2CommitTurbo);
           return;
       }
 

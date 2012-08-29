@@ -228,7 +228,7 @@ namespace stm
               // in place write
               *addr = val;
               // go turbo mode
-              OnFirstWrite(tx, CohortsEagerReadTurbo, CohortsEagerWriteTurbo, CohortsEagerCommitTurbo);
+              GoTurbo(tx, CohortsEagerReadTurbo, CohortsEagerWriteTurbo, CohortsEagerCommitTurbo);
               return;
           }
           // reset flag
