@@ -132,8 +132,8 @@ namespace stm
           tx->r_orecs.insert(o);
           return tmp;
       }
-      // unreachable
       tmabort();
+      // unreachable
       return NULL;
   }
 
@@ -223,8 +223,7 @@ namespace stm
   /**
    *  LLT in-flight irrevocability:
    */
-  bool
-  LLTIrrevoc(TxThread*)
+  bool LLTIrrevoc(TxThread*)
   {
       return false;
   }

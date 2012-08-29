@@ -179,5 +179,6 @@ namespace stm
       uint32_t new_algorithm = pols[curr_policy.POL_ID].decider();
       change_algorithm(tx, new_algorithm);
   }
+
 } // namespace stm
 
