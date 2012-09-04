@@ -26,11 +26,6 @@
 #  define TX_FIRST_PARAMETER_ANON stm::TxThread*,
 #  define TX_GET_TX_INTERNAL
 #else
-
-#ifdef STM_OS_MACOS
-#include "ThreadLocal.hpp"
-#endif
-
 #  define TX_LONE_PARAMETER
 #  define TX_FIRST_PARAMETER
 #  define TX_LONE_ARG
