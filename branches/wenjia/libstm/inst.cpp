@@ -195,9 +195,15 @@ namespace stm
   /**
    * The thread-local read/write/commit function pointers:
    */
+#ifdef STM_OS_MACOS
+  extern stm::tls::ThreadLocal<__attribute__((regparm(3))) void(*)(stm::TxThread* tx), sizeof(void*)> tmcommit;
+  extern stm::tls::ThreadLocal<__attribute__((regparm(3))) void*(*)(stm::TxThread* tx, void** ), sizeof(void*)> tmread;
+  extern stm::tls::ThreadLocal<__attribute__((regparm(3))) void(*)(stm::TxThread* tx, void** , void* ), sizeof(void*)> tmwrite;
+#else
   THREAD_LOCAL_DECL_TYPE(TM_FASTCALL void(*tmcommit)(TX_LONE_PARAMETER));
   THREAD_LOCAL_DECL_TYPE(TM_FASTCALL void*(*tmread)(TX_FIRST_PARAMETER STM_READ_SIG(,)));
   THREAD_LOCAL_DECL_TYPE(TM_FASTCALL void(*tmwrite)(TX_FIRST_PARAMETER STM_WRITE_SIG(,,)));
+#endif
 #elif defined(STM_INST_COARSEGRAINADAPT)
   /**
    * The read/write/commit function pointers:

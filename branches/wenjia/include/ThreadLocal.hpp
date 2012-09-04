@@ -228,11 +228,11 @@ namespace stm
         const T* operator->() const { return static_cast<T*>(getValue()); }
         T& operator*() { return *static_cast<T*>(getValue()); }
         T* operator->() { return static_cast<T*>(getValue()); }
-        operator T*() { return static_cast<T*>(getValue()); }
+        operator T*() { return reinterpret_cast<T*>(getValue()); }
 
         // allow assignments
         ThreadLocal<T*, sizeof(void*)>& operator=(T* rhs) {
-            setValue(rhs);
+            setValue((void*)rhs);
             return *this;
         }
 
