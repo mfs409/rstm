@@ -369,8 +369,8 @@ namespace stm
         case '2': ABORT_EARLYSEAL.val = 2; break;
         case '3': ABORT_EARLYSEAL.val = 3;
       };
-      printf("Use STM_READS = %d, STM_WRITES = %d, STM_ABORTS = %d\n",
-             READ_EARLYSEAL.val, WRITE_EARLYSEAL.val, ABORT_EARLYSEAL.val);
+      //      printf("Use STM_READS = %d, STM_WRITES = %d, STM_ABORTS = %d\n",
+      //READ_EARLYSEAL.val, WRITE_EARLYSEAL.val, ABORT_EARLYSEAL.val);
   }
 }
 
