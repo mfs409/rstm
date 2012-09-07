@@ -199,8 +199,16 @@ namespace stm
 /**
  * Code should only use these calls, not the template stuff declared above
  */
+
+// #define QUICK_AND_DIRTY_INLINE_HACK_FOR_CGL
+
+#ifdef QUICK_AND_DIRTY_INLINE_HACK_FOR_CGL
+#define TM_READ(var)       (var)
+#define TM_WRITE(var, val) var = val;
+#else
 #define TM_READ(var)       stm::stm_read(TX_FIRST_ARG &var)
 #define TM_WRITE(var, val) stm::stm_write(TX_FIRST_ARG &var, val)
+#endif
 
 #ifdef STM_CHECKPOINT_ASM
 
