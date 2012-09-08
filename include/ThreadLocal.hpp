@@ -50,6 +50,7 @@
  */
 #if defined(STM_TLS_PTHREAD)
 # define THREAD_LOCAL_DECL_TYPE(X) stm::tls::ThreadLocal<X, sizeof(X)>
+# define THREAD_LOCAL_FUNCTION_DECL_TYPE(X, name) stm::tls::ThreadLocal<X, 0> name
 #elif defined(STM_OS_WINDOWS)
 # define THREAD_LOCAL_DECL_TYPE(X) __declspec(thread) X
 #elif defined(STM_CC_GCC) || defined(STM_CC_SUN)
@@ -77,7 +78,7 @@ namespace stm
      *  The basic thread local wrapper. The pthread interface stores the
      *  value as a void*, and this class manages that void* along with the
      *  pthread key.
-    */
+     */
     class PThreadLocalImplementation
     {
       protected:
@@ -248,6 +249,44 @@ namespace stm
         ThreadLocal<T*, sizeof(T*)>&
         operator=(const ThreadLocal<T*, sizeof(T*)>&);
     };
+
+    // [mfs] Hack for thread-local function pointers.  The second template
+    //       parameter can never be a 0 when we do things the right way, so
+    //       this lets us have a custom variant that has different casting to
+    //       handle function pointers.
+    template <typename T>
+    class ThreadLocal<T*, 0> : public PThreadLocalImplementation
+    {
+      public:
+        ThreadLocal(T* t = NULL) : PThreadLocalImplementation((void*)t) { }
+
+        virtual ~ThreadLocal() { }
+
+        // The smart pointer interface to the variable.
+        const T& operator*() const { return *static_cast<T*>(getValue()); }
+        const T* operator->() const { return static_cast<T*>(getValue()); }
+        T& operator*() { return *static_cast<T*>(getValue()); }
+        T* operator->() { return static_cast<T*>(getValue()); }
+        operator T*() { return reinterpret_cast<T*>(getValue()); }
+
+        // allow assignments
+        ThreadLocal<T*, 0>& operator=(T* rhs) {
+            setValue((void*)rhs);
+            return *this;
+        }
+
+        bool operator==(T* rhs) { return (getValue() == rhs); }
+
+      private:
+        // Restrict access to potentially dangerous things. Start by
+        // preventing the thread local to be copied around (presumably people
+        // trying to copy a ThreadLocal /actually/ want to copy the
+        // underlying object).
+        ThreadLocal(const ThreadLocal<T*, sizeof(T*)>&);
+
+        ThreadLocal<T*, 0>& operator=(const ThreadLocal<T*, sizeof(T*)>&);
+    };
+
   } // namespace stm::tls
 } // namespace stm
 #endif

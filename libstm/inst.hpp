@@ -74,15 +74,16 @@ namespace stm
    *  NB: read/write/commit pointers were moved out of the descriptor
    *      object to make user code less dependent on this file
    */
-#ifdef STM_OS_MACOS
-  extern stm::tls::ThreadLocal<__attribute__((regparm(3))) void(*)(stm::TxThread* tx), sizeof(void*)> tmcommit;
-  extern stm::tls::ThreadLocal<__attribute__((regparm(3))) void*(*)(stm::TxThread* tx, void** ), sizeof(void*)> tmread;
-  extern stm::tls::ThreadLocal<__attribute__((regparm(3))) void(*)(stm::TxThread* tx, void** , void* ), sizeof(void*)> tmwrite;
+#if defined(STM_TLS_PTHREAD)
+  extern THREAD_LOCAL_FUNCTION_DECL_TYPE(TM_FASTCALL void(*)(TX_LONE_PARAMETER), tmcommit);
+  extern THREAD_LOCAL_FUNCTION_DECL_TYPE(TM_FASTCALL void*(*)(TX_FIRST_PARAMETER STM_READ_SIG(,)), tmread);
+  extern THREAD_LOCAL_FUNCTION_DECL_TYPE(TM_FASTCALL void(*)(TX_FIRST_PARAMETER STM_WRITE_SIG(,,)), tmwrite);
 #else
   extern THREAD_LOCAL_DECL_TYPE(TM_FASTCALL void(*tmcommit)(TX_LONE_PARAMETER));
   extern THREAD_LOCAL_DECL_TYPE(TM_FASTCALL void*(*tmread)(TX_FIRST_PARAMETER STM_READ_SIG(,)));
   extern THREAD_LOCAL_DECL_TYPE(TM_FASTCALL void(*tmwrite)(TX_FIRST_PARAMETER STM_WRITE_SIG(,,)));
 #endif
+
   /*** Global pointer for switching to irrevocable mode */
   extern bool(*tmirrevoc)(TxThread*);
 
