@@ -105,7 +105,7 @@ $(ODIR)/$(ADAPTM).cpp: ./algs/algs.mk $(ADAPTMSCRIPT)
 	@$(PERL) $(ADAPTMSCRIPT) $(ALGNAMES) > $@
 
 $(ODIR)/%.o: $(ODIR)/%.cpp
-	@echo [CC] $< "-->" $@
+	@echo [CXX] $< "-->" $@
 	@$(CXX) $(CXXFLAGS) -c -o $@ $<
 
 #
