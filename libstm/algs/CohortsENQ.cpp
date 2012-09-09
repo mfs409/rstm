@@ -210,7 +210,7 @@ namespace stm
               // in place write
               *addr = val;
               // go turbo mode
-              OnFirstWrite(tx, CohortsENQReadTurbo, CohortsENQWriteTurbo, CohortsENQCommitTurbo);
+              GoTurbo(tx, CohortsENQReadTurbo, CohortsENQWriteTurbo, CohortsENQCommitTurbo);
               return;
           }
           // reset flag

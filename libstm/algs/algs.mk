@@ -27,4 +27,5 @@ ALGNAMES = CGL BitEager BitEagerRedo BitLazy ByEAR ByEAUHA ByEAUBackoff	      \
            OrecLazyHB OrecLazyHour OrecLazyAMD64 PessimisticTM Pipeline	      \
            PipelineTurbo ProfileAppAvg ProfileAppMax ProfileAppAll ProfileTM  \
            RingALA RingSW Serial Swiss TLI TML TMLLazy Ticket Wealth	      \
-           CohortsLNI2 CohortsLNI2Q CohortsLNI2QX CohortsLNQX CohortsLNIQX
+           CohortsLNI2 CohortsLNI2Q CohortsLNI2QX CohortsLNQX CohortsLNIQX    \
+	   CohortsENQX
