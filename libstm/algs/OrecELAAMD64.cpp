@@ -136,9 +136,9 @@ namespace stm
       ResetToRO(tx, OrecELAAMD64ReadRO, OrecELAAMD64WriteRO, OrecELAAMD64CommitRO);
 
       // quiesce
-      //CFENCE;
-      //for (uint32_t id = 0; id < threadcount.val; ++id)
-      //    while (threads[id]->last_val_time < end_time) spin64();
+      CFENCE;
+      for (uint32_t id = 0; id < threadcount.val; ++id)
+	while (threads[id]->last_val_time < end_time) spin64();
   }
 
   /**

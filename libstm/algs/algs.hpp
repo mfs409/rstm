@@ -117,6 +117,26 @@ namespace stm
       Trigger::onCommitSTM(tx);
   }
 
+  inline void OnRWCommitNOGC(TxThread* tx)
+  {
+      tx->allocator.onTxCommitImmediate();
+      tx->abort_hist.onCommit(tx->consec_aborts);
+      tx->consec_aborts = 0;
+      tx->consec_ro = 0;
+      ++tx->num_commits;
+      Trigger::onCommitSTM(tx);
+  }
+
+  inline void OnROCommitNOGC(TxThread* tx)
+  {
+      tx->allocator.onTxCommitImmediate();
+      tx->abort_hist.onCommit(tx->consec_aborts);
+      tx->consec_aborts = 0;
+      ++tx->consec_ro;
+      ++tx->num_ro;
+      Trigger::onCommitSTM(tx);
+  }
+
   inline void OnCGLCommit(TxThread* tx)
   {
       tx->allocator.onTxCommitImmediate();
