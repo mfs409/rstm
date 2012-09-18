@@ -59,7 +59,7 @@ namespace stm
       TX_GET_TX_INTERNAL;
       // read-only
       tx->r_orecs.reset();
-      OnROCommit(tx);
+      OnROCommitNOGC(tx);
 #ifdef STM_BITS_32
       UNRECOVERABLE("Error: trying to run in 32-bit mode!");
 #else
@@ -132,7 +132,7 @@ namespace stm
       tx->r_orecs.reset();
       tx->writes.reset();
       tx->locks.reset();
-      OnRWCommit(tx);
+      OnRWCommitNOGC(tx);
       ResetToRO(tx, OrecELAAMD64NOGCReadRO, OrecELAAMD64NOGCWriteRO, OrecELAAMD64NOGCCommitRO);
 
       // quiesce
