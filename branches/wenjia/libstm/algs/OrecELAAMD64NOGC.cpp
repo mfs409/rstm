@@ -12,7 +12,7 @@
 // timestamps... this should be pretty good
 
 /**
- *  OrecELAAMD64 Implementation:
+ *  OrecELAAMD64NOGC Implementation:
  *
  *    This STM is similar to OrecELA, with three exceptions.  First, we use
  *    the x86 tick counter in place of a shared memory counter, which lets us
@@ -28,20 +28,20 @@
 
 namespace stm
 {
-  TM_FASTCALL void* OrecELAAMD64ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
-  TM_FASTCALL void* OrecELAAMD64ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
-  TM_FASTCALL void OrecELAAMD64WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-  TM_FASTCALL void OrecELAAMD64WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
-  TM_FASTCALL void OrecELAAMD64CommitRO(TX_LONE_PARAMETER);
-  TM_FASTCALL void OrecELAAMD64CommitRW(TX_LONE_PARAMETER);
-  NOINLINE void OrecELAAMD64Validate(TxThread*);
+  TM_FASTCALL void* OrecELAAMD64NOGCReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
+  TM_FASTCALL void* OrecELAAMD64NOGCReadRW(TX_FIRST_PARAMETER STM_READ_SIG(,));
+  TM_FASTCALL void OrecELAAMD64NOGCWriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+  TM_FASTCALL void OrecELAAMD64NOGCWriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
+  TM_FASTCALL void OrecELAAMD64NOGCCommitRO(TX_LONE_PARAMETER);
+  TM_FASTCALL void OrecELAAMD64NOGCCommitRW(TX_LONE_PARAMETER);
+  NOINLINE void OrecELAAMD64NOGCValidate(TxThread*);
 
   /**
-   *  OrecELAAMD64 begin:
+   *  OrecELAAMD64NOGC begin:
    *
    *    Sample the timestamp and prepare local vars
    */
-  void OrecELAAMD64Begin(TX_LONE_PARAMETER)
+  void OrecELAAMD64NOGCBegin(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       tx->allocator.onTxBegin();
@@ -49,12 +49,12 @@ namespace stm
   }
 
   /**
-   *  OrecELAAMD64 commit (read-only context)
+   *  OrecELAAMD64NOGC commit (read-only context)
    *
    *    We just reset local fields and we're done
    */
   void
-  OrecELAAMD64CommitRO(TX_LONE_PARAMETER)
+  OrecELAAMD64NOGCCommitRO(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // read-only
@@ -68,13 +68,13 @@ namespace stm
   }
 
   /**
-   *  OrecELAAMD64 commit (writing context)
+   *  OrecELAAMD64NOGC commit (writing context)
    *
    *    Using Wang-style timestamps, we grab all locks, validate, writeback,
    *    increment the timestamp, and then release all locks.
    */
   void
-  OrecELAAMD64CommitRW(TX_LONE_PARAMETER)
+  OrecELAAMD64NOGCCommitRW(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
       // acquire locks
@@ -133,21 +133,21 @@ namespace stm
       tx->writes.reset();
       tx->locks.reset();
       OnRWCommit(tx);
-      ResetToRO(tx, OrecELAAMD64ReadRO, OrecELAAMD64WriteRO, OrecELAAMD64CommitRO);
+      ResetToRO(tx, OrecELAAMD64NOGCReadRO, OrecELAAMD64NOGCWriteRO, OrecELAAMD64NOGCCommitRO);
 
       // quiesce
-      //CFENCE;
-      //for (uint32_t id = 0; id < threadcount.val; ++id)
-      //    while (threads[id]->last_val_time < end_time) spin64();
+      CFENCE;
+      for (uint32_t id = 0; id < threadcount.val; ++id)
+          while (threads[id]->last_val_time < end_time) spin64();
   }
 
   /**
-   *  OrecELAAMD64 read (read-only context):
+   *  OrecELAAMD64NOGC read (read-only context):
    *
    *    in the best case, we just read the value, check the timestamp, log the
    *    orec and return
    */
-  void* OrecELAAMD64ReadRO(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
+  void* OrecELAAMD64NOGCReadRO(TX_FIRST_PARAMETER STM_READ_SIG(addr,))
   {
       TX_GET_TX_INTERNAL;
       // get the orec addr
@@ -178,18 +178,18 @@ namespace stm
           CFENCE;
           uint64_t newts = tickp() & 0x7FFFFFFFFFFFFFFFLL;
           CFENCE;
-          OrecELAAMD64Validate(tx);
+          OrecELAAMD64NOGCValidate(tx);
           tx->start_time = newts;
       }
   }
 
   /**
-   *  OrecELAAMD64 read (writing context):
+   *  OrecELAAMD64NOGC read (writing context):
    *
    *    Just like read-only context, but must check the write set first
    */
   void*
-  OrecELAAMD64ReadRW(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
+  OrecELAAMD64NOGCReadRW(TX_FIRST_PARAMETER STM_READ_SIG(addr,mask))
   {
       TX_GET_TX_INTERNAL;
       // check the log for a RAW hazard, we expect to miss
@@ -198,32 +198,32 @@ namespace stm
       REDO_RAW_CHECK(found, log, mask);
 
       // reuse the ReadRO barrier, which is adequate here---reduces LOC
-      void* val = OrecELAAMD64ReadRO(TX_FIRST_ARG addr STM_MASK(mask));
+      void* val = OrecELAAMD64NOGCReadRO(TX_FIRST_ARG addr STM_MASK(mask));
       REDO_RAW_CLEANUP(val, found, log, mask);
       return val;
   }
 
   /**
-   *  OrecELAAMD64 write (read-only context):
+   *  OrecELAAMD64NOGC write (read-only context):
    *
    *    Buffer the write, and switch to a writing context
    */
   void
-  OrecELAAMD64WriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  OrecELAAMD64NOGCWriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // add to redo log
       tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
-      OnFirstWrite(tx, OrecELAAMD64ReadRW, OrecELAAMD64WriteRW, OrecELAAMD64CommitRW);
+      OnFirstWrite(tx, OrecELAAMD64NOGCReadRW, OrecELAAMD64NOGCWriteRW, OrecELAAMD64NOGCCommitRW);
   }
 
   /**
-   *  OrecELAAMD64 write (writing context):
+   *  OrecELAAMD64NOGC write (writing context):
    *
    *    Just buffer the write
    */
   void
-  OrecELAAMD64WriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
+  OrecELAAMD64NOGCWriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
       // add to redo log
@@ -231,13 +231,13 @@ namespace stm
   }
 
   /**
-   *  OrecELAAMD64 rollback:
+   *  OrecELAAMD64NOGC rollback:
    *
    *    Release any locks we acquired (if we aborted during a commit(TX_LONE_PARAMETER)
    *    operation), and then reset local lists.
    */
   void
-  OrecELAAMD64Rollback(STM_ROLLBACK_SIG(tx, except, len))
+  OrecELAAMD64NOGCRollback(STM_ROLLBACK_SIG(tx, except, len))
   {
       tx->last_val_time = 0x7FFFFFFFFFFFFFFFLL;
       PreRollback(tx);
@@ -256,18 +256,18 @@ namespace stm
       tx->writes.reset();
       tx->locks.reset();
       PostRollback(tx);
-      ResetToRO(tx, OrecELAAMD64ReadRO, OrecELAAMD64WriteRO, OrecELAAMD64CommitRO);
+      ResetToRO(tx, OrecELAAMD64NOGCReadRO, OrecELAAMD64NOGCWriteRO, OrecELAAMD64NOGCCommitRO);
   }
 
   /**
-   *  OrecELAAMD64 in-flight irrevocability:
+   *  OrecELAAMD64NOGC in-flight irrevocability:
    *
    *    Either commit the transaction or return false.
    */
-   bool OrecELAAMD64Irrevoc(TxThread*)
+   bool OrecELAAMD64NOGCIrrevoc(TxThread*)
    {
        return false;
-       // NB: In a prior release, we actually had a full OrecELAAMD64 commit
+       // NB: In a prior release, we actually had a full OrecELAAMD64NOGC commit
        //     here.  Any contributor who is interested in improving this code
        //     should note that such an approach is overkill: by the time this
        //     runs, there are no concurrent transactions, so in effect, all
@@ -275,13 +275,13 @@ namespace stm
    }
 
   /**
-   *  OrecELAAMD64 validation:
+   *  OrecELAAMD64NOGC validation:
    *
    *    We only call this when in-flight, which means that we don't have any
    *    locks... This makes the code very simple, but it is still better to not
    *    inline it.
    */
-  void OrecELAAMD64Validate(TxThread* tx)
+  void OrecELAAMD64NOGCValidate(TxThread* tx)
   {
       foreach (OrecList, i, tx->r_orecs)
           // abort if orec locked, or if unlocked but timestamp too new
@@ -290,21 +290,21 @@ namespace stm
   }
 
   /**
-   *  Switch to OrecELAAMD64:
+   *  Switch to OrecELAAMD64NOGC:
    *
    *    The timestamp must be >= the maximum value of any orec.  Some algs use
    *    timestamp as a zero-one mutex.  If they do, then they back up the
    *    timestamp first, in timestamp_max.
    */
-  void OrecELAAMD64OnSwitchTo()
+  void OrecELAAMD64NOGCOnSwitchTo()
   {
   }
 }
 
 
-DECLARE_SIMPLE_METHODS_FROM_NORMAL(OrecELAAMD64)
-REGISTER_FGADAPT_ALG(OrecELAAMD64, "OrecELAAMD64", true)
+DECLARE_SIMPLE_METHODS_FROM_NORMAL(OrecELAAMD64NOGC)
+REGISTER_FGADAPT_ALG(OrecELAAMD64NOGC, "OrecELAAMD64NOGC", true)
 
-#ifdef STM_ONESHOT_ALG_OrecELAAMD64
-DECLARE_AS_ONESHOT(OrecELAAMD64)
+#ifdef STM_ONESHOT_ALG_OrecELAAMD64NOGC
+DECLARE_AS_ONESHOT(OrecELAAMD64NOGC)
 #endif

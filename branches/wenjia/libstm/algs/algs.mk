@@ -28,4 +28,4 @@ ALGNAMES = CGL BitEager BitEagerRedo BitLazy ByEAR ByEAUHA ByEAUBackoff	      \
            PipelineTurbo ProfileAppAvg ProfileAppMax ProfileAppAll ProfileTM  \
            RingALA RingSW Serial Swiss TLI TML TMLLazy Ticket Wealth	      \
            CohortsLNI2 CohortsLNI2Q CohortsLNI2QX CohortsLNQX CohortsLNIQX    \
-	   CohortsENQX
+	   CohortsENQX OrecELAAMD64NOGC
