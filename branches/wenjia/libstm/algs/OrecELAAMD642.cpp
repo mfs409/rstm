@@ -136,7 +136,7 @@ namespace stm
       // quiesce
       CFENCE;
       for (uint32_t id = 0; id < threadcount.val; ++id)
-    while (threads[id]->last_val_time < end_time) spin64();
+	while (threads[id]->start_time < end_time) spin64();
   }
 
   /**
@@ -243,7 +243,7 @@ namespace stm
   void
   OrecELAAMD642Rollback(STM_ROLLBACK_SIG(tx, except, len))
   {
-      tx->last_val_time = 0x7FFFFFFFFFFFFFFFLL;
+      tx->start_time = 0x7FFFFFFFFFFFFFFFLL;
       PreRollback(tx);
 
       // Perform writes to the exception object if there were any... taking the
