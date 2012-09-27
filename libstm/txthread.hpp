@@ -83,7 +83,8 @@ namespace stm
       void**         stack_high;    // the stack pointer at begin_tx time
       void**         stack_low;     // norec stack low-water mark
 #endif
-      uintptr_t      start_time;    // start time of transaction
+      volatile uintptr_t      start_time;    // start time of transaction
+      // [mfs] only needs to be volatile for the sake of debugging
       uintptr_t      end_time;      // end time of transaction
       uintptr_t      ts_cache;      // last validation time
       bool           tmlHasLock;    // is tml thread holding the lock
