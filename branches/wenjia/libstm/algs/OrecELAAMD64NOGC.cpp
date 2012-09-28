@@ -239,7 +239,11 @@ namespace stm
   void
   OrecELAAMD64NOGCRollback(STM_ROLLBACK_SIG(tx, except, len))
   {
-      tx->last_val_time = 0x7FFFFFFFFFFFFFFFLL;
+#ifdef STM_BITS_32
+      UNRECOVERABLE("Error: attempting to run 64-bit algorithm in 32-bit code.");
+#else
+      tx->start_time = 0x7FFFFFFFFFFFFFFFLL;
+#endif
       PreRollback(tx);
 
       // Perform writes to the exception object if there were any... taking the

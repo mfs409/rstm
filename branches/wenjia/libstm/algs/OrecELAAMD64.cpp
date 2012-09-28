@@ -241,7 +241,11 @@ namespace stm
   void
   OrecELAAMD64Rollback(STM_ROLLBACK_SIG(tx, except, len))
   {
+#ifdef STM_BITS_32
+      UNRECOVERABLE("Error: trying to run in 32-bit mode!");
+#else
       tx->start_time = 0x7FFFFFFFFFFFFFFFLL;
+#endif
       PreRollback(tx);
 
       // Perform writes to the exception object if there were any... taking the
