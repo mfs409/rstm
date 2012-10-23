@@ -166,7 +166,7 @@ namespace stm
               tmabort();
 
           // [mfs] This code looks funny...
-          tmabort();
+          // tmabort();
 
           // scale timestamp if ivt is too new, then try again
           uintptr_t newts = tickp();
@@ -217,7 +217,7 @@ namespace stm
               tmabort();
 
           // [mfs] This code looks funny...
-          tmabort();
+          //tmabort();
 
           // unlocked but too new... scale forward and try again
           uintptr_t newts = tickp();
@@ -269,14 +269,15 @@ namespace stm
   OrecEagerAMD64Irrevoc(TxThread* tx)
   {
       // NB: This code is probably more expensive than it needs to be...
-      assert(false && "Didn't update this yet!");
+      // assert(false && "Didn't update this yet!");
       // assume we're a writer, and increment the global timestamp
 
       // [mfs] TODO:
-      uintptr_t end_time = 1 ;//+ faiptr(&timestamp.val);
+      //uintptr_t end_time = 1 + faiptr(&timestamp.val);
+      uintptr_t end_time = tickp();
 
       // skip validation only if nobody else committed
-      if (end_time != (tx->start_time + 1)) {
+      //if (end_time != (tx->start_time + 1))
           foreach (OrecList, i, tx->r_orecs) {
               // read this orec
               uintptr_t ivt = (*i)->v.all;
@@ -284,7 +285,6 @@ namespace stm
               if ((ivt > tx->start_time) && (ivt != tx->my_lock.all))
                   return false;
           }
-      }
 
       // release locks
       foreach (OrecList, i, tx->locks)
