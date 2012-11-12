@@ -44,7 +44,8 @@ namespace stm
   {
       TX_GET_TX_INTERNAL;
       tx->allocator.onTxBegin();
-      tx->start_time = tickp() & 0x7FFFFFFFFFFFFFFFLL;
+      //      tx->start_time = tickp() & 0x7FFFFFFFFFFFFFFFLL;
+      tx->start_time = tickp();
   }
 
   /**
@@ -108,7 +109,8 @@ namespace stm
            // timing of this tick... a WBR seems to resolve, though I don't
            // know why... tickp should be precise enough...
       CFENCE;
-      uintptr_t end_time = tickp() & 0x7FFFFFFFFFFFFFFFLL;
+      //uintptr_t end_time = tickp() & 0x7FFFFFFFFFFFFFFFLL;
+      uintptr_t end_time = tickp();
       CFENCE;
 
       // release locks
@@ -158,7 +160,8 @@ namespace stm
 
           // scale timestamp if ivt is too new, then try again
           CFENCE;
-          uint64_t newts = tickp() & 0x7FFFFFFFFFFFFFFFLL;
+          //uint64_t newts = tickp() & 0x7FFFFFFFFFFFFFFFLL;
+          uint64_t newts = tickp();
           CFENCE;
           OrecLazyAMD64Validate(tx);
           tx->start_time = newts;
