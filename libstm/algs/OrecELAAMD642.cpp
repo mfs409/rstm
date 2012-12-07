@@ -98,6 +98,11 @@ namespace stm
           }
       }
 
+      // since we are using double-check orec version in reads
+      // we do not need any memory fences here
+      uintptr_t end_time = tickp() & 0x7FFFFFFFFFFFFFFFLL;
+      CFENCE;
+
       // validate
       foreach (OrecList, i, tx->r_orecs) {
           uintptr_t ivt = (*i)->v.all;
@@ -108,11 +113,6 @@ namespace stm
 
       // run the redo log
       tx->writes.writeback();
-
-      // since we are using double-check orec version in reads
-      // we do not need any memory fences here
-
-      uintptr_t end_time = tickp() & 0x7FFFFFFFFFFFFFFFLL;
       CFENCE;
 
       // announce that I'm done
