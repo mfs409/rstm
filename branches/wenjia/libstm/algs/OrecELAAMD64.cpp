@@ -110,9 +110,10 @@ namespace stm
       tx->writes.writeback();
 
       // increment the global timestamp, release locks
-      WBR; // for extremely small transactions, we're getting errors wrt the
+      //WBR; // for extremely small transactions, we're getting errors wrt the
            // timing of this tick... a WBR seems to resolve, though I don't
            // know why... tickp should be precise enough...
+      __sync_add_and_fetch(&timestamp.val, 0);
       CFENCE;
       uintptr_t end_time = tickp() & 0x7FFFFFFFFFFFFFFFLL;
       CFENCE;
