@@ -46,7 +46,7 @@ namespace stm
       tx->allocator.onTxBegin();
       //      tx->start_time = tickp() & 0x7FFFFFFFFFFFFFFFLL;
       tx->start_time = tickp();
-      _mm_lfence();
+      LFENCE;
   }
 
   /**
@@ -164,7 +164,7 @@ namespace stm
           CFENCE;
           //uint64_t newts = tickp() & 0x7FFFFFFFFFFFFFFFLL;
           uint64_t newts = tickp();
-          CFENCE;
+          LFENCE;
           OrecLazyAMD64Validate(tx);
           tx->start_time = newts;
       }

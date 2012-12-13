@@ -46,7 +46,7 @@ namespace stm
       TX_GET_TX_INTERNAL;
       tx->allocator.onTxBegin();
       tx->start_time = tickp() & 0x7FFFFFFFFFFFFFFFLL;
-      _mm_lfence();
+      LFENCE;
   }
 
   /**
@@ -178,7 +178,7 @@ namespace stm
           // scale timestamp if ivt is too new, then try again
           CFENCE;
           uint64_t newts = tickp() & 0x7FFFFFFFFFFFFFFFLL;
-          CFENCE;
+          LFENCE;
           OrecELAAMD64NOGCValidate(tx);
           tx->start_time = newts;
       }
