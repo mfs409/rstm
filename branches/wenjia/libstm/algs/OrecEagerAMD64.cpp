@@ -82,6 +82,7 @@ namespace stm
       // sample the timestamp and prepare local structures
       tx->allocator.onTxBegin();
       tx->start_time = tickp();
+      _mm_lfence();
   }
 
   /**

@@ -48,6 +48,7 @@ namespace stm
   {
       TX_GET_TX_INTERNAL;
       tx->allocator.onTxBegin();
+      _mm_lfence();
   }
 
   /**
