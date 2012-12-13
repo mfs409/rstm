@@ -44,7 +44,7 @@ namespace stm
       tx->allocator.onTxBegin();
       // get a start time
       tx->start_time = tickp();
-      _mm_lfence();
+      LFENCE;
   }
 
   /**

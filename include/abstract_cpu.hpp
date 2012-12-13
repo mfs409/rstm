@@ -70,6 +70,7 @@
 #  define nop()               __asm__ volatile("nop")
    // compiler and memory fences
 #  define CFENCE              __asm__ volatile ("":::"memory")
+#  define LFENCE              _mm_lfence();
 #  define WBR                 __sync_synchronize()
    // NB: GCC implements test_and_set via xchg instructions, so this is safe
 #  define atomicswap8(p, v)   __sync_lock_test_and_set(p, v)
@@ -122,6 +123,7 @@
    // compiler and memory fences.
    // [mfs] these could be cleaner
 #  define CFENCE              __asm__ volatile("dmb":::"memory")
+#  define LFENCE              
 #  define WBR                 __asm__ volatile("dmb":::"memory")
 #  define WBW                 __asm__ volatile("dmb [st]":::"memory")
    // NB: GCC implements test_and_set via xchg instructions, so this is safe
@@ -160,6 +162,7 @@
    // no-op
 #  define nop()               __asm__ volatile("nop")
    // compiler and memory fences
+#  define LFENCE              _mm_lfence()
 #  define CFENCE              __asm__ volatile ("":::"memory")
 #  define WBR                 __sync_synchronize()
    // NB: SPARC swap instruction only is 32/64-bit... there is no atomicswap8
