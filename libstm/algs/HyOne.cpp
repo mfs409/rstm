@@ -35,16 +35,32 @@ namespace stm
   {
       TX_GET_TX_INTERNAL;
 
+      // the variable nesting_depth indicates the depth of current transaction.
+      // if the current transaction is running inside another outside transaction, just return so that we don't have to do the actual commit.
+      
+      if (--tx->nesting_depth) return;
       // [cw]
       // new algorithm:
       // if (flag is true)
       //   release the lock and set flag to false
-      tatas_release(&timestamp.val);
+      // the variable irrevoc represents the modes this PhaseTM-serial transaction is currently working. 
+      // irrevoc == 1 means that it now runs in language serial mode.
+      // irrevoc == 0 means that it now runs in hardware mode.
 
+      if(tx->irrevoc)
+      {
+      	//tatas_release(&timestamp.val);
+	tx->irrevoc = false;
+	timestamp.val = 0;
+	tx->HyOne_abort_count = 0;
+      }
 
       // otherwise
+      else
+      {
       // execute XEND
-
+      //   asm()
+      }
       // finalize mm ops, and log the commit
       OnCGLCommit(tx);
   }
@@ -122,20 +138,50 @@ namespace stm
       // algorithm here is:
       //
       // if (flag == true) then acquire the lcok
+      // get the lock and notify the allocator	
+      tx->allocator.onTxBegin();
+	//asm volatile();
+	      // else
+      		//   issue an XBEGIN instruction
+      		//   then spin until the lock is unheld
 
-      // get the lock and notify the allocator
-      tx->begin_wait = tatas_acquire(&timestamp.val);
+      // we use the global timestamp as a lock for the Serial PhaseTM
+      // If this lock is occupied by another transaction, it means that 
+      // another transaction is using the resource exclusively in the 
+      // language sseiral mode, so we have to abort.
+	      if (timestamp.val & 1)
+	      {
+		  //XABORT
+	      }
 
-      // else
-      //   issue an XBEGIN instruction
-      //   then spin until the lock is unheld
+      // if we have aborted for more than 8 times, then we grab the lock,
+      // ending the hardware transaction mode and entering the language 
+      // serial mode. After this, all other hardware transactions are forced to
+      // abort. Note that either all hardware transactions run concurrently, 
+      // or one hardware transaction is running with the lock owned and all
+      // others have to wait until the lock is freed before starting another
+      // hardware transaction
+
+	      if (tx->HyOne_abort_count > 8)
+	      {
+		timestamp.val |= 1;
+		//XEND
+		tx->irrevoc = 1;
+	      }
+
+      }	
 
       // Note that XBEGIN requires an abort handler.  Ours should set the
-      // flag to true and then re-call HyOneBegin
+      // flag to true and then re-call HyOneBegin 
+ }
 
-      tx->allocator.onTxBegin();
-  }
-}
+ void HyOneAbort()
+ {
+      tx->HyOne_abort_count ++;
+      while (timestamp.val & 1) {}
+
+      //return XBegin
+ }
 
 REGISTER_REGULAR_ALG(HyOne, "HyOne", true)
 
