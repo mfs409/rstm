@@ -52,7 +52,7 @@ namespace stm
       	//tatas_release(&timestamp.val);
 	tx->irrevoc = false;
 	timestamp.val = 0;
-	tx->HyOne_abort_count = 0;
+	tx->hyOne_abort_count = 0;
       }
 
       // otherwise
@@ -162,26 +162,27 @@ namespace stm
       // others have to wait until the lock is freed before starting another
       // hardware transaction
 
-	      if (tx->HyOne_abort_count > 8)
+	      if (tx->hyOne_abort_count > 8)
 	      {
 		timestamp.val |= 1;
 		//XEND
 		tx->irrevoc = 1;
 	      }
 
-      }	
+   }	
 
       // Note that XBEGIN requires an abort handler.  Ours should set the
       // flag to true and then re-call HyOneBegin 
- }
+      void HyOneAbort(TX_LONE_PARAMETER)
+      {
+	  TX_GET_TX_INTERNAL;
+          tx->hyOne_abort_count ++;
+          while (timestamp.val & 1) {}
 
- void HyOneAbort()
- {
-      tx->HyOne_abort_count ++;
-      while (timestamp.val & 1) {}
+          //return XBegin
+      }
+}
 
-      //return XBegin
- }
 
 REGISTER_REGULAR_ALG(HyOne, "HyOne", true)
 
