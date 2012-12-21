@@ -143,10 +143,10 @@ namespace stm
       uint64_t      end_txn_time;      // end of non-transactional work
       uint64_t      total_nontxn_time; // time on non-transactional work
       pmu_t         pmu;               // for accessing the hardware PMU
-#ifdef TSX
+
+
        bool irrevoc;		       	// if true, start in software mode, else             
 					// hardware mode
-#endif
        /*** FOR HyOne ****/
        uint32_t	    hyOne_abort_count;  //the abort count for HyOne
  
