@@ -58,8 +58,9 @@ namespace stm
       // otherwise
       else
       {
-      // execute XEND
-      //   asm()
+        //execute XEND
+	asm volatile (".byte 0x0f \n\t .byte 0x01 \n\t .byte 0xd5");
+
       }
       // finalize mm ops, and log the commit
       OnCGLCommit(tx);
@@ -117,6 +118,18 @@ namespace stm
       timestamp.val = 0;
   }
 
+  void HyOneBegin(TX_LONE_PARAMETER);
+
+	// Note that XBEGIN requires an abort handler.  Ours should set the
+	// flag to true and then re-call HyOneBegin 
+	void HyOneAbort(TX_LONE_PARAMETER)
+	{
+	  TX_GET_TX_INTERNAL;
+	  tx->hyOne_abort_count ++;
+	  while (timestamp.val == 1) {}
+
+	  return HyOneBegin(TX_LONE_PARAMETER);
+	}
   /**
    *  HyOne begin:
    *
@@ -145,13 +158,23 @@ namespace stm
       		//   issue an XBEGIN instruction
       		//   then spin until the lock is unheld
 
+	if (tx->nesting_depth++)
+	//we are already in a transaction context
+	//therefore, we do nothing, just return to a outside transaction
+		return;
+	//xbegin __abort_handler
+	asm volatile (".byte 0xc7 \n\t .byte 0xf8 \n\t __abort_handler"
+		      "__abort_handler: nop;"
+				       "call HyOneAbort;");
+      
       // we use the global timestamp as a lock for the Serial PhaseTM
       // If this lock is occupied by another transaction, it means that 
       // another transaction is using the resource exclusively in the 
       // language sseiral mode, so we have to abort.
-	      if (timestamp.val & 1)
+	      if (timestamp.val == 1)
 	      {
 		  //XABORT
+		  asm volatile (".byte 0xc6 \n\t .byte 0xf8 \n\t .byte 0x12");
 	      }
 
       // if we have aborted for more than 8 times, then we grab the lock,
@@ -164,23 +187,14 @@ namespace stm
 
 	      if (tx->hyOne_abort_count > 8)
 	      {
-		timestamp.val |= 1;
+		timestamp.val = 1;
 		//XEND
+		asm volatile (".byte 0x0f \n\t .byte 0x01 \n\t .byte 0xd5");
 		tx->irrevoc = 1;
 	      }
 
    }	
 
-      // Note that XBEGIN requires an abort handler.  Ours should set the
-      // flag to true and then re-call HyOneBegin 
-      void HyOneAbort(TX_LONE_PARAMETER)
-      {
-	  TX_GET_TX_INTERNAL;
-          tx->hyOne_abort_count ++;
-          while (timestamp.val & 1) {}
-
-          //return XBegin
-      }
 }
 
 
