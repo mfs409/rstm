@@ -75,12 +75,15 @@ namespace stm
   TM_FASTCALL
   void HyOneCommit(TX_LONE_PARAMETER)
   {
+
+      fprintf(stdout, "Commit!!\n");
       TX_GET_TX_INTERNAL;
 
       // the variable nesting_depth indicates the depth of current transaction.
       // if the current transaction is running inside another outside transaction, just return so that we don't have to do the actual commit.
-      
-      if (--tx->nesting_depth) return;
+  	
+	assert(tx->nesting_depth == 0);
+//      if (--tx->nesting_depth) return;
       // [cw]
       // new algorithm:
       // if (flag is true)
@@ -104,7 +107,7 @@ namespace stm
 
       }
       // finalize mm ops, and log the commit
-      OnCGLCommit(tx);
+//      OnCGLCommit(tx);
   }
 
   /**
@@ -168,9 +171,9 @@ namespace stm
 		// flag to true and then re-call HyOneBegin 	
 		TX_GET_TX_INTERNAL;
 		tx->hyOne_abort_count ++;
-		while (timestamp.val == 1) {}
+//		while (timestamp.val == 1) {}
 
-		HyOneBegin(TX_LONE_PARAMETER);
+//		HyOneBegin(TX_LONE_PARAMETER);
 	}
 	/**
 	*  HyOne begin:
@@ -184,27 +187,29 @@ namespace stm
 	void HyOneBegin(TX_LONE_PARAMETER)
 	{
 		TX_GET_TX_INTERNAL;
+		
+		fprintf(stdout, "begin\n");
 
 		// [cw] we will need to add a flag to the TxThread object in the
 		// txthread.hpp file.  The flag will be a bool that is true if we are
 		// supposed to start in software mode, and false otherwise
 
+//		tx->allocator.onTxBegin();
 		// [cw]
 		// algorithm here is:
 		//
 		// if (flag == true) then acquire the lcok
 		// get the lock and notify the allocator	
-		tx->allocator.onTxBegin();
 		//asm volatile();
 		      // else
 			//   issue an XBEGIN instruction
 			//   then spin until the lock is unheld
 
-		if (tx->nesting_depth++)
+		assert (tx->nesting_depth == 1);
 		//we are already in a transaction context
 		//therefore, we do nothing, just return to a outside transaction
-			return;
 
+		fprintf(stdout, "begin2\n");
 		unsigned int status;	
 		if ((status = _xbegin()) == _XBEGIN_STARTED)
 		{
@@ -212,6 +217,8 @@ namespace stm
 			// If this lock is occupied by another transaction, it means that 
 			// another transaction is using the resource exclusively in the 
 			// language sseiral mode, so we have to abort.
+			
+			fprintf(stdout, "begin3\n");
 			if (timestamp.val == 1)
 			{
 				//XABORT
@@ -234,12 +241,16 @@ namespace stm
 				_xend();
 				tx->irrevoc = 1;
 			}
+
+	
+			fprintf(stdout, "begin4\n");
 		}
 		else  //transaction fails to start, or abort. this is the fallback execution path
 		{
+
+			fprintf(stdout, "begin5\n");
 			HyOneAbort(TX_LONE_PARAMETER);		
 		}
-
 	}	
 
 }
