@@ -43,13 +43,23 @@ void _xabort(void);
 //If the logical processor was not already in transactional execution, then the xbegin instruction causes the logical processor to start transactional execution. The xbegin instruction that transitions the logical processor into transactional execution is referred to as the outermost xbegin instruction.
 
 //The xbegin instruction specifies a relative offset to the fallback code path executed following a transactional abort. To promote proper program structure, this is not exposed in C++ code and the intrinsic function operates as if it invoked the following model code
+#define INTEL_XBEGIN      \
+	".byte 0xc7 \n\t" \
+	".byte 0xf8 \n\t" \
+	".byte 0x00 \n\t"
+
   inline unsigned int _xbegin(void)
   {
 	unsigned status;
-	asm volatile ("movl $0xffffffff, %%eax;"
-		      ".byte 0xc7 \n\t .byte 0xf8 \n\t __txnL1"
-		      "__txnL1: movl %%eax, %0;"
+
+	fprintf (stdout, "into xbegin\n");
+
+	asm volatile ("movl $0xffffffff, %%eax \n\t"
+		      INTEL_XBEGIN " \n\t"
+		      "movl %%eax, %0"
 			:"=r"(status));
+	
+	fprintf (stdout, "into xbegin -- end\n");
 	return status;
   }
 
