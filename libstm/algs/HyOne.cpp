@@ -36,21 +36,17 @@ void _xabort(void);
 #define _XABORT_NESTED   (1 << 5)
 
 // [mfs] This looks like it was taken directly from GCC... citation needed?
-//  
-// starts an RTM code region and returns a value indicating whether the
-// transaction successfully started or, in the case of an abort, the abort
-// code
+// 
+// The following description of the three functions _xbegin, _xend, and _xabort // comes from Intel@C++ Compiler XE13.0 User and Reference Guides
+ 
+// starts an RTM code region and returns a value indicating transaction successfully started or status from a transaction abort
 //
 // If the logical processor was not already in transactional execution, then
-// the xbegin instruction causes the logical processor to start transactional
-// execution.  The xbegin instruction that transitions the logical processor
-// into transactional execution is referred to as the outermost xbegin
-// instruction.
+// the TSX_BEGIN instruction causes the logical processor to start 
+// transactional execution.  The TSX_BEGIN instruction that transitions the logical processor into transactional execution is referred to as the outermost TSX_BEGIN instruction.
 //
-// The xbegin instruction specifies a relative offset to the fallback code
-// path executed following a transactional abort. To promote proper program
-// structure, this is not exposed in C++ code and the intrinsic function
-// operates as if it invoked the following model code
+// The TSX_BEGIN instruction specifies a relative offset to the fallback code
+// path executed following a transactional abort.
 
 // [mfs] We should rename this to TSX_BEGIN, then employ an ifdef that
 //       defines HTM_BEGIN as TSX_BEGIN
@@ -81,6 +77,16 @@ void _xabort(void);
  *  [mfs] This should probably move into some platform/arch folder, since it
  *        will be common to many Hybrid TM algs.
  */
+
+/*
+    [chw] When a transaction successfully created, this function will return 
+ 	  0xffffffff (i.e., _XBEGIN_STARTED), which is never a valid status
+	  code for an abort transaction.
+	  When a transaction aborts during execution, it will discards all 
+	  register and memory updates and update the eax register with the 
+	  status code of the aborted transaction, which can be used to
+	  transfer control to a fallback handler.
+*/
 inline unsigned int _xbegin(void)
 {
     unsigned status;
@@ -95,7 +101,7 @@ inline unsigned int _xbegin(void)
 
     // [mfs] Again, this probably needs to be deleted?  In fact, printfs from
     //       a hardware context are invalid, so this *can't* be correct!
-    fprintf(stdout, "into xbegin -- end\n");
+    fprintf(stdout, "into xbegin -- end, status = %d\n", status);
     return status;
 }
 
@@ -195,7 +201,7 @@ namespace stm
 
   void HyOneRollback(STM_ROLLBACK_SIG(,,))
   {
-      UNRECOVERABLE("ATTEMPTING TO ABORT AN IRREVOCABLE HyOne TRANSACTION");
+//      UNRECOVERABLE("ATTEMPTING TO ABORT AN IRREVOCABLE HyOne TRANSACTION");
   }
 
   /**
