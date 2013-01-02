@@ -39,7 +39,7 @@ void _xabort(void);
 #define _XABORT_NESTED   (1 << 5)
 
 // [mfs] This looks like it was taken directly from GCC... citation needed?
-//
+//  
 // starts an RTM code region and returns a value indicating whether the
 // transaction successfully started or, in the case of an abort, the abort
 // code
@@ -57,11 +57,23 @@ void _xabort(void);
 
 // [mfs] We should rename this to TSX_BEGIN, then employ an ifdef that
 //       defines HTM_BEGIN as TSX_BEGIN
-#define INTEL_XBEGIN                            \
-    ".byte 0xc7 \n\t"                           \
-    ".byte 0xf8 \n\t"                           \
-    ".byte 0x00 \n\t"
+#define TSX_BEGIN      \
+	".byte 0xc7 \n\t" \
+	".byte 0xf8 \n\t" \
+	".byte 0x00 \n\t" \
+	".byte 0x00 \n\t" \
+	".byte 0x00 \n\t" \
+	".byte 0x00 \n\t"
 
+#define TSX_END	  \
+	".byte 0x0f \n\t" \
+	".byte 0x01 \n\t" \
+	".byte 0xd5"
+
+#define TSX_ABORT	  \
+	".byte 0xc6 \n\t" \
+	".byte 0xf8 \n\t" \
+	".byte 0x12"
 /**
  *  [mfs] Should have a description here of whatever is going on.  In this
  *        case, it looks like what we are doing is having a status variable
@@ -74,9 +86,17 @@ void _xabort(void);
 inline unsigned int _xbegin(void)
 {
     unsigned status;
+>>>>>>> .r593
 
+<<<<<<< .mine
+
+  inline unsigned int _xbegin(void)
+  {
+	unsigned status;
+=======
     // [mfs] I presume this is debug code that needs to go away?
     fprintf(stdout, "into xbegin\n");
+>>>>>>> .r593
 
     // [mfs] Should we be using _XBEGIN_STARTED here?
     asm volatile("movl $0xffffffff, %%eax \n\t"
@@ -90,6 +110,13 @@ inline unsigned int _xbegin(void)
     return status;
 }
 
+<<<<<<< .mine
+//Specifies the end of restricted transactional memory code region. If this is the outermost transaction (including this xend instruction, the number of xbegin matches the number of xend instructions) then the processor will attempt to commit processor state automatically.
+  inline void _xend(void)
+  {
+	asm volatile (INTEL_XEND " \n\t");
+  }
+=======
 // Specifies the end of restricted transactional memory code region. If this
 // is the outermost transaction (including this xend instruction, the number
 // of xbegin matches the number of xend instructions) then the processor will
@@ -104,6 +131,7 @@ inline void _xend(void)
 {
     asm volatile(".byte 0x0f \n\t .byte 0x01 \n\t .byte 0xd5;");
 }
+>>>>>>> .r593
 
 // Forces an RTM region to abort. All outstanding transactions are aborted
 // and the logical processor resumes execution at the fallback address
@@ -123,6 +151,15 @@ inline void _xabort(void)
     asm volatile(".byte 0xc6 \n\t .byte 0xf8 \n\t .byte 0x12");
 }
 
+<<<<<<< .mine
+//The EAX register is updated to reflect an xabort instruction caused the abort, and the imm8 argument will be provided in the upper eight bits of the return value (EAX register bits 31:24) containing the indicated immediate value. The argument of xabort function must be a compile time constant.
+  inline void _xabort(void)
+  {
+	asm volatile (INTEL_XABORT " \n\t");
+  }
+
+=======
+>>>>>>> .r593
 namespace stm
 {
   /**
@@ -240,17 +277,47 @@ namespace stm
   // [mfs] Why do we need the forward declaration here?
   void HyOneBegin(TX_LONE_PARAMETER);
 
+<<<<<<< .mine
+	void HyOneAbort(TX_LONE_PARAMETER)
+	{
+	
+		// Note that XBEGIN requires an abort handler.  Ours should set the
+		// flag to true and then re-call HyOneBegin 	
+		TX_GET_TX_INTERNAL;
+		tx->hyOne_abort_count ++;
+		while (timestamp.val == 1) {}
+=======
   void HyOneAbort(TX_LONE_PARAMETER)
   {
       // Note that XBEGIN requires an abort handler.  Ours should set the
       // flag to true and then re-call HyOneBegin
       TX_GET_TX_INTERNAL;
       tx->hyOne_abort_count++;
+>>>>>>> .r593
 
+<<<<<<< .mine
+		HyOneBegin(TX_LONE_PARAMETER);
+	}
+	/**
+	*  HyOne begin:
+	*
+	*    We grab the lock, but we count how long we had to spin, so that we can
+	*    possibly adapt after releasing the lock.
+	*
+	*    This is external and declared in algs.hpp so that we can access it as a
+	*    default in places.
+	*/
+	void HyOneBegin(TX_LONE_PARAMETER)
+	{
+		TX_GET_TX_INTERNAL;
+		
+		fprintf(stdout, "begin\n");
+=======
       // [mfs] I thought we needed to spin here... why is this code commented
       // out?
       //
       // while (timestamp.val == 1) {}
+>>>>>>> .r593
 
       // [mfs] I don't quite follow the control flow here.  There is no call
       //       to tmabort(), so how is the stack getting rolled back?  How
@@ -276,8 +343,25 @@ namespace stm
   {
       TX_GET_TX_INTERNAL;
 
+<<<<<<< .mine
+		fprintf(stdout, "begin2\n");
+		unsigned int status;	
+		if ((status = _xbegin()) == _XBEGIN_STARTED)
+		{
+			// we use the global timestamp as a lock for the Serial PhaseTM
+			// If this lock is occupied by another transaction, it means that 
+			// another transaction is using the resource exclusively in the 
+			// language sseiral mode, so we have to abort.
+			
+			fprintf(stdout, "begin3 status=%u\n", status);
+			if (timestamp.val == 1)
+			{
+				//XABORT
+				_xabort();
+=======
       // [mfs] erroneous debug message?
       fprintf(stdout, "begin\n");
+>>>>>>> .r593
 
       // [mfs] Comments about the algorithm behavior should be in the
       // function header.
@@ -302,10 +386,17 @@ namespace stm
       //   issue an XBEGIN instruction
       //   then spin until the lock is unheld
 
+<<<<<<< .mine
+			fprintf(stdout, "begin5, status=%u\n", status);
+			HyOneAbort(TX_LONE_PARAMETER);		
+		}
+	}	
+=======
       // [mfs] Do we need this assert?
       assert (tx->nesting_depth == 1);
       //we are already in a transaction context
       //therefore, we do nothing, just return to a outside transaction
+>>>>>>> .r593
 
       // [mfs] erroneous debug message?
       fprintf(stdout, "begin2\n");
