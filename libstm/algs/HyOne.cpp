@@ -97,7 +97,7 @@ inline unsigned int _xbegin(void)
     asm volatile("movl $0xffffffff, %%eax \n\t"
                  TSX_BEGIN " \n\t"
                  "movl %%eax, %0"
-                 :"=r"(status));
+                 :"=r"(status)::"%eax");
 
     // [mfs] Again, this probably needs to be deleted?  In fact, printfs from
     //       a hardware context are invalid, so this *can't* be correct!
