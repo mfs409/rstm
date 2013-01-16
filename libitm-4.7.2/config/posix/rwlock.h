@@ -1,5 +1,5 @@
-/* Copyright (C) 2011, 2012 Free Software Foundation, Inc.
-   Contributed by Torvald Riegel <triegel@redhat.com>.
+/* Copyright (C) 2009, 2011 Free Software Foundation, Inc.
+   Contributed by Richard Henderson <rth@redhat.com>.
 
    This file is part of the GNU Transactional Memory Library (libitm).
 
@@ -25,16 +25,21 @@
 #ifndef GTM_RWLOCK_H
 #define GTM_RWLOCK_H
 
+#include <pthread.h>
 #include "local_atomic"
-#include "common.h"
 
 namespace GTM HIDDEN {
 
 struct gtm_thread;
 
-// This datastructure is the blocking, futex-based version of the Dekker-style
+// This datastructure is the blocking, mutex-based side of the Dekker-style
 // reader-writer lock used to provide mutual exclusion between active and
-// serial transactions.
+// serial transactions. It has similarities to POSIX pthread_rwlock_t except
+// that we also provide for upgrading a reader->writer lock, with a
+// positive indication of failure (another writer acquired the lock
+// before we were able to acquire). While the writer flag (a_writer below) is
+// global and protected by the mutex, there are per-transaction reader flags,
+// which are stored in a transaction's shared state.
 // See libitm's documentation for further details.
 //
 // In this implementation, writers are given highest priority access but
@@ -42,13 +47,23 @@ struct gtm_thread;
 
 class gtm_rwlock
 {
-  // TODO Put futexes on different cachelines?
-  std::atomic<int> writers;       // Writers' futex.
-  std::atomic<int> writer_readers;// A confirmed writer waits here for readers.
-  std::atomic<int> readers;       // Readers wait here for writers (iff true).
+  pthread_mutex_t mutex;	        // Held if manipulating any field.
+  pthread_cond_t c_readers;	        // Readers wait here
+  pthread_cond_t c_writers;	        // Writers wait here for writers
+  pthread_cond_t c_confirmed_writers;	// Writers wait here for readers
+
+  static const unsigned a_writer  = 1;	// An active writer.
+  static const unsigned w_writer  = 2;	// The w_writers field != 0
+  static const unsigned w_reader  = 4;  // The w_readers field != 0
+
+  std::atomic<unsigned int> summary;	// Bitmask of the above.
+  unsigned int a_readers;	// Nr active readers as observed by a writer
+  unsigned int w_readers;	// Nr waiting readers
+  unsigned int w_writers;	// Nr waiting writers
 
  public:
-  gtm_rwlock() : writers(0), writer_readers(0), readers(0) {};
+  gtm_rwlock();
+  ~gtm_rwlock();
 
   void read_lock (gtm_thread *tx);
   void read_unlock (gtm_thread *tx);
@@ -58,14 +73,6 @@ class gtm_rwlock
 
   bool write_upgrade (gtm_thread *tx);
   void write_upgrade_finish (gtm_thread *tx);
-
-  // Returns true iff there is a concurrent active or waiting writer.
-  // This is primarily useful for simple HyTM approaches, and the value being
-  // checked is loaded with memory_order_relaxed.
-  bool is_write_locked()
-  {
-    return writers.load (memory_order_relaxed) != 0;
-  }
 
  protected:
   bool write_lock_generic (gtm_thread *tx);
