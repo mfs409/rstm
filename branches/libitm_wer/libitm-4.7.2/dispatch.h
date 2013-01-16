@@ -102,13 +102,11 @@
 virtual void memtransfer(void *dst, const void* src, size_t size,    \
     bool may_overlap, ls_modifier dst_mod, ls_modifier src_mod)       \
 {                                                                     \
-  if (size > 0)                                                       \
-    memtransfer_static(dst, src, size, may_overlap, dst_mod, src_mod); \
+  memtransfer_static(dst, src, size, may_overlap, dst_mod, src_mod); \
 }                                                                     \
 virtual void memset(void *dst, int c, size_t size, ls_modifier mod)  \
 {                                                                     \
-  if (size > 0)                                                       \
-    memset_static(dst, c, size, mod);                                 \
+  memset_static(dst, c, size, mod);                                  \
 }
 
 #define CREATE_DISPATCH_METHODS_MEM_PV()  \
@@ -311,9 +309,6 @@ public:
   }
   // Returns true iff this TM method supports closed nesting.
   bool closed_nesting() const { return m_closed_nesting; }
-  // Returns STATE_SERIAL or STATE_SERIAL | STATE_IRREVOCABLE iff the TM
-  // method only works for serial-mode transactions.
-  uint32_t requires_serial() const { return m_requires_serial; }
   method_group* get_method_group() const { return m_method_group; }
 
   static void *operator new(size_t s) { return xmalloc (s); }
@@ -335,14 +330,12 @@ protected:
   const bool m_write_through;
   const bool m_can_run_uninstrumented_code;
   const bool m_closed_nesting;
-  const uint32_t m_requires_serial;
   method_group* const m_method_group;
   abi_dispatch(bool ro, bool wt, bool uninstrumented, bool closed_nesting,
-      uint32_t requires_serial, method_group* mg) :
+      method_group* mg) :
     m_read_only(ro), m_write_through(wt),
     m_can_run_uninstrumented_code(uninstrumented),
-    m_closed_nesting(closed_nesting), m_requires_serial(requires_serial),
-    m_method_group(mg)
+    m_closed_nesting(closed_nesting), m_method_group(mg)
   { }
 };
 
