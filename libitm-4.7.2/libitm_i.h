@@ -203,11 +203,11 @@ struct gtm_thread
 
   // Set if this transaction owns the serial write lock.
   // Can be reset only when restarting the outermost transaction.
-  static const uint32_t STATE_SERIAL		= 0x0001;
+  static const uint32_t STATE_SERIAL        = 0x0001;
   // Set if the serial-irrevocable dispatch table is installed.
   // Implies that no logging is being done, and abort is not possible.
   // Can be reset only when restarting the outermost transaction.
-  static const uint32_t STATE_IRREVOCABLE	= 0x0002;
+  static const uint32_t STATE_IRREVOCABLE   = 0x0002;
 
   // A bitmask of the above.
   uint32_t state;
@@ -281,10 +281,10 @@ struct gtm_thread
 #define UPFX1(t) UPFX(t)
 #define UPFX(t) #t
   static uint32_t begin_transaction(uint32_t, const gtm_jmpbuf *)
-	__asm__(UPFX1(__USER_LABEL_PREFIX__) "GTM_begin_transaction") ITM_REGPARM;
+    __asm__(UPFX1(__USER_LABEL_PREFIX__) "GTM_begin_transaction") ITM_REGPARM;
 #else
   static uint32_t begin_transaction(uint32_t, const gtm_jmpbuf *)
-	__asm__("GTM_begin_transaction") ITM_REGPARM;
+    __asm__("GTM_begin_transaction") ITM_REGPARM;
 #endif
   // In eh_cpp.cc
   void revert_cpp_exceptions (gtm_transaction_cp *cp = 0);
@@ -318,19 +318,20 @@ namespace GTM HIDDEN {
 extern uint64_t gtm_spin_count_var;
 
 extern "C" uint32_t GTM_longjmp (uint32_t, const gtm_jmpbuf *, uint32_t)
-	ITM_NORETURN ITM_REGPARM;
+    ITM_NORETURN ITM_REGPARM;
 
 extern "C" void GTM_LB (const void *, size_t) ITM_REGPARM;
 
 extern void GTM_error (const char *fmt, ...)
-	__attribute__((format (printf, 1, 2)));
+    __attribute__((format (printf, 1, 2)));
 extern void GTM_fatal (const char *fmt, ...)
-	__attribute__((noreturn, format (printf, 1, 2)));
+    __attribute__((noreturn, format (printf, 1, 2)));
 
 extern abi_dispatch *dispatch_serial();
 extern abi_dispatch *dispatch_serialirr();
 extern abi_dispatch *dispatch_serialirr_onwrite();
 extern abi_dispatch *dispatch_gl_wt();
+  extern abi_dispatch *dispatch_wer_wt();
 extern abi_dispatch *dispatch_ml_wt();
 
 extern gtm_cacheline_mask gtm_mask_stack(gtm_cacheline *, gtm_cacheline_mask);
