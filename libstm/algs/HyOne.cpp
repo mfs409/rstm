@@ -90,9 +90,6 @@ void _xabort(void);
 inline unsigned int _xbegin(void)
 {
     unsigned status;
-    // [mfs] I presume this is debug code that needs to go away?
-    fprintf(stdout, "into xbegin\n");
-
     // [mfs] Should we be using _XBEGIN_STARTED here?
     asm volatile("movl $0xffffffff, %%eax \n\t"
                  TSX_BEGIN " \n\t"
@@ -260,8 +257,6 @@ namespace stm
   void HyOneBegin(TX_LONE_PARAMETER)
   {
 	TX_GET_TX_INTERNAL;
-
-	fprintf(stdout, "begin2\n");
 
       	// [mfs] Do we need this assert?
 //      	assert (tx->nesting_depth == 1);
