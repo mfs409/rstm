@@ -101,7 +101,7 @@ inline unsigned int _xbegin(void)
 
     // [mfs] Again, this probably needs to be deleted?  In fact, printfs from
     //       a hardware context are invalid, so this *can't* be correct!
-    fprintf(stdout, "into xbegin -- end, status = %d\n", status);
+    //fprintf(stdout, "into xbegin -- end, status = %d\n", status);
     return status;
 }
 
@@ -143,9 +143,6 @@ namespace stm
   TM_FASTCALL
   void HyOneCommit(TX_LONE_PARAMETER)
   {
-      // [mfs] debug message, should be removed...
-      fprintf(stdout, "Commit!!\n");
-      
       TX_GET_TX_INTERNAL;
 
       // [mfs] Why are we asserting this?
@@ -267,7 +264,7 @@ namespace stm
 	fprintf(stdout, "begin2\n");
 
       	// [mfs] Do we need this assert?
-      	assert (tx->nesting_depth == 1);
+//      	assert (tx->nesting_depth == 1);
       
 	//we are already in a transaction context
 	//therefore, we do nothing, just return to a outside transaction
@@ -302,14 +299,9 @@ namespace stm
               _xend();
               tx->irrevoc = 1;
           }
-
-          // [mfs] unnecessary debug message
-          fprintf(stdout, "begin4\n");
       }
       // transaction fails to start, or abort. this is the fallback execution path
       else {
-          // [mfs] unnecessary debug message
-          fprintf(stdout, "begin5\n");
           HyOneAbort(TX_LONE_PARAMETER);
       }
   }
