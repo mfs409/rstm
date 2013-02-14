@@ -95,10 +95,6 @@ inline unsigned int _xbegin(void)
                  TSX_BEGIN " \n\t"
                  "movl %%eax, %0"
                  :"=r"(status)::"%eax");
-
-    // [mfs] Again, this probably needs to be deleted?  In fact, printfs from
-    //       a hardware context are invalid, so this *can't* be correct!
-    //fprintf(stdout, "into xbegin -- end, status = %d\n", status);
     return status;
 }
 
@@ -140,10 +136,10 @@ namespace stm
   TM_FASTCALL
   void HyOneCommit(TX_LONE_PARAMETER)
   {
-      TX_GET_TX_INTERNAL;
+//      TX_GET_TX_INTERNAL;
 
       // [mfs] Why are we asserting this?
-      assert(tx->nesting_depth == 0);
+//      assert(tx->nesting_depth == 0);
 
       // [mfs] Are these comments still needed?  If so, they should probably
       //       be moved up to the method's comment, so that the algorithm is
@@ -157,6 +153,7 @@ namespace stm
       // tx->irrevoc is true, then this "transaction" is not actually using
       // the hardware TM right now, and it holds a lock.  We can just release
       // the lock to commit."
+/*
       if (tx->irrevoc) {
           tx->irrevoc = false;
           timestamp.val = 0;
@@ -165,14 +162,17 @@ namespace stm
       else {
           _xend();
       }
-
+*/
+	_xend();
       // [mfs] I am worried about us not handling mm correctly.  Why aren't
       // we calling OnCGLCommit(tx) here?
 
       // [chw] I am still unclear why we have to call this, but not some other functions like OnRWCommit(tx);
       // BTW, isn't CGL another algorithm? Why do we have to call a function related to **another** algorithm?
       // finalize mm ops, and log the commit
-      OnCGLCommit(tx);
+//      OnCGLCommit(tx);
+	printf("hardware has successfully commit!\n");
+
   }
 
   /**
@@ -232,7 +232,7 @@ namespace stm
       TX_GET_TX_INTERNAL;
       tx->hyOne_abort_count++;
 
-      while (timestamp.val == 1) {}
+//      while (timestamp.val == 1) {}
 
       // [mfs] I don't quite follow the control flow here.  There is no call
       //       to tmabort(), so how is the stack getting rolled back?  How
@@ -256,7 +256,7 @@ namespace stm
    */
   void HyOneBegin(TX_LONE_PARAMETER)
   {
-	TX_GET_TX_INTERNAL;
+//	TX_GET_TX_INTERNAL;
 
       	// [mfs] Do we need this assert?
 //      	assert (tx->nesting_depth == 1);
@@ -278,10 +278,12 @@ namespace stm
           // abort, which sends us back to the _xbegin() function, but the
           // return value now will be XXX, which will cause us to call some
           // special handler...
-          if (timestamp.val == 1) {
+//	 _xabort();
+/*   
+         if (timestamp.val == 1) {
               _xabort();
           }
-
+*/
           // if we have aborted for more than 8 times, then we grab the lock,
           // ending the hardware transaction mode and entering the language
           // serial mode. After this, all other hardware transactions are
@@ -289,15 +291,21 @@ namespace stm
           // concurrently, or one hardware transaction is running with the
           // lock owned and all others have to wait until the lock is
           // released before starting another hardware transaction
+/*
           if (tx->hyOne_abort_count > 8) {
               timestamp.val = 1;
               _xend();
               tx->irrevoc = 1;
           }
+
+*/
+//	  tx->allocator.onTxBegin();
       }
       // transaction fails to start, or abort. this is the fallback execution path
       else {
-          HyOneAbort(TX_LONE_PARAMETER);
+	  printf("aborting...status = %d", status);
+
+//          HyOneAbort(TX_LONE_PARAMETER);
       }
   }
 }
