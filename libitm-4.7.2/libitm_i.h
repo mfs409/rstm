@@ -152,11 +152,13 @@ struct gtm_rwlog_entry
   gtm_word value;
 };
 
+  // [per-transaction metadata]
 // Contains all thread-specific data required by the entire library.
 // This includes all data relevant to a single transaction. Because most
 // thread-specific data is about the current transaction, we also refer to
 // the transaction-specific parts of gtm_thread as "the transaction" (the
 // same applies to names of variables and arguments).
+
 // All but the shared part of this data structure are thread-local data.
 // gtm_thread could be split into transaction-specific structures and other
 // per-thread data (with those parts then nested in gtm_thread), but this
@@ -232,6 +234,10 @@ struct gtm_thread
   // other counters are total values for all previously executed transactions.
   uint32_t restart_reason[NUM_RESTARTS];
   uint32_t restart_total;
+
+    //[wer]
+    // num of plus
+    uint32_t num_plus;
 
   // *** The shared part of gtm_thread starts here. ***
   // Shared state is on separate cachelines to avoid false sharing with
