@@ -53,34 +53,34 @@ GTM::gtm_thread::decide_retry_strategy (gtm_restart_reason r)
       // A re-initializations of the method group has been requested. Switch
       // to serial mode, initialize, and resume normal operation.
       if ((state & STATE_SERIAL) == 0)
-	{
-	  // We have to eventually re-init the method group. Therefore,
-	  // we cannot just upgrade to a write lock here because this could
-	  // fail forever when other transactions execute in serial mode.
-	  // However, giving up the read lock then means that a change of the
-	  // method group could happen in-between, so check that we're not
-	  // re-initializing without a need.
-	  // ??? Note that we can still re-initialize too often, but avoiding
-	  // that would increase code complexity, which seems unnecessary
-	  // given that re-inits should be very infrequent.
-	  serial_lock.read_unlock(this);
-	  serial_lock.write_lock();
-	  if (disp->get_method_group()
-	      == default_dispatch.load(memory_order_relaxed)
-	      ->get_method_group())
-	    // Still the same method group.
-	    disp->get_method_group()->reinit();
-	  serial_lock.write_unlock();
-	  // Also, we're making the transaction inactive, so when we become
-	  // active again, some other thread might have changed the default
-	  // dispatch, so we run the same code as for the first execution
-	  // attempt.
-	  disp = decide_begin_dispatch(prop);
-	  set_abi_disp(disp);
-	}
+    {
+      // We have to eventually re-init the method group. Therefore,
+      // we cannot just upgrade to a write lock here because this could
+      // fail forever when other transactions execute in serial mode.
+      // However, giving up the read lock then means that a change of the
+      // method group could happen in-between, so check that we're not
+      // re-initializing without a need.
+      // ??? Note that we can still re-initialize too often, but avoiding
+      // that would increase code complexity, which seems unnecessary
+      // given that re-inits should be very infrequent.
+      serial_lock.read_unlock(this);
+      serial_lock.write_lock();
+      if (disp->get_method_group()
+          == default_dispatch.load(memory_order_relaxed)
+          ->get_method_group())
+        // Still the same method group.
+        disp->get_method_group()->reinit();
+      serial_lock.write_unlock();
+      // Also, we're making the transaction inactive, so when we become
+      // active again, some other thread might have changed the default
+      // dispatch, so we run the same code as for the first execution
+      // attempt.
+      disp = decide_begin_dispatch(prop);
+      set_abi_disp(disp);
+    }
       else
-	// We are a serial transaction already, which makes things simple.
-	disp->get_method_group()->reinit();
+    // We are a serial transaction already, which makes things simple.
+    disp->get_method_group()->reinit();
 
       return;
     }
@@ -107,16 +107,16 @@ GTM::gtm_thread::decide_retry_strategy (gtm_restart_reason r)
       // the caller must have rolled back the previous transaction, so we
       // don't have to worry about things such as privatization.
       if ((this->state & STATE_SERIAL) == 0)
-	{
-	  this->state |= STATE_SERIAL;
-	  serial_lock.read_unlock (this);
-	  serial_lock.write_lock ();
-	}
+    {
+      this->state |= STATE_SERIAL;
+      serial_lock.read_unlock (this);
+      serial_lock.write_lock ();
+    }
 
       // We can retry with dispatch_serialirr if the transaction
       // doesn't contain an abort and if we don't need closed nesting.
       if ((this->prop & pr_hasNoAbort) && (r != RESTART_CLOSED_NESTING))
-	retry_irr = true;
+    retry_irr = true;
     }
 
   // Note that we can just use serial mode here without having to switch
@@ -170,25 +170,25 @@ GTM::gtm_thread::decide_begin_dispatch (uint32_t prop)
       // choose a non-default method until we have to actually restart the
       // transaction.
       if (!(prop & pr_hasNoAbort) && !dd->closed_nesting()
-	  && dd->closed_nesting_alternative())
-	dd = dd->closed_nesting_alternative();
+      && dd->closed_nesting_alternative())
+    dd = dd->closed_nesting_alternative();
 
       if (dd != dispatch_serial() && dd != dispatch_serialirr())
-	{
-	  // The current dispatch is supposedly a non-serial one.  Become an
-	  // active transaction and verify this.  Relaxed memory order is fine
-	  // because the serial lock itself will have established
-	  // happens-before for any change to the selected dispatch.
-	  serial_lock.read_lock (this);
-	  if (default_dispatch.load(memory_order_relaxed) == dd_orig)
-	    return dd;
+    {
+      // The current dispatch is supposedly a non-serial one.  Become an
+      // active transaction and verify this.  Relaxed memory order is fine
+      // because the serial lock itself will have established
+      // happens-before for any change to the selected dispatch.
+      serial_lock.read_lock (this);
+      if (default_dispatch.load(memory_order_relaxed) == dd_orig)
+        return dd;
 
-	  // If we raced with a concurrent modification of default_dispatch,
-	  // just fall back to serialirr.  The dispatch choice might not be
-	  // up-to-date anymore, but this is harmless.
-	  serial_lock.read_unlock (this);
-	  dd = dispatch_serialirr();
-	}
+      // If we raced with a concurrent modification of default_dispatch,
+      // just fall back to serialirr.  The dispatch choice might not be
+      // up-to-date anymore, but this is harmless.
+      serial_lock.read_unlock (this);
+      dd = dispatch_serialirr();
+    }
     }
 
   // We are some kind of serial transaction.
@@ -211,10 +211,10 @@ GTM::gtm_thread::set_default_dispatch(GTM::abi_dispatch* disp)
     {
       // If we are switching method groups, initialize and shut down properly.
       if (dd->get_method_group() != disp->get_method_group())
-	{
-	  dd->get_method_group()->fini();
-	  disp->get_method_group()->init();
-	}
+    {
+      dd->get_method_group()->fini();
+      disp->get_method_group()->init();
+    }
     }
   else
     disp->get_method_group()->init();
@@ -257,6 +257,11 @@ parse_default_method()
       disp = GTM::dispatch_ml_wt();
       env += 5;
     }
+  else if (strncmp(env, "wer", 3) == 0)
+  {
+      disp = GTM::dispatch_wer_wt();
+      env += 3;
+  }
   else
     goto unknown;
 
@@ -283,12 +288,12 @@ GTM::gtm_thread::number_of_threads_changed(unsigned previous, unsigned now)
       // No registered threads before, so initialize.
       static bool initialized = false;
       if (!initialized)
-	{
-	  initialized = true;
-	  // Check for user preferences here.
-	  default_dispatch = 0;
-	  default_dispatch_user = parse_default_method();
-	}
+    {
+      initialized = true;
+      // Check for user preferences here.
+      default_dispatch = 0;
+      default_dispatch_user = parse_default_method();
+    }
     }
   else if (now == 0)
     {
@@ -303,23 +308,23 @@ GTM::gtm_thread::number_of_threads_changed(unsigned previous, unsigned now)
       // ??? If we don't have a fast serial mode implementation, it might be
       // better to use the global lock method set here.
       if (default_dispatch_user && default_dispatch_user->supports(now))
-	set_default_dispatch(default_dispatch_user);
+    set_default_dispatch(default_dispatch_user);
       else
-	set_default_dispatch(dispatch_serialirr());
+    set_default_dispatch(dispatch_serialirr());
     }
   else if (now > 1 && previous <= 1)
     {
       // More than one thread, use the default method.
       if (default_dispatch_user && default_dispatch_user->supports(now))
-	set_default_dispatch(default_dispatch_user);
+    set_default_dispatch(default_dispatch_user);
       else
-	{
-	  abi_dispatch* a = dispatch_ml_wt();
-	  if (a->supports(now))
-	    set_default_dispatch(a);
-	  else
-	    // Serial-irrevocable mode always works.
-	    set_default_dispatch(dispatch_serialirr());
-	}
+    {
+      abi_dispatch* a = dispatch_ml_wt();
+      if (a->supports(now))
+        set_default_dispatch(a);
+      else
+        // Serial-irrevocable mode always works.
+        set_default_dispatch(dispatch_serialirr());
+    }
     }
 }

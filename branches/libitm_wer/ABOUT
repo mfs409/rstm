@@ -6,3 +6,11 @@
 *
 /*********************************************/
 
+NOTE of what you would probably need to do:
+
+1. modify libitm as you wish
+2. make
+3. don't forget to do *make install*
+4. make sure LD_LIBRARY_PATH has been set correctly.
+   e.g. should include ${destdir}/lib, lib32 and lib64
+5. test your gcc, use ITM_DEFAULT_METHOD to specify a TM alg
