@@ -17,7 +17,8 @@
 #include <iostream>
 #include <rstm.hpp>
 #include "bmconfig.hpp"
-
+#include "../libstm/tsx.hpp"
+ 
 /**
  *  We provide the option to build the entire benchmark in a single
  *  source. The bmconfig.hpp include defines all of the important functions
@@ -58,14 +59,46 @@ bench_init()
     counter = 0;
 }
 
+int counter_lock = 0;
+
 /*** Run a bunch of increment transactions */
 void
 bench_test(uintptr_t, uint32_t*)
 {
-    TM_BEGIN(atomic) {
+//    TM_BEGIN(atomic) {
         // increment the counter
-        TM_WRITE(counter, 1 + TM_READ(counter));
-    } TM_END;
+//        TM_WRITE(counter, 1 + TM_READ(counter));
+	  
+//    } TM_END;
+
+	//TM_BEGIN: acquire the lock
+top:
+	int status = stm::_xbegin();
+
+	if (status == -1)
+	{
+		if (counter_lock == 0)
+		{
+			counter_lock = 1;
+			stm::_xend();
+		}
+		else
+			stm::_xabort();	
+	}
+	else
+	{
+//		printf("%d abort, try again...\n", (int) pthread_self());
+		goto top;
+	}
+
+
+//	printf("%d obtained the lock!!!\n", (int) pthread_self());
+	
+	//critical section
+	counter = counter + 1;
+
+	//TM_END: release the lock
+	counter_lock = 0;
 }
 
 /*** Ensure the final state of the benchmark satisfies all invariants */
