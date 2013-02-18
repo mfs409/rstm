@@ -59,7 +59,7 @@ bench_init()
     counter = 0;
 }
 
-int counter_lock = 0;
+volatile int counter_lock = 0;
 
 /*** Run a bunch of increment transactions */
 void
@@ -93,10 +93,11 @@ top:
 
 
 //	printf("%d obtained the lock!!!\n", (int) pthread_self());
-	
+	CFENCE;
 	//critical section
 	counter = counter + 1;
 
+	CFENCE;
 	//TM_END: release the lock
 	counter_lock = 0;
 }

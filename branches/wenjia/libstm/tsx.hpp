@@ -87,7 +87,7 @@ namespace stm
 	    asm volatile("movl $0xffffffff, %%eax \n\t"
 			 TSX_BEGIN " \n\t"
 			 "movl %%eax, %0"
-			 :"=r"(status)::"%eax");
+			 :"=r"(status)::"%eax", "memory");
 	    return status;
 	}
 
@@ -101,7 +101,7 @@ namespace stm
 	//
 	inline void _xend(void)
 	{
-	    asm volatile(TSX_END " \n\t");
+	    asm volatile(TSX_END " \n\t":::"memory");
 	}
 
 	// Forces an RTM region to abort. All outstanding transactions are aborted
@@ -118,7 +118,7 @@ namespace stm
 	//       as?  Can we elevate the value to a constant of some sort?
 	inline void _xabort(void)
 	{
-	    asm volatile(TSX_ABORT " \n\t");
+	    asm volatile(TSX_ABORT " \n\t":::"memory");
 	}
 }
 
