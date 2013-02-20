@@ -1,0 +1,188 @@
+* Summary of Files
+A categorized but brief description of the purposes of the various files in
+libitm follows.  This list is not complete, since there are some files that
+we can completely ignore.  Furthermore, the description of each file varies
+in terms of detail.  We can extend this list as needed.
+
+** Data Structures
+|--------------+-----------+-----------------------------------------------------------------------------------------|
+| File Name    | Component | Role                                                                                    |
+|--------------+-----------+-----------------------------------------------------------------------------------------|
+| aatree.cc    |           | Implements an aa tree... This is apparently only used for the malloc/free undo log      |
+|--------------+-----------+-----------------------------------------------------------------------------------------|
+| aatree.h     |           | Header for the aa tree.  NB: the payload is an undeclared array at the end of the node. |
+|--------------+-----------+-----------------------------------------------------------------------------------------|
+| containers.h |           | Provides a simple vector implementation                                                 |
+|--------------+-----------+-----------------------------------------------------------------------------------------|
+
+** Allocation
+|--------------+-----------+------------------------------------------------------------------------------------|
+| File Name    | Component | Role                                                                               |
+|--------------+-----------+------------------------------------------------------------------------------------|
+| alloc_c.cc   |           | Implements malloc/free in a manner suitable for use within transactions in C code  |
+|--------------+-----------+------------------------------------------------------------------------------------|
+| alloc_cpp.cc |           | Implements new/delete in a manner suitable for use within transactions in C++ code |
+|--------------+-----------+------------------------------------------------------------------------------------|
+| alloc.cc     |           | Code for recording committing allocations performed within a transaction           |
+|--------------+-----------+------------------------------------------------------------------------------------|
+
+** C++ Infrastructure
+|-----------+-----------+----------------------------------------------------------------------------------|
+| File Name | Component | Role                                                                             |
+|-----------+-----------+----------------------------------------------------------------------------------|
+| clone.cc  |           | Implements the clone table as a list of sorted arrays; provides lookup functions |
+|           |           | suitable for forcing irrevocability or sigaborting if no clone found;            |
+|           |           | The table is protected by the same lock that guards transactions (serial_lock),  |
+|           |           | Provides code to add/remove a clone table from the list                          |
+|-----------+-----------+----------------------------------------------------------------------------------|
+| common.h  |           | wraps builtin_expect, hides some attributes behind macros, and                   |
+|           |           | declares malloc/realloc/calloc functions for use internally                      |
+|-----------+-----------+----------------------------------------------------------------------------------|
+| util.cc   |           | helper functions for error, fatal, and allocation                                |
+|-----------+-----------+----------------------------------------------------------------------------------|
+| eh_cpp.cc |           | exception handling support                                                       |
+|-----------+-----------+----------------------------------------------------------------------------------|
+
+** R/W/Mem Method Generators and Support
+|------------+-------------------------+------------------------------------------------------------------------------------|
+| File Name  | Component               | Role                                                                               |
+|------------+-------------------------+------------------------------------------------------------------------------------|
+| dispatch.h |                         | The big nasty macro file that creates all the different ABI load/store methods.    |
+|            |                         | Note that they all call the same load/store function in libitm;                    |
+|            |                         |                                                                                    |
+|            |                         | Also generates memcopy, memset, and memmove functions                              |
+|            |                         |                                                                                    |
+|            |                         | Also provides the abi_dispatch object, which is used to store the methods for each |
+|            |                         | algorithm implementation.  There is a bit of ugliness here with virtual methods... |
+|            |                         | Note, too, that there is some nice engineering in here for number of threads,      |
+|            |                         | closed nesting, etc.                                                               |
+|------------+-------------------------+------------------------------------------------------------------------------------|
+| barrier.cc | abi_dispatch::          | A small wrapper for checking if an ITM_memmove call has overlap                    |
+|            | memmove_overlap_check() | between the destination and source, with at least one nontransactional,            |
+|            |                         | in whcih case a fatal error occurs                                                 |
+|------------+-------------------------+------------------------------------------------------------------------------------|
+
+** Algorithm Implementations
+|------------------+-----------+---------------------------------------------------------------------------------|
+| File Name        | Component | Role                                                                            |
+|------------------+-----------+---------------------------------------------------------------------------------|
+| method-gl.cc     |           | There are some interesting comments in here about how deeply intertwined the    |
+|                  |           | serialirr implementation is with the rest of the implementations                |
+|                  |           |                                                                                 |
+|                  |           | This is a TML algorithm, it seems.                                              |
+|                  |           |                                                                                 |
+|                  |           | TryCommit has a pass-by-ref parameter of the priv_time, for offloading          |
+|                  |           | priv-safety checks to the caller of trycommit.  Ick.                            |
+|------------------+-----------+---------------------------------------------------------------------------------|
+| method-ml.cc     |           | An implementation of TinySTM-WT, with incarnation numbers                       |
+|------------------+-----------+---------------------------------------------------------------------------------|
+| method-serial.cc |           | Implements the serial, serialirr, and serialirr_onwrite implementation families |
+|                  |           |                                                                                 |
+|                  |           | Also has code for putting tx in serialirr mode, and for changing the TX's mode  |
+|------------------+-----------+---------------------------------------------------------------------------------|
+
+** General ITM Infrastructure
+|---------------+-----------------------+---------------------------------------------------------------------------------------------|
+| File Name     | Component             | Role                                                                                        |
+|---------------+-----------------------+---------------------------------------------------------------------------------------------|
+| beginend.cc   |                       | Code for allocating/freeing a descriptor, registering it, and dealing with                  |
+|               |                       | thread creation/deletion                                                                    |
+|               |                       |                                                                                             |
+|               |                       | Code for choosing an instrumentation path                                                   |
+|               |                       |                                                                                             |
+|               |                       | Code for starting a transaction... extremely complex, partly due to closed nesting support: |
+|               |                       | such support necessitates that we checkpoint the transaction descriptor well enough to be   |
+|               |                       | able to roll it back on a closed nested tx abort.                                           |
+|               |                       |                                                                                             |
+|               |                       | The 'rollback' function that undoes stack changes, calls impl-specific rollback,            |
+|               |                       | and get everything ready for a rollback                                                     |
+|               |                       |                                                                                             |
+|               |                       | The abort function.  This calls rollback, and then longjmp.                                 |
+|               |                       |                                                                                             |
+|               |                       | The trycommit function, whic hattempts to commit the transaction... this handles nesting    |
+|               |                       | and then calls the dispatch-specific trycommit.  Oddly, this implements the privatization   |
+|               |                       | code internally, instead of within the individual implementations.                          |
+|               |                       |                                                                                             |
+|               |                       | Simple wrappers for calling trycommit from ITM_COMMIT                                       |
+|               |                       |                                                                                             |
+|               |                       | Code for restart(), which has complexity due to serial modes                                |
+|---------------+-----------------------+---------------------------------------------------------------------------------------------|
+| libitm_i.h    |                       | Internal interface.  defines all core types, in particular the core gtm_thread type         |
+|---------------+-----------------------+---------------------------------------------------------------------------------------------|
+| libitm.h      |                       | Public interface to ITM.  Includes a bunch of nasty macro'd function calls for all the      |
+|               |                       | core R/W functions, in all their modes.                                                     |
+|---------------+-----------------------+---------------------------------------------------------------------------------------------|
+| local.cc      | GTM_LB                | wraps tx->undolog.log() for an address/size pair, and generates a slew of                   |
+|               |                       | function signatures for calling this for multiple data types/sizes                          |
+|               |                       |                                                                                             |
+|               | gtm_undolog::rollback | Uses memcpy to dump entries from undolog back into memory; note that this does              |
+|               |                       | some checking to ensure it doesn't undo stuff on the libitm stack.                          |
+|---------------+-----------------------+---------------------------------------------------------------------------------------------|
+| query.cc      |                       | Functions for determining libitm version;                                                   |
+|               |                       | Function for determining if we are in a transaction or not                                  |
+|               |                       | Function for getting the transaction's descriptor                                           |
+|               |                       | _ITM_error -- raise sigabort when called                                                    |
+|---------------+-----------------------+---------------------------------------------------------------------------------------------|
+| retry.cc      |                       | Code that runs on retry to decide if we need to change algs to serial                       |
+|               |                       |                                                                                             |
+|               |                       | Code for chosing which algorithm/dispatch to use when starting a transaction                |
+|               |                       |                                                                                             |
+|               |                       | Code for switching default method                                                           |
+|               |                       |                                                                                             |
+|               |                       | Code for hitting environment to figure out which alg to use as default                      |
+|               |                       |                                                                                             |
+|               |                       | Code for changing alg based on number of threads registered                                 |
+|---------------+-----------------------+---------------------------------------------------------------------------------------------|
+| stmlock.h     |                       | Provides an orec implementation, and an implementation of a global clock                    |
+|---------------+-----------------------+---------------------------------------------------------------------------------------------|
+| useraction.cc |                       | An infrastructure for onCommit and onAbort handlers.  The data structure                    |
+|               |                       | used is a vector of user actions in the gtm_thread object                                   |
+|---------------+-----------------------+---------------------------------------------------------------------------------------------|
+
+
+* Other notes
+** Privatization
+The privatization technique is embedded into all of the implementations.
+There is some difficulty to generalizing our algorithms to this framework,
+because there is no equivalent to WBMMPolicy.  Instead, libitm requires
+everyone to be privatization safe, and then after a privatization quiescence,
+locations are immediately free()'d.
+
+This raises an interesting question about cost: Which is better?  How hard
+would it be to evaluate?  What will happen to NOrec if we force this new
+mechanism onto it?  Can we still make an exemption for read-only commits?
+How would the GCC maintainers feel about us having an implementation that
+uses WBMMPolicy?
+
+** Write-Back
+There is nothing in this code to help us get an efficient writeback.  Every
+algorithm is write-through.  In fact, the code largely follows the "barrier"
+methodology.
+
+** Commit
+There is a subtle read-only optimization to privatization safety, since
+priv_time does not get updated.
+
+** Closed Nesting
+There is some support for closed nesting, which is odd since there is no
+algorithm supporting it.
+
+** Algorithm Comparisons
+We should strive to minimize the differences for algorithmic comparisons.
+However, I *do* think we should be willing to rename stuff in the existing
+code.  For example, writelog is really w_orecs.  This matters for a writeback
+algorithm.
+
+** Alignment
+The mechanism for dealing with unaligned accesses that span multiple orecs is
+very clean, since this is a write-through algorithm.  It is leveraged nicely
+in the memset/memcpy/memmove functions.
+
+** Writeback Urgency
+The bulk of the WCM/MFT work, and the bulk of the WER work, look like they
+will require support for efficient writeset lookup.
+
+** Virtuals
+It is odd how many methods are virtual in this code.  I wonder if they just
+don't see the overheads that we have seen, or if this is a place where we
+could do minor infrastructure optimizations that would have big impact.
