@@ -29,4 +29,4 @@ ALGNAMES = CGL BitEager BitEagerRedo BitLazy ByEAR ByEAUHA ByEAUBackoff	      \
            RingALA RingSW Serial Swiss TLI TML TMLLazy Ticket Wealth	      \
            CohortsLNI2 CohortsLNI2Q CohortsLNI2QX CohortsLNQX CohortsLNIQX    \
 	   CohortsENQX OrecELAAMD64NOGC OrecELAAMD642 OrecEagerRedoAMD64      \
-           HyOne
+           HyOne OrecELA_AOU OrecELAQ OrecELAPQ OrecLazy2
