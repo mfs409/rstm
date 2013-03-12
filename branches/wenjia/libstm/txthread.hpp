@@ -84,8 +84,7 @@ namespace stm
       void**         stack_low;     // norec stack low-water mark
 #endif
       volatile uintptr_t      start_time;    // start time of transaction
-      // [mfs] only needs to be volatile for the sake of debugging
-      uintptr_t      end_time;      // end time of transaction
+      volatile uintptr_t      end_time;      // end time of txransaction
       uintptr_t      ts_cache;      // last validation time
       bool           tmlHasLock;    // is tml thread holding the lock
       UndoLog        undo_log;      // etee undo log
@@ -145,11 +144,11 @@ namespace stm
       pmu_t         pmu;               // for accessing the hardware PMU
 
 
-       bool irrevoc;		       	// if true, start in software mode, else             
-					// hardware mode
+       bool irrevoc;                // if true, start in software mode, else
+                    // hardware mode
        /*** FOR HyOne ****/
-       uint32_t	    hyOne_abort_count;  //the abort count for HyOne
- 
+       uint32_t     hyOne_abort_count;  //the abort count for HyOne
+
       /*** INSTRUMENTATION-RELATED FIELDS ***/
 #if defined(STM_INST_FINEGRAINADAPT)
       // these are the addresses of the thread's function pointers, which

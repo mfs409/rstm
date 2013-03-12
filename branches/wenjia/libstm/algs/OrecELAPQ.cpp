@@ -46,8 +46,8 @@ namespace stm
       TX_GET_TX_INTERNAL;
       tx->allocator.onTxBegin();
       // Start after the last cleanup, instead of after the last commit, to
-      // avoid spinning in Begin(TX_LONE_PARAMETER)
-      tx->start_time = last_complete.val;
+      // avoid spinning in Begin
+      tx->start_time = timestamp.val;
   }
 
   /**
@@ -61,11 +61,6 @@ namespace stm
       TX_GET_TX_INTERNAL;
       tx->r_orecs.reset();
       OnROCommit(tx);
-#ifdef STM_BITS_32
-      tx->start_time = 0x7FFFFFFF;
-#else
-      tx->start_time = 0x7FFFFFFFFFFFFFFFLL;
-#endif
   }
 
   /**
@@ -83,6 +78,11 @@ namespace stm
   OrecELAPQCommitRW(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
+
+      // set a flag for quiescence
+      tx->end_time = 0;
+      CFENCE;
+
       // acquire locks
       foreach (WriteSet, i, tx->writes) {
           // get orec, read its version#
@@ -107,6 +107,18 @@ namespace stm
       // increment the global timestamp if we have writes
       uintptr_t end_time = 1 + faiptr(&timestamp.val);
 
+      // for quiescence
+      tx->end_time = end_time;
+      CFENCE;
+
+      // [mfs] Note that I don't trust this algorithm right now... there's
+      //       something fishy about the increment not being atomic with the
+      //       subsequent set of end_time.  There may be a subtle correctness
+      //       argument that stems from something in the way that validations
+      //       of concurrent algorithms work, but I haven't verified it.  For
+      //       now, I'm using the extra end_time set at the beginning of this
+      //       function to address my concern.
+
       // skip validation if possible
       if (end_time != (tx->start_time + 1)) {
           foreach (OrecList, i, tx->r_orecs) {
@@ -123,9 +135,9 @@ namespace stm
 
       // announce that I'm done
 #ifdef STM_BITS_32
-      tx->start_time = 0x7FFFFFFF;
+      tx->end_time = 0x7FFFFFFF;
 #else
-      tx->start_time = 0x7FFFFFFFFFFFFFFFLL;
+      tx->end_time = 0x7FFFFFFFFFFFFFFFLL;
 #endif
 
       // release locks
@@ -143,7 +155,7 @@ namespace stm
       // quiesce
       CFENCE;
       for (uint32_t id = 0; id < threadcount.val; ++id)
-          while (threads[id]->start_time < end_time)
+          while (threads[id]->end_time < end_time)
               spin64();
   }
 
@@ -178,6 +190,18 @@ namespace stm
           // common case: new read to uncontended location
           if ((ivt.all == ivt2.all) && (ivt.all <= tx->start_time)) {
               tx->r_orecs.insert(o);
+              // privatization safety: avoid the "doomed transaction" half
+              // of the privatization problem by polling a global and
+              // validating if necessary
+              uintptr_t ts = timestamp.val;
+              if (ts != tx->start_time) {
+                  foreach (OrecList, i, tx->r_orecs) {
+                      // if orec locked or newer than start time, abort
+                      if ((*i)->v.all > tx->start_time)
+                          tmabort();
+                  }
+                  tx->start_time = ts;
+              }
               return tmp;
           }
 
@@ -302,6 +326,13 @@ namespace stm
   OrecELAPQOnSwitchTo()
   {
       timestamp.val = MAXIMUM(timestamp.val, timestamp_max.val);
+      for (uint32_t id = 0; id < threadcount.val; ++id) {
+#ifdef STM_BITS_32
+          threads[id]->end_time = 0x7FFFFFFF;
+#else
+          threads[id]->end_time = 0x7FFFFFFFFFFFFFFFLL;
+#endif
+      }
   }
 }
 
