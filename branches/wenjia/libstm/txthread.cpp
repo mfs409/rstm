@@ -64,7 +64,7 @@ namespace stm
         cohort_reads(0), cohort_writes(0), cohort_aborts(0),
         node(),nn(0),read_only(false),progress_is_seen(false),
         last_val_time((uint64_t)-1),
-        pmu()
+        pmu(), aou_context(NULL)
   {
 #if defined(STM_INST_FINEGRAINADAPT) || defined(STM_INST_COARSEGRAINADAPT)
       // prevent new txns from starting.
