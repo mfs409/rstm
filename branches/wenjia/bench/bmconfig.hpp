@@ -30,6 +30,7 @@ struct Config
     uint32_t    inspct;                 // insert percent
     uint32_t    sets;                   // number of sets to create
     uint32_t    ops;                    // operations per transaction
+    uint32_t    switch_to_sim;          // switch to the simulator
 
     /*** THESE GET UPDATED LATER ***/
     volatile uint64_t time;
