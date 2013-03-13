@@ -19,6 +19,7 @@
 #include <common/platform.hpp>
 #include <common/locks.hpp>
 #include "bmconfig.hpp"
+#include <ptlcalls.h>
 
 using std::string;
 using std::cout;
@@ -36,7 +37,8 @@ Config::Config() :
     ops(1),
     time(0),
     running(true),
-    txcount(0)
+    txcount(0),
+    switch_to_sim(0)
 {
 }
 
@@ -75,6 +77,7 @@ void usage()
     std::cerr << "    -B: name of benchmark\n";
     std::cerr << "    -S: number of sets to build (default 1)\n";
     std::cerr << "    -O: operations per transaction (default 1)\n";
+    std::cerr << "    -s: switch to the simulator\n";
     std::cerr << "    -h: print help (this message)\n\n";
 }
 
@@ -86,7 +89,7 @@ parseargs(int argc, char** argv)
 {
     // parse the command-line options
     int opt;
-    while ((opt = getopt(argc, argv, "N:d:p:hX:B:m:R:S:O:")) != -1) {
+    while ((opt = getopt(argc, argv, "N:d:p:hX:B:m:R:S:O:s")) != -1) {
         switch(opt) {
           case 'd': CFG.duration      = strtol(optarg, NULL, 10); break;
           case 'p': CFG.threads       = strtol(optarg, NULL, 10); break;
@@ -96,6 +99,7 @@ parseargs(int argc, char** argv)
           case 'm': CFG.elements      = strtol(optarg, NULL, 10); break;
           case 'S': CFG.sets          = strtol(optarg, NULL, 10); break;
           case 'O': CFG.ops           = strtol(optarg, NULL, 10); break;
+          case 's': CFG.switch_to_sim = 1;                        break;
           case 'R':
             CFG.lookpct = strtol(optarg, NULL, 10);
             CFG.inspct = (100 - CFG.lookpct)/2 + strtol(optarg, NULL, 10);
@@ -226,6 +230,9 @@ int main(int argc, char** argv) {
     for (uint32_t j = 1; j < CFG.threads; j++)
         pthread_create(&tid[j], &attr, &run_wrapper, args[j]);
 
+    if (CFG.switch_to_sim) {
+        ptlcall_switch_to_sim();
+    }
     // all of the other threads should be queued up, waiting to run the
     // benchmark, but they can't until this thread starts the benchmark
     // too...
@@ -238,6 +245,10 @@ int main(int argc, char** argv) {
     // hanging around
     for (uint32_t k = 1; k < CFG.threads; k++)
         pthread_join(tid[k], NULL);
+
+    if (CFG.switch_to_sim) {
+        ptlcall_switch_to_native();
+    }
 
     bool v = bench_verify();
     std::cout << "Verification: " << (v ? "Passed" : "Failed") << "\n";

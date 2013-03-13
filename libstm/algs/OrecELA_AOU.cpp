@@ -36,7 +36,6 @@ namespace stm
   //       what we use as the handler on an AOU alert
   NOINLINE void OrecELA_AOU_Handler(void* arg, Watch_Descriptor* w)
   {
-      printf("In Handler\n");
       // [mfs] This isn't sufficient if we aren't using the default TLS
       //       access mechanism:
       TX_GET_TX_INTERNAL;
@@ -45,6 +44,7 @@ namespace stm
       // decide whether we can keep running.  This basically just means we
       // need to validate...
       uintptr_t ts = timestamp.val;
+      w->locs[0].val = (uint64_t)ts;    // Update the expected value
 
       // optimized validation since we don't hold any locks
       foreach (OrecList, i, tx->r_orecs) {
@@ -88,9 +88,7 @@ namespace stm
       // [mfs] This is not the optimal placement for this code, but will do
       //       for now
       if (__builtin_expect(!tx->aou_context, false)) {
-          printf("AOU Context needed...\n");
-          tx->aou_context = AOU_init(OrecELA_AOU_Handler, NULL, 0);
-          printf("AOU Context created:\n");
+          tx->aou_context = AOU_init(OrecELA_AOU_Handler, NULL, /*max_locs = */ 1);
           if (tx->aou_context == NULL)
               printf("Uh-Oh, context is null\n");
       }
@@ -138,6 +136,7 @@ namespace stm
 
       // stop AOU tracking...
       AOU_stop(tx->aou_context);
+      AOU_reset(tx->aou_context);
 
       // acquire locks
       foreach (WriteSet, i, tx->writes) {
@@ -238,6 +237,7 @@ namespace stm
               if ((*i)->v.all > tx->start_time) {
                   // stop AOU tracking...
                   AOU_stop(tx->aou_context);
+                  AOU_reset(tx->aou_context);
                   // now we can abort, knowing that we're in a safe state in
                   // the abort handler
                   tmabort();
