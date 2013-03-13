@@ -52,7 +52,7 @@
 bool Disjoint::ro_transaction(TX_FIRST_PARAMETER uint32_t id, uint32_t startpoint)
 {
     PaddedBuffer& rBuffer =
-    use_shared_read_buffer ? publicBuffer : privateBuffers[id];
+        use_shared_read_buffer ? publicBuffer : privateBuffers[id];
     unsigned sum = 0;
     unsigned index = startpoint;
     for (unsigned i = 0; i < locations_per_transaction; i++) {
