@@ -21,6 +21,8 @@
 
 #include "algs.hpp"
 
+// this variant has serialization for privatization, with AOU for polling
+
 namespace stm
 {
   TM_FASTCALL void* OrecELA_AOUReadRO(TX_FIRST_PARAMETER STM_READ_SIG(,));
@@ -29,7 +31,39 @@ namespace stm
   TM_FASTCALL void OrecELA_AOUWriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(,,));
   TM_FASTCALL void OrecELA_AOUCommitRO(TX_LONE_PARAMETER);
   TM_FASTCALL void OrecELA_AOUCommitRW(TX_LONE_PARAMETER);
-  NOINLINE void OrecELA_AOUPrivtest(TxThread* tx, uintptr_t ts);
+
+  // [mfs] If I understand the AOU spec implementation correctly, this is
+  //       what we use as the handler on an AOU alert
+  NOINLINE void OrecELA_AOU_Handler(void* arg, Watch_Descriptor* w)
+  {
+      printf("In Handler\n");
+      // [mfs] This isn't sufficient if we aren't using the default TLS
+      //       access mechanism:
+      TX_GET_TX_INTERNAL;
+
+      // If we just took an AOU alert, and are in this code, then we need to
+      // decide whether we can keep running.  This basically just means we
+      // need to validate...
+      uintptr_t ts = timestamp.val;
+
+      // optimized validation since we don't hold any locks
+      foreach (OrecList, i, tx->r_orecs) {
+          // if orec locked or newer than start time, abort
+          if ((*i)->v.all > tx->start_time) {
+              // NB: we aren't in an AOU context, so it is safe to abort here
+              // without dropping AOU lines.  However, we need to reset our
+              // AOU context
+              AOU_reset(tx->aou_context);
+              tmabort();
+          }
+      }
+
+      // careful here: we can't scale the start time past last_complete.val,
+      // unless we want to re-introduce the need for prevalidation on every
+      // read.
+      uintptr_t cs = last_complete.val;
+      tx->start_time = (ts < cs) ? ts : cs;
+  }
 
   /**
    *  OrecELA_AOU begin:
@@ -48,6 +82,24 @@ namespace stm
       // avoid spinning in Begin(TX_LONE_PARAMETER)
       tx->start_time = last_complete.val;
       tx->end_time = 0;
+
+      // set up AOU context for every thread if it doesn't have one already...
+      //
+      // [mfs] This is not the optimal placement for this code, but will do
+      //       for now
+      if (__builtin_expect(!tx->aou_context, false)) {
+          printf("AOU Context needed...\n");
+          tx->aou_context = AOU_init(OrecELA_AOU_Handler, NULL, 0);
+          printf("AOU Context created:\n");
+          if (tx->aou_context == NULL)
+              printf("Uh-Oh, context is null\n");
+      }
+
+      // turn on AOU tracking support
+      AOU_start(tx->aou_context);
+
+      // track the timestamp... note that we ignore the return value
+      AOU_load(tx->aou_context, (uint64_t*)&timestamp.val);
   }
 
   /**
@@ -59,6 +111,11 @@ namespace stm
   OrecELA_AOUCommitRO(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
+
+      // stop AOU tracking...
+      AOU_stop(tx->aou_context);
+
+      // standard RO commit stuff...
       tx->r_orecs.reset();
       OnROCommit(tx);
   }
@@ -78,6 +135,10 @@ namespace stm
   OrecELA_AOUCommitRW(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
+
+      // stop AOU tracking...
+      AOU_stop(tx->aou_context);
+
       // acquire locks
       foreach (WriteSet, i, tx->writes) {
           // get orec, read its version#
@@ -160,12 +221,7 @@ namespace stm
           // common case: new read to uncontended location
           if (ivt.all <= tx->start_time) {
               tx->r_orecs.insert(o);
-              // privatization safety: avoid the "doomed transaction" half
-              // of the privatization problem by polling a global and
-              // validating if necessary
-              uintptr_t ts = timestamp.val;
-              if (ts != tx->start_time)
-                  OrecELA_AOUPrivtest(tx, ts);
+              // [mfs] Note that we don't have a privtest call, since we are using AOU
               return tmp;
           }
 
@@ -179,8 +235,13 @@ namespace stm
           uintptr_t newts = timestamp.val;
           foreach (OrecList, i, tx->r_orecs) {
               // if orec locked or newer than start time, abort
-              if ((*i)->v.all > tx->start_time)
+              if ((*i)->v.all > tx->start_time) {
+                  // stop AOU tracking...
+                  AOU_stop(tx->aou_context);
+                  // now we can abort, knowing that we're in a safe state in
+                  // the abort handler
                   tmabort();
+              }
           }
 
           uintptr_t cs = last_complete.val;
@@ -289,6 +350,8 @@ namespace stm
    *    "doomed transaction" half of the privatization problem.  We can get that
    *    effect by calling this after every transactional read (actually every
    *    read that detects that some new transaction has committed).
+   *
+   *  NB: this is dead code.
    */
   void
   OrecELA_AOUPrivtest(TxThread* tx, uintptr_t ts)
@@ -296,8 +359,13 @@ namespace stm
       // optimized validation since we don't hold any locks
       foreach (OrecList, i, tx->r_orecs) {
           // if orec locked or newer than start time, abort
-          if ((*i)->v.all > tx->start_time)
+          if ((*i)->v.all > tx->start_time) {
+              // NB: we aren't in an AOU context, so it is safe to abort here
+              // without dropping AOU lines.  However, we need to reset our
+              // AOU context
+              AOU_reset(tx->aou_context);
               tmabort();
+          }
       }
       // careful here: we can't scale the start time past last_complete.val,
       // unless we want to re-introduce the need for prevalidation on every
@@ -329,5 +397,3 @@ REGISTER_FGADAPT_ALG(OrecELA_AOU, "OrecELA_AOU", true)
 #ifdef STM_ONESHOT_ALG_OrecELA_AOU
 DECLARE_AS_ONESHOT(OrecELA_AOU)
 #endif
-
-#include "../../include/aou.cpp"

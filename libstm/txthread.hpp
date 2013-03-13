@@ -41,6 +41,10 @@
 #include "checkpoint.hpp"
 #endif
 
+#ifdef STM_HAS_AOU
+#include "../include/aou.h"
+#endif
+
 namespace stm
 {
   /**
@@ -148,6 +152,11 @@ namespace stm
                     // hardware mode
        /*** FOR HyOne ****/
        uint32_t     hyOne_abort_count;  //the abort count for HyOne
+
+      /*** AOU ONLY: need a context for the AOU alert handler ***/
+#if defined(STM_HAS_AOU)
+      Watch_Descriptor* aou_context;            // this is the AOU descriptor
+#endif
 
       /*** INSTRUMENTATION-RELATED FIELDS ***/
 #if defined(STM_INST_FINEGRAINADAPT)
