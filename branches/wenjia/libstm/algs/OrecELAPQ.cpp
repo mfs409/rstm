@@ -59,6 +59,12 @@ namespace stm
   OrecELAPQCommitRO(TX_LONE_PARAMETER)
   {
       TX_GET_TX_INTERNAL;
+      // announce that I'm done
+#ifdef STM_BITS_32
+      tx->end_time = 0x7FFFFFFF;
+#else
+      tx->end_time = 0x7FFFFFFFFFFFFFFFLL;
+#endif
       tx->r_orecs.reset();
       OnROCommit(tx);
   }
@@ -283,9 +289,9 @@ namespace stm
   {
       // announce I'm done
 #ifdef STM_BITS_32
-      tx->start_time = 0x7FFFFFFF;
+      tx->end_time = 0x7FFFFFFF;
 #else
-      tx->start_time = 0x7FFFFFFFFFFFFFFFLL;
+      tx->end_time = 0x7FFFFFFFFFFFFFFFLL;
 #endif
 
       PreRollback(tx);
