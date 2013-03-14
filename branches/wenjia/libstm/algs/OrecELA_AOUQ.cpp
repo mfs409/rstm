@@ -9,19 +9,13 @@
  */
 
 /**
- *  OrecELA_AOUQ Implementation
- *
- *    This is similar to the Detlefs algorithm for privatization-safe STM,
- *    TL2-IP, and [Marathe et al. ICPP 2008].  We use commit time ordering to
- *    ensure that there are no delayed cleanup problems, we poll the timestamp
- *    variable to address doomed transactions, but unlike the above works, we
- *    use TinySTM-style extendable timestamps instead of TL2-style timestamps,
- *    which sacrifices some publication safety.
+ *  OrecELA_AOUQ Implementation: A variant of OrecELA in which AOU is used
+ *  for low-overhead polling to prevent the doomed transaction problem, and
+ *  commit-time quiescence of writers is used to prevent the delayed cleanup
+ *  problem.
  */
 
 #include "algs.hpp"
-
-// this variant has Quiescence for privatization, with AOU for polling
 
 namespace stm
 {
