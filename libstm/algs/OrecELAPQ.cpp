@@ -9,17 +9,10 @@
  */
 
 /**
- *  OrecELAPQ Implementation
- *
- *    This is similar to the Detlefs algorithm for privatization-safe STM,
- *    TL2-IP, and [Marathe et al. ICPP 2008].  We use commit time ordering to
- *    ensure that there are no delayed cleanup problems, we poll the timestamp
- *    variable to address doomed transactions, but unlike the above works, we
- *    use TinySTM-style extendable timestamps instead of TL2-style timestamps,
- *    which sacrifices some publication safety.
+ *  OrecELAPQ Implementation: A variant of OrecELA in which we poll to
+ *  prevent doomed transactions, and we use quiescence at commit time
+ *  (writers only) to prevent the delayed cleanup problem.
  */
-
-// TODO: reintroduce polling, and then optimize quiescence to be at commit time only
 
 #include "algs.hpp"
 
@@ -60,6 +53,13 @@ namespace stm
   {
       TX_GET_TX_INTERNAL;
       // announce that I'm done
+      //
+      // [mfs] this code is probably not needed, but I'm not 100% sure that
+      // we have a good initial value of end_time, and dumping this here
+      // means that every exit path for every transaction clears the end
+      // time.  In the worst case, this means that in the worst case, someone
+      // can wait in the commitRW function on a read-only transaction, but at
+      // least they'll only do so once.
 #ifdef STM_BITS_32
       tx->end_time = 0x7FFFFFFF;
 #else

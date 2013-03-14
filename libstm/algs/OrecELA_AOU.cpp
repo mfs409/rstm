@@ -9,19 +9,12 @@
  */
 
 /**
- *  OrecELA_AOU Implementation
- *
- *    This is similar to the Detlefs algorithm for privatization-safe STM,
- *    TL2-IP, and [Marathe et al. ICPP 2008].  We use commit time ordering to
- *    ensure that there are no delayed cleanup problems, we poll the timestamp
- *    variable to address doomed transactions, but unlike the above works, we
- *    use TinySTM-style extendable timestamps instead of TL2-style timestamps,
- *    which sacrifices some publication safety.
+ *  OrecELA_AOU Implementation: A variant of OrecELA in which AOU is used for
+ *  low-overhead polling to prevent the doomed transaction problem, and two
+ *  counters are used to prevent the delayed cleanup problem.
  */
 
 #include "algs.hpp"
-
-// this variant has serialization for privatization, with AOU for polling
 
 namespace stm
 {
@@ -231,6 +224,8 @@ namespace stm
           }
 
           // unlocked but too new... validate and scale forward
+          //
+          // [mfs] I'm pretty sure that with AOU, we don't need this
           uintptr_t newts = timestamp.val;
           foreach (OrecList, i, tx->r_orecs) {
               // if orec locked or newer than start time, abort

@@ -9,14 +9,8 @@
  */
 
 /**
- *  OrecELAQ Implementation
- *
- *    This is similar to the Detlefs algorithm for privatization-safe STM,
- *    TL2-IP, and [Marathe et al. ICPP 2008].  We use commit time ordering to
- *    ensure that there are no delayed cleanup problems, we poll the timestamp
- *    variable to address doomed transactions, but unlike the above works, we
- *    use TinySTM-style extendable timestamps instead of TL2-style timestamps,
- *    which sacrifices some publication safety.
+ *  OrecELAQ Implementation: This is a variant of OrecELA in which we use a
+ *  "Validation Fence" to achieve privatization safety.
  */
 
 #include "algs.hpp"
