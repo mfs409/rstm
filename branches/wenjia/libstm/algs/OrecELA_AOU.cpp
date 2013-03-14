@@ -33,6 +33,16 @@ namespace stm
       //       access mechanism:
       TX_GET_TX_INTERNAL;
 
+      // ignore alert if we're in the midst of a library call... note that we
+      // still will end up turning AOU back on in the caller... that's OK, we
+      // just don't want to abort if suspend_aou is true... we'll call
+      // OrecELA_AOU_Handler again later
+      if (tx->suspend_aou) {
+          tx->swallowed_aou = true;
+          return;
+      }
+
+
       // If we just took an AOU alert, and are in this code, then we need to
       // decide whether we can keep running.  This basically just means we
       // need to validate...
@@ -43,6 +53,11 @@ namespace stm
       foreach (OrecList, i, tx->r_orecs) {
           // if orec locked or newer than start time, abort
           if ((*i)->v.all > tx->start_time) {
+              // corner case: if we used aou suppression (e.g., in tx_alloc),
+              // then we might actually have live AOU here.  If so, shut off
+              // AOU before aborting
+              if (0xdead == (uintptr_t)arg)
+                  AOU_stop(tx->aou_context);
               // NB: we aren't in an AOU context, so it is safe to abort here
               // without dropping AOU lines.  However, we need to reset our
               // AOU context
@@ -105,6 +120,7 @@ namespace stm
 
       // stop AOU tracking...
       AOU_stop(tx->aou_context);
+      AOU_reset(tx->aou_context);
 
       // standard RO commit stuff...
       tx->r_orecs.reset();

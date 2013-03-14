@@ -155,7 +155,9 @@ namespace stm
 
       /*** AOU ONLY: need a context for the AOU alert handler ***/
 #if defined(STM_HAS_AOU)
-      Watch_Descriptor* aou_context;            // this is the AOU descriptor
+      Watch_Descriptor* aou_context;  // this is the AOU descriptor
+      volatile bool suspend_aou;      // this lets us block AOU during malloc
+      volatile bool swallowed_aou;    // if we took an AOU while suspended
 #endif
 
       /*** INSTRUMENTATION-RELATED FIELDS ***/
