@@ -64,7 +64,7 @@ namespace stm
         cohort_reads(0), cohort_writes(0), cohort_aborts(0),
         node(),nn(0),read_only(false),progress_is_seen(false),
         last_val_time((uint64_t)-1),
-        pmu(), aou_context(NULL)
+        pmu(), aou_context(NULL), suspend_aou(false), swallowed_aou(false)
   {
 #if defined(STM_INST_FINEGRAINADAPT) || defined(STM_INST_COARSEGRAINADAPT)
       // prevent new txns from starting.
@@ -405,7 +405,31 @@ namespace stm
    *  get a chunk of memory that will be automatically reclaimed if the
    *  caller is a transaction that ultimately aborts
    */
-  void* tx_alloc(size_t size) { return Self->allocator.txAlloc(size); }
+  void* tx_alloc(size_t size)
+  {
+      // tell the AOU handler not to run
+      Self->suspend_aou = true;
+      CFENCE;
+      // call malloc
+      void* result = Self->allocator.txAlloc(size);
+      CFENCE;
+      // turn AOU back on
+      Self->suspend_aou = false;
+      CFENCE;
+      // if we swallowed an AOU, validate:
+      //
+      // NB: if we took an alert during the CFENCE, then we could have
+      // aborted with swallowed_aou true... in that case, our next malloc
+      // will unnecessarily validate, but that's OK
+      if (Self->swallowed_aou) {
+          // ok, clear the swallow flag and call notify.  There's just one
+          // catch... AOU is ON right now.  Use a non-NULL arg to share that
+          // info with the handler
+          Self->swallowed_aou = false;
+          Self->aou_context->notify((void*)0xdead, Self->aou_context);
+      }
+      return result;
+  }
 
   /**
    *  Free some memory.  If the caller is a transaction that ultimately
