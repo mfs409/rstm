@@ -244,6 +244,7 @@ int main(int argc, char** argv) {
     if (CFG.switch_to_sim) {
         ptlcall_switch_to_sim();
     }
+
     // all of the other threads should be queued up, waiting to run the
     // benchmark, but they can't until this thread starts the benchmark
     // too...

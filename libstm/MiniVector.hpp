@@ -75,6 +75,9 @@ namespace stm
       /*** Simple getter to determine the array size */
       unsigned long size() const { return m_size; }
 
+      /*** Simple getter to determine free elements */
+      unsigned long space() const { return m_cap - m_size; }
+
       /*** iterator interface, just use a basic pointer */
       typedef T* iterator;
 
