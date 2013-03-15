@@ -216,6 +216,9 @@ namespace stm
       /*** size() lets us know if the transaction is read-only */
       size_t size() const { return lsize; }
 
+      /*** space() lets us know the number of elements that can be added until resize */
+      size_t space() const { return capacity - lsize; }
+
       /**
        *  We use the version number to reset in O(1) time in the common case
        */

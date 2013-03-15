@@ -15,6 +15,7 @@
  */
 
 #include "algs.hpp"
+#include "../../include/asf-highlevel.h"  // For unlikely / likely macros
 
 namespace stm
 {
@@ -227,8 +228,26 @@ namespace stm
           ivt.all = o->v.all;
 
           // common case: new read to uncontended location
-          if (ivt.all <= tx->start_time) {
-              tx->r_orecs.insert(o);
+          if likely (ivt.all <= tx->start_time) {
+              if likely (tx->r_orecs.space() > 1)
+                  tx->r_orecs.insert(o);
+              else {
+                  // turn AOU off so that we do not abort inside the resize operation
+                  tx->suspend_aou = true;
+                  CFENCE;
+                  tx->r_orecs.insert(o);
+                  CFENCE;
+                  // turn AOU back on
+                  Self->suspend_aou = false;
+                  CFENCE;
+                  if unlikely (Self->swallowed_aou) {
+                      // ok, clear the swallow flag and call notify.  There's just one
+                      // catch... AOU is ON right now.  Use a non-NULL arg to share that
+                      // info with the handler
+                      Self->swallowed_aou = false;
+                      Self->aou_context->notify((void*)0xdead, Self->aou_context);
+                  }
+              }
               // [mfs] Note that we don't have a privtest call, since we are using AOU
               return tmp;
           }
@@ -290,7 +309,25 @@ namespace stm
   OrecELA_AOUWriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
-      tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
+      if likely (tx->writes.space() > 1)
+          tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
+      else {
+          // turn AOU off so that we do not abort inside the resize operation
+          tx->suspend_aou = true;
+          CFENCE;
+          tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
+          CFENCE;
+          // turn AOU back on
+          Self->suspend_aou = false;
+          CFENCE;
+          if unlikely (Self->swallowed_aou) {
+              // ok, clear the swallow flag and call notify.  There's just one
+              // catch... AOU is ON right now.  Use a non-NULL arg to share that
+              // info with the handler
+              Self->swallowed_aou = false;
+              Self->aou_context->notify((void*)0xdead, Self->aou_context);
+          }
+      }
       OnFirstWrite(tx, OrecELA_AOUReadRW, OrecELA_AOUWriteRW, OrecELA_AOUCommitRW);
   }
 
@@ -303,7 +340,25 @@ namespace stm
   OrecELA_AOUWriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
-      tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
+      if likely (tx->writes.space() > 1)
+          tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
+      else {
+          // turn AOU off so that we do not abort inside the resize operation
+          tx->suspend_aou = true;
+          CFENCE;
+          tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
+          CFENCE;
+          // turn AOU back on
+          Self->suspend_aou = false;
+          CFENCE;
+          if unlikely (Self->swallowed_aou) {
+              // ok, clear the swallow flag and call notify.  There's just one
+              // catch... AOU is ON right now.  Use a non-NULL arg to share that
+              // info with the handler
+              Self->swallowed_aou = false;
+              Self->aou_context->notify((void*)0xdead, Self->aou_context);
+          }
+      }
   }
 
   /**
