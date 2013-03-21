@@ -48,7 +48,6 @@ namespace stm
   {
       TX_GET_TX_INTERNAL;
       tx->allocator.onTxBegin();
-      LFENCE;
   }
 
   /**
@@ -77,6 +76,7 @@ namespace stm
       // linearization time
       uint64_t mynum = tickp();
       tx->last_val_time = mynum;
+      __sync_add_and_fetch(&tx->last_val_time, 0);
       CFENCE;
 
       // acquire locks

@@ -46,7 +46,10 @@ namespace stm
       tx->allocator.onTxBegin();
       //      tx->start_time = tickp() & 0x7FFFFFFFFFFFFFFFLL;
       tx->start_time = tickp();
-      LFENCE;
+      // [mfs] Per recent discussion, a FAA(0) here should order after the
+      // store of start_time, but before subsequent loads/stores, thereby
+      // ordering the tickp correctly.
+      __sync_add_and_fetch(&tx->start_time, 0);
   }
 
   /**
@@ -162,9 +165,9 @@ namespace stm
 
           // scale timestamp if ivt is too new, then try again
           CFENCE;
-          //uint64_t newts = tickp() & 0x7FFFFFFFFFFFFFFFLL;
           uint64_t newts = tickp();
-          LFENCE;
+          // memory fence to order
+          __sync_add_and_fetch(&newts, 0);
           OrecLazyAMD64Validate(tx);
           tx->start_time = newts;
       }

@@ -45,8 +45,11 @@ namespace stm
   {
       TX_GET_TX_INTERNAL;
       tx->allocator.onTxBegin();
-      tx->start_time = tickp() & 0x7FFFFFFFFFFFFFFFLL;
-      LFENCE;
+      tx->start_time = tickp();
+      // [mfs] Per recent discussion, a FAA(0) here should order after the
+      // store of start_time, but before subsequent loads/stores, thereby
+      // ordering the tickp correctly.
+      __sync_add_and_fetch(&tx->start_time, 0);
   }
 
   /**
@@ -111,12 +114,9 @@ namespace stm
       tx->writes.writeback();
 
       // increment the global timestamp, release locks
-      //WBR; // for extremely small transactions, we're getting errors wrt the
-           // timing of this tick... a WBR seems to resolve, though I don't
-           // know why... tickp should be precise enough...
-      __sync_add_and_fetch(&tx->num_temp, 0);
+      __sync_add_and_fetch(&tx->start_time, 0); // order prior writes before subsequent tickp/lfence
       CFENCE;
-      uintptr_t end_time = tickp() & 0x7FFFFFFFFFFFFFFFLL;
+      uintptr_t end_time = tickp();
       CFENCE;
 
       // announce that I'm done
@@ -180,7 +180,10 @@ namespace stm
           // scale timestamp if ivt is too new, then try again
           CFENCE;
           uint64_t newts = tickp() & 0x7FFFFFFFFFFFFFFFLL;
-          LFENCE;
+          // [mfs] Per recent discussion, a FAA(0) here should order after the
+          // store of start_time, but before subsequent loads/stores, thereby
+          // ordering the tickp correctly.
+          __sync_add_and_fetch(&newts, 0);
           OrecELAAMD64Validate(tx);
           CFENCE;
           tx->start_time = newts;
