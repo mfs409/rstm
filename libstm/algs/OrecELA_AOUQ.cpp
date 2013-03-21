@@ -205,7 +205,7 @@ namespace stm
 
       // release locks
       foreach (OrecList, i, tx->locks)
-          (*i)->v.all = tx->end_time;
+          (*i)->v.all = end_time;
       CFENCE;
 
       // clean-up
