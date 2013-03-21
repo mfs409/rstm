@@ -82,7 +82,7 @@ namespace stm
       // sample the timestamp and prepare local structures
       tx->allocator.onTxBegin();
       tx->start_time = tickp();
-      LFENCE;
+      __sync_add_and_fetch(&tx->start_time, 0);
   }
 
   /**
@@ -171,7 +171,7 @@ namespace stm
 
           // scale timestamp if ivt is too new, then try again
           uintptr_t newts = tickp();
-	  LFENCE;
+          __sync_add_and_fetch(&newts, 0);
           OrecEagerAMD64Validate(tx);
           tx->start_time = newts;
       }
