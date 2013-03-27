@@ -64,7 +64,10 @@ namespace stm
         cohort_reads(0), cohort_writes(0), cohort_aborts(0),
         node(),nn(0),read_only(false),progress_is_seen(false),
         last_val_time((uint64_t)-1),
-        pmu(), aou_context(NULL), suspend_aou(false), swallowed_aou(false)
+        pmu()
+#ifdef STM_HAS_AOU
+      , aou_context(NULL), suspend_aou(false), swallowed_aou(false)
+#endif
   {
 #if defined(STM_INST_FINEGRAINADAPT) || defined(STM_INST_COARSEGRAINADAPT)
       // prevent new txns from starting.
@@ -408,10 +411,13 @@ namespace stm
   void* tx_alloc(size_t size)
   {
       // tell the AOU handler not to run
+#ifdef STM_HAS_AOU
       Self->suspend_aou = true;
       CFENCE;
+#endif
       // call malloc
       void* result = Self->allocator.txAlloc(size);
+#ifdef STM_HAS_AOU
       CFENCE;
       // turn AOU back on
       Self->suspend_aou = false;
@@ -428,6 +434,7 @@ namespace stm
           Self->swallowed_aou = false;
           Self->aou_context->notify((void*)0xdead, Self->aou_context);
       }
+#endif
       return result;
   }
 

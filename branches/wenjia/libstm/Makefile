@@ -52,7 +52,11 @@ CXXFLAGS += -MMD -I$(ODIR)
 #
 CXXNAMES = algs cbr inst irrevocability policies profiling static txthread \
            types Toxic PMU WBMMPolicy BitLocks ByteLocks Orecs RRecs	   \
-           Registration $(ADAPTM) $(ALGNAMES) aou
+           Registration $(ADAPTM) $(ALGNAMES)
+
+ifeq ($(USE_AOU),true)
+	CXXNAMES += aou
+endif
 
 #
 # Hack for AOU (for now)

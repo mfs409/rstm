@@ -19,7 +19,13 @@
 #include "bmconfig.hpp"
 #include "../include/abstract_timing.hpp"
 #include "../include/abstract_cpu.hpp"
+
+#ifdef STM_USE_AOU
 #include "../include/ptlcalls.h"
+#else
+#define ptlcall_switch_to_sim()
+#define ptlcall_switch_to_native()
+#endif
 
 using std::string;
 using std::cout;
@@ -35,10 +41,10 @@ Config::Config() :
     inspct(66),
     sets(1),
     ops(1),
+    switch_to_sim(0),
     time(0),
     running(true),
-    txcount(0),
-    switch_to_sim(0)
+    txcount(0)
 {
 }
 
