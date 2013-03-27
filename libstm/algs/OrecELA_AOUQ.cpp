@@ -16,7 +16,11 @@
  */
 
 #include "algs.hpp"
+#ifdef STM_HAS_AOU
 #include "../../include/asf-highlevel.h"  // For unlikely / likely macros
+#else
+#include "../Diagnostics.hpp"
+#endif
 
 namespace stm
 {
@@ -27,10 +31,20 @@ namespace stm
   TM_FASTCALL void OrecELA_AOUQCommitRO(TX_LONE_PARAMETER);
   TM_FASTCALL void OrecELA_AOUQCommitRW(TX_LONE_PARAMETER);
 
+#ifndef STM_HAS_AOU
+  #define  Watch_Descriptor void
+  #define likely
+  #define AOU_stop(x)
+  #define AOU_reset(x)
+#endif
+
   // [mfs] If I understand the AOU spec implementation correctly, this is
   //       what we use as the handler on an AOU alert
   NOINLINE void OrecELA_AOUQ_Handler(void* arg, Watch_Descriptor* w)
   {
+#ifdef STM_HAS_AOU // NB: we'll crash at run-time before reaching this elided
+                   // code if the program tries to use OrecELA_AOU without
+                   // ASF support
       // [mfs] This isn't sufficient if we aren't using the default TLS
       //       access mechanism:
       TX_GET_TX_INTERNAL;
@@ -68,6 +82,12 @@ namespace stm
       }
 
       tx->start_time = ts;
+#else
+      // hack to prevent -Werror issues at compile time
+      uintptr_t a = (uintptr_t)arg;
+      uintptr_t b = (uintptr_t)w;
+      a += b;
+#endif
   }
 
   /**
@@ -84,6 +104,9 @@ namespace stm
       TX_GET_TX_INTERNAL;
       tx->allocator.onTxBegin();
 
+#ifdef STM_HAS_AOU // NB: we'll crash at run-time before reaching this elided
+                   // code if the program tries to use OrecELA_AOU without
+                   // ASF support
       // set up AOU context for every thread if it doesn't have one already...
       //
       // [mfs] This is not the optimal placement for this code, but will do
@@ -99,6 +122,7 @@ namespace stm
 
       // track the timestamp
       tx->start_time = AOU_load(tx->aou_context, (uint64_t*)&timestamp.val);
+#endif
   }
 
   /**
@@ -255,6 +279,10 @@ namespace stm
               if likely (tx->r_orecs.space() > 1)
                   tx->r_orecs.insert(o);
               else {
+#ifdef STM_HAS_AOU // NB: we'll crash at run-time before reaching this elided
+                   // code if the program tries to use OrecELA_AOU without
+                   // ASF support
+
                   // turn AOU off so that we do not abort inside the resize operation
                   tx->suspend_aou = true;
                   CFENCE;
@@ -270,6 +298,7 @@ namespace stm
                       Self->swallowed_aou = false;
                       Self->aou_context->notify((void*)0xdead, Self->aou_context);
                   }
+#endif
               }
               // [mfs] Note that we don't have a privtest call, since we are using AOU
               return tmp;
@@ -337,6 +366,10 @@ namespace stm
       if likely (tx->writes.space() > 1)
           tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
       else {
+#ifdef STM_HAS_AOU // NB: we'll crash at run-time before reaching this elided
+                   // code if the program tries to use OrecELA_AOU without
+                   // ASF support
+
           // turn AOU off so that we do not abort inside the resize operation
           tx->suspend_aou = true;
           CFENCE;
@@ -352,6 +385,7 @@ namespace stm
               Self->swallowed_aou = false;
               Self->aou_context->notify((void*)0xdead, Self->aou_context);
           }
+#endif
       }
       OnFirstWrite(tx, OrecELA_AOUQReadRW, OrecELA_AOUQWriteRW, OrecELA_AOUQCommitRW);
   }
@@ -368,6 +402,9 @@ namespace stm
       if likely (tx->writes.space() > 1)
           tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
       else {
+#ifdef STM_HAS_AOU // NB: we'll crash at run-time before reaching this elided
+                   // code if the program tries to use OrecELA_AOU without
+                   // ASF support
           // turn AOU off so that we do not abort inside the resize operation
           tx->suspend_aou = true;
           CFENCE;
@@ -383,6 +420,7 @@ namespace stm
               Self->swallowed_aou = false;
               Self->aou_context->notify((void*)0xdead, Self->aou_context);
           }
+#endif
       }
   }
 
@@ -472,6 +510,10 @@ namespace stm
   void
   OrecELA_AOUQOnSwitchTo()
   {
+#ifndef STM_HAS_AOU
+      UNRECOVERABLE("Cannot use OrecELA_AOUQ in a non-asf environment!");
+#endif
+
       timestamp.val = MAXIMUM(timestamp.val, timestamp_max.val);
       for (uint32_t id = 0; id < threadcount.val; ++id) {
 #ifdef STM_BITS_32

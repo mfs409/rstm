@@ -35,10 +35,10 @@ Config::Config() :
     inspct(66),
     sets(1),
     ops(1),
+    switch_to_sim(0),
     time(0),
     running(true),
-    txcount(0),
-    switch_to_sim(0)
+    txcount(0)
 {
 }
 
