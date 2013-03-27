@@ -49,6 +49,7 @@ namespace GTM HIDDEN {
 
 using namespace std;
 
+
 // A helper template for accessing an unsigned integral of SIZE bytes.
 template<size_t SIZE> struct sized_integral { };
 template<> struct sized_integral<1> { typedef uint8_t type; };
@@ -96,6 +97,13 @@ struct gtm_alloc_action
   void (*free_fn)(void *);
   bool allocated;
 };
+
+  //[wer210] make a struct
+  struct testentry
+  {
+      long long  a; //addr
+      size_t l; // len
+  };
 
 struct gtm_thread;
 
@@ -145,6 +153,43 @@ struct gtm_undolog
   void rollback (gtm_thread* tx, size_t until_size = 0);
 };
 
+// [wer] construct a temp log to save address used
+
+// take it from bottom to here, in order to use this function
+extern void GTM_error (const char *fmt, ...)
+    __attribute__((format (printf, 1, 2)));
+
+struct gtm_templog
+{
+    vector<testentry> templog;
+
+    // log and test if there's any duplicate
+    void log_and_test(long long addr, size_t len) {
+         testentry * undo = templog.push(1);
+
+         testentry temp;
+         temp.a = addr;
+         temp.l = len;
+
+         memcpy(undo, &temp, sizeof (testentry));
+
+        for (size_t i = 0; i < templog.size(); i++)
+            if (templog[i].a < addr) {
+                if (templog[i].a + (long long)templog[i].l > addr)
+                    GTM_error("Overlap entry.\n");
+            }
+            else if (addr < templog[i].a) {
+                if (addr + (long long)len > templog[i].a)
+                    GTM_error("Overlap entry.\n");
+            }
+    }
+
+    void commit () { templog.clear(); }
+    size_t size() const { return templog.size(); }
+
+    void rollback () { templog.clear();};
+};
+
 // An entry of a read or write log.  Used by multi-lock TM methods.
 struct gtm_rwlog_entry
 {
@@ -182,6 +227,8 @@ struct gtm_thread
 
   // Data used by local.c for the undo log for both local and shared memory.
   gtm_undolog undolog;
+
+    gtm_templog templog;
 
   // Read and write logs.  Used by multi-lock TM methods.
   vector<gtm_rwlog_entry> readlog;
@@ -328,8 +375,8 @@ extern "C" uint32_t GTM_longjmp (uint32_t, const gtm_jmpbuf *, uint32_t)
 
 extern "C" void GTM_LB (const void *, size_t) ITM_REGPARM;
 
-extern void GTM_error (const char *fmt, ...)
-    __attribute__((format (printf, 1, 2)));
+  //extern void GTM_error (const char *fmt, ...)
+  // __attribute__((format (printf, 1, 2)));
 extern void GTM_fatal (const char *fmt, ...)
     __attribute__((noreturn, format (printf, 1, 2)));
 

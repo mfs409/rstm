@@ -271,7 +271,7 @@ parse_default_method()
     return disp;
 
  unknown:
-  GTM::GTM_error("Unknown TM method in environment variable "
+  GTM::GTM_error("[wer]Unknown TM method in environment variable "
       "ITM_DEFAULT_METHOD\n");
   return 0;
 }
