@@ -23,10 +23,49 @@
    <http://www.gnu.org/licenses/>.  */
 
 #include "libitm_i.h"
-
 using namespace GTM;
 
 namespace {
+
+  char* itoa(unsigned long n)
+  {
+    char* ret = NULL;
+    int numChars = 0;
+    /*
+    // Determine if integer is negative
+    bool isNegative = false;
+    if (n < 0) {
+        n = -n;
+        isNegative = true;
+        numChars++;
+    }
+    */
+
+    // Count how much space we will need for the string
+    unsigned long temp = n;
+    do {
+        numChars++;
+        temp /= 10;
+    } while ( temp );
+
+    //Allocate space for the string (1 for negative sign, 1 for each digit, and 1 for null terminator)
+    ret = new char[ numChars + 1 ];
+    ret[numChars] = 0;
+
+    /*
+    //Add the negative sign if needed
+    if (isNegative) ret[0] = '-';
+    */
+
+    // Copy digits to string in reverse order
+    int i = numChars - 1;
+
+    do {
+        ret[i--] = n % 10 + '0';
+        n /= 10;
+    } while (n);
+    return ret;
+  }
 
   // This group consists of all TM methods that synchronize via just a single
   // global lock (or ownership record).
@@ -131,9 +170,16 @@ namespace {
             // Set shared_state to new value.
             tx->shared_state.store(wer_mg::set_locked(now), memory_order_release);
         }
-
         tx->undolog.log(addr, len);
-    }
+      }
+
+
+      static void wer_test(const void *addr, size_t len,
+                           gtm_thread *tx = gtm_thr())
+      {
+          // log the addresses used
+          tx->templog.log_and_test((long long)addr, len);
+      }
 
     static void validate(gtm_thread *tx = gtm_thr())
     {
@@ -156,6 +202,14 @@ namespace {
 
     template <typename V> static V load(const V* addr, ls_modifier mod)
     {
+        ////////////////////////////////
+        //[wer210] test alined/overlaps
+        // test if alined
+        if ((long long)addr % 4 != 0)
+            GTM::GTM_error("Hello! Not alined!!!\n");
+        wer_test(addr, sizeof (V));
+        /////////////////////////////////
+
         // Read-for-write should be unlikely, but we need to handle it or will
         // break later WaW optimizations.
         if (unlikely(mod == RfW))
@@ -191,6 +245,13 @@ namespace {
     template <typename V> static void store(V* addr, const V value,
                                             ls_modifier mod)
     {
+        ///////////////////////////////
+        //[wer210] test alined / overlaps
+        if ((long long)addr % 4 != 0)
+            GTM::GTM_error("Hello! Not alined!!!\n");
+        wer_test(addr, sizeof (V));
+        //////////////////////////////
+
         if (likely(mod != WaW))
             pre_write(addr, sizeof(V));
 
@@ -301,6 +362,7 @@ namespace {
             // (i.e., our commit must be visible to them).
             priv_time = v;
         }
+        tx->templog.commit();
         return true;
     }
 
