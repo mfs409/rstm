@@ -200,6 +200,12 @@ NOINLINE
 void*
 run_wrapper(void* i)
 {
+    if (CFG.switch_to_sim) {
+        barrier(15);
+        if(!i)
+            ptlcall_switch_to_sim();
+    }
+
     run((uintptr_t)i);
     THREAD_SHUTDOWN();
     return NULL;
@@ -229,10 +235,6 @@ int main(int argc, char** argv) {
     // actually create the threads
     for (uint32_t j = 1; j < CFG.threads; j++)
         pthread_create(&tid[j], &attr, &run_wrapper, args[j]);
-
-    if (CFG.switch_to_sim) {
-        ptlcall_switch_to_sim();
-    }
 
     // all of the other threads should be queued up, waiting to run the
     // benchmark, but they can't until this thread starts the benchmark

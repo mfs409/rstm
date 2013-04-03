@@ -49,6 +49,9 @@ namespace stm
       //       access mechanism:
       TX_GET_TX_INTERNAL;
 
+      uintptr_t ts = timestamp.val;
+      w->locs[0].val = (uint64_t)ts;    // Update the expected value
+
       // ignore alert if we're in the midst of a library call... note that we
       // still will end up turning AOU back on in the caller... that's OK, we
       // just don't want to abort if suspend_aou is true... we'll call
@@ -61,8 +64,6 @@ namespace stm
       // If we just took an AOU alert, and are in this code, then we need to
       // decide whether we can keep running.  This basically just means we
       // need to validate...
-      uintptr_t ts = timestamp.val;
-      w->locs[0].val = (uint64_t)ts;    // Update the expected value
 
       // optimized validation since we don't hold any locks
       foreach (OrecList, i, tx->r_orecs) {
@@ -363,7 +364,7 @@ namespace stm
   OrecELA_AOUQWriteRO(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
-      if likely (tx->writes.space() > 1)
+      if likely (!tx->writes.will_reorg())
           tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
       else {
 #ifdef STM_HAS_AOU // NB: we'll crash at run-time before reaching this elided
@@ -399,7 +400,7 @@ namespace stm
   OrecELA_AOUQWriteRW(TX_FIRST_PARAMETER STM_WRITE_SIG(addr,val,mask))
   {
       TX_GET_TX_INTERNAL;
-      if likely (tx->writes.space() > 1)
+      if likely (!tx->writes.will_reorg())
           tx->writes.insert(WriteSetEntry(STM_WRITE_SET_ENTRY(addr, val, mask)));
       else {
 #ifdef STM_HAS_AOU // NB: we'll crash at run-time before reaching this elided
