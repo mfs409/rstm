@@ -184,15 +184,16 @@ run(uintptr_t id)
     else {
         // run fixed number of txns
 #if defined STM_CHECKPOINT_ASM
-        for (volatile uint32_t e = 0; e < CFG.execute; e++) {
+        for (volatile uint32_t e = 0; e < CFG.execute; e++)
 #else
-            for (uint32_t e = 0; e < CFG.execute; e++) {
+        for (uint32_t e = 0; e < CFG.execute; e++)
 #endif
-                bench_test(id, &seed);
-                ++count;
-                nontxnwork(); // some nontx work between txns?
-            }
+        {
+            bench_test(id, &seed);
+            ++count;
+            nontxnwork(); // some nontx work between txns?
         }
+    }
 
     // wait until all txns finish, then get time
     barrier(2);
@@ -202,7 +203,6 @@ run(uintptr_t id)
     // add this thread's count to an accumulator
     faa32(&CFG.txcount, count);
 }
-
 
 /**
  *  pthread wrapper for running the experiments
@@ -216,11 +216,16 @@ NOINLINE
 void*
 run_wrapper(void* i)
 {
+    if (CFG.switch_to_sim) {
+         barrier(15); 
+         if(!i)
+             ptlcall_switch_to_sim();
+    }
     run((uintptr_t)i);
     TM_THREAD_SHUTDOWN();
     return NULL;
 }
-}
+} // namespace
 
 /**
  *  Main routine: parse args, set up the TM system, prep the benchmark, run
@@ -246,10 +251,6 @@ int main(int argc, char** argv) {
     // actually create the threads
     for (uint32_t j = 1; j < CFG.threads; j++)
         pthread_create(&tid[j], &attr, &run_wrapper, args[j]);
-
-    if (CFG.switch_to_sim) {
-        ptlcall_switch_to_sim();
-    }
 
     // all of the other threads should be queued up, waiting to run the
     // benchmark, but they can't until this thread starts the benchmark
