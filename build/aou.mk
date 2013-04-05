@@ -41,5 +41,5 @@ CXXFLAGS += -DASF_STACK -fomit-frame-pointer
 # CXXFLAGS += -DASF_PUSH -fno-omit-frame-pointer
 
 # More custom AOU stuff:
-CXXFLAGS += -DSTM_USE_AOU
+CXXFLAGS += -DSTM_HAS_AOU
 USE_AOU = true

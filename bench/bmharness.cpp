@@ -20,7 +20,7 @@
 #include "../include/abstract_timing.hpp"
 #include "../include/abstract_cpu.hpp"
 
-#ifdef STM_USE_AOU
+#ifdef STM_HAS_AOU
 #include "../include/ptlcalls.h"
 #else
 #define ptlcall_switch_to_sim()    ((void)0)
