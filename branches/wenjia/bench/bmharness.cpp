@@ -23,8 +23,8 @@
 #ifdef STM_USE_AOU
 #include "../include/ptlcalls.h"
 #else
-#define ptlcall_switch_to_sim()
-#define ptlcall_switch_to_native()
+#define ptlcall_switch_to_sim()    ((void)0)
+#define ptlcall_switch_to_native() ((void)0)
 #endif
 
 using std::string;
@@ -217,9 +217,10 @@ void*
 run_wrapper(void* i)
 {
     if (CFG.switch_to_sim) {
-         barrier(15); 
-         if(!i)
-             ptlcall_switch_to_sim();
+        barrier(14);
+        if (!i)
+            ptlcall_switch_to_sim();
+        barrier(15);
     }
     run((uintptr_t)i);
     TM_THREAD_SHUTDOWN();
