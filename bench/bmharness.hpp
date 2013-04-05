@@ -201,9 +201,10 @@ void*
 run_wrapper(void* i)
 {
     if (CFG.switch_to_sim) {
-        barrier(15);
-        if(!i)
+        barrier(14);
+        if (!i)
             ptlcall_switch_to_sim();
+        barrier(15);
     }
 
     run((uintptr_t)i);
