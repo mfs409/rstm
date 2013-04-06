@@ -162,6 +162,9 @@ run(uintptr_t id)
             signal(SIGALRM, catch_SIGALRM);
             alarm(CFG.duration);
         }
+        if (CFG.switch_to_sim) {
+            ptlcall_switch_to_sim();
+        }
         CFG.time = getElapsedTime();
     }
 
@@ -216,12 +219,6 @@ NOINLINE
 void*
 run_wrapper(void* i)
 {
-    if (CFG.switch_to_sim) {
-        barrier(14);
-        if (!i)
-            ptlcall_switch_to_sim();
-        barrier(15);
-    }
     run((uintptr_t)i);
     TM_THREAD_SHUTDOWN();
     return NULL;
