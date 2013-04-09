@@ -95,5 +95,5 @@ bool bench_verify() { return SET->isSane(); }
 /*** Deal with special names that map to different M values */
 void bench_reparse()
 {
-    if (CFG.bmname == "") CFG.bmname = "List";
+    if (CFG.bmname == "") CFG.bmname = "Hash";
 }
