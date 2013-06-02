@@ -148,6 +148,33 @@ barrier(uint32_t which)
     CFENCE;
 }
 
+/**
+ * Move the calling thread to the specified CPU.
+ */
+void move_to_core(int i) {
+    cpu_set_t cpu;
+    CPU_ZERO(&cpu);
+    CPU_SET(i, &cpu);
+    //sched_setaffinity(0, sizeof(cpu), &cpu);
+    pthread_setaffinity_np(pthread_self(), sizeof(cpu), &cpu);
+    //printf("I want to run on %i and ended up on core %i\n", i, sched_getcpu());
+#if (0)
+    printf("I want to run on %i and ended up on core %i\n", i, omp_get_thread_num());
+    
+    // Getting the actual masks back
+    pthread_getaffinity_np(pthread_self(), sizeof(cpu), &cpu);
+    for (int i = 0; i < 32; i++)
+        if (CPU_ISSET(i, &cpu))
+            printf ("Pthread Affinity: %i\n", i);
+
+    sched_getaffinity(0, sizeof(cpu), &cpu);
+    for (int i = 0; i < 32; i++)
+        if (CPU_ISSET(i, &cpu))
+            printf ("Sched Affinity: %i\n", i);
+    printf("Sched Get CPU: %i\n", sched_getcpu());
+#endif
+}
+
 /*** Run a timed or fixed-count experiment */
 void
 run(uintptr_t id)
@@ -161,9 +188,6 @@ run(uintptr_t id)
         if (!CFG.execute) {
             signal(SIGALRM, catch_SIGALRM);
             alarm(CFG.duration);
-        }
-        if (CFG.switch_to_sim) {
-            ptlcall_switch_to_sim();
         }
         CFG.time = getElapsedTime();
     }
@@ -219,6 +243,15 @@ NOINLINE
 void*
 run_wrapper(void* i)
 {
+    move_to_core((int)(long)i);
+
+    if (CFG.switch_to_sim) {
+        barrier(14);
+        if (!i)
+            ptlcall_switch_to_sim();
+        barrier(15);
+    }
+
     run((uintptr_t)i);
     TM_THREAD_SHUTDOWN();
     return NULL;
