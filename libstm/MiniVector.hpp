@@ -87,6 +87,14 @@ namespace stm
       /*** iterator to the end of the array */
       iterator end() const { return m_elements + m_size; }
 
+      /*** serialize to local memory, this is more lightweight than a full CFENCE ***/
+      void to_local_mem() const {
+          asm volatile(""::"m"(m_cap),"m"(m_size),"m"(m_elements));
+      }
+      /*** serialize from local memory, this is more lightweight than a full CFENCE ***/
+      void from_local_mem() {
+          asm volatile("":"=m"(m_cap),"=m"(m_size),"=m"(m_elements));
+      }
   }; // class MiniVector
 
   /*** double the size of a minivector */

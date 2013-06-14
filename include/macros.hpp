@@ -40,6 +40,11 @@
          CEND = COLLECTION.end();                       \
          VAR != CEND; ++VAR)
 
+#define foreach_but_last(TYPE, VAR, COLLECTION)         \
+    for (TYPE::iterator VAR = COLLECTION.begin(),       \
+         CEND = COLLECTION.end();                       \
+         (VAR != CEND) && (VAR + 1 != CEND); ++VAR)
+
 #define FOREACH_REVERSE(TYPE, VAR, COLLECTION)          \
     for (TYPE::iterator VAR = COLLECTION.end() - 1,     \
          CAT2(end, __LINE__) = COLLECTION.begin();      \
