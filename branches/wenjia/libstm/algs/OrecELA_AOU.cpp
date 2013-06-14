@@ -37,6 +37,10 @@ namespace stm
   #define AOU_reset(x)
 #endif
 
+  void OrecELA_AOU_alloc_callback()
+  {
+      Self->aou_context->notify((void*)0xdead, Self->aou_context);
+  }
   // [mfs] If I understand the AOU spec implementation correctly, this is
   //       what we use as the handler on an AOU alert
   NOINLINE void OrecELA_AOU_Handler(void* arg, Watch_Descriptor* w)
@@ -56,17 +60,24 @@ namespace stm
       // still will end up turning AOU back on in the caller... that's OK, we
       // just don't want to abort if suspend_aou is true... we'll call
       // OrecELA_AOU_Handler again later
-      if (tx->suspend_aou) {
+      if unlikely (tx->suspend_aou) {
           tx->swallowed_aou = true;
           return;
       }
 
+      // Similar method for checking whether the application tx allocator is
+      // live.  Check its DND flag, and if set, register a callback.
+      if unlikely (tx->allocator.getDND()) {
+          tx->allocator.requestDNDCallback(&OrecELA_AOU_alloc_callback);
+          return;
+      }
 
       // If we just took an AOU alert, and are in this code, then we need to
       // decide whether we can keep running.  This basically just means we
       // need to validate...
 
       // optimized validation since we don't hold any locks
+      tx->r_orecs.from_local_mem();
       foreach (OrecList, i, tx->r_orecs) {
           // if orec locked or newer than start time, abort
           if ((*i)->v.all > tx->start_time) {
@@ -244,10 +255,40 @@ namespace stm
       TX_GET_TX_INTERNAL;
       // get the orec addr, read the orec's version#
       orec_t* o = get_orec(addr);
+      // SD: Careful placement, here.  Add the orec's address first to the
+      // readset so that AOU-induced validation can validate the location
+      // before it is actually read
+      if likely (tx->r_orecs.space() > 1) {
+          tx->r_orecs.insert(o);
+          tx->r_orecs.to_local_mem();
+      }
+      else {
+#ifdef STM_HAS_AOU // NB: we'll crash at run-time before reaching this elided
+           // code if the program tries to use OrecELA_AOU without
+           // ASF support
+
+          // turn AOU off so that we do not abort inside the resize operation
+          tx->suspend_aou = true;
+          CFENCE;
+          tx->r_orecs.insert(o);
+          CFENCE;
+          // turn AOU back on
+          Self->suspend_aou = false;
+          CFENCE;
+          if unlikely (Self->swallowed_aou) {
+              // ok, clear the swallow flag and call notify.  There's just one
+              // catch... AOU is ON right now.  Use a non-NULL arg to share that
+              // info with the handler
+              Self->swallowed_aou = false;
+              Self->aou_context->notify((void*)0xdead, Self->aou_context);
+          }
+#endif
+      }
       while (true) {
           // read the location
           void* tmp = *addr;
-          CFENCE;
+          // Manual ordering barrier, avoid full CFENCEs
+          asm volatile ("":"=m"(o->v.all):"g"(tmp));
           // check the orec.  Note: we don't need prevalidation because we
           // have a global clean state via the last_complete.val field.
           id_version_t ivt;
@@ -255,30 +296,6 @@ namespace stm
 
           // common case: new read to uncontended location
           if likely (ivt.all <= tx->start_time) {
-              if likely (tx->r_orecs.space() > 1)
-                  tx->r_orecs.insert(o);
-              else {
-#ifdef STM_HAS_AOU // NB: we'll crash at run-time before reaching this elided
-                   // code if the program tries to use OrecELA_AOU without
-                   // ASF support
-
-                  // turn AOU off so that we do not abort inside the resize operation
-                  tx->suspend_aou = true;
-                  CFENCE;
-                  tx->r_orecs.insert(o);
-                  CFENCE;
-                  // turn AOU back on
-                  Self->suspend_aou = false;
-                  CFENCE;
-                  if unlikely (Self->swallowed_aou) {
-                      // ok, clear the swallow flag and call notify.  There's just one
-                      // catch... AOU is ON right now.  Use a non-NULL arg to share that
-                      // info with the handler
-                      Self->swallowed_aou = false;
-                      Self->aou_context->notify((void*)0xdead, Self->aou_context);
-                  }
-#endif
-              }
               // [mfs] Note that we don't have a privtest call, since we are using AOU
               return tmp;
           }
@@ -293,7 +310,7 @@ namespace stm
           //
           // [mfs] I'm pretty sure that with AOU, we don't need this
           uintptr_t newts = timestamp.val;
-          foreach (OrecList, i, tx->r_orecs) {
+          foreach_but_last (OrecList, i, tx->r_orecs) {
               // if orec locked or newer than start time, abort
               if ((*i)->v.all > tx->start_time) {
                   // stop AOU tracking...

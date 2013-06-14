@@ -86,6 +86,12 @@ namespace stm
       /*** List of objects to delete if the current transaction aborts */
       AddressList allocs;
 
+#ifdef STM_HAS_AOU
+      /*** When allocating, set a flag that we do not want to get aborted ***/
+      void (*alloc_done_notifier)();
+      volatile bool do_not_interrupt;
+      volatile bool notification_requested;
+#endif
       /**
        *  Schedule a pointer for reclamation.  Reclamation will not happen
        *  until enough time has passed.
@@ -118,6 +124,9 @@ namespace stm
        */
       WBMMPolicy()
           : prelimbo(new limbo_t()), limbo(NULL), frees(128), allocs(128)
+#ifdef STM_HAS_AOU
+            , alloc_done_notifier(NULL), do_not_interrupt(0), notification_requested(0)
+#endif
       { }
 
       /**
@@ -130,19 +139,37 @@ namespace stm
       /*** Wrapper to thread-specific allocator for allocating memory */
       void* txAlloc(size_t const &size)
       {
+#ifdef STM_HAS_AOU
+          do_not_interrupt = 1;
+#endif
           void* ptr = malloc(size);
           if ((*my_ts)&1)
               allocs.insert(ptr);
+#ifdef STM_HAS_AOU
+          do_not_interrupt = 0;
+          if (notification_requested) {
+              notification_requested = 0;
+              alloc_done_notifier();
+          }
+#endif
           return ptr;
       }
 
       /*** Wrapper to thread-specific allocator for freeing memory */
       void txFree(void* ptr)
       {
+#ifdef STM_HAS_AOU
+          do_not_interrupt = 1;
+#endif
           if ((*my_ts)&1)
               frees.insert(ptr);
           else
               free(ptr);
+#ifdef STM_HAS_AOU
+          do_not_interrupt = 0;
+          if (notification_requested)
+              alloc_done_notifier();
+#endif
       }
 
       /*** On begin, move to an odd epoch and start logging */
@@ -201,6 +228,24 @@ namespace stm
           //       start using it.
       }
 
+      /**
+       * Check that this allocator is currently where it does not want to be
+       * aborted, for example in the middle of a malloc-call.  Instead of
+       * aborting right now, the requesting code should request a notification.
+       */
+      bool getDND() const {
+#ifdef STM_HAS_AOU
+          return do_not_interrupt;  
+#else
+          return 0;
+#endif
+      }
+      void requestDNDCallback(void (*notify)()) {
+#ifdef STM_HAS_AOU
+          alloc_done_notifier    = notify; 
+          notification_requested = 1;
+#endif
+      }
   }; // class stm::WBMMPolicy
 
 } // namespace stm
