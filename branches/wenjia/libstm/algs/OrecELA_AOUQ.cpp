@@ -136,6 +136,8 @@ namespace stm
       // track the timestamp
       tx->start_time = AOU_load(tx->aou_context, (uint64_t*)&timestamp.val);
 #endif
+      // prepare CM
+      BackoffCM::onBegin(tx);
   }
 
   /**
@@ -158,6 +160,9 @@ namespace stm
 #else
       tx->end_time = 0x7FFFFFFFFFFFFFFFLL;
 #endif
+
+      // clear cm
+      BackoffCM::onCommit(tx);
 
       // standard RO commit stuff...
       tx->r_orecs.reset();
@@ -244,6 +249,9 @@ namespace stm
       foreach (OrecList, i, tx->locks)
           (*i)->v.all = end_time;
       CFENCE;
+
+      // clear CM
+      BackoffCM::onCommit(tx);
 
       // clean-up
       tx->r_orecs.reset();
@@ -470,6 +478,10 @@ namespace stm
       tx->r_orecs.reset();
       tx->writes.reset();
       tx->locks.reset();
+
+      // notify CM
+      BackoffCM::onAbort(tx);
+
       PostRollback(tx);
       ResetToRO(tx, OrecELA_AOUQReadRO, OrecELA_AOUQWriteRO, OrecELA_AOUQCommitRO);
   }

@@ -144,6 +144,8 @@ namespace stm
       // track the timestamp... note that we ignore the return value
       AOU_load(tx->aou_context, (uint64_t*)&timestamp.val);
 #endif
+      // prepare CM
+      BackoffCM::onBegin(tx);
   }
 
   /**
@@ -159,6 +161,9 @@ namespace stm
       // stop AOU tracking...
       AOU_stop(tx->aou_context);
       AOU_reset(tx->aou_context);
+
+      // clear cm
+      BackoffCM::onCommit(tx);
 
       // standard RO commit stuff...
       tx->r_orecs.reset();
@@ -222,6 +227,7 @@ namespace stm
       // run the redo log
       tx->writes.writeback();
       CFENCE;
+
       // release locks
       foreach (OrecList, i, tx->locks)
           (*i)->v.all = tx->end_time;
@@ -233,6 +239,9 @@ namespace stm
       while (last_complete.val != (tx->end_time - 1))
           spin64();
       last_complete.val = tx->end_time;
+
+      // clear CM
+      BackoffCM::onCommit(tx);
 
       // clean-up
       tx->r_orecs.reset();
@@ -453,6 +462,10 @@ namespace stm
               spin64();
           last_complete.val = tx->end_time;
       }
+
+      // notify CM
+      BackoffCM::onAbort(tx);
+
       PostRollback(tx);
       ResetToRO(tx, OrecELA_AOUReadRO, OrecELA_AOUWriteRO, OrecELA_AOUCommitRO);
   }
