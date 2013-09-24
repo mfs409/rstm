@@ -39,7 +39,7 @@ namespace stm
       tx->allocator.onTxBegin();
       // Start after the last cleanup, instead of after the last commit, to
       // avoid spinning in Begin(TX_LONE_PARAMETER)
-      tx->start_time = last_complete.val;
+      tx->start_time = timestamp.val;
   }
 
   /**
