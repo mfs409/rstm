@@ -63,11 +63,11 @@ memcpy(void* to, const void* from, size_t len, R reader, W writer) {
 
     // force the writer to write out the rest of the buffer (it could have
     // refused if there was an alignment issue in the loop)
-    if (len) {
+    if (size) {
         assert(offset_of(to) == 0 && "unexpected unaligned \"to\" cursor");
-        assert(len < sizeof(void*) && "unexpected length remaining");
-        len -= writer(to, buffer, size);
-        assert(len == 0 && "draining write not performed");
+        assert(size < sizeof(void*) && "unexpected length remaining");
+        size -= writer(to, buffer, size);
+        assert(size == 0 && "draining write not performed");
     }
 }
 
