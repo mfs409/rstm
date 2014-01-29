@@ -21,6 +21,7 @@
 #else
 #include "../Diagnostics.hpp"
 #endif
+#include "../cm.hpp"
 
 namespace stm
 {
@@ -40,7 +41,9 @@ namespace stm
 
   void OrecELA_AOUQ_alloc_callback()
   {
+#ifdef STM_HAS_AOU
       Self->aou_context->notify((void*)0xdead, Self->aou_context);
+#endif
   }
   // [mfs] If I understand the AOU spec implementation correctly, this is
   //       what we use as the handler on an AOU alert

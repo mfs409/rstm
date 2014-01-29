@@ -18,7 +18,7 @@ sub compiler {
         $PLATFORM .= "gcctm_"; # include gcctm in the platform description
         push(@LINES, "CC = gcc"); # use gcc for c and asm code
         push(@LINES, "CXX = g++"); # use g++ for c++ code
-        push(@LINES, "CXXFLAGS += -Wall -Wextra -Werror"); # why not?
+        push(@LINES, "CXXFLAGS += -Wall -Wextra #-Werror"); # why not?
         push(@LINES, "CXXFLAGS += -ggdb"); # turn on debug symbols
         push(@LINES, "LDFLAGS  += -lrt -lpthread"); # ensure we'll link correctly
         push(@LINES, "CXXFLAGS += -fgnu-tm"); # turn on gcctm suuport
@@ -33,7 +33,7 @@ sub compiler {
         $PLATFORM .= "gcc_"; # include gcc in the platform description
         push(@LINES, "CC = gcc"); # use gcc for c and asm code
         push(@LINES, "CXX = g++"); # use g++ for c++ code
-        push(@LINES, "CXXFLAGS += -Wall -Wextra -Werror"); # why not?
+        push(@LINES, "CXXFLAGS += -Wall -Wextra #-Werror"); # why not?
         push(@LINES, "CXXFLAGS += -ggdb"); # turn on debug symbols
         push(@LINES, "LDFLAGS  += -lrt -lpthread"); # ensure we'll link correctly
         push(@LINES, "CXXFLAGS += -DSTM_CC_GCC"); # indicate compiler

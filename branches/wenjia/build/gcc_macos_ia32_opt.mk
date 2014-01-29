@@ -21,7 +21,7 @@
 #
 PLATFORM  = gcc_macos_ia32_opt
 CXX       = g++
-#CXXFLAGS += -Wall -Wextra -Werror
+#CXXFLAGS += -Wall -Wextra #-Werror
 CXXFLAGS += -O3 -ggdb -m32 -msse2 -mfpmath=sse
 LDFLAGS  += -lpthread -m32
 CFLAGS   += -m32

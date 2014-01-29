@@ -217,9 +217,10 @@ namespace stm
       size_t size() const { return lsize; }
 
       /*** will_reorg() lets us know if an insertion will cause a reorg of the data structure */
-      bool will_reorg() const { 
-        size_t nsize = lsize + 1;
-        return ((nsize == capacity) || ((nsize * 3) >= ilength));
+      bool will_reorg() const
+      {
+          size_t nsize = lsize + 1;
+          return ((nsize == capacity) || ((nsize * 3) >= ilength));
       }
 
       /**

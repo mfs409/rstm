@@ -21,7 +21,7 @@
 #
 PLATFORM  = gcc_solaris_sparc32_opt_mfs
 CXX       = g++
-CXXFLAGS += -Wall -Wextra -Werror
+CXXFLAGS += -Wall -Wextra #-Werror
 CXXFLAGS += -O3 -ggdb -m32 -mtune=native -mcpu=native
 LDFLAGS  += -lrt -lpthread -m32 -lmtmalloc
 CFLAGS   += -m32

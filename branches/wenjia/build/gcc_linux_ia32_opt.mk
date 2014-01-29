@@ -21,9 +21,9 @@
 #
 PLATFORM  = gcc_linux_ia32_opt
 CXX       = g++
-CXXFLAGS += -Wall -Wextra -Werror
+CXXFLAGS += -Wall -Wextra #-Werror
 CXXFLAGS += -O3 -ggdb -m32 -march=native -mtune=native -msse2 -mfpmath=sse
-LDFLAGS  += -lrt -lpthread -m32
+LDFLAGS  += -lrt -lpthread -m32 -L/usr/lib/gcc/x86_64-redhat-linux/4.4.7/32/
 CFLAGS   += -m32
 ASFLAGS  += -m32
 CC        = gcc
