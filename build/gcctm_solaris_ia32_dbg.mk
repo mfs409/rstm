@@ -24,7 +24,7 @@
 #
 PLATFORM  = gcctm_solaris_ia32_dbg
 CXX       = g++
-CXXFLAGS += -Wall -Wextra -Werror
+CXXFLAGS += -Wall -Wextra #-Werror
 CXXFLAGS += -O0 -ggdb -m32 -march=native -mtune=native -msse2 -mfpmath=sse \
             -fgnu-tm
 LDFLAGS  += -lrt -lpthread -m32 -lmtmalloc -fgnu-tm

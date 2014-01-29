@@ -21,7 +21,7 @@
 #
 PLATFORM  = gcc_solaris_sparc64_opt
 CXX       = g++
-CXXFLAGS += -Wall -Wextra -Werror
+CXXFLAGS += -Wall -Wextra #-Werror
 CXXFLAGS += -O3 -ggdb -m64 -native
 LDFLAGS  += -lrt -lpthread -m64 -lmtmalloc
 CFLAGS   += -m64
